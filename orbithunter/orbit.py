@@ -16,10 +16,10 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 import h5py
 warnings.resetwarnings()
 
-__all__ = ['Orbit', 'RelativeOrbit', 'ShiftReflectionOrbit', 'AntisymmetricOrbit', 'EquilibriumOrbit']
+__all__ = ['OrbitKS', 'RelativeOrbitKS', 'ShiftReflectionOrbitKS', 'AntisymmetricOrbitKS', 'EquilibriumOrbitKS']
 
 
-class Orbit:
+class OrbitKS:
     """ Object that represents invariant 2-torus solution of the Kuramoto-Sivashinsky equation.
 
     Parameters
@@ -60,7 +60,7 @@ class Orbit:
     The 'state' is ordered such that when in the physical basis, the last row corresponds to 't=0'. This
     results in an extra negative sign when computing time derivatives. This convention was chosen
     because it is conventional to display positive time as 'up'. This convention prevents errors
-    due to flipping fields up and down. The spatial shift parameter only applies to RelativeOrbit.
+    due to flipping fields up and down. The spatial shift parameter only applies to RelativeOrbitKS.
     Its inclusion in the base class is again a convention
     for exporting and importing data. If no state is None then a randomly generated state will be
     provided. It's dimensions will provide on the spatial and temporal periods unless provided
@@ -217,8 +217,8 @@ class Orbit:
         elif equilibrium_check < self.N*self.M*10**-10:
             # If there is sufficient evidence that solution is an equilibrium, change its class
             return self.__class__(state=equilibrium_modes, T=self.T, L=self.L, S=self.S), 3
-        elif (self.__class__.__name__ == 'RelativeOrbit') and np.abs(self.S) < 10**-4:
-            return Orbit(state=self.state, statetype=self.statetype, T=self.T, L=self.L, S=self.S)
+        elif (self.__class__.__name__ == 'RelativeOrbitKS') and np.abs(self.S) < 10**-4:
+            return OrbitKS(state=self.state, statetype=self.statetype, T=self.T, L=self.L, S=self.S)
         else:
             return self, 1
 
@@ -252,23 +252,23 @@ class Orbit:
         """
         if to == 'field':
             if self.statetype == 's_modes':
-                converted_orbit = self.space_ifft()
+                converted_orbit = self.space_inv_transform()
             elif self.statetype == 'modes':
-                converted_orbit = self.spacetime_ifft()
+                converted_orbit = self.spacetime_inv_transform()
             else:
                 converted_orbit = self
         elif to == 's_modes':
             if self.statetype == 'field':
-                converted_orbit = self.space_fft()
+                converted_orbit = self.space_transform()
             elif self.statetype == 'modes':
-                converted_orbit = self.time_ifft()
+                converted_orbit = self.time_inv_transform()
             else:
                 converted_orbit = self
         elif to == 'modes':
             if self.statetype == 's_modes':
-                converted_orbit = self.time_fft()
+                converted_orbit = self.time_transform()
             elif self.statetype == 'field':
-                converted_orbit= self.spacetime_fft()
+                converted_orbit= self.spacetime_transform()
             else:
                 converted_orbit = self
         else:
@@ -304,7 +304,7 @@ class Orbit:
 
         Returns
         ----------
-        orbit_dtn : Orbit or subclass instance
+        orbit_dtn : OrbitKS or subclass instance
             The class instance whose state is the time derivative in
             the spatiotemporal mode basis.
         """
@@ -362,7 +362,7 @@ class Orbit:
 
         Returns
         ----------
-        orbit_dxn : Orbit or subclass instance
+        orbit_dxn : OrbitKS or subclass instance
             The class instance whose state is the time derivative in
             the spatiotemporal mode basis.
         """
@@ -481,14 +481,14 @@ class Orbit:
 
         Parameters
         ----------
-        other : Orbit
+        other : OrbitKS
             Represents the values to increment by.
         stepsize : float
             Multiplicative factor which decides the step length of the correction.
 
         Returns
         -------
-        Orbit
+        OrbitKS
             New instance which results from adding an optimization correction to self.
         """
         return self.__class__(state=self.state+stepsize*other.state,
@@ -556,10 +556,10 @@ class Orbit:
             integro-differential equations. J. Comp. Phys. 2009
             for details.
         """
-        nonlinear = np.dot(np.diag(self.spacetime_ifft().state.ravel()), self.spacetime_ifft_matrix())
-        nonlinear_dx = np.dot(self.time_fft_matrix(),
+        nonlinear = np.dot(np.diag(self.spacetime_inv_transform().state.ravel()), self.spacetime_inv_transform_matrix())
+        nonlinear_dx = np.dot(self.time_transform_matrix(),
                               np.dot(self.dx_matrix(statetype='s_modes'),
-                                     np.dot(self.space_fft_matrix(), nonlinear)))
+                                     np.dot(self.space_transform_matrix(), nonlinear)))
         return nonlinear_dx
 
     def l2_distance(self, other):
@@ -571,8 +571,8 @@ class Orbit:
 
         Parameters
         ----------
-        other : Orbit
-            Orbit instance whose state represents the vector in the matrix-vector multiplication.
+        other : OrbitKS
+            OrbitKS instance whose state represents the vector in the matrix-vector multiplication.
         fixedparams : tuple of bool
             Determines whether to include period and spatial period
             as variables.
@@ -581,8 +581,8 @@ class Orbit:
 
         Returns
         -------
-        Orbit :
-            Orbit whose state and other parameters result from the matrix-vector product.
+        OrbitKS :
+            OrbitKS whose state and other parameters result from the matrix-vector product.
 
         Notes
         -----
@@ -642,8 +642,8 @@ class Orbit:
 
         Returns
         -------
-        Orbit :
-            Orbit instance with larger discretization.
+        OrbitKS :
+            OrbitKS instance with larger discretization.
         """
 
         if dimension == 'time':
@@ -675,8 +675,8 @@ class Orbit:
 
         Returns
         -------
-        Orbit
-            Orbit instance with larger discretization.
+        OrbitKS
+            OrbitKS instance with larger discretization.
         """
         if dimension == 'time':
             truncate_number = int(size // 2) - 1
@@ -846,15 +846,15 @@ class Orbit:
         Parameters
         ----------
 
-        target : Orbit
-            Orbit to precondition
+        target : OrbitKS
+            OrbitKS to precondition
         fixedparams : (bool, bool)
             Whether or not period T or spatial period L are fixed.
 
         Returns
         -------
-        target : Orbit
-            Return the Orbit instance, modified by preconditioning.
+        target : OrbitKS
+            Return the OrbitKS instance, modified by preconditioning.
         """
         qk_matrix = self.elementwise_dx()
         p_matrix = np.abs(self.elementwise_dt()) + qk_matrix**2 + qk_matrix**4
@@ -908,7 +908,7 @@ class Orbit:
         Parameters
         ----------
 
-        other : Orbit
+        other : OrbitKS
             The second component of the pseudospectral product see Notes for details
         qk_matrix : matrix
             The matrix with the correctly ordered spatial frequencies.
@@ -933,7 +933,7 @@ class Orbit:
         Parameters
         ----------
 
-        other : Orbit
+        other : OrbitKS
             The second component of the pseudospectral product see Notes for details
         qk_matrix : matrix
             The matrix with the correctly ordered spatial frequencies.
@@ -967,7 +967,7 @@ class Orbit:
         Returns
         -------
         self :
-            Orbit whose state has been modified to be a set of random Fourier modes.
+            OrbitKS whose state has been modified to be a set of random Fourier modes.
 
         Notes
         -----
@@ -1028,8 +1028,8 @@ class Orbit:
 
         Returns
         -------
-        Orbit :
-            Orbit whose state is the reflected velocity field -u(-x,t).
+        OrbitKS :
+            OrbitKS whose state is the reflected velocity field -u(-x,t).
         """
         # Different points in space represented by columns of the state array
         reflected_field = -1.0*np.roll(np.fliplr(self.convert(to='field').state), 1, axis=1)
@@ -1051,8 +1051,8 @@ class Orbit:
 
         Parameters
         ----------
-        other : Orbit
-            Orbit whose state represents the vector in the matrix-vector product.
+        other : OrbitKS
+            OrbitKS whose state represents the vector in the matrix-vector product.
         fixedparams : (bool, bool)
             Whether or not period T or spatial period L are fixed.
         preconditioning : bool
@@ -1061,7 +1061,7 @@ class Orbit:
         Returns
         -------
         orbit_rmatvec :
-            Orbit with values representative of the adjoint-vector product A^H * x.
+            OrbitKS with values representative of the adjoint-vector product A^H * x.
 
         """
 
@@ -1122,8 +1122,8 @@ class Orbit:
 
         Returns
         -------
-        Orbit :
-            Orbit whose field has been rotated.
+        OrbitKS :
+            OrbitKS whose field has been rotated.
 
         Notes
         -----
@@ -1148,7 +1148,7 @@ class Orbit:
         if direction == 'space':
             self.convert(to='s_modes', inplace=True)
             # Rotation breaks discrete symmetry and destroys the solution.
-            if self.__class__.__name__ in ['ShiftReflectionOrbit', 'AntisymmetricOrbit']:
+            if self.__class__.__name__ in ['ShiftReflectionOrbitKS', 'AntisymmetricOrbitKS']:
                 warnings.warn('Performing a spatial rotation on a orbit with discrete symmetry is greatly discouraged.')
 
             # Refer to rotation matrix in 2-D for reference.
@@ -1197,12 +1197,12 @@ class Orbit:
                                       T=self.T, L=self.L, S=self.S).convert(to=original_statetype)
 
     def shift_reflection(self):
-        """ Return a Orbit with shift-reflected velocity field
+        """ Return a OrbitKS with shift-reflected velocity field
 
         Returns
         -------
-        Orbit :
-            Orbit with shift-reflected velocity field
+        OrbitKS :
+            OrbitKS with shift-reflected velocity field
 
         Notes
         -----
@@ -1212,7 +1212,7 @@ class Orbit:
         shift_reflected_field = np.roll(-1.0*np.roll(np.fliplr(self.state), 1, axis=1), self.n, axis=0)
         return self.__class__(state=shift_reflected_field, statetype='field', T=self.T, L=self.L, S=self.S)
 
-    def space_fft(self, inplace=False):
+    def space_transform(self, inplace=False):
         """ Spatial Fourier transform
 
         Parameters
@@ -1222,8 +1222,8 @@ class Orbit:
 
         Returns
         -------
-        Orbit :
-            Orbit whose state is in the spatial Fourier mode basis.
+        OrbitKS :
+            OrbitKS whose state is in the spatial Fourier mode basis.
 
         """
         # Take rfft, accounting for unitary normalization.
@@ -1236,7 +1236,7 @@ class Orbit:
         else:
             return self.__class__(state=spatial_modes, statetype='s_modes', T=self.T, L=self.L, S=self.S)
 
-    def space_ifft(self, inplace=False):
+    def space_inv_transform(self, inplace=False):
         """ Spatial Fourier transform
 
         Parameters
@@ -1246,8 +1246,8 @@ class Orbit:
 
         Returns
         -------
-        Orbit :
-            Orbit whose state is in the spatial Fourier mode basis.
+        OrbitKS :
+            OrbitKS whose state is in the spatial Fourier mode basis.
 
         """
         # Make the modes complex valued again.
@@ -1262,7 +1262,7 @@ class Orbit:
         else:
             return self.__class__(state=field, statetype='field', T=self.T, L=self.L, S=self.S)
 
-    def space_ifft_matrix(self):
+    def space_inv_transform_matrix(self):
         """ Inverse spatial Fourier transform operator
 
         Returns
@@ -1280,7 +1280,7 @@ class Orbit:
         space_idft_mat = np.concatenate((idft_mat_real, idft_mat_imag), axis=1)
         return np.kron(np.eye(self.N), space_idft_mat)
 
-    def space_fft_matrix(self):
+    def space_transform_matrix(self):
         """ Spatial Fourier transform operator
 
         Returns
@@ -1297,7 +1297,7 @@ class Orbit:
         space_dft_mat = np.concatenate((dft_mat.real, dft_mat.imag), axis=0)
         return np.kron(np.eye(self.N), space_dft_mat)
 
-    def spacetime_ifft(self, inplace=False):
+    def spacetime_inv_transform(self, inplace=False):
         """ Inverse space-time Fourier transform
 
         Parameters
@@ -1307,17 +1307,17 @@ class Orbit:
 
         Returns
         -------
-        Orbit :
-            Orbit instance in the physical field basis.
+        OrbitKS :
+            OrbitKS instance in the physical field basis.
         """
         if inplace:
-            self.time_ifft(inplace=True).space_ifft(inplace=True)
+            self.time_inv_transform(inplace=True).space_inv_transform(inplace=True)
             self.statetype = 'field'
             return self
         else:
-            return self.time_ifft().space_ifft()
+            return self.time_inv_transform().space_inv_transform()
 
-    def spacetime_fft(self, inplace=False):
+    def spacetime_transform(self, inplace=False):
         """ Space-time Fourier transform
 
         Parameters
@@ -1327,18 +1327,18 @@ class Orbit:
 
         Returns
         -------
-        Orbit :
-            Orbit instance in the spatiotemporal mode basis.
+        OrbitKS :
+            OrbitKS instance in the spatiotemporal mode basis.
         """
         if inplace:
-            self.space_fft(inplace=True).time_fft(inplace=True)
+            self.space_transform(inplace=True).time_transform(inplace=True)
             self.statetype = 'modes'
             return self
         else:
             # Return transform of field
-            return self.space_fft().time_fft()
+            return self.space_transform().time_transform()
 
-    def spacetime_ifft_matrix(self):
+    def spacetime_inv_transform_matrix(self):
         """ Inverse Space-time Fourier transform operator
 
         Returns
@@ -1350,9 +1350,9 @@ class Orbit:
         -----
         Only used for the construction of the Jacobian matrix. Do not use this for the Fourier transform.
         """
-        return np.dot(self.space_ifft_matrix(), self.time_ifft_matrix())
+        return np.dot(self.space_inv_transform_matrix(), self.time_inv_transform_matrix())
 
-    def spacetime_fft_matrix(self):
+    def spacetime_transform_matrix(self):
         """ Space-time Fourier transform operator
 
         Returns
@@ -1364,15 +1364,15 @@ class Orbit:
         -----
         Only used for the construction of the Jacobian matrix. Do not use this for the Fourier transform.
         """
-        return np.dot(self.time_fft_matrix(), self.space_fft_matrix())
+        return np.dot(self.time_transform_matrix(), self.space_transform_matrix())
 
     def spatiotemporal_mapping(self):
         """ The Kuramoto-Sivashinsky equation evaluated at the current state.
 
         Returns
         -------
-        Orbit :
-            Orbit whose state is representative of the equation u_t + u_xx + u_xxxx + 1/2 (u^2)_x
+        OrbitKS :
+            OrbitKS whose state is representative of the equation u_t + u_xx + u_xxxx + 1/2 (u^2)_x
         :return:
         """
         # For specific computation of the linear component instead
@@ -1397,8 +1397,8 @@ class Orbit:
 
         Returns
         -------
-        Orbit :
-            The Orbit representing the product.
+        OrbitKS :
+            The OrbitKS representing the product.
 
         Notes
         -----
@@ -1408,7 +1408,7 @@ class Orbit:
         return self.__class__(state=np.multiply(self.state, other.state),
                               statetype=self.statetype, T=self.T, L=self.L, S=self.S)
 
-    def time_fft(self, inplace=False):
+    def time_transform(self, inplace=False):
         """ Spatial Fourier transform
 
         Parameters
@@ -1418,8 +1418,8 @@ class Orbit:
 
         Returns
         -------
-        Orbit :
-            Orbit whose state is in the spatial Fourier mode basis.
+        OrbitKS :
+            OrbitKS whose state is in the spatial Fourier mode basis.
 
         """
         # Take rfft, accounting for unitary normalization.
@@ -1435,7 +1435,7 @@ class Orbit:
         else:
             return self.__class__(state=spacetime_modes, statetype='modes', T=self.T, L=self.L, S=self.S)
 
-    def time_ifft(self, inplace=False):
+    def time_inv_transform(self, inplace=False):
         """ Spatial Fourier transform
 
         Parameters
@@ -1445,8 +1445,8 @@ class Orbit:
 
         Returns
         -------
-        Orbit :
-            Orbit whose state is in the spatial Fourier mode basis.
+        OrbitKS :
+            OrbitKS whose state is in the spatial Fourier mode basis.
 
         """
         # Take rfft, accounting for unitary normalization.
@@ -1464,7 +1464,7 @@ class Orbit:
         else:
             return self.__class__(state=space_modes, statetype='s_modes', T=self.T, L=self.L, S=self.S)
 
-    def time_fft_matrix(self):
+    def time_transform_matrix(self):
         """ Inverse Time Fourier transform operator
 
         Returns
@@ -1481,7 +1481,7 @@ class Orbit:
                                         dft_mat[1:-1, :].imag), axis=0)
         return np.kron(time_idft_mat, np.eye(self.M-2))
 
-    def time_ifft_matrix(self):
+    def time_inv_transform_matrix(self):
         """ Time Fourier transform operator
 
         Returns
@@ -1555,7 +1555,7 @@ class Orbit:
         return ((2 * pi * self.M / self.L) * np.fft.fftfreq(self.M)[1:self.m+1]).reshape(1, -1)
 
 
-class RelativeOrbit(Orbit):
+class RelativeOrbitKS(OrbitKS):
 
     def __init__(self, state=None, statetype='modes', T=0., L=0., S=0., **kwargs):
         super().__init__(state=state, statetype=statetype, T=T, L=L, S=S, **kwargs)
@@ -1591,8 +1591,8 @@ class RelativeOrbit(Orbit):
 
         Returns
         -------
-        RelativeOrbit :
-            RelativeOrbit in transformed reference frame.
+        RelativeOrbitKS :
+            RelativeOrbitKS in transformed reference frame.
         """
         if self.frame == 'comoving':
             shift = self.S
@@ -1664,7 +1664,7 @@ class RelativeOrbit(Orbit):
         return jac_
 
     def jac_lin(self):
-        """ Extension of the Orbit method that includes the term for spatial translation symmetry"""
+        """ Extension of the OrbitKS method that includes the term for spatial translation symmetry"""
         return super().jac_lin() + self.comoving_matrix()
 
     def matvec(self, other, fixedparams=(False, False, False), preconditioning=True, **kwargs):
@@ -1672,8 +1672,8 @@ class RelativeOrbit(Orbit):
 
         Parameters
         ----------
-        other : RelativeOrbit
-            RelativeOrbit instance whose state represents the vector in the matrix-vector multiplication.
+        other : RelativeOrbitKS
+            RelativeOrbitKS instance whose state represents the vector in the matrix-vector multiplication.
         fixedparams : tuple of bool
             Determines whether to include period and spatial period
             as variables.
@@ -1682,8 +1682,8 @@ class RelativeOrbit(Orbit):
 
         Returns
         -------
-        RelativeOrbit
-            RelativeOrbit whose state and other parameters result from the matrix-vector product.
+        RelativeOrbitKS
+            RelativeOrbitKS whose state and other parameters result from the matrix-vector product.
 
         Notes
         -----
@@ -1735,7 +1735,7 @@ class RelativeOrbit(Orbit):
         return orbit_matvec
 
     def rmatvec(self, other, fixedparams=(False, False, False), preconditioning=True, **kwargs):
-        """ Extension of the parent method to RelativeOrbit """
+        """ Extension of the parent method to RelativeOrbitKS """
         # For specific computation of the linear component instead
         # of arbitrary derivatives we can optimize the calculation by being specific.
         wj_matrix = self.elementwise_dt()
@@ -1797,7 +1797,7 @@ class RelativeOrbit(Orbit):
         return self
 
     def spatiotemporal_mapping(self):
-        """ Extension of Orbit method to include co-moving frame term. """
+        """ Extension of OrbitKS method to include co-moving frame term. """
         return super().spatiotemporal_mapping() + self.comoving_mapping_component()
 
     def state_vector(self):
@@ -1812,7 +1812,7 @@ class RelativeOrbit(Orbit):
 
 
 
-class ShiftReflectionOrbit(Orbit):
+class ShiftReflectionOrbitKS(OrbitKS):
 
     def __init__(self, state=None, statetype='modes', T=0., L=0., **kwargs):
         try:
@@ -1923,7 +1923,7 @@ class ShiftReflectionOrbit(Orbit):
         Returns
         -------
         self :
-            Orbit whose state has been modified to be a set of random Fourier modes.
+            OrbitKS whose state has been modified to be a set of random Fourier modes.
 
         Notes
         -----
@@ -1973,7 +1973,7 @@ class ShiftReflectionOrbit(Orbit):
         self.convert(to='modes', inplace=True)
         return self
 
-    def time_fft(self, inplace=False):
+    def time_transform(self, inplace=False):
         """ Spatial Fourier transform
 
         Parameters
@@ -1983,8 +1983,8 @@ class ShiftReflectionOrbit(Orbit):
 
         Returns
         -------
-        Orbit :
-            Orbit whose state is in the spatial Fourier mode basis.
+        OrbitKS :
+            OrbitKS whose state is in the spatial Fourier mode basis.
 
         """
         # Take rfft, accounting for unitary normalization.
@@ -2000,7 +2000,7 @@ class ShiftReflectionOrbit(Orbit):
         else:
             return self.__class__(state=spacetime_modes, statetype='modes', T=self.T, L=self.L, S=self.S)
 
-    def time_ifft(self, inplace=False):
+    def time_inv_transform(self, inplace=False):
         """ Spatial Fourier transform
 
         Parameters
@@ -2010,8 +2010,8 @@ class ShiftReflectionOrbit(Orbit):
 
         Returns
         -------
-        Orbit :
-            Orbit whose state is in the spatial Fourier mode basis.
+        OrbitKS :
+            OrbitKS whose state is in the spatial Fourier mode basis.
 
         """
         # Take rfft, accounting for unitary normalization.
@@ -2034,7 +2034,7 @@ class ShiftReflectionOrbit(Orbit):
         else:
             return self.__class__(state=space_modes, statetype='s_modes', T=self.T, L=self.L, S=self.S)
 
-    def time_fft_matrix(self):
+    def time_transform_matrix(self):
         """
 
         Notes
@@ -2065,10 +2065,10 @@ class ShiftReflectionOrbit(Orbit):
         full_dft_mat = rfft(np.eye(self.N), norm='ortho', axis=0)
         time_dft_mat = np.concatenate((full_dft_mat[:-1, :].real, full_dft_mat[1:-1, :].imag), axis=0)
         ab_time_dft_matrix = np.insert(time_dft_mat, np.arange(time_dft_mat.shape[1]), time_dft_mat, axis=1)
-        full_time_fft_matrix = np.kron(ab_time_dft_matrix*ab_transform_formatter, np.eye(self.m))
-        return full_time_fft_matrix
+        full_time_transform_matrix = np.kron(ab_time_dft_matrix*ab_transform_formatter, np.eye(self.m))
+        return full_time_transform_matrix
 
-    def time_ifft_matrix(self):
+    def time_inv_transform_matrix(self):
         """ Overwrite of parent method """
 
         ab_transform_formatter = np.zeros((2*self.N, self.N-1), dtype=int)
@@ -2083,9 +2083,9 @@ class ShiftReflectionOrbit(Orbit):
         ab_time_idft_matrix = np.insert(time_idft_matrix, np.arange(time_idft_matrix.shape[0]),
                                         time_idft_matrix, axis=0)
 
-        full_time_ifft_matrix = np.kron(ab_time_idft_matrix*ab_transform_formatter,
+        full_time_inv_transform_matrix = np.kron(ab_time_idft_matrix*ab_transform_formatter,
                                         np.eye(self.mode_shape[1]))
-        return full_time_ifft_matrix
+        return full_time_inv_transform_matrix
 
     def to_fundamental_domain(self, half='bottom'):
         """ Overwrite of parent method """
@@ -2097,7 +2097,7 @@ class ShiftReflectionOrbit(Orbit):
         return self.__class__(state=domain, statetype='field', T=self.T / 2.0, L=self.L)
 
 
-class AntisymmetricOrbit(Orbit):
+class AntisymmetricOrbitKS(OrbitKS):
 
     def __init__(self, state=None, statetype='modes', T=0., L=0., **kwargs):
 
@@ -2214,7 +2214,7 @@ class AntisymmetricOrbit(Orbit):
         Returns
         -------
         self :
-            Orbit whose state has been modified to be a set of random Fourier modes.
+            OrbitKS whose state has been modified to be a set of random Fourier modes.
 
         Notes
         -----
@@ -2264,7 +2264,7 @@ class AntisymmetricOrbit(Orbit):
         self.convert(to='modes', inplace=True)
         return self
 
-    def time_fft_matrix(self):
+    def time_transform_matrix(self):
         """ Inverse Time Fourier transform operator
 
         Returns
@@ -2285,7 +2285,7 @@ class AntisymmetricOrbit(Orbit):
                                     axis=1)
         return np.kron(ab_time_dft_mat, np.eye(self.m))
 
-    def time_ifft_matrix(self):
+    def time_inv_transform_matrix(self):
         """ Time Fourier transform operator
 
         Returns
@@ -2307,7 +2307,7 @@ class AntisymmetricOrbit(Orbit):
                                      axis=0)
         return np.kron(ab_time_idft_mat, np.eye(self.m))
 
-    def time_fft(self, inplace=False):
+    def time_transform(self, inplace=False):
         """ Spatial Fourier transform
 
         Parameters
@@ -2317,8 +2317,8 @@ class AntisymmetricOrbit(Orbit):
 
         Returns
         -------
-        Orbit :
-            Orbit whose state is in the spatial Fourier mode basis.
+        OrbitKS :
+            OrbitKS whose state is in the spatial Fourier mode basis.
 
         """
         # Take rfft, accounting for unitary normalization.
@@ -2334,7 +2334,7 @@ class AntisymmetricOrbit(Orbit):
         else:
             return self.__class__(state=spacetime_modes, statetype='modes', T=self.T, L=self.L, S=self.S)
 
-    def time_ifft(self, inplace=False):
+    def time_inv_transform(self, inplace=False):
         """ Spatial Fourier transform
 
         Parameters
@@ -2344,8 +2344,8 @@ class AntisymmetricOrbit(Orbit):
 
         Returns
         -------
-        Orbit :
-            Orbit whose state is in the spatial Fourier mode basis.
+        OrbitKS :
+            OrbitKS whose state is in the spatial Fourier mode basis.
 
         """
         # Take rfft, accounting for unitary normalization.
@@ -2376,7 +2376,7 @@ class AntisymmetricOrbit(Orbit):
         return fundamental_domain
 
 
-class EquilibriumOrbit(AntisymmetricOrbit):
+class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
     def __init__(self, state=None, statetype='modes', T=0., L=0., S=0., **kwargs):
         try:
@@ -2457,24 +2457,24 @@ class EquilibriumOrbit(AntisymmetricOrbit):
         """ Overwrite of parent method """
         if dimension == 'time':
             padded_modes = np.tile(self.state[-1, :].reshape(1, -1), (size, 1))
-            eqv = EquilibriumOrbit(state=padded_modes, L=self.L)
+            eqv = EquilibriumOrbitKS(state=padded_modes, L=self.L)
         else:
             padding_number = int((size-self.M) // 2)
             padding = np.zeros([self.state.shape[0], padding_number])
             eqv_modes = self.convert(to='modes').state
             padded_modes = np.concatenate((eqv_modes, padding), axis=1)
-            eqv = EquilibriumOrbit(state=padded_modes, L=self.L)
+            eqv = EquilibriumOrbitKS(state=padded_modes, L=self.L)
         return eqv
 
     def mode_truncation(self, size, inplace=False, dimension='space'):
         """ Overwrite of parent method """
         if dimension == 'time':
             truncated_modes = self.state[-size:, :]
-            return EquilibriumOrbit(state=truncated_modes, L=self.L)
+            return EquilibriumOrbitKS(state=truncated_modes, L=self.L)
         else:
             truncate_number = int(size // 2) - 1
             truncated_modes = self.state[:, :truncate_number]
-            return EquilibriumOrbit(state=truncated_modes, statetype=self.statetype, L=self.L)
+            return EquilibriumOrbitKS(state=truncated_modes, statetype=self.statetype, L=self.L)
 
     def precondition(self, current, fixedparams=True, **kwargs):
         """ Overwrite of parent method """
@@ -2504,7 +2504,7 @@ class EquilibriumOrbit(AntisymmetricOrbit):
         Returns
         -------
         self :
-            Orbit whose state has been modified to be a set of random Fourier modes.
+            OrbitKS whose state has been modified to be a set of random Fourier modes.
 
         Notes
         -----
@@ -2596,27 +2596,27 @@ class EquilibriumOrbit(AntisymmetricOrbit):
         orbit_mapping = self.__class__(state=(linear + nonlinear), L=self.L)
         return orbit_mapping
 
-    def time_ifft_matrix(self):
+    def time_inv_transform_matrix(self):
         """ Overwrite of parent method """
         return np.concatenate((0*np.eye(self.m), np.eye(self.m)), axis=0)
 
-    def time_fft_matrix(self):
+    def time_transform_matrix(self):
         """ Overwrite of parent method """
         return np.concatenate((0*np.eye(self.m), np.eye(self.m)), axis=1)
 
-    def space_ifft_matrix(self):
+    def space_inv_transform_matrix(self):
         """ Overwrite of parent method """
         idft_imag = irfft(1j*np.eye(self.m), axis=0)[:, 1:-1]
         ab_idft = np.concatenate((0*idft_imag, idft_imag), axis=1)
         return ab_idft
 
-    def space_fft_matrix(self):
+    def space_transform_matrix(self):
         """ Overwrite of parent method """
         dft = rfft(np.eye(self.m), axis=0)[1:-1, :]
         ab_dft = np.concatenate((0*dft.real, dft.imag), axis=0)
         return ab_dft
 
-    def time_fft(self, inplace=False):
+    def time_transform(self, inplace=False):
         """ Overwrite of parent method """
         # Select the nonzero (imaginary) components of modes and transform in time (w.r.t. axis=0)
         spacetime_modes = self.state[-1, -self.m:].reshape(1, -1)
@@ -2625,9 +2625,9 @@ class EquilibriumOrbit(AntisymmetricOrbit):
             self.statetype = 'modes'
             return self
         else:
-            return EquilibriumOrbit(state=spacetime_modes, statetype='modes', L=self.L)
+            return EquilibriumOrbitKS(state=spacetime_modes, statetype='modes', L=self.L)
 
-    def time_ifft(self, inplace=False):
+    def time_inv_transform(self, inplace=False):
         """ Overwrite of parent method """
         real = np.zeros(self.state.shape)
         imaginary = self.state
@@ -2637,9 +2637,9 @@ class EquilibriumOrbit(AntisymmetricOrbit):
             self.statetype = 's_modes'
             return self
         else:
-            return EquilibriumOrbit(state=spatial_modes, statetype='s_modes', L=self.L)
+            return EquilibriumOrbitKS(state=spatial_modes, statetype='s_modes', L=self.L)
 
-    def space_fft(self, inplace=False):
+    def space_transform(self, inplace=False):
         """ Spatial Fourier transform
 
         Parameters
@@ -2649,8 +2649,8 @@ class EquilibriumOrbit(AntisymmetricOrbit):
 
         Returns
         -------
-        Orbit :
-            Orbit whose state is in the spatial Fourier mode basis.
+        OrbitKS :
+            OrbitKS whose state is in the spatial Fourier mode basis.
 
         """
         # Take rfft, accounting for unitary normalization.
@@ -2663,7 +2663,7 @@ class EquilibriumOrbit(AntisymmetricOrbit):
         else:
             return self.__class__(state=spatial_modes, statetype='s_modes', L=self.L)
 
-    def space_ifft(self, inplace=False):
+    def space_inv_transform(self, inplace=False):
         """ Spatial Fourier transform
 
         Parameters
@@ -2673,8 +2673,8 @@ class EquilibriumOrbit(AntisymmetricOrbit):
 
         Returns
         -------
-        Orbit :
-            Orbit whose state is in the spatial Fourier mode basis.
+        OrbitKS :
+            OrbitKS whose state is in the spatial Fourier mode basis.
 
         """
         # Make the modes complex valued again.
@@ -2691,8 +2691,8 @@ class EquilibriumOrbit(AntisymmetricOrbit):
     def to_fundamental_domain(self, half='left', **kwargs):
         """ Overwrite of parent method """
         if half == 'left':
-            return EquilibriumOrbit(state=self.convert(to='field').state[:, :-int(self.M//2)],
+            return EquilibriumOrbitKS(state=self.convert(to='field').state[:, :-int(self.M//2)],
                                     statetype='field', L=self.L / 2.0)
         else:
-            return EquilibriumOrbit(state=self.convert(to='field').state[:, -int(self.M//2):],
+            return EquilibriumOrbitKS(state=self.convert(to='field').state[:, -int(self.M//2):],
                                     statetype='field', L=self.L / 2.0)
