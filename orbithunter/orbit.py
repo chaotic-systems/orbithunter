@@ -1935,11 +1935,11 @@ class ShiftReflectionOrbitKS(OrbitKS):
         """
         spectrum_type = kwargs.get('spectrum', 'random')
         if T == 0.:
-            self.T = 20 + 100*np.random.rand(1)
+            self.T = 20 + 100*np.random.rand(1)[0]
         else:
             self.T = T
         if L == 0.:
-            self.L = 22 + 44*np.random.rand(1)
+            self.L = 22 + 44*np.random.rand(1)[0]
         else:
             self.L = L
         self.N = kwargs.get('N', np.max([32, 2**(int(np.log2(self.T)-1))]))

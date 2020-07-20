@@ -1,10 +1,10 @@
+from orbithunter.orbit import OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS, AntisymmetricOrbitKS, EquilibriumOrbitKS
 import warnings
 import os
 import numpy as np
 warnings.simplefilter(action='ignore', category=FutureWarning)
 import h5py
 warnings.resetwarnings()
-from orbithunter.orbit import Orbit, RelativeOrbit, ShiftReflectionOrbit, AntisymmetricOrbit, EquilibriumOrbit
 
 __all__ = ['read_h5', 'parse_class']
 
@@ -34,8 +34,8 @@ def parse_class(filename):
     name_string = os.path.basename(filename).split('_')[0]
 
     old_names = ['none','full', 'rpo', 'ppo', 'eqva', 'anti']
-    new_names = ['Orbit', 'RelativeOrbit', 'ShiftReflectionOrbit',
-                 'AntisymmetricOrbit', 'EquilibriumOrbit']
+    new_names = ['OrbitKS', 'RelativeOrbitKS', 'ShiftReflectionOrbitKS',
+                 'AntisymmetricOrbitKS', 'EquilibriumOrbitKS']
 
     all_names = np.array(old_names + new_names)
     if name_string in all_names:
@@ -49,13 +49,13 @@ def parse_class(filename):
     else:
         data_format = 'old'
 
-    class_dict = {'none': Orbit, 'full': Orbit, 'Orbit': Orbit,
-                  'anti': AntisymmetricOrbit, 'AntisymmetricOrbit': AntisymmetricOrbit,
-                  'ppo': ShiftReflectionOrbit, 'ShiftReflectionOrbit': ShiftReflectionOrbit,
-                  'rpo': RelativeOrbit, 'RelativeOrbit': RelativeOrbit,
-                  'eqva': EquilibriumOrbit, 'EquilibriumOrbit': EquilibriumOrbit}
+    class_dict = {'none': OrbitKS, 'full': OrbitKS, 'OrbitKS': OrbitKS,
+                  'anti': AntisymmetricOrbitKS, 'AntisymmetricOrbitKS': AntisymmetricOrbitKS,
+                  'ppo': ShiftReflectionOrbitKS, 'ShiftReflectionOrbitKS': ShiftReflectionOrbitKS,
+                  'rpo': RelativeOrbitKS, 'RelativeOrbitKS': RelativeOrbitKS,
+                  'eqva': EquilibriumOrbitKS, 'EquilibriumOrbitKS': EquilibriumOrbitKS}
 
-    class_generator = class_dict.get(class_name, RelativeOrbit)
+    class_generator = class_dict.get(class_name, RelativeOrbitKS)
     return class_generator, data_format
 
 def _make_proper_pathname(pathname_tuple,folder=False):
@@ -65,7 +65,7 @@ def _make_proper_pathname(pathname_tuple,folder=False):
         return os.path.abspath(os.path.join(*pathname_tuple))
 
 def verify_integrity(orbit):
-    if orbit.__class__.__name__ == 'RelativeOrbit':
+    if orbit.__class__.__name__ == 'RelativeOrbitKS':
         residual_imported_S = orbit.residual()
         orbit_inverted_shift = orbit.__class__(state=orbit.state, statetype=orbit.statetype,
                                            T=orbit.T, L=orbit.L, S=-1.0*orbit.S)
