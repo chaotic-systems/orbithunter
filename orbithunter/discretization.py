@@ -26,7 +26,7 @@ def correct_aspect_ratios(orbit, other_orbit, direction='space', **kwargs):
         newM = max([mode_orbit.M, mode_other_orbit.M])
         orbit_correct_shape = rediscretize(mode_orbit, newN=2*(int(orbit_period_fraction*totalN + 1) // 2), newM=newM)
         other_orbit_correct_shape = rediscretize(mode_other_orbit, newN=2*(int(other_orbit_period_fraction*totalN + 1) // 2), newM=newM)
-    return orbit_correct_shape.convert(to=orbit.statetype), other_orbit_correct_shape.convert(to=other_orbit.statetype)
+    return orbit_correct_shape.convert(to=orbit.state_type), other_orbit_correct_shape.convert(to=other_orbit.state_type)
 
 def parameter_based_discretization(orbit, **kwargs):
     resolution=kwargs.get('resolution', 'normal')
@@ -47,7 +47,7 @@ def rediscretize(x, parameter_based=False, next_fast_len_n_iter=0, **kwargs):
     else:
         newN, newM = kwargs.get('newN',x.N), kwargs.get('newM',x.M)
     # Copy state information to new orbit; don't perform operations inplace, only create new orbit
-    placeholder_orbit = x.__class__(state=x.state, statetype=x.statetype, T=x.T, L=x.L, S=x.S)
+    placeholder_orbit = x.__class__(state=x.state, state_type=x.state_type, T=x.T, L=x.L, S=x.S)
     placeholder_orbit = placeholder_orbit.convert(to='modes')
     if newN == x.N and newM == x.M:
         return x
@@ -79,6 +79,6 @@ def rediscretize(x, parameter_based=False, next_fast_len_n_iter=0, **kwargs):
             # it was not implemented this way is to not have to keep
             # track of normalization factors anywhere but here.
             placeholder_orbit.state = (np.sqrt(newN*newM)/np.sqrt(oldN*oldM))*placeholder_orbit.state
-            placeholder_orbit.convert(inplace=True, to=x.statetype)
+            placeholder_orbit.convert(inplace=True, to=x.state_type)
 
             return placeholder_orbit

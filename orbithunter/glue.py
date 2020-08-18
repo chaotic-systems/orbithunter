@@ -44,7 +44,7 @@ def best_rotation(orbit, other_orbit, direction='space'):
     # for n in range(0, field_other_orbit.N):
     #     for m in range(0, field_other_orbit.M):
     #         rotated_state = np.roll(np.roll(field_other_orbit.state, m, axis=1), n, axis=0)
-    #         rotated_orbit = other_orbit.__class__(state=rotated_state, statetype=field_other_orbit.statetype, T=other_orbit.T,
+    #         rotated_orbit = other_orbit.__class__(state=rotated_state, state_type=field_other_orbit.state_type, T=other_orbit.T,
     #                                               L=other_orbit.L, S=other_orbit.S)
     #         resmat[n,m] = concat(field_orbit, rotated_orbit, direction=direction).residual
 
@@ -54,7 +54,7 @@ def best_rotation(orbit, other_orbit, direction='space'):
     high_resolution_other_orbit = rediscretize(field_other_orbit, newN=16*field_other_orbit.N, newM=16*field_other_orbit.M)
 
     best_rotation_state = np.roll(np.roll(high_resolution_other_orbit.state, 16*bestm, axis=1), 16*bestn, axis=0)
-    highres_rotation_orbit = other_orbit.__class__(state=best_rotation_state, statetype='field',
+    highres_rotation_orbit = other_orbit.__class__(state=best_rotation_state, state_type='field',
                                                    T=other_orbit.T, L=other_orbit.L, S=other_orbit.S)
     best_gluing = concat(high_resolution_orbit, highres_rotation_orbit, direction=direction)
     return best_gluing
@@ -173,7 +173,7 @@ def concat(orbit, other_orbit, direction='space', **kwargs):
         newL = (orbit.L + other_orbit.L) / 2.0
         newT = orbit.T + other_orbit.T
 
-    glued_orbit = orbit.__class__(state=newfield, statetype='field', T=newT, L=newL)
+    glued_orbit = orbit.__class__(state=newfield, state_type='field', T=newT, L=newL)
     glued_orbit = rediscretize(glued_orbit, normalize=True)
     if orbit.__class__.__name__ == 'RelativeOrbit':
         glued_orbit.S = glued_orbit.calculate_shift()

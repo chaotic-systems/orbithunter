@@ -54,6 +54,9 @@ class OrbitResult(dict):
 
 def converge(orbit, *args, method='hybrid', **kwargs):
     orbit.convert(to='modes', inplace=True)
+    if kwargs.get('verbose', False):
+        print('Starting {} numerical method. Initial residual {}'.format(method, orbit.residual()))
+
     if method == 'hybrid':
         adjoint_orbit, exit_code = _adjoint_descent(orbit, **kwargs)
         result_orbit, exit_code = _gauss_newton(adjoint_orbit, **kwargs)
@@ -71,10 +74,12 @@ def converge(orbit, *args, method='hybrid', **kwargs):
     else:
         raise ValueError('Unknown solver %s' % method)
 
+    if kwargs.get('verbose', False):
+        print_exit_messages(orbit, exit_code)
 
     return OrbitResult(orbit=result_orbit, exit_code=exit_code)
 
-def _adjoint_descent(orbit, fixedparams=(False,False,False), verbose=False, **kwargs):
+def _adjoint_descent(orbit, fixedparams=(False,False,False), **kwargs):
     # Specific modifying exponent for changes in period, domain_size
     # Absolute tolerance for the descent method.
     atol = kwargs.get('atol', orbit.N*orbit.M*10**-6)
@@ -85,8 +90,7 @@ def _adjoint_descent(orbit, fixedparams=(False,False,False), verbose=False, **kw
     n_iter = 0
     # By default assume failure
     exit_code = 0
-    if verbose:
-        print('Starting adjoint descent. Initial residual {}'.format(orbit.residual()))
+
     # not optimized for orbit.residual()
     mapping = orbit.spatiotemporal_mapping()
     residual = mapping.norm()
@@ -101,16 +105,15 @@ def _adjoint_descent(orbit, fixedparams=(False,False,False), verbose=False, **kw
             next_mapping = next_orbit.spatiotemporal_mapping()
             next_residual = next_mapping.norm()
             if h <= 10**-8:
-                if verbose:
-                    print(_exit_messages(orbit)[exit_code][0])
+
                 return orbit, exit_code
         else:
             orbit, mapping, residual = next_orbit, next_mapping, next_residual
             n_iter += 1
-            if verbose == True:
-                if (np.mod(n_iter, 2500)==0):
+            if kwargs.get('verbose', False):
+                if np.mod(n_iter, 2500) == 0:
                     print('Current residual', orbit.residual())
-                elif (np.mod(n_iter, 100)==0):
+                elif np.mod(n_iter, 100) == 0:
                     print('.', end='')
                 sys.stdout.flush()
 
@@ -119,12 +122,9 @@ def _adjoint_descent(orbit, fixedparams=(False,False,False), verbose=False, **kw
     elif n_iter == max_iter:
         exit_code = 2
 
-    if verbose:
-        print(_exit_messages(orbit)[exit_code][0])
-
     return orbit, exit_code
 
-def _gauss_newton(orbit, max_iter=500, fixedparams=(False,False,False), max_damp=9, verbose=False, **kwargs):
+def _gauss_newton(orbit, max_iter=500, fixedparams=(False,False,False), max_damp=9, **kwargs):
     orbit.convert(inplace=True, to='modes')
     preconditioning = kwargs.get('preconditioning', False)
     atol = kwargs.get('atol', orbit.N*orbit.M*10**-15)
@@ -132,9 +132,6 @@ def _gauss_newton(orbit, max_iter=500, fixedparams=(False,False,False), max_damp
     n_iter = 0
     exit_code = 0
     damp = 0
-
-    if verbose:
-        print('Starting Least-squares Newton with backtracking. Initial residual {}'.format(orbit.residual()))
 
     residual = orbit.residual()
     while residual > atol and n_iter < max_iter:
@@ -158,17 +155,16 @@ def _gauss_newton(orbit, max_iter=500, fixedparams=(False,False,False), max_damp
             # Continues until either step is too small or residual is decreases
             damp += 1
             if damp > max_damp:
-                if verbose:
-                    print(_exit_messages(orbit)[exit_code][0])
+
                 return orbit, exit_code
         else:
             # Executed when step decreases residual and is not too short
             orbit = next_orbit
             residual = next_residual
 
-            if verbose:
+            if kwargs.get('verbose', False):
                 print(damp, end='')
-                if np.mod(n_iter, 50)==0:
+                if np.mod(n_iter, 50) == 0:
                     print('step ', n_iter,' residual ', orbit.residual())
                 sys.stdout.flush()
 
@@ -180,9 +176,6 @@ def _gauss_newton(orbit, max_iter=500, fixedparams=(False,False,False), max_damp
         exit_code = 0
     else:
         exit_code = 0
-
-    if verbose:
-        print(_exit_messages(orbit)[exit_code][0])
 
     return orbit, exit_code
 
@@ -301,16 +294,23 @@ def _cost_function_jac(x, *args):
     x_orbit = _state_vector_to_orbit(orbit, x)
     return x_orbit.rmatvec(x_orbit.spatiotemporal_mapping()).state_vector().ravel()
 
-def _exit_messages(orbit):
+def print_exit_messages(orbit, exit_code):
     messages = []
-    messages.append(['\nFailed to converge. Exiting with residual {}'.format(orbit.residual())])
-    messages.append(['\nConverged. exiting with residual {}'.format(orbit.residual())])
-    messages.append(['\nFailed to converge. Maximum number of iterations reached.'
-                     ' exiting with residual {}'.format(orbit.residual())])
-    messages.append(['\nConverged to an errant equilibrium'
-                     ' exiting with residual {}'.format(orbit.residual())])
-    messages.append(['\nConverged to the trivial u(x,t)=0 solution'])
-    return messages
+    if exit_code == 0:
+        print('\nFailed to converge. Exiting with residual {}'.format(orbit.residual()))
+    elif exit_code == 1:
+        print('\nConverged. exiting with residual {}'.format(orbit.residual()))
+    elif exit_code == 2:
+        print('\nFailed to converge. Maximum number of iterations reached.'
+                     ' exiting with residual {}'.format(orbit.residual()))
+    elif exit_code == 3:
+        print('\nConverged to an errant equilibrium'
+                     ' exiting with residual {}'.format(orbit.residual()))
+    elif exit_code == 4:
+        print('\nConverged to the trivial u(x,t)=0 solution')
+    elif exit_code == 5:
+        print('\n Relative periodic orbit converged to periodic orbit with no shift.')
+    return None
 
 
 

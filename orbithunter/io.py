@@ -8,33 +8,33 @@ warnings.resetwarnings()
 
 __all__ = ['read_h5', 'parse_class']
 
-def read_h5(filename, directory='', statetype='field'):
-    if directory == 'default':
+def read_h5(filename, directory='', state_type='field'):
+    if directory == 'data':
         directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/')), '')
 
     class_generator, data_format = parse_class(filename)
     with h5py.File(os.path.abspath(os.path.join(directory, filename)), 'r') as f:
-        if data_format=='new':
+        if data_format == 'new':
             field = np.array(f['field'])
             L = float(f['speriod'][()])
             T = float(f['period'][()])
             S = float(f['spatial_shift'][()])
-            orbit = class_generator(state=field, statetype='field', T=T, L=L, S=S)
+            orbit = class_generator(state=field, state_type='field', T=T, L=L, S=S)
         else:
             fieldtmp = f['/data/ufield']
             L = float(f['/data/space'][0])
             T = float(f['/data/time'][0])
             field = fieldtmp[:]
             S = float(f['/data/shift'][0])
-            orbit = class_generator(state=field, statetype='field', T=T, L=L, S=S)
+            orbit = class_generator(state=field, state_type='field', T=T, L=L, S=S)
 
-    return verify_integrity(orbit).convert(to=statetype)
+    return verify_integrity(orbit).convert(to=state_type)
 
 def parse_class(filename):
     name_string = os.path.basename(filename).split('_')[0]
 
-    old_names = ['none','full', 'rpo', 'ppo', 'eqva', 'anti']
-    new_names = ['OrbitKS', 'RelativeOrbitKS', 'ShiftReflectionOrbitKS',
+    old_names = ['none', 'full', 'rpo', 'reqva', 'ppo', 'eqva', 'anti']
+    new_names = ['OrbitKS', 'RelativeOrbitKS', 'RelativeOrbitKS', 'ShiftReflectionOrbitKS',
                  'AntisymmetricOrbitKS', 'EquilibriumOrbitKS']
 
     all_names = np.array(old_names + new_names)
@@ -67,7 +67,7 @@ def _make_proper_pathname(pathname_tuple,folder=False):
 def verify_integrity(orbit):
     if orbit.__class__.__name__ == 'RelativeOrbitKS':
         residual_imported_S = orbit.residual()
-        orbit_inverted_shift = orbit.__class__(state=orbit.state, statetype=orbit.statetype,
+        orbit_inverted_shift = orbit.__class__(state=orbit.state, state_type=orbit.state_type,
                                            T=orbit.T, L=orbit.L, S=-1.0*orbit.S)
         residual_negated_S = orbit_inverted_shift.residual()
         if residual_imported_S > residual_negated_S:

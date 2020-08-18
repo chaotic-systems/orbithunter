@@ -248,6 +248,369 @@ def glued_initial_condition(torusA,torusB,*args,**kwargs):
     #         ncombo+=1
     return ARtori,Rtori,Ctori,CBtori,Gtorus
 
+def initial_condition_generator(N,M,T,L,**kwargs):
+    amplitude = kwargs.get('amplitude',5)
+    scale_type = kwargs.get('scale_type','random')
+    n = int(N-1)
+    m = int(M//2)-1
+    L = float(np.real(L))
+    sms = int(L/(2*pi*np.sqrt(2)))
+    u = np.random.randn(M*N)
+    st_mat = np.reshape(fft_(u,N,M),[n,m])
+    spacetime_mollifier_grid = np.zeros([n,m])
+    tms = 2
+    if L < 16:
+        for i in range(0,n):
+            for j in range(0,m):
+                spacetime_mollifier_grid[i,j]-=(np.sign((j)-(sms))*((j)-(sms)))
+        exp_mollifier = np.exp(spacetime_mollifier_grid)
+        smoothed = np.multiply(exp_mollifier, st_mat)
+        smoothed[tms:int(n//2)+1, :] = 0
+        smoothed[int(n//2)+tms:, :] = 0
+        st_vec_smooth = np.reshape(smoothed, [m * n, 1])
+        u_vec = ifft_(st_vec_smooth, N, M)
+        renormed_u = 3 * u_vec / np.max(np.abs(u_vec))
+    else:
+        for i in range(0,n):
+            for j in range(0,int(m//2)):
+                if scale_type == 'random':
+                    spacetime_mollifier_grid[i,j]-=(np.sign((j)-(sms))*((j)-(sms)))/sms
+                elif scale_type == 'physical':
+                    spacetime_mollifier_grid[i,j]-=((2*pi*sms/L)**2-(2*pi*sms/L)**4) -(((2*pi*j/L)**2-(2*pi*j/L)**4))
+        exp_mollifier = np.exp(spacetime_mollifier_grid)
+        smoothed = np.multiply(exp_mollifier, st_mat)
+        smoothed[tms+1:int(n//2), :] = 0
+        smoothed[-int(n//2):-tms, :] = 0
+        st_vec_smooth = np.reshape(smoothed, [m * n, 1])
+        u_vec = ifft_(st_vec_smooth, N, M)
+        renormed_u = amplitude * u_vec / np.max(np.abs(u_vec))
+    renormed_uu = np.reshape(renormed_u,[N,M])
+    return renormed_uu
+
+def initial_condition_generator(N,M,T,L,**kwargs):
+    amplitude = kwargs.get('amplitude',5)
+    scale_type = kwargs.get('scale_type','random')
+    tms = kwargs.get('tms',False)
+    n = int(N-1)
+    m = int(M/2)-1
+    L = float(np.real(L))
+    sms = int(L/(2*pi*np.sqrt(2)))
+    u = np.random.randn(M*N)
+    st_mat = np.reshape(fft_(u,N,M),[n,M-2])
+    if tms == False:
+        tms_short = int(T/20)
+        tms_long = int(T/10)
+    else:
+        tms_short,tms_long = 1,1
+        tms=1
+    if scale_type == 'basic':
+        spatial_range=np.arange(1,m+1)
+        spatial_spectrum_tmp = -1.*np.abs(spatial_range-sms)
+        spatial_spectrum = np.tile(spatial_spectrum_tmp,(n,1))
+        spatial_spectrum = np.concatenate((spatial_spectrum,spatial_spectrum),axis=1)
+        spatially_smoothed = np.multiply(np.exp(spatial_spectrum), st_mat)
+
+        temporal_range=np.reshape(np.arange(0,int(N//2)),[int(N//2),1])
+        temporal_range_nozero = np.reshape(temporal_range[1:],[int(N//2)-1,1])
+        temporal_spectrum_tmp = -1.*(temporal_range-tms)**2
+        temporal_spectrum_tmp = np.tile(temporal_spectrum_tmp,(1,m))
+        temporal_spectrum_nozero_tmp = -1.*(temporal_range_nozero-tms)**2
+        temporal_spectrum_nozero_tmp = np.tile(temporal_spectrum_nozero_tmp,(1,m))
+        temporal_spectrum = np.concatenate((np.concatenate((temporal_spectrum_tmp,temporal_spectrum_tmp),axis=1)
+                                            ,np.concatenate((temporal_spectrum_nozero_tmp,temporal_spectrum_nozero_tmp),axis=1)),axis=0)
+
+        spatiotemporal_spectrum = np.multiply(np.exp(temporal_spectrum),spatially_smoothed)
+
+        st_vec_smooth = np.reshape(spatiotemporal_spectrum, [(M-2) * n, 1])
+        u_vec = ifft_(st_vec_smooth, N, M)
+        renormed_u = amplitude * u_vec / np.max(np.abs(u_vec))
+        renormed_uu = np.reshape(renormed_u,[N,M])
+    elif scale_type == 'gaussian':
+        sigma_time = 2
+        sigma_space = 5
+        tms=2
+        time = np.tile(np.reshape(np.concatenate((np.arange(0,int(N/2)),np.arange(1,int(N/2))),axis=0),[n,1]),(1,M-2))
+        space = np.tile(np.reshape(np.concatenate((np.arange(1,m+1),np.arange(1,m+1)),axis=0),[1,M-2]),(n,1))
+        spatiotemporal_gaussian = 1./np.sqrt(2*pi**2*sigma_space**2*sigma_time**2)*np.exp(-(space-sms)**2/(2*sigma_space**2)-(time-tms)**2/(2*sigma_time**2))
+        spacetime_spectrum = np.multiply(spatiotemporal_gaussian, st_mat)
+        st_vec_smooth = np.reshape(spacetime_spectrum, [(M-2) * n, 1])
+        u_vec = ifft_(st_vec_smooth, N, M)
+        renormed_u = amplitude * u_vec / np.max(np.abs(u_vec))
+        renormed_uu = np.reshape(renormed_u,[N,M])
+    return renormed_uu
+
+def initial_condition_generator(N,M,T,L,**kwargs):
+    amplitude = kwargs.get('amplitude',5)
+    scale_type = kwargs.get('scale_type','random')
+    tms = kwargs.get('tms',False)
+    n = int(N-1)
+    m = int(M/2)-1
+    L = float(np.real(L))
+    sms = int(L/(2*pi*np.sqrt(2)))
+    u = np.random.randn(M*N)
+    st_mat = np.reshape(fft_(u,N,M),[n,M-2])
+    sms = int(L/(2*pi*np.sqrt(2)))
+    spacetime_mollifier_grid = np.zeros([n,m])
+    if tms == False:
+        tms_short = int(T/20)
+        tms_long = int(T/10)
+    else:
+        tms_short,tms_long = 1,1
+        tms=1
+
+    if scale_type == 'gaussian':
+        sigma_time = 2
+        sigma_space = 5
+        tms=2
+        time = np.tile(np.reshape(np.concatenate((np.arange(0,int(N/2)),np.arange(1,int(N/2))),axis=0),[n,1]),(1,M-2))
+        space = np.tile(np.reshape(np.concatenate((np.arange(1,m+1),np.arange(1,m+1)),axis=0),[1,M-2]),(n,1))
+        spatiotemporal_gaussian = 1./np.sqrt(2*pi**2*sigma_space**2*sigma_time**2)*np.exp(-(space-sms)**2/(2*sigma_space**2)-(time-tms)**2/(2*sigma_time**2))
+        spacetime_spectrum = np.multiply(spatiotemporal_gaussian, st_mat)
+        modes_smooth = np.reshape(spacetime_spectrum, [(M-2) * n, 1])
+        u_vec = ifft_(modes_smooth, N, M)
+        renormed_u = amplitude * u_vec / np.max(np.abs(u_vec))
+        renormed_uu = np.reshape(renormed_u,[N,M])
+    elif scale_type=='modulated':
+        spatial_range=np.arange(1,m+1)
+        spatial_spectrum_tmp = -1.*np.abs(spatial_range-sms)
+        spatial_spectrum = np.tile(spatial_spectrum_tmp,(n,1))
+        spatial_spectrum = np.concatenate((spatial_spectrum,spatial_spectrum),axis=1)
+        spatially_smoothed = np.multiply(np.exp(spatial_spectrum), st_mat)
+
+        temporal_range=np.reshape(np.arange(0,int(N//2)),[int(N//2),1])
+        temporal_range_nozero = np.reshape(temporal_range[1:],[int(N//2)-1,1])
+        temporal_spectrum_tmp = -1.*(temporal_range-tms)**2
+        temporal_spectrum_tmp = np.tile(temporal_spectrum_tmp,(1,m))
+        temporal_spectrum_nozero_tmp = -1.*(temporal_range_nozero-tms)**2
+        temporal_spectrum_nozero_tmp = np.tile(temporal_spectrum_nozero_tmp,(1,m))
+        temporal_spectrum = np.concatenate((np.concatenate((temporal_spectrum_tmp,temporal_spectrum_tmp),axis=1)
+                                            ,np.concatenate((temporal_spectrum_nozero_tmp,temporal_spectrum_nozero_tmp),axis=1)),axis=0)
+
+        spatiotemporal_spectrum = np.multiply(np.exp(temporal_spectrum),spatially_smoothed)
+
+        modes_smooth = np.reshape(spatiotemporal_spectrum, [(M-2) * n, 1])
+        u_vec = ifft_(modes_smooth, N, M)
+        renormed_u = amplitude * u_vec / np.max(np.abs(u_vec))
+        renormed_uu = np.reshape(renormed_u,[N,M])
+    elif scale_type =='random':
+        u = np.random.randn(M*N)
+        renormed_uu = np.reshape(amplitude*u/np.max(np.abs(u)),[N,M])
+    else:
+        tms = 2
+        jrange = np.arange(1,m+1)
+        spacetime_mollifier_grid=-1*np.tile(np.sqrt((np.abs(jrange-sms)/sms)),(n,1))
+        spacetime_mollifier_grid = np.concatenate((spacetime_mollifier_grid,spacetime_mollifier_grid),axis=1)
+        mollifier = np.exp(spacetime_mollifier_grid)
+        smoothed = np.multiply(mollifier, st_mat)
+        smoothed[tms:int(n//2)+1, :] = 0
+        smoothed[int(n//2)+tms:, :] = 0
+        modes_smooth = np.reshape(smoothed, [(M-2) * n, 1])
+        u_vec = ifft_(modes_smooth, N, M)
+        renormed_u = amplitude * u_vec / np.max(np.abs(u_vec))
+        renormed_uu = np.reshape(renormed_u,[N,M])
+    return renormed_uu
+
+def initial_condition_generator(N,M,T,L,**kwargs):
+    amplitude = kwargs.get('amplitude',5)
+    scale_type = kwargs.get('scale_type','nonphysical')
+    n = int(N-1)
+    m = int(M//2)-1
+    L = float(np.real(L))
+    sms = int(L/pi)
+    u = np.random.randn(M*N)
+    st_mat = np.reshape(fft_(u,N,M),[n,m])
+    spacetime_mollifier_grid = np.zeros([n,m])
+    tms = 2
+    if L < 16:
+        for i in range(0,n):
+            for j in range(0,m):
+                spacetime_mollifier_grid[i,j]-=(np.sign((j)-(sms))*((j)-(sms)))
+        exp_mollifier = np.exp(spacetime_mollifier_grid)
+        smoothed = np.multiply(exp_mollifier, st_mat)
+        smoothed[tms:int(n//2)+1, :] = 0
+        smoothed[int(n//2)+tms:, :] = 0
+        st_vec_smooth = np.reshape(smoothed, [m * n, 1])
+        u_vec = ifft_(st_vec_smooth, N, M)
+        renormed_u = 3 * u_vec / np.max(np.abs(u_vec))
+    else:
+        for i in range(0,n):
+            for j in range(0,int(m)):
+                if scale_type == 'nonphysical':
+                    #if j > sms:
+                    spacetime_mollifier_grid[i,j]-=np.sqrt((np.abs(j-sms)/sms))
+                elif scale_type == 'physical':
+                    if j > sms:
+                        spacetime_mollifier_grid[i,j]-=((2*pi*sms/L)**2-(2*pi*sms/L)**4) -(((2*pi*j/L)**2-(2*pi*j/L)**4))
+        mollifier = np.exp(spacetime_mollifier_grid)
+        smoothed = np.multiply(mollifier, st_mat)
+        smoothed[tms:int(n//2)+1, :] = 0
+        smoothed[int(n//2)+tms:, :] = 0
+        st_vec_smooth = np.reshape(smoothed, [m * n, 1])
+        u_vec = ifft_(st_vec_smooth, N, M)
+        renormed_u = amplitude * u_vec / np.max(np.abs(u_vec))
+    renormed_uu = np.reshape(renormed_u,[N,M])
+    return renormed_uu
+
+def initial_condition_generator(N,M,T,L,**kwargs):
+    amplitude = kwargs.get('amplitude',5)
+    scale_type = kwargs.get('scale_type','random')
+    tms = kwargs.get('tms',False)
+    n = int(N-1)
+    m = int(M/2)-1
+    L = float(np.real(L))
+    sms = int(L/(2*pi*np.sqrt(2)))
+    u = np.random.randn(M*N)
+    st_mat = np.reshape(fft_(u,N,M),[n,M-2])
+    sms = int(L/(2*pi*np.sqrt(2)))
+    spacetime_mollifier_grid = np.zeros([n,m])
+    if tms == False:
+        tms_short = int(T/20)
+        tms_long = int(T/10)
+    else:
+        tms_short,tms_long = 1,1
+        tms=1
+
+    if scale_type == 'gaussian':
+        sigma_time = 2
+        sigma_space = 5
+        tms=2
+        time = np.tile(np.reshape(np.concatenate((np.arange(0,int(N/2)),np.arange(1,int(N/2))),axis=0),[n,1]),(1,M-2))
+        space = np.tile(np.reshape(np.concatenate((np.arange(1,m+1),np.arange(1,m+1)),axis=0),[1,M-2]),(n,1))
+        spatiotemporal_gaussian = 1./np.sqrt(2*pi**2*sigma_space**2*sigma_time**2)*np.exp(-(space-sms)**2/(2*sigma_space**2)-(time-tms)**2/(2*sigma_time**2))
+        spacetime_spectrum = np.multiply(spatiotemporal_gaussian, st_mat)
+        st_vec_smooth = np.reshape(spacetime_spectrum, [(M-2) * n, 1])
+        u_vec = ifft_(st_vec_smooth, N, M)
+        renormed_u = amplitude * u_vec / np.max(np.abs(u_vec))
+        renormed_uu = np.reshape(renormed_u,[N,M])
+    elif scale_type=='modulated':
+        spatial_range=np.arange(1,m+1)
+        spatial_spectrum_tmp = -1.*np.abs(spatial_range-sms)
+        spatial_spectrum = np.tile(spatial_spectrum_tmp,(n,1))
+        spatial_spectrum = np.concatenate((spatial_spectrum,spatial_spectrum),axis=1)
+        spatially_smoothed = np.multiply(np.exp(spatial_spectrum), st_mat)
+
+        temporal_range=np.reshape(np.arange(0,int(N//2)),[int(N//2),1])
+        temporal_range_nozero = np.reshape(temporal_range[1:],[int(N//2)-1,1])
+        temporal_spectrum_tmp = -1.*(temporal_range-tms)**2
+        temporal_spectrum_tmp = np.tile(temporal_spectrum_tmp,(1,m))
+        temporal_spectrum_nozero_tmp = -1.*(temporal_range_nozero-tms)**2
+        temporal_spectrum_nozero_tmp = np.tile(temporal_spectrum_nozero_tmp,(1,m))
+        temporal_spectrum = np.concatenate((np.concatenate((temporal_spectrum_tmp,temporal_spectrum_tmp),axis=1)
+                                            ,np.concatenate((temporal_spectrum_nozero_tmp,temporal_spectrum_nozero_tmp),axis=1)),axis=0)
+
+        spatiotemporal_spectrum = np.multiply(np.exp(temporal_spectrum),spatially_smoothed)
+
+        st_vec_smooth = np.reshape(spatiotemporal_spectrum, [(M-2) * n, 1])
+        u_vec = ifft_(st_vec_smooth, N, M)
+        renormed_u = amplitude * u_vec / np.max(np.abs(u_vec))
+        renormed_uu = np.reshape(renormed_u,[N,M])
+    elif scale_type =='random':
+        u = np.random.randn(M*N)
+        renormed_uu = np.reshape(amplitude*u/np.max(np.abs(u)),[N,M])
+    else:
+        tms = 2
+        jrange = np.arange(1,m+1)
+        spacetime_mollifier_grid=-1*np.tile(np.sqrt((np.abs(jrange-sms)/sms)),(n,1))
+        spacetime_mollifier_grid = np.concatenate((spacetime_mollifier_grid,spacetime_mollifier_grid),axis=1)
+        mollifier = np.exp(spacetime_mollifier_grid)
+        smoothed = np.multiply(mollifier, st_mat)
+        smoothed[tms:int(n//2)+1, :] = 0
+        smoothed[int(n//2)+tms:, :] = 0
+        st_vec_smooth = np.reshape(smoothed, [(M-2) * n, 1])
+        u_vec = ifft_(st_vec_smooth, N, M)
+        renormed_u = amplitude * u_vec / np.max(np.abs(u_vec))
+        renormed_uu = np.reshape(renormed_u,[N,M])
+    return renormed_uu
+
+def initial_condition_generator(N,M,T,L):
+    n = int(N//2)-1
+    m = int(M//2)-1
+    L = float(np.real(L))
+    sms = int(L/(2*pi*np.sqrt(2)))
+    v = np.random.randn(n*m)+1j*np.random.randn(m*n)
+    st_mat = np.reshape(v,[n,m])
+    spacetime_mollifier_grid = np.zeros([n,m])
+    tms = 2
+    if L < 16:
+        for i in range(0,n):
+            for j in range(0,m):
+                spacetime_mollifier_grid[i,j]-=(np.sign((j)-(sms))*((j)-(sms)))
+        exp_mollifier = np.exp(spacetime_mollifier_grid)
+        smoothed = np.multiply(exp_mollifier, st_mat)
+        smoothed[tms:int(n//2)+1, :] = 0
+        smoothed[int(n//2)+tms:, :] = 0
+        st_vec_smooth = np.reshape(smoothed, [m * n, 1])
+        u_vec = ifft_(st_vec_smooth, N, M)
+        renormed_u = 3 * u_vec / np.max(np.abs(u_vec))
+    else:
+        for i in range(0,n):
+            for j in range(0,int(m//2)):
+                spacetime_mollifier_grid[i,j]-=(np.sign((j)-(sms))*((j)-(sms)))/sms
+        exp_mollifier = np.exp(spacetime_mollifier_grid)
+        smoothed = np.multiply(exp_mollifier, st_mat)
+        smoothed[tms:int(n//2)+1, :] = 0
+        smoothed[int(n//2)+tms:, :] = 0
+        st_vec_smooth = np.reshape(smoothed, [m * n, 1])
+        u_vec = ifft_(st_vec_smooth, N, M)
+        renormed_u = 5 * u_vec / np.max(np.abs(u_vec))
+    renormed_uu = np.reshape(renormed_u,[N,M])
+    return renormed_uu
+
+def initial_condition_generator(N,M,T,L):
+    n = int(N//2)-1
+    m = int(M//2)-1
+    L = float(np.real(L))
+    sms = int(L/(2*pi*np.sqrt(2)))
+    v = np.random.randn(n*m)+1j*np.random.randn(m*n)
+    st_mat = np.reshape(v,[n,m])
+    spacetime_mollifier_grid = np.zeros([n,m])
+    tms = 2
+    if L < 16:
+        for i in range(0,n):
+            for j in range(0,m):
+                spacetime_mollifier_grid[i,j]-=(np.sign((j)-(sms))*((j)-(sms)))
+        exp_mollifier = np.exp(spacetime_mollifier_grid)
+        smoothed = np.multiply(exp_mollifier, st_mat)
+        smoothed[tms:int(n//2)+1, :] = 0
+        smoothed[int(n//2)+tms:, :] = 0
+        st_vec_smooth = np.reshape(smoothed, [m * n, 1])
+        u_vec = ifft_(st_vec_smooth, N, M)
+        renormed_u = 3 * u_vec / np.max(np.abs(u_vec))
+    else:
+        for i in range(0,n):
+            for j in range(0,int(m//2)):
+                spacetime_mollifier_grid[i,j]-=(np.sign((j)-(sms))*((j)-(sms)))/sms
+        exp_mollifier = np.exp(spacetime_mollifier_grid)
+        smoothed = np.multiply(exp_mollifier, st_mat)
+        smoothed[tms:int(n//2)+1, :] = 0
+        smoothed[int(n//2)+tms:, :] = 0
+        st_vec_smooth = np.reshape(smoothed, [m * n, 1])
+        u_vec = ifft_(st_vec_smooth, N, M)
+        renormed_u = 5 * u_vec / np.max(np.abs(u_vec))
+    renormed_uu = np.reshape(renormed_u,[N,M])
+    return renormed_uu
+
+def initial_condition_generator(N,M,T,L):
+    n = int(N-1)
+    m = int(M//2)-1
+    L = float(np.real(L))
+    sms = int(L/(2*pi))
+    u = np.random.randn(M*N)
+    st_mat = np.reshape(fft_(u,N,M),[n,m])
+    spacetime_mollifier_grid = np.zeros([n,m])
+    tms = 2
+    for i in range(0,n):
+        for j in range(0,int(m//2)):
+            spacetime_mollifier_grid[i,j]-=(np.sign((j)-(sms))*((j)-(sms)))
+    exp_mollifier = np.exp(spacetime_mollifier_grid)
+    smoothed = np.multiply(exp_mollifier, st_mat)
+    smoothed[tms:int(n//2)+1, :] = 0
+    smoothed[int(n//2)+tms:, :] = 0
+    st_vec_smooth = np.reshape(smoothed, [m * n, 1])
+    u_vec = ifft_(st_vec_smooth, N, M)
+    renormed_u = 6 * u_vec / np.max(np.abs(u_vec))
+    renormed_uu = np.reshape(renormed_u,[N,M])
+    return renormed_uu
 
 def main(*args,**kwargs):
     # symmetry=kwargs.get('symmetry','ppo')
@@ -281,7 +644,6 @@ def main(*args,**kwargs):
     # u,N,M,T,L,S = glued_torus_final
 
     return None
-
 
 if __name__=='__main__':
     main()
