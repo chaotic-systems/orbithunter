@@ -1,4 +1,5 @@
-from orbithunter.orbit import OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS, AntisymmetricOrbitKS, EquilibriumOrbitKS
+from orbithunter.orbit import OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS, \
+    AntisymmetricOrbitKS, EquilibriumOrbitKS, RelativeEquilibriumOrbitKS
 import warnings
 import os
 import numpy as np
@@ -34,7 +35,7 @@ def parse_class(filename):
     name_string = os.path.basename(filename).split('_')[0]
 
     old_names = ['none', 'full', 'rpo', 'reqva', 'ppo', 'eqva', 'anti']
-    new_names = ['OrbitKS', 'RelativeOrbitKS', 'RelativeOrbitKS', 'ShiftReflectionOrbitKS',
+    new_names = ['OrbitKS', 'RelativeOrbitKS', 'RelativeEquilibriumOrbitKS', 'ShiftReflectionOrbitKS',
                  'AntisymmetricOrbitKS', 'EquilibriumOrbitKS']
 
     all_names = np.array(old_names + new_names)
@@ -53,7 +54,8 @@ def parse_class(filename):
                   'anti': AntisymmetricOrbitKS, 'AntisymmetricOrbitKS': AntisymmetricOrbitKS,
                   'ppo': ShiftReflectionOrbitKS, 'ShiftReflectionOrbitKS': ShiftReflectionOrbitKS,
                   'rpo': RelativeOrbitKS, 'RelativeOrbitKS': RelativeOrbitKS,
-                  'eqva': EquilibriumOrbitKS, 'EquilibriumOrbitKS': EquilibriumOrbitKS}
+                  'eqva': EquilibriumOrbitKS, 'EquilibriumOrbitKS': EquilibriumOrbitKS,
+                  'reqva':RelativeOrbitKS, 'RelativeEquilibriumOrbitKS':RelativeOrbitKS}
 
     class_generator = class_dict.get(class_name, RelativeOrbitKS)
     return class_generator, data_format

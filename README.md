@@ -22,7 +22,8 @@ PEP 8 and Refactoring
 To-do
 -----
 RelativeEquilibriumKS and EquilibriumKS need to be fully implemented. 
-RelativeEquilibriumKS.status() needs to account for shift as part of "time derivative". 
+RelativeEquilibriumKS.status() needs to account for shift as part of "time derivative".
+RelativeEquilibriumKS and EquilibriumKS raising exceptions when .dt() or .dt_matrix() are called. 
 Implement flag for reference frame of relative periodic solutions. 
 Different methods for random initial condition generation. 
 Convert all research code scripts
@@ -32,6 +33,7 @@ Neural networks for spatiotemporal symbolic dynamics classification
 Create base "Orbit" class which can be subclassed for different equations other than the Kuramoto-Sivashinsky equation,
 potentially. 
 Create testing suite using a package i.e. unit testing.
+
 
 Known Bugs and issues
 ---------------------

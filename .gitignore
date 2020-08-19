@@ -133,3 +133,6 @@ dmypy.json
 
 # IDE settings
 .idea/
+
+notebooks/*.csv
+notebooks/*.h5

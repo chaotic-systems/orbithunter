@@ -16,8 +16,9 @@ class OrbitResult(dict):
     ----------
     x : ndarray
         The solution of the optimization.
-    exit_code : bool
-        Whether or not the optimizer exited successfully.
+    exit_code : int
+        Integer which tracks the type of exit from whichever numerical algorithm was applied.
+        See Notes for more details.
     status : int
         Termination status of the optimizer. Its value depends on the
         underlying solver. Refer to `message` for details.
@@ -34,6 +35,21 @@ class OrbitResult(dict):
     specific solver. Since this class is essentially a subclass of dict
     with attribute accessors, one can see which attributes are available
     using the `keys()` method.
+
+    The descriptions for each value of exit_code are as follows. In order, the codes [0,1,2,3,4,5] == 0:
+    0 : Failed to converge
+    1 : Converged
+    2:
+        print('\nFailed to converge. Maximum number of iterations reached.'
+                     ' exiting with residual {}'.format(orbit.residual()))
+    elif exit_code == 3:
+        print('\nConverged to an errant equilibrium'
+                     ' exiting with residual {}'.format(orbit.residual()))
+    elif exit_code == 4:
+        print('\nConverged to the trivial u(x,t)=0 solution')
+    elif exit_code == 5:
+        print('\n Relative periodic orbit converged to periodic orbit with no shift.')
+
     """
     def __getattr__(self, name):
         try:
@@ -75,11 +91,11 @@ def converge(orbit, *args, method='hybrid', **kwargs):
         raise ValueError('Unknown solver %s' % method)
 
     if kwargs.get('verbose', False):
-        print_exit_messages(orbit, exit_code)
+        print_exit_messages(result_orbit, exit_code)
 
     return OrbitResult(orbit=result_orbit, exit_code=exit_code)
 
-def _adjoint_descent(orbit, fixedparams=(False,False,False), **kwargs):
+def _adjoint_descent(orbit, parameter_constraints=(False,False,False), **kwargs):
     # Specific modifying exponent for changes in period, domain_size
     # Absolute tolerance for the descent method.
     atol = kwargs.get('atol', orbit.N*orbit.M*10**-6)
@@ -95,7 +111,8 @@ def _adjoint_descent(orbit, fixedparams=(False,False,False), **kwargs):
     mapping = orbit.spatiotemporal_mapping()
     residual = mapping.norm()
     while residual > atol and n_iter < max_iter:
-        dx = orbit.rmatvec(mapping, fixedparams=fixedparams, preconditioning=preconditioning)
+        dx = orbit.rmatvec(mapping, parameter_constraints=parameter_constraints,
+                           preconditioning=preconditioning)
         next_orbit = orbit.increment(dx, stepsize=-1.0*h)
         next_mapping = next_orbit.spatiotemporal_mapping()
         next_residual = next_mapping.norm()
@@ -124,7 +141,7 @@ def _adjoint_descent(orbit, fixedparams=(False,False,False), **kwargs):
 
     return orbit, exit_code
 
-def _gauss_newton(orbit, max_iter=500, fixedparams=(False,False,False), max_damp=9, **kwargs):
+def _gauss_newton(orbit, max_iter=500, parameter_constraints=(False,False,False), max_damp=9, **kwargs):
     orbit.convert(inplace=True, to='modes')
     preconditioning = kwargs.get('preconditioning', False)
     atol = kwargs.get('atol', orbit.N*orbit.M*10**-15)
@@ -138,14 +155,15 @@ def _gauss_newton(orbit, max_iter=500, fixedparams=(False,False,False), max_damp
         damp = 0
         n_iter += 1
         if preconditioning:
-            A = np.multiply(orbit.preconditioner(fixedparams=fixedparams), orbit.jacobian(fixedparams=fixedparams))
+            A = np.multiply(orbit.preconditioner(parameter_constraints=parameter_constraints),
+                            orbit.jacobian(parameter_constraints=parameter_constraints))
             b = -1.0 * orbit.precondition(orbit.spatiotemporal_mapping()).state.ravel()
         else:
-            A = orbit.jacobian(fixedparams=fixedparams)
+            A = orbit.jacobian(parameter_constraints=parameter_constraints)
             b = -1.0 * orbit.spatiotemporal_mapping().state.ravel()
         correction_tuple = lstsq(A, b.reshape(-1, 1))
         correction_vector = correction_tuple[0]
-        dorbit = _state_vector_to_orbit(orbit, correction_vector, fixedparams=fixedparams)
+        dorbit = _state_vector_to_orbit(orbit, correction_vector, parameter_constraints=parameter_constraints)
 
         # To avoid redundant function calls, store optimization variables using
         # clunky notation.
@@ -155,7 +173,6 @@ def _gauss_newton(orbit, max_iter=500, fixedparams=(False,False,False), max_damp
             # Continues until either step is too small or residual is decreases
             damp += 1
             if damp > max_damp:
-
                 return orbit, exit_code
         else:
             # Executed when step decreases residual and is not too short
@@ -179,12 +196,12 @@ def _gauss_newton(orbit, max_iter=500, fixedparams=(False,False,False), max_damp
 
     return orbit, exit_code
 
-def _state_vector_to_orbit(orbit, correction_vector, fixedparams=(False,False,False), **kwargs):
+def _state_vector_to_orbit(orbit, correction_vector, parameter_constraints=(False,False,False), **kwargs):
     """
     :param orbit:
     :param correction_vector:
     :param preconditioning:
-    :param fixedparams:
+    :param parameter_constraints:
     :param kwargs:
     :return:
     """
@@ -194,11 +211,12 @@ def _state_vector_to_orbit(orbit, correction_vector, fixedparams=(False,False,Fa
     # slice the changes to parameters from vector
     d_params = correction_vector[mode_size:].ravel()
 
-    for i, constrained in enumerate(fixedparams):
+    for i, constrained in enumerate(parameter_constraints):
         if constrained or (i == len(d_params)):
             d_params = np.insert(d_params, i, 0)
     dT, dL, dS = d_params
-    correction_orbit = orbit.__class__(state=np.reshape(d_modes, mode_shape), T=dT, L=dL, S=dS)
+    correction_orbit = orbit.__class__(state=np.reshape(d_modes, mode_shape), state_type='modes',
+                                       T=dT, L=dL, S=dS)
     return correction_orbit
 
 def _scipy_sparse_linalg_solver_wrapper(orbit, max_damp=8, atol=1e-06, btol=1e-06,
@@ -286,7 +304,7 @@ def _cost_function(x0, *args):
     Note that passing Class as a function avoids dangerous statements using eval()
     '''
     orbit = args[0]
-    x_orbit = _state_vector_to_orbit(orbit, x0, fixedparams=(False,False,False))
+    x_orbit = _state_vector_to_orbit(orbit, x0, parameter_constraints=(False,False,False))
     return x_orbit.residual()
 
 def _cost_function_jac(x, *args):
