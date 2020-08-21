@@ -566,7 +566,7 @@ class OrbitKS:
                                      np.dot(self.space_transform_matrix(), nonlinear)))
         return nonlinear_dx
 
-    def norm(self, ord=None):
+    def norm(self, order=None):
         """ Norm of spatiotemporal state via numpy.linalg.norm
 
         Example
@@ -574,7 +574,7 @@ class OrbitKS:
         L_2 distance between two states
         >>> (self - other).norm()
         """
-        return np.linalg.norm(self.state.ravel(), ord=ord)
+        return np.linalg.norm(self.state.ravel(), ord=order)
 
     def matvec(self, other, parameter_constraints=(False, False), preconditioning=True):
         """ Matrix-vector product of a vector with the Jacobian of the current state.
@@ -701,9 +701,6 @@ class OrbitKS:
             second_half = self.state[:, -self.m:-self.m + truncate_number]
             truncated_modes = np.concatenate((first_half, second_half), axis=1)
         return self.__class__(state=truncated_modes, state_type=self.state_type, T=self.T, L=self.L, S=self.S)
-
-    def norm(self):
-        return 0.5*np.linalg.norm(self.state)**2
 
     def parameter_dependent_filename(self, extension='.h5', decimals=3):
 
@@ -1043,7 +1040,7 @@ class OrbitKS:
         reflected_field = -1.0*np.roll(np.fliplr(self.convert(to='field').state), 1, axis=1)
         return self.__class__(state=reflected_field, state_type='field', T=self.T, L=self.L, S=-1.0*self.S)
 
-    def residual(self):
+    def residual(self, apply_mapping=True):
         """ The value of the cost function
 
         Returns
@@ -1052,7 +1049,12 @@ class OrbitKS:
             The value of the cost function, equal to 1/2 the squared L_2 norm of the spatiotemporal mapping,
             R = 1/2 ||F||^2.
         """
-        return 0.5 * np.linalg.norm(self.convert(to='modes').spatiotemporal_mapping().state.ravel())**2
+        if apply_mapping:
+            v = self.convert(to='modes').spatiotemporal_mapping().state.ravel()
+            return 0.5 * v.dot(v)
+        else:
+            u = self.state.ravel()
+            return 0.5 * u.dot(u)
 
     def rmatvec(self, other, parameter_constraints=(False, False), preconditioning=True):
         """ Matrix-vector product with the adjoint of the Jacobian
@@ -1408,7 +1410,6 @@ class OrbitKS:
         nonlinear = orbit_field.pseudospectral(orbit_field).state
         orbit_mapping = self.__class__(state=(linear + nonlinear),
                                        T=self.T, L=self.L, S=self.S)
-
         return orbit_mapping
 
     def statemul(self, other):
@@ -3115,7 +3116,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
     def time_transform(self, inplace=False):
         """ Overwrite of parent method """
         # Select the nonzero (imaginary) components of modes and transform in time (w.r.t. axis=0)
-        spacetime_modes = (1./np.sqrt(32)) * self.state
+        spacetime_modes = (1./np.sqrt(self.N)) * self.state
         if inplace:
             self.state = spacetime_modes
             self.state_type = 'modes'
@@ -3237,90 +3238,3 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
     def to_fundamental_domain(self):
         return self.change_reference_frame()
-
-
-
-
-
-
-#     @classmethod
-#     @lru_cache(maxsize=None)
-#     def cached_function_call(self, L, N, M, m):
-#         qk = ((2 * pi * M / L) * np.fft.fftfreq(M)[1:m+1]).reshape(1, -1)
-#         qk_vec = np.concatenate((qk, -qk), axis=1)
-#         return np.tile(qk_vec, (N-1, 1))
-
-#     @classmethod
-#     @lru_cache(maxsize=None)
-#     def cached_elementwise_with_instantiation(self, orbit):
-#         return RelativeOrbitKS(state=orbit.state,state_type=orbit.state_type, L=orbit.L,
-#                                N=orbit.N, M=orbit.M, m=orbit.m).elementwise_dx()
-#     def rmatvec(self, other, parameter_constraints=(False, False), preconditioning=True):
-#         """ Matrix-vector product with the adjoint of the Jacobian
-
-#         Parameters
-#         ----------
-#         other : OrbitKS
-#             OrbitKS whose state represents the vector in the matrix-vector product.
-#         parameter_constraints : (bool, bool)
-#             Whether or not period T or spatial period L are fixed.
-#         preconditioning : bool
-#             Whether or not to apply (left) preconditioning to the adjoint matrix vector product.
-
-#         Returns
-#         -------
-#         orbit_rmatvec :
-#             OrbitKS with values representative of the adjoint-vector product A^H * x.
-
-#         """
-
-#         # Linear component of the product, equal to -v_t + v_xx + v_xxxx
-#         linear = -1.0*other.dt() + other.dx(order=2) + other.dx(order=4)
-
-#         # Nonlinear component, equal to -u * v_x
-#         orbit_field = self.convert(to='field')
-#         nonlinear = orbit_field.rpseudospectral(other).state
-#         orbit_rmatvec = self.__class__(state=(linear + nonlinear))
-
-#         if not parameter_constraints[0]:
-#             dfdt = (-1.0 / self.T)*self.dt()
-#             orbit_rmatvec.T = np.dot(dfdt.ravel(), other.state.ravel())
-
-#         if not parameter_constraints[1]:
-#             # Derivative with respect to L equal to DF/DL * v
-#             dfdl_linear = ((-2.0/self.L)*self.dx(order=2) + (-4.0/self.L)*self.dx(order=4))
-#             dfdl_nonlinear = (-1.0/self.L) * orbit_field.pseudospectral(orbit_field).state
-#             dfdl = dfdl_linear + dfdl_nonlinear
-#             orbit_rmatvec.L = np.dot(dfdl.ravel(), other.state.ravel())
-
-#         if preconditioning:
-#             # Apply left preconditioning
-#             p_matrix = 1.0 / (np.abs(wj_matrix) + qk_matrix**2 + qk_matrix**4)
-#             orbit_rmatvec.state = np.multiply(orbit_rmatvec.state, p_matrix)
-
-#             if not parameter_constraints[0]:
-#                 orbit_rmatvec.T = orbit_rmatvec.T / self.T
-#             if not parameter_constraints[1]:
-#                 orbit_rmatvec.L = orbit_rmatvec.L/(self.L**4)
-
-#         return orbit_rmatvec
-
-#     def spatiotemporal_mapping(self):
-#         """ The Kuramoto-Sivashinsky equation evaluated at the current state.
-
-#         Returns
-#         -------
-#         OrbitKS :
-#             OrbitKS whose state is representative of the equation u_t + u_xx + u_xxxx + 1/2 (u^2)_x
-#         :return:
-#         """
-#         # For specific computation of the linear component instead
-#         # of arbitrary derivatives we can optimize the calculation by being specific.
-
-#         linear = self.dt(order=1) + self.dx(order=2) + self.dx(order=4)
-#         # Convert state information to field inplace; derivative operation switches this back to modes?
-#         orbit_field = self.convert(to='field')
-#         nonlinear = orbit_field.pseudospectral(orbit_field).state
-#         orbit_mapping = self.__class__(state=(linear + nonlinear),
-#                                        T=self.T, L=self.L, S=self.S)
-#         return orbit_mapping

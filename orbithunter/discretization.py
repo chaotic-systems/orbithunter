@@ -39,7 +39,7 @@ def parameter_based_discretization(orbit, **kwargs):
     else:
         return orbit
 
-def rediscretize(x, parameter_based=False, next_fast_len_n_iter=0, **kwargs):
+def rediscretize(x, parameter_based=False, **kwargs):
     # Return class object with new discretization size. Not performed in place
     # because it is used in other functions; don't want user to be caught unawares
     if parameter_based:
@@ -54,7 +54,7 @@ def rediscretize(x, parameter_based=False, next_fast_len_n_iter=0, **kwargs):
     else:
         #placeholders for workaround of rfft normalization change
         oldN,oldM = x.N, x.M
-        if np.mod(newN,2) or np.mod(newM,2):
+        if np.mod(newN, 2) or np.mod(newM, 2):
             raise ValueError('New discretization size must be an even number, preferably a power of 2')
         else:
             if newM == x.M:

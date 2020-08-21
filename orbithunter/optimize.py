@@ -109,18 +109,18 @@ def _adjoint_descent(orbit, parameter_constraints=(False,False,False), **kwargs)
 
     # not optimized for orbit.residual()
     mapping = orbit.spatiotemporal_mapping()
-    residual = mapping.norm()
+    residual = 0.5*mapping.norm()**2
     while residual > atol and n_iter < max_iter:
         dx = orbit.rmatvec(mapping, parameter_constraints=parameter_constraints,
                            preconditioning=preconditioning)
         next_orbit = orbit.increment(dx, stepsize=-1.0*h)
         next_mapping = next_orbit.spatiotemporal_mapping()
-        next_residual = next_mapping.norm()
+        next_residual = 0.5*next_mapping.norm()**2
         while next_residual >= residual:
             h = 0.5*h
             next_orbit = orbit.increment(dx, stepsize=-1.0*h)
             next_mapping = next_orbit.spatiotemporal_mapping()
-            next_residual = next_mapping.norm()
+            next_residual = 0.5*next_mapping.norm()**2
             if h <= 10**-8:
 
                 return orbit, exit_code
