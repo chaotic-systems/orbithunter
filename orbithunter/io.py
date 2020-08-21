@@ -9,7 +9,7 @@ warnings.resetwarnings()
 
 __all__ = ['read_h5', 'parse_class']
 
-def read_h5(filename, directory='', state_type='field'):
+def read_h5(filename, directory='', state_type='modes'):
     if directory == 'data':
         directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/')), '')
 

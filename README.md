@@ -6,6 +6,7 @@ spatiotemporal Fourier modes.
  
 Recent Changes
 --------------
+<<<<<<< HEAD
 By using classmethod decorator and lru_cache from functools was able to make computations
 more efficient. 
 
@@ -20,9 +21,21 @@ For the single test performed, the following were the average time per descent m
 PEP 8 and Refactoring
 ---------------------
 1. Redo __init__ methods to be less messy, call to super()
+=======
+RelativeOrbitKS method refactoring to accomodate caching.
+Computational benchmarks
+1. old research code : Total time 54.5456, per step 0.0033
+1. master branch : Total time 50.0003, per step 0.0015
+1. orbithunter-caching-classmethods : Total time 36.8843, per step 0.0011
+
+PEP 8 and Refactoring
+---------------------
+
+>>>>>>> orbithunter-caching-classmethods
 
 To-do
 -----
+Redo __init__ methods to be less messy, call to super()
 RelativeEquilibriumKS and EquilibriumKS need to be fully implemented. 
 RelativeEquilibriumKS.status() needs to account for shift as part of "time derivative".
 RelativeEquilibriumKS and EquilibriumKS raising exceptions when .dt() or .dt_matrix() are called. 
