@@ -6,18 +6,20 @@ spatiotemporal Fourier modes.
  
 Recent Changes
 --------------
-Changed the spatial modes retained for RelativeEquilibriumKS and EquilibriumKS
-so that spatial transforms (and the corresponding matrices) can be inherited.
+By using classmethod decorator and lru_cache from functools was able to make computations
+more efficient. 
 
-Now, this is wasteful computationally because of how the pseudospectral products
-are computed. This is purely to maintain consistency and also allow for easier co-moving
-transformations for RelativeEquilibriumKS
+Benchmarking,
+For the single test performed, the following were the average time per descent method step
+
+	1. Old research code (numpy arrays only) 0.00149 secs per step 24.4680 secs total
+	2. Orbithunter master branch  0.0016 secs per step, 26.33392 secs total
+	3. Orbithunter orbithunter-cache-classmethods 0.00094 secs per step 15.4545 total
+
 
 PEP 8 and Refactoring
 ---------------------
-1. Reduce the try-except statement in __init__
-2. Convert some variable names to pep8 conventions: N, M constant; T,L 
-	not constant -> period, speriod 
+1. Redo __init__ methods to be less messy, call to super()
 
 To-do
 -----

@@ -16,12 +16,12 @@ def swap_modes(modes, dimension='space'):
         swapped_modes = np.concatenate((modes[0, :].reshape(1, -1), modes[-n:, :], modes[1:-n, :]), axis=0)
     return swapped_modes
 
-# @lru_cache(maxsize=None)
-def so2_generator(order=1):
-    return np.linalg.matrix_power(np.array([[0, -1], [1, 0]]), np.mod(order, 4))
+@lru_cache(maxsize=8)
+def so2_generator(power=1):
+    return np.linalg.matrix_power(np.array([[0, -1], [1, 0]]), np.mod(power, 4))
 
-# @lru_cache(maxsize=None)
-def so2_coefficients(order=1):
-    return np.sum(so2_generator(order=order), axis=0)
+@lru_cache(maxsize=8)
+def so2_coefficients(power=1):
+    return np.sum(so2_generator(power=power), axis=0)
 
 
