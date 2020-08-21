@@ -296,14 +296,14 @@ class OrbitKS:
         float :
             The value of self * other via L_2 inner product.
         """
-        return float(np.dot(self.state.reshape(1, -1), other.state.reshape(-1, 1)))
+        return float(np.dot(self.state.ravel(), other.state.ravel()))
 
-    def dt_matrix(self, order=1):
+    def dt_matrix(self, power=1):
         """ The time derivative matrix operator for the current state.
 
         Parameters
         ----------
-        order : int
+        power :int
             The order of the derivative.
 
         Returns
@@ -320,19 +320,20 @@ class OrbitKS:
         we need a number of copies of dt_n_matrix equal to the number of spatial frequencies.
         """
         # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
-        dt_n_matrix = np.kron(so2_generator(order=order), np.diag(self.frequency_vector(self.parameters).ravel()**order))
+        dt_n_matrix = np.kron(so2_generator(power=power), np.diag(self.frequency_vector(self.parameters,
+                                                                                        power=power).ravel()))
         # Zeroth frequency was not included in frequency vector.
         dt_n_matrix = block_diag([[0]], dt_n_matrix)
         # Take kronecker product to account for the number of spatial modes.
         spacetime_dtn = np.kron(dt_n_matrix, np.eye(self.mode_shape[1]))
         return spacetime_dtn
 
-    def dt(self, order=1):
+    def dt(self, power=1, return_modes=False):
         """ A time derivative of the current state.
 
         Parameters
         ----------
-        order : int
+        power :int
             The order of the derivative.
 
         Returns
@@ -341,24 +342,27 @@ class OrbitKS:
             The class instance whose state is the time derivative in
             the spatiotemporal mode basis.
         """
-        spacetime_modes = self.convert(to='modes').state
+        modes = self.convert(to='modes').state
 
         # Elementwise multiplication of modes with frequencies, this is the derivative.
-        dtn_modes = np.multiply(self.elementwise_dtn(self.parameters, order=order), spacetime_modes)
+        dtn_modes = np.multiply(self.elementwise_dtn(self.parameters, power=power), modes)
 
         # If the order of the derivative is odd, then imaginary component and real components switch.
-        if np.mod(order, 2):
+        if np.mod(power, 2):
             dtn_modes = swap_modes(dtn_modes, dimension='time')
 
-        orbit_dtn = self.__class__(state=dtn_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
-        return orbit_dtn
+        if return_modes:
+            return dtn_modes
+        else:
+            orbit_dtn = self.__class__(state=dtn_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
+            return orbit_dtn.convert(to=self.state_type)
 
-    def dx(self, order=1):
+    def dx(self, power=1):
         """ A spatial derivative of the current state.
 
         Parameters
         ----------
-        order : int
+        power :int
             The order of the derivative.
 
         Returns
@@ -371,20 +375,21 @@ class OrbitKS:
         -----
         Dimensions provided to np.tile in defining elementwise_dxn were originally (self.N-1, 1).
         """
-        spacetime_modes = self.convert(to='modes').state
+        modes = self.convert(to='modes').state
 
         # Elementwise multiplication of modes with frequencies, this is the derivative.
-        dxn_modes = np.multiply(self.elementwise_dxn(self.parameters, order=order), spacetime_modes)
+        dxn_modes = np.multiply(self.elementwise_dxn(self.parameters, power=power), modes)
 
         # If the order of the differentiation is odd, need to swap imaginary and real components.
-        if np.mod(order, 2):
+        if np.mod(power, 2):
             dxn_modes = swap_modes(dxn_modes, dimension='space')
+
         orbit_dxn = self.__class__(state=dxn_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
         return orbit_dxn.convert(to=self.state_type)
 
     @classmethod
     @lru_cache(maxsize=16)
-    def wave_vector(cls, parameters):
+    def wave_vector(cls, parameters, power=1):
         """ Spatial frequency vector for the current state
 
         Returns
@@ -393,11 +398,12 @@ class OrbitKS:
             Array of spatial frequencies of shape (m, 1)
         """
         L, M, m = parameters[1], parameters[4], parameters[6]
-        return ((2 * pi * M / L) * np.fft.fftfreq(M)[1:m+1]).reshape(1, -1)
+        q_m = ((2 * pi * M / L) * np.fft.fftfreq(M)[1:m+1]).reshape(1, -1)
+        return q_m**power
 
     @classmethod
     @lru_cache(maxsize=16)
-    def frequency_vector(cls, parameters):
+    def frequency_vector(cls, parameters, power=1):
         """
         Returns
         -------
@@ -411,14 +417,15 @@ class OrbitKS:
 
         """
         T, N, n = parameters[0], parameters[3], parameters[5]
-        return (-1.0 * (2 * pi * N / T) * np.fft.fftfreq(N)[1:n+1]).reshape(-1, 1)
+        w_n = (-1.0 * (2 * pi * N / T) * np.fft.fftfreq(N)[1:n+1]).reshape(-1, 1)
+        return w_n**power
 
-    def dx_matrix(self, order=1, **kwargs):
+    def dx_matrix(self, power=1, **kwargs):
         """ The space derivative matrix operator for the current state.
 
         Parameters
         ----------
-        order : int
+        power :int
             The order of the derivative.
         **kwargs :
             state_type: str
@@ -442,7 +449,8 @@ class OrbitKS:
 
         state_type = kwargs.get('state_type', self.state_type)
         # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
-        space_dxn = np.kron(so2_generator(order=order), np.diag(self.wave_vector(self.parameters).ravel()**order))
+        space_dxn = np.kron(so2_generator(power=power), np.diag(self.wave_vector(self.parameters,
+                                                                                 power=power).ravel()))
         if state_type == 'modes':
             spacetime_dxn = np.kron(np.eye(self.mode_shape[0]), space_dxn)
         else:
@@ -452,7 +460,7 @@ class OrbitKS:
 
     @classmethod
     @lru_cache(maxsize=16)
-    def elementwise_dxn(cls, parameters, order=1):
+    def elementwise_dxn(cls, parameters, power=1):
         """ Matrix of temporal mode frequencies
 
         Creates and returns a matrix whose elements
@@ -467,17 +475,17 @@ class OrbitKS:
         matrix
             Matrix of spatial frequencies
         """
-        qkn = cls.wave_vector(parameters)**order
+        q = cls.wave_vector(parameters, power=power)
         # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
-        c1, c2 = so2_coefficients(order=order)
+        c1, c2 = so2_coefficients(power=power)
         # Create elementwise spatial frequency matrix
         N = parameters[3]
-        dxn_multipliers = np.tile(np.concatenate((c1*qkn, c2*qkn), axis=1), (N - 1, 1))
+        dxn_multipliers = np.tile(np.concatenate((c1*q, c2*q), axis=1), (N - 1, 1))
         return dxn_multipliers
 
     @classmethod
     @lru_cache(maxsize=16)
-    def elementwise_dtn(cls, parameters, order=1):
+    def elementwise_dtn(cls, parameters, power=1):
         """ Matrix of temporal mode frequencies
 
         Creates and returns a matrix whose elements
@@ -494,13 +502,13 @@ class OrbitKS:
             Matrix of temporal frequencies
         """
 
-        wj = cls.frequency_vector(parameters)**order
+        w = cls.frequency_vector(parameters, power=power)
         # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
-        c1, c2 = so2_coefficients(order=order)
+        c1, c2 = so2_coefficients(power=power)
         # The Nyquist frequency is never included, this is how time frequency modes are ordered.
         # Elementwise product of modes with time frequencies is the spectral derivative.
         M = parameters[4]
-        dtn_multipliers = np.tile(np.concatenate(([[0]], c1*wj, c2*wj), axis=0), (1, M - 2))
+        dtn_multipliers = np.tile(np.concatenate(([[0]], c1*w, c2*w), axis=0), (1, M - 2))
         return dtn_multipliers
 
     def from_fundamental_domain(self):
@@ -553,12 +561,12 @@ class OrbitKS:
             qk_matrix = self.elementwise_dxn(self.parameters)
 
             # The derivative with respect to L of the linear component. Equal to -2/L u_xx - 4/L u_xxxx
-            d2x = np.multiply(-1.0 * qk_matrix**2, self.state)
-            d4x = np.multiply(qk_matrix**4, self.state)
-            dfdl_linear = (-2.0/self.L) * d2x + (-4.0/self.L) * d4x
+            dx2 = np.multiply(-1.0 * qk_matrix**2, self.state)
+            dx4 = np.multiply(qk_matrix**4, self.state)
+            dfdl_linear = (-2.0/self.L) * dx2 + (-4.0/self.L) * dx4
 
             # The derivative with respect to L of the nonlinear component. Equal to -1/L (0.5 (u^2)_x)
-            dfdl_nonlinear = (- 1.0 / self.L) * orbit_field.pseudospectral(orbit_field).state
+            dfdl_nonlinear = (- 1.0 / self.L) * orbit_field.nonlinear(orbit_field).state
             dfdl = dfdl_linear + dfdl_nonlinear
 
             # Augment the Jacobian with the partial derivative
@@ -568,7 +576,7 @@ class OrbitKS:
 
     def jac_lin(self):
         """ The linear component of the Jacobian matrix of the Kuramoto-Sivashinsky equation"""
-        return self.dt_matrix() + self.dx_matrix(order=2) + self.dx_matrix(order=4)
+        return self.dt_matrix() + self.dx_matrix(power=2) + self.dx_matrix(power=4)
 
     def jac_nonlin(self):
         """ The nonlinear component of the Jacobian matrix of the Kuramoto-Sivashinsky equation
@@ -577,7 +585,7 @@ class OrbitKS:
         -------
         nonlinear_dx : matrix
             Matrix which represents the nonlinear component of the Jacobian. The derivative of
-            the pseudospectral term, which is
+            the nonlinear term, which is
             (D/DU) 1/2 d_x (u .* u) = (D/DU) 1/2 d_x F (diag(F^-1 u)^2)  = d_x F( diag(F^-1 u) F^-1).
             See
             Chu, K.T. A direct matrix method for computing analytical Jacobians of discretized nonlinear
@@ -623,45 +631,47 @@ class OrbitKS:
         Equivalent to computation of v_t + v_xx + v_xxxx + d_x (u .* v)
 
         """
-        # Create elementwise frequency matrices for the derivatives
-        wj_matrix = self.elementwise_dtn(self.parameters)
-        qk_matrix = self.elementwise_dxn(self.parameters)
-        elementwise_qk2 = -1.0*qk_matrix**2
-        elementwise_qk4 = qk_matrix**4
+        assert (self.state_type == 'modes') and (other.state_type == 'modes')
+        modes = self.state
+        other_modes = other.state
+        elementwise_dt = self.elementwise_dtn(self.parameters)
+        elementwise_dx2 = self.elementwise_dxn(self.parameters, power=2)
+        elementwise_dx4 = self.elementwise_dxn(self.parameters, power=4)
 
-        # Compute the derivatives
-        dt = swap_modes(np.multiply(wj_matrix, other.state), dimension='time')
-        d2x = np.multiply(elementwise_qk2, other.state)
-        d4x = np.multiply(elementwise_qk4, other.state)
-
-        # Add up linear derivatives
-        linear_term = dt + d2x + d4x
-        orbit_linear = self.__class__(state=linear_term, state_type='modes', T=self.T, L=self.L)
+        dt = swap_modes(np.multiply(elementwise_dt, other_modes), dimension='time')
+        dx2 = np.multiply(elementwise_dx2, other_modes)
+        dx4 = np.multiply(elementwise_dx4, other_modes)
+        linear = dt + dx2 + dx4
 
         # Compute nonlinear term
-        orbit_field = self.convert(to='field')
-        orbit_matvec = orbit_linear + 2 * orbit_field.pseudospectral(other)
+        field = self.convert(to='field')
+        other_field = other.convert(to='field')
+        nonlinear = swap_modes(np.multiply(self.elementwise_dxn(self.parameters),
+                                field.statemul(other_field).convert(to='modes').state), dimension='space')
+
+        matvec_modes = linear + nonlinear
         if not parameter_constraints[0]:
             # Compute the product of the partial derivative with respect to T with the vector's value of T.
             # This is typically an incremental value dT.
-            orbit_matvec.state = orbit_matvec.state + other.T * (-1.0 / self.T) * dt
+            matvec_modes += other.T * (-1.0 / self.T) * dt
 
         if not parameter_constraints[1]:
             # Compute the product of the partial derivative with respect to L with the vector's value of L.
             # This is typically an incremental value dL.
-            d2x_self = np.multiply(elementwise_qk2, self.state)
-            d4x_self = np.multiply(elementwise_qk4, self.state)
-            dfdl_linear = (-2.0/self.L)*d2x_self + (-4.0/self.L)*d4x_self
-            dfdl_nonlinear = (-1.0/self.L) * orbit_field.pseudospectral(orbit_field).state
+            dx2_self = np.multiply(elementwise_dx2, modes)
+            dx4_self = np.multiply(elementwise_dx4, modes)
+            dfdl_linear = (-2.0/self.L)*dx2_self + (-4.0/self.L)*dx4_self
+            dfdl_nonlinear = (-1.0/self.L) * 0.5 * swap_modes(np.multiply(self.elementwise_dxn(self.parameters),
+                                field.statemul(field).convert(to='modes').state), dimension='space')
             dfdl = dfdl_linear + dfdl_nonlinear
-            orbit_matvec.state = orbit_matvec.state + other.L*dfdl
+            matvec_modes += other.L * dfdl
 
         # This is equivalent to LEFT preconditioning.
         if preconditioning:
-            p_matrix = 1.0 / (np.abs(wj_matrix) + qk_matrix**2 + qk_matrix**4)
-            orbit_matvec.state = np.multiply(orbit_matvec.state, p_matrix)
+            p_matrix = 1.0 / (np.abs(elementwise_dt) + np.abs(elementwise_dx2) + elementwise_dx4)
+            matvec_modes = np.multiply(matvec_modes, p_matrix)
 
-        return orbit_matvec
+        return self.__class__(state=matvec_modes, state_type='modes', T=self.T, L=self.L)
 
     def mode_padding(self, size, dimension='space'):
         """ Increase the size of the discretization via zero-padding
@@ -938,45 +948,46 @@ class OrbitKS:
             return np.tile(p.reshape(-1, 1), (1, p.size+(2-sum(parameter_constraints))))
 
     def pseudospectral(self, other):
-        """ Pseudospectral computation of the nonlinear term of the Kuramoto-Sivashinsky equation
+        """ nonlinear computation of the nonlinear term of the Kuramoto-Sivashinsky equation
 
         Parameters
         ----------
 
         other : OrbitKS
-            The second component of the pseudospectral product see Notes for details
+            The second component of the nonlinear product see Notes for details
         qk_matrix : matrix
             The matrix with the correctly ordered spatial frequencies.
 
         Notes
         -----
-        The pseudospectral product is the name given to the elementwise product equivalent to the
+        The nonlinear product is the name given to the elementwise product equivalent to the
         convolution of spatiotemporal Fourier modes. It's faster and more accurate hence why it is used.
         The matrix vector product takes the form d_x (u * v), but the "normal" usage is d_x (u * u); in the latter
         case other is the same as self. The spatial frequency matrix is passed to avoid redundant function calls,
         improving speed.
 
         """
-        # Elementwise product
-        pseudospectral_orbit = self.convert(to='field').statemul(other.convert(to='field'))
+        # Elementwise product, both self and other should be in physical field basis.
+        assert (self.state_type == 'field') and (other.state_type == 'field')
+        pseudospectral = self.statemul(other)
         # Return Spatial derivative with 1/2 factor. The conversion to modes does not do anything unless original
         # state has discrete symmetry
-        return 0.5 * pseudospectral_orbit.dx().convert(to='modes')
+        return 0.5 * pseudospectral.dx().convert(to='modes')
 
     def rpseudospectral(self, other):
-        """ Pseudospectral computation of the nonlinear term of the adjoint Kuramoto-Sivashinsky equation
+        """ nonlinear computation of the nonlinear term of the adjoint Kuramoto-Sivashinsky equation
 
         Parameters
         ----------
 
         other : OrbitKS
-            The second component of the pseudospectral product see Notes for details
+            The second component of the nonlinear product see Notes for details
         qk_matrix : matrix
             The matrix with the correctly ordered spatial frequencies.
 
         Notes
         -----
-        The pseudospectral product is the name given to the elementwise product equivalent to the
+        The nonlinear product is the name given to the elementwise product equivalent to the
         convolution of spatiotemporal Fourier modes. It's faster and more accurate hence why it is used.
         The matrix vector product takes the form -1 * u * d_x v. The spatial frequency matrix is passed to avoid
         redundant function calls, improving speed.
@@ -1068,7 +1079,7 @@ class OrbitKS:
         reflected_field = -1.0*np.roll(np.fliplr(self.convert(to='field').state), 1, axis=1)
         return self.__class__(state=reflected_field, state_type='field', T=self.T, L=self.L, S=-1.0*self.S)
 
-    def residual(self):
+    def residual(self, apply_mapping=True):
         """ The value of the cost function
 
         Returns
@@ -1077,7 +1088,12 @@ class OrbitKS:
             The value of the cost function, equal to 1/2 the squared L_2 norm of the spatiotemporal mapping,
             R = 1/2 ||F||^2.
         """
-        return 0.5 * np.linalg.norm(self.convert(to='modes').spatiotemporal_mapping().state.ravel())**2
+        if apply_mapping:
+            v = self.convert(to='modes').spatiotemporal_mapping().state.ravel()
+            return 0.5 * v.dot(v)
+        else:
+            u = self.state.ravel()
+            return 0.5 * u.dot(u)
 
     def rmatvec(self, other, parameter_constraints=(False, False), preconditioning=True):
         """ Matrix-vector product with the adjoint of the Jacobian
@@ -1094,52 +1110,60 @@ class OrbitKS:
         Returns
         -------
         orbit_rmatvec :
-            OrbitKS with values representative of the adjoint-vector product A^H * x.
+            OrbitKS with values representative of the adjoint-vector product A^H * x. Equivalent to
+            evaluation of -v_t + v_xx + v_xxxx  - (u .* v_x)
 
         """
+        assert (self.state_type == 'modes') and (other.state_type == 'modes')
+        modes = self.state
+        other_modes = other.state
+        elementwise_dt = self.elementwise_dtn(self.parameters)
+        elementwise_dx = self.elementwise_dxn(self.parameters)
+        elementwise_dx2 = self.elementwise_dxn(self.parameters, power=2)
+        elementwise_dx4 = self.elementwise_dxn(self.parameters, power=4)
 
-        # Linear component of the product, equal to -v_t + v_xx + v_xxxx
-        wj_matrix = self.elementwise_dtn(self.parameters)
-        qk_matrix = self.elementwise_dxn(self.parameters)
-        elementwise_qk2 = -1.0*qk_matrix**2
-        elementwise_qk4 = qk_matrix**4
+        dt = swap_modes(np.multiply(elementwise_dt, other_modes), dimension='time')
+        dx2 = np.multiply(elementwise_dx2, other_modes)
+        dx4 = np.multiply(elementwise_dx4, other_modes)
+        linear = -1.0 * dt + dx2 + dx4
 
-        dt = swap_modes(np.multiply(wj_matrix, other.state), dimension='time')
-        d2x = np.multiply(elementwise_qk2, other.state)
-        d4x = np.multiply(elementwise_qk4, other.state)
-        linear = -1.0*dt + d2x + d4x
+        # Nonlinear component, equal to -(u .* v_x)
+        field = self.convert(to='field')
+        other_modes_dx = swap_modes(np.multiply(elementwise_dx,
+                                                other_modes), dimension='space')
+        other_field_dx = other.__class__(state=other_modes_dx, state_type='modes').convert(to='field')
 
-        # Nonlinear component, equal to -u * v_x
-        orbit_field = self.convert(to='field')
-        nonlinear = orbit_field.rpseudospectral(other).state
-        orbit_rmatvec = self.__class__(state=(linear + nonlinear))
+        nonlinear = -1.0 * field.statemul(other_field_dx).convert(to='modes').state
+        rmatvec_modes = linear + nonlinear
 
         if not parameter_constraints[0]:
             # Derivative with respect to T term equal to DF/DT * v
-            dt_self = swap_modes(np.multiply(wj_matrix, self.state), dimension='time')
-            dfdt = (-1.0 / self.T)*dt_self
-            orbit_rmatvec.T = np.dot(dfdt.ravel(), other.state.ravel())
+            dfdt = (-1.0 / self.T) * swap_modes(np.multiply(elementwise_dt, modes), dimension='time')
+            rmatvec_T = dfdt.ravel().dot(other_modes.ravel())
+            if preconditioning:
+                rmatvec_T = rmatvec_T / self.T
+
 
         if not parameter_constraints[1]:
             # Derivative with respect to L equal to DF/DL * v
-            d2x_self = np.multiply(elementwise_qk2, self.state)
-            d4x_self = np.multiply(elementwise_qk4, self.state)
-            dfdl_linear = ((-2.0/self.L)*d2x_self + (-4.0/self.L)*d4x_self)
-            dfdl_nonlinear = (-1.0/self.L) * orbit_field.pseudospectral(orbit_field).state
+            dfdl_linear = ((-2.0/self.L)*np.multiply(elementwise_dx2, modes)
+                           + (-4.0/self.L)*np.multiply(elementwise_dx4, modes))
+            nonlinear = 0.5 * swap_modes(np.multiply(self.elementwise_dxn(self.parameters),
+                                         field.statemul(field).convert(to='modes').state), dimension='space')
+            dfdl_nonlinear = (-1.0 / self.L) * nonlinear
             dfdl = dfdl_linear + dfdl_nonlinear
-            orbit_rmatvec.L = np.dot(dfdl.ravel(), other.state.ravel())
+            rmatvec_L = dfdl.ravel().dot(other_modes.ravel())
+            if preconditioning:
+                rmatvec_L = rmatvec_L / (self.L**4)
 
         if preconditioning:
             # Apply left preconditioning
-            p_matrix = 1.0 / (np.abs(wj_matrix) + qk_matrix**2 + qk_matrix**4)
-            orbit_rmatvec.state = np.multiply(orbit_rmatvec.state, p_matrix)
+            p_matrix = 1.0 / (np.abs(elementwise_dt)
+                              + np.abs(elementwise_dx2)
+                              + elementwise_dx4)
+            rmatvec_modes = np.multiply(p_matrix, rmatvec_modes)
 
-            if not parameter_constraints[0]:
-                orbit_rmatvec.T = orbit_rmatvec.T / self.T
-            if not parameter_constraints[1]:
-                orbit_rmatvec.L = orbit_rmatvec.L/(self.L**4)
-
-        return orbit_rmatvec
+        return self.__class__(state=rmatvec_modes, state_type='modes', T=rmatvec_T, L=rmatvec_L)
 
     def rotate(self, distance=0, direction='space', inplace=False):
         """ Rotate the velocity field in either space or time.
@@ -1421,14 +1445,25 @@ class OrbitKS:
         """
         # For specific computation of the linear component instead
         # of arbitrary derivatives we can optimize the calculation by being specific.
+        modes = self.convert(to='modes').state
+        elementwise_dt = self.elementwise_dtn(self.parameters)
+        elementwise_dx2 = self.elementwise_dxn(self.parameters, power=2)
+        elementwise_dx4 = self.elementwise_dxn(self.parameters, power=4)
 
-        # Because of caching, its more efficient to take 2nd order derivative twice.
-        linear = self.dt() + self.dx(order=2) + self.dx(order=4)
-        # Convert state information to field inplace; derivative operation switches this back to modes?
+        dt = swap_modes(np.multiply(elementwise_dt, modes), dimension='time')
+        dx2 = np.multiply(elementwise_dx2, modes)
+        dx4 = np.multiply(elementwise_dx4, modes)
+        linear = dt + dx2 + dx4
+
+        # Return Spatial derivative with 1/2 factor. The conversion to modes does not do anything unless original
+        # state has discrete symmetry
         orbit_field = self.convert(to='field')
-        nonlinear = orbit_field.pseudospectral(orbit_field)
-        orbit_mapping = linear + nonlinear
-        return orbit_mapping
+
+        nonlinear = 0.5 * swap_modes(np.multiply(self.elementwise_dxn(self.parameters),
+                                orbit_field.statemul(orbit_field).convert(to='modes').state), dimension='space')
+
+        mapping_modes = linear + nonlinear
+        return self.__class__(state=mapping_modes, state_type='modes', T=self.T, L=self.L)
 
     def statemul(self, other):
         """ Elementwise multiplication of two Tori states
@@ -1609,17 +1644,17 @@ class AntisymmetricOrbitKS(OrbitKS):
         except ValueError:
             print('Incompatible type provided for field or modes: 2-D NumPy arrays only')
 
-    def dx(self, order=1):
+    def dx(self, power=1):
         """ Overwrite of parent method """
-        qkn = self.wave_vector(self.parameters)**order
-        if np.mod(order, 2):
-            c1, c2 = so2_coefficients(order=order)
+        qkn = self.wave_vector(self.parameters, power=power)
+        if np.mod(power, 2):
+            c1, c2 = so2_coefficients(power=power)
             elementwise_dxn = np.tile(np.concatenate((c1*qkn, c2*qkn), axis=1), (self.N, 1))
             dxn_s_modes = np.multiply(elementwise_dxn, self.convert(to='s_modes').state)
             dxn_s_modes = swap_modes(dxn_s_modes, dimension='space')
             return self.__class__(state=dxn_s_modes, state_type='s_modes', T=self.T, L=self.L)
         else:
-            c, _ = so2_coefficients(order=order)
+            c, _ = so2_coefficients(power=power)
             elementwise_dxn = np.tile(c*qkn, (self.N-1, 1))
             dxn_modes = np.multiply(self.convert(to='modes').state, elementwise_dxn)
             return self.__class__(state=dxn_modes, state_type='modes', T=self.T, L=self.L).convert(to=self.state_type)
@@ -1629,16 +1664,17 @@ class AntisymmetricOrbitKS(OrbitKS):
         qk = self.wave_vector(self.parameters)
         return np.tile(qk, (self.N-1, 1))
 
-    def dx_matrix(self, order=1, **kwargs):
+    def dx_matrix(self, power=1, **kwargs):
         """ Overwrite of parent method """
         state_type = kwargs.get('state_type', self.state_type)
         # Define spatial wavenumber vector
         if state_type == 'modes':
-            _, c = so2_coefficients(order=order)
-            dx_n_matrix = c * np.diag(self.wave_vector(self.parameters).ravel()**order)
+            _, c = so2_coefficients(power=power)
+            dx_n_matrix = c * np.diag(self.wave_vector(self.parameters, power=power).ravel())
             dx_matrix_complete = np.kron(np.eye(self.N-1), dx_n_matrix)
         else:
-            dx_n_matrix = np.kron(so2_generator(order=order), np.diag(self.wave_vector(self.parameters).ravel()**order))
+            dx_n_matrix = np.kron(so2_generator(power=power), np.diag(self.wave_vector(self.parameters,
+                                                                                       power=power).ravel()))
             dx_matrix_complete = np.kron(np.eye(self.N), dx_n_matrix)
         return dx_matrix_complete
 
@@ -1945,12 +1981,12 @@ class RelativeOrbitKS(OrbitKS):
                                        T=self.T, L=self.L, S=-1.0*self.S).convert(to=original_state)
         return frame_change_
 
-    def dt(self, order=1):
+    def dt(self, power=1):
         """ A time derivative of the current state.
 
         Parameters
         ----------
-        order : int
+        power :int
             The order of the derivative.
 
         Returns
@@ -1960,7 +1996,7 @@ class RelativeOrbitKS(OrbitKS):
             the spatiotemporal mode basis.
         """
         if self.frame == 'comoving':
-            return super().dt(order=order)
+            return super().dt(power=power)
         else:
             raise ValueError(
                 'Attempting to compute time derivative of '+self.__str__+ 'in physical reference frame.')
@@ -1997,11 +2033,11 @@ class RelativeOrbitKS(OrbitKS):
         if not parameter_constraints[1]:
             orbit_field = self.convert(to='field')
             qk_matrix = self.elementwise_dxn(self.parameters)
-            d2x = np.multiply(-1.0*qk_matrix**2, self.state)
-            d4x = np.multiply(qk_matrix**4, self.state)
+            dx2 = np.multiply(-1.0*qk_matrix**2, self.state)
+            dx4 = np.multiply(qk_matrix**4, self.state)
             s = self.comoving_mapping_component().state
-            dfdl_linear = (-2.0/self.L)*d2x + (-4.0/self.L)*d4x + (-1.0/self.L) * s
-            dfdl_nonlinear = (-1.0/self.L) * orbit_field.pseudospectral(orbit_field).state
+            dfdl_linear = (-2.0/self.L)*dx2 + (-4.0/self.L)*dx4 + (-1.0/self.L) * s
+            dfdl_nonlinear = (-1.0/self.L) * orbit_field.nonlinear(orbit_field).state
             dfdl = dfdl_linear + dfdl_nonlinear
             jac_ = np.concatenate((jac_, dfdl.reshape(-1, 1)), axis=1)
 
@@ -2039,48 +2075,36 @@ class RelativeOrbitKS(OrbitKS):
         The reason for all of the repeated code is that the co-moving terms re-use the same matrices
         as the other terms; this prevents additional function calls.
         """
-        wj_matrix = self.elementwise_dtn(self.parameters)
-        qk_matrix = self.elementwise_dxn(self.parameters)
-        elementwise_qk2 = -1.0*qk_matrix**2
-        elementwise_qk4 = qk_matrix**4
 
-        dt = swap_modes(np.multiply(wj_matrix, other.state), dimension='time')
-        d2x = np.multiply(elementwise_qk2, other.state)
-        d4x = np.multiply(elementwise_qk4, other.state)
-        s = -1.0 * (self.S / self.T)*swap_modes(np.multiply(qk_matrix, other.state))
+        assert (self.state_type == 'modes') and (other.state_type == 'modes')
+        matvec_orbit = super().matvec(self, other, parameter_constraints=parameter_constraints,
+                                      preconditioning=preconditioning)
+        modes = self.state
+        other_modes = other.state
 
-        linear_term = dt + d2x + d4x + s
-        orbit_linear = self.__class__(state=linear_term, state_type='modes', T=self.T, L=self.L, S=self.S)
-
-        orbit_field = self.convert(to='field')
-        # Convert state information to field inplace; derivative operation switches this back to modes?
-        orbit_matvec = orbit_linear + 2 * orbit_field.pseudospectral(other)
+        elementwise_dx = self.elementwise_dxn(self.parameters)
+        comoving_modes = -1.0 * (self.S / self.T) * swap_modes(np.multiply(elementwise_dx, other_modes))
+        # this is needed unless all parameters are fixed, but that isn't ever a realistic choice.
+        modes_dx = swap_modes(np.multiply(elementwise_dx, modes))
 
         if not parameter_constraints[0]:
-            dt_self = swap_modes(np.multiply(wj_matrix, self.state), dimension='time')
-            s_self = (-1.0 * self.S / self.T)*swap_modes(np.multiply(qk_matrix, self.state))
-            dfdt = (-1.0 / self.T)*(dt_self+s_self)
-            orbit_matvec.state = orbit_matvec.state + other.T*dfdt
+            comoving_modes += other.T * (-1.0 / self.T) * (-1.0 * self.S / self.T) * modes_dx
 
         if not parameter_constraints[1]:
-            d2x_self = np.multiply(elementwise_qk2, self.state)
-            d4x_self = np.multiply(elementwise_qk4, self.state)
-            s_self = (-1.0 * self.S / self.T)*swap_modes(np.multiply(qk_matrix, self.state))
-            dfdl_linear = (-2.0/self.L)*d2x_self + (-4.0/self.L)*d4x_self + (-1.0/self.L)*s_self
-            dfdl_nonlinear = (-1.0/self.L) * orbit_field.pseudospectral(orbit_field).state
-            dfdl = dfdl_linear + dfdl_nonlinear
             # Derivative of mapping with respect to T is the same as -1/T * u_t
-            orbit_matvec.state = orbit_matvec.state + other.L*dfdl
+            comoving_modes += other.L * (-1.0 / self.L) * (-1.0 * self.S / self.T) * modes_dx
 
         if not parameter_constraints[2]:
-            orbit_matvec.state = (orbit_matvec.state
-                                  + other.S*(-1.0 / self.T)*swap_modes(np.multiply(qk_matrix, self.state)))
+            comoving_modes += other.S * (-1.0 / self.T) * modes_dx
 
         if preconditioning:
-            p_matrix = 1.0 / (np.abs(wj_matrix) + qk_matrix**2 + qk_matrix**4)
-            orbit_matvec.state = np.multiply(orbit_matvec.state, p_matrix)
+            p_matrix = 1.0 / (np.abs(self.elementwise_dtn(self.parameters))
+                              + self.elementwise_dxn(self.parameters, power=2)
+                              + self.elementwise_dxn(self.parameters, power=4))
+            comoving_modes = np.multiply(comoving_modes, p_matrix)
 
-        return orbit_matvec
+        matvec_orbit.state += comoving_modes
+        return matvec_orbit
 
     def rmatvec(self, other, parameter_constraints=(False, False, False), preconditioning=True, **kwargs):
         """ Extension of the parent method to RelativeOrbitKS """
@@ -2092,12 +2116,12 @@ class RelativeOrbitKS(OrbitKS):
         elementwise_qk4 = qk_matrix**4
 
         dt = -1.0 * swap_modes(np.multiply(wj_matrix, other.state), dimension='time')
-        d2x = np.multiply(elementwise_qk2, other.state)
-        d4x = np.multiply(elementwise_qk4, other.state)
+        dx2 = np.multiply(elementwise_qk2, other.state)
+        dx4 = np.multiply(elementwise_qk4, other.state)
         s = (self.S / self.T)*swap_modes(np.multiply(qk_matrix, other.state))
-        linear_component = dt + d2x + d4x + s
+        linear_component = dt + dx2 + dx4 + s
         orbit_field = self.convert(to='field')
-        nonlinear_component = orbit_field.rpseudospectral(other).state
+        nonlinear_component = orbit_field.rnonlinear(other).state
         orbit_rmatvec = self.__class__(state=(linear_component + nonlinear_component))
 
         if not parameter_constraints[0]:
@@ -2107,11 +2131,11 @@ class RelativeOrbitKS(OrbitKS):
             orbit_rmatvec.T = np.dot(dfdt.ravel(), other.state.ravel())
 
         if not parameter_constraints[1]:
-            d2x_self = np.multiply(elementwise_qk2, self.state)
-            d4x_self = np.multiply(elementwise_qk4, self.state)
+            dx2_self = np.multiply(elementwise_qk2, self.state)
+            dx4_self = np.multiply(elementwise_qk4, self.state)
             s_self = (-1.0 * self.S / self.T) * swap_modes(np.multiply(qk_matrix, self.state))
-            dfdl_linear = (-2.0/self.L)*d2x_self + (-4.0/self.L)*d4x_self + (-1.0/self.L)*s_self
-            dfdl_nonlinear = (-1.0/self.L) * orbit_field.pseudospectral(orbit_field).state
+            dfdl_linear = (-2.0/self.L)*dx2_self + (-4.0/self.L)*dx4_self + (-1.0/self.L)*s_self
+            dfdl_nonlinear = (-1.0/self.L) * orbit_field.nonlinear(orbit_field).state
             dfdl = dfdl_linear + dfdl_nonlinear
 
             # Derivative of mapping with respect to T is the same as -1/T * u_t
@@ -2191,17 +2215,17 @@ class ShiftReflectionOrbitKS(OrbitKS):
         except ValueError:
             print('Incompatible type provided for field or modes: 2-D NumPy arrays only')
 
-    def dx(self, order=1):
+    def dx(self, power=1):
         """ Overwrite of parent method """
-        qkn = self.wave_vector(self.parameters)**order
-        if np.mod(order, 2):
-            c1, c2 = so2_coefficients(order=order)
+        qkn = self.wave_vector(self.parameters, power=power)
+        if np.mod(power, 2):
+            c1, c2 = so2_coefficients(power=power)
             elementwise_dxn = np.tile(np.concatenate((c1*qkn, c2*qkn), axis=1), (self.N, 1))
             dxn_s_modes = np.multiply(elementwise_dxn, self.convert(to='s_modes').state)
             dxn_s_modes = swap_modes(dxn_s_modes, dimension='space')
             return self.__class__(state=dxn_s_modes, state_type='s_modes', T=self.T, L=self.L).convert(to='s_modes')
         else:
-            c, _ = so2_coefficients(order=order)
+            c, _ = so2_coefficients(power=power)
             elementwise_dxn = np.tile(c*qkn, (self.N-1, 1))
             dxn_modes = np.multiply(self.convert(to='modes').state, elementwise_dxn)
             return self.__class__(state=dxn_modes, state_type='modes', T=self.T, L=self.L).convert(to=self.state_type)
@@ -2211,16 +2235,17 @@ class ShiftReflectionOrbitKS(OrbitKS):
         qk = self.wave_vector(self.parameters)
         return np.tile(qk, (self.N-1, 1))
 
-    def dx_matrix(self, order=1, **kwargs):
+    def dx_matrix(self, power=1, **kwargs):
         """ Overwrite of parent method """
         state_type = kwargs.get('state_type', self.state_type)
         # Define spatial wavenumber vector
         if state_type == 'modes':
-            _, c = so2_coefficients(order=order)
-            dx_n_matrix = c * np.diag(self.wave_vector(self.parameters).ravel()**order)
+            _, c = so2_coefficients(power=power)
+            dx_n_matrix = c * np.diag(self.wave_vector(self.parameters, power=power).ravel())
             dx_matrix_complete = np.kron(np.eye(self.N-1), dx_n_matrix)
         else:
-            dx_n_matrix = np.kron(so2_generator(order=order), np.diag(self.wave_vector(self.parameters).ravel()**order))
+            dx_n_matrix = np.kron(so2_generator(power=power), np.diag(self.wave_vector(self.parameters,
+                                                                                       power=power).ravel()))
             dx_matrix_complete = np.kron(np.eye(self.N), dx_n_matrix)
         return dx_matrix_complete
 
@@ -2473,36 +2498,36 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         return np.concatenate((self.state.reshape(-1, 1),
                                np.array([[float(self.L)]])), axis=0)
 
-    def dx(self, order=1):
+    def dx(self, power=1):
         """ Overwrite of parent method """
-        qkn = self.wave_vector(self.parameters)**order
-        c1, c2 = so2_coefficients(order=order)
+        qkn = self.wave_vector(self.parameters, power=power)
+        c1, c2 = so2_coefficients(power=power)
         elementwise_dxn = np.concatenate((c1*qkn, c2*qkn), axis=1)
         dxn_s_modes = np.multiply(elementwise_dxn, self.convert(to='s_modes').state)
         dxn_s_modes = swap_modes(dxn_s_modes, dimension='space')
         return self.__class__(state=dxn_s_modes, state_type='s_modes', L=self.L)
 
-        qkn = self.wave_vector(self.parameters)**order
+        qkn = self.wave_vector(self.parameters, power=power)
         if np.mod(order, 2):
-            c1, c2 = so2_coefficients(order=order)
+            c1, c2 = so2_coefficients(power=power)
             elementwise_dxn = np.tile(np.concatenate((c1*qkn, c2*qkn), axis=1), (self.N, 1))
             dxn_s_modes = np.multiply(elementwise_dxn, self.convert(to='s_modes').state)
             dxn_s_modes = swap_modes(dxn_s_modes, dimension='space')
             return self.__class__(state=dxn_s_modes, state_type='s_modes', T=self.T, L=self.L)
         else:
-            c, _ = so2_coefficients(order=order)
+            c, _ = so2_coefficients(power=power)
             elementwise_dxn = np.tile(c*qkn, (self.N-1, 1))
             dxn_modes = np.multiply(self.convert(to='modes').state, elementwise_dxn)
             return self.__class__(state=dxn_modes, state_type='modes', T=self.T, L=self.L)
 
-    def dx_matrix(self, order=1, **kwargs):
+    def dx_matrix(self, power=1, **kwargs):
         """ Overwrite of parent method """
         state_type = kwargs.get('state_type', self.state_type)
         # Define spatial wavenumber vector
         if state_type == 'modes':
             dx_n_matrix = np.diag(self.wave_vector(self.parameters).reshape(-1)**order)
         else:
-            dx_n_matrix = np.kron(so2_generator(order=order), np.diag(self.wave_vector(self.parameters).reshape(-1)**order))
+            dx_n_matrix = np.kron(so2_generator(power=power), np.diag(self.wave_vector(self.parameters).reshape(-1)**order))
         return dx_n_matrix
 
     def elementwise_dx(self):
@@ -2552,10 +2577,10 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             current.L = current.L/(self.L**4)
         return current
 
-    def pseudospectral(self, other):
+    def nonlinear(self, other):
         """ Overwrite of parent method """
-        orbit_pseudospectral = self.convert(to='field').statemul(other.convert(to='field'))
-        return 0.5 * orbit_pseudospectral.dx().convert(to='modes')
+        orbit_nonlinear = self.convert(to='field').statemul(other.convert(to='field'))
+        return 0.5 * orbit_nonlinear.dx().convert(to='modes')
 
     def random_initial_condition(self, L, **kwargs):
         """ Initial a set of random spatiotemporal Fourier modes
@@ -2614,7 +2639,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         self.convert(to='modes', inplace=True)
         return self
 
-    def rpseudospectral(self, other):
+    def rnonlinear(self, other):
         """ Overwrite of parent method """
         return -1.0*self.convert(to='field').statemul(other.dx().convert(to='field')).convert(to='modes')
 
@@ -2625,19 +2650,19 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         qk_matrix = self.elementwise_dxn(self.parameters)
         elementwise_qk2 = -1.0*qk_matrix**2
         elementwise_qk4 = qk_matrix**4
-        d2x = np.multiply(elementwise_qk2, other.state)
-        d4x = np.multiply(elementwise_qk4, other.state)
-        linear_component = d2x + d4x
+        dx2 = np.multiply(elementwise_qk2, other.state)
+        dx4 = np.multiply(elementwise_qk4, other.state)
+        linear_component = dx2 + dx4
         orbit_linear = self.__class__(state=linear_component, T=self.T, L=self.L, S=self.S)
         orbit_field = self.convert(to='field')
 
-        orbit_rmatvec = orbit_linear + orbit_field.rpseudospectral(other)
+        orbit_rmatvec = orbit_linear + orbit_field.rnonlinear(other)
 
         if not parameter_constraints:
-            d2x_self = np.multiply(elementwise_qk2, self.state)
-            d4x_self = np.multiply(elementwise_qk4, self.state)
-            dfdl_linear = ((-2.0/self.L)*d2x_self + (-4.0/self.L)*d4x_self)
-            dfdl_nonlinear = (-1.0/self.L) * orbit_field.pseudospectral(orbit_field).state
+            dx2_self = np.multiply(elementwise_qk2, self.state)
+            dx4_self = np.multiply(elementwise_qk4, self.state)
+            dfdl_linear = ((-2.0/self.L)*dx2_self + (-4.0/self.L)*dx4_self)
+            dfdl_nonlinear = (-1.0/self.L) * orbit_field.nonlinear(orbit_field).state
             dfdl = dfdl_linear + dfdl_nonlinear
             orbit_rmatvec.L = np.dot(dfdl.ravel(), other.state.ravel())
 
@@ -2655,11 +2680,11 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         # For specific computation of the linear component instead
         # of arbitrary derivatives we can optimize the calculation by being specific.
         qk_matrix = self.elementwise_dxn(self.parameters)
-        elementwise_d2xd4x = -1.0*qk_matrix**2 + qk_matrix**4
-        linear = np.multiply(elementwise_d2xd4x, self.state)
+        elementwise_dx2dx4 = -1.0*qk_matrix**2 + qk_matrix**4
+        linear = np.multiply(elementwise_dx2dx4, self.state)
         # Convert state information to field inplace; derivative operation switches this back to modes?
         orbit_field = self.convert(to='field')
-        nonlinear = orbit_field.pseudospectral(orbit_field).state
+        nonlinear = orbit_field.nonlinear(orbit_field).state
         orbit_mapping = self.__class__(state=(linear + nonlinear), L=self.L)
         return orbit_mapping
 
@@ -2703,7 +2728,8 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         Notes
         -----
-        In order to use the inherited version of space transform, the
+        Taking the IRFFT, with orthogonal normalization is equivalent to dividing by the normalization constant; because
+        there would only be
         """
         real = np.zeros(self.state.shape)
         imaginary = self.state
@@ -2857,12 +2883,12 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         """ Operator that constitutes the co-moving frame term """
         return -1.0 * (self.S / self.T)*self.dx_matrix()
 
-    def dt(self, order=1):
+    def dt(self, power=1):
         """ A time derivative of the current state.
 
         Parameters
         ----------
-        order : int
+        power :int
             The order of the derivative.
 
         Returns
@@ -2877,12 +2903,12 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             raise ValueError(
                 'Attempting to compute time derivative of '+self.__str__+ 'in physical reference frame.')
 
-    def dt_matrix(self, order=1):
+    def dt_matrix(self, power=1):
         """ The time derivative matrix operator for the current state.
 
         Parameters
         ----------
-        order : int
+        power :int
             The order of the derivative.
 
         Returns
@@ -2899,7 +2925,8 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         we need a number of copies of dt_n_matrix equal to the number of spatial frequencies.
         """
         # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
-        dt_n_matrix = np.kron(so2_generator(order=order), np.diag(self.frequency_vector(self.parameters).ravel()**order))
+        dt_n_matrix = np.kron(so2_generator(power=power), np.diag(self.frequency_vector(self.parameters,
+                                                                                        power=order).ravel()))
         # Zeroth frequency was not included in frequency vector.
         dt_n_matrix = block_diag([[0]], dt_n_matrix)
         # Take kronecker product to account for the number of spatial modes.
@@ -2941,11 +2968,11 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         if not parameter_constraints[1]:
             orbit_field = self.convert(to='field')
             qk_matrix = self.elementwise_dxn(self.parameters)
-            d2x = np.multiply(-1.0*qk_matrix**2, self.state)
-            d4x = np.multiply(qk_matrix**4, self.state)
+            dx2 = np.multiply(-1.0*qk_matrix**2, self.state)
+            dx4 = np.multiply(qk_matrix**4, self.state)
             s = self.comoving_mapping_component().state
-            dfdl_linear = (-2.0/self.L)*d2x + (-4.0/self.L)*d4x + (-1.0/self.L) * s
-            dfdl_nonlinear = (-1.0/self.L) * orbit_field.pseudospectral(orbit_field).state
+            dfdl_linear = (-2.0/self.L)*dx2 + (-4.0/self.L)*dx4 + (-1.0/self.L) * s
+            dfdl_nonlinear = (-1.0/self.L) * orbit_field.nonlinear(orbit_field).state
             dfdl = dfdl_linear + dfdl_nonlinear
             jac_ = np.concatenate((jac_, dfdl.reshape(-1, 1)), axis=1)
 
@@ -2957,7 +2984,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
     def jac_lin(self):
         """ Extension of the OrbitKS method that includes the term for spatial translation symmetry"""
-        return self.dx_matrix(order=2) + self.dx_matrix(order=4) + self.comoving_matrix()
+        return self.dx_matrix(power=2) + self.dx_matrix(power=4) + self.comoving_matrix()
 
     def matvec(self, other, parameter_constraints=(False, False, False), preconditioning=True, **kwargs):
         """ Extension of parent class method
@@ -2990,16 +3017,16 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         elementwise_qk2 = -1.0*qk_matrix**2
         elementwise_qk4 = qk_matrix**4
 
-        d2x = np.multiply(elementwise_qk2, other.state)
-        d4x = np.multiply(elementwise_qk4, other.state)
+        dx2 = np.multiply(elementwise_qk2, other.state)
+        dx4 = np.multiply(elementwise_qk4, other.state)
         s = -1.0 * (self.S / self.T)*swap_modes(np.multiply(qk_matrix, other.state))
 
-        linear_term = d2x + d4x + s
+        linear_term = dx2 + dx4 + s
         orbit_linear = self.__class__(state=linear_term, state_type='modes', T=self.T, L=self.L, S=self.S)
         orbit_field = self.convert(to='field')
 
         # Convert state information to field inplace; derivative operation switches this back to modes?
-        orbit_matvec = orbit_linear + 2 * orbit_field.pseudospectral(other)
+        orbit_matvec = orbit_linear + 2 * orbit_field.nonlinear(other)
 
         if not parameter_constraints[0]:
             # the partial derivations w.r.t. params
@@ -3008,11 +3035,11 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             orbit_matvec.state = orbit_matvec.state + other.T*dfdt
 
         if not parameter_constraints[1]:
-            d2x_self = np.multiply(elementwise_qk2, self.state)
-            d4x_self = np.multiply(elementwise_qk4, self.state)
+            dx2_self = np.multiply(elementwise_qk2, self.state)
+            dx4_self = np.multiply(elementwise_qk4, self.state)
             s_self = (-1.0 * self.S / self.T)*swap_modes(np.multiply(qk_matrix, self.state))
-            dfdl_linear = (-2.0/self.L)*d2x_self + (-4.0/self.L)*d4x_self + (-1.0/self.L)*s_self
-            dfdl_nonlinear = (-1.0/self.L) * orbit_field.pseudospectral(orbit_field).state
+            dfdl_linear = (-2.0/self.L)*dx2_self + (-4.0/self.L)*dx4_self + (-1.0/self.L)*s_self
+            dfdl_nonlinear = (-1.0/self.L) * orbit_field.nonlinear(orbit_field).state
             dfdl = dfdl_linear + dfdl_nonlinear
             # Derivative of mapping with respect to T is the same as -1/T * u_t
             orbit_matvec.state = orbit_matvec.state + other.L*dfdl
@@ -3035,12 +3062,12 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         elementwise_qk2 = -1.0*qk_matrix**2
         elementwise_qk4 = qk_matrix**4
 
-        d2x = np.multiply(elementwise_qk2, other.state)
-        d4x = np.multiply(elementwise_qk4, other.state)
+        dx2 = np.multiply(elementwise_qk2, other.state)
+        dx4 = np.multiply(elementwise_qk4, other.state)
         s = (self.S / self.T) * swap_modes(np.multiply(qk_matrix, other.state))
-        linear_component = d2x + d4x + s
+        linear_component = dx2 + dx4 + s
         orbit_field = self.convert(to='field')
-        nonlinear_component = orbit_field.rpseudospectral(other).state
+        nonlinear_component = orbit_field.rnonlinear(other).state
         orbit_rmatvec = self.__class__(state=(linear_component + nonlinear_component))
 
         if not parameter_constraints[0]:
@@ -3049,11 +3076,11 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             orbit_rmatvec.T = np.dot(dfdt.ravel(), other.state.ravel())
 
         if not parameter_constraints[1]:
-            d2x_self = np.multiply(elementwise_qk2, self.state)
-            d4x_self = np.multiply(elementwise_qk4, self.state)
+            dx2_self = np.multiply(elementwise_qk2, self.state)
+            dx4_self = np.multiply(elementwise_qk4, self.state)
             s_self = (-1.0 * self.S / self.T) * swap_modes(np.multiply(qk_matrix, self.state))
-            dfdl_linear = (-2.0/self.L)*d2x_self + (-4.0/self.L)*d4x_self + (-1.0/self.L)*s_self
-            dfdl_nonlinear = (-1.0/self.L) * orbit_field.pseudospectral(orbit_field).state
+            dfdl_linear = (-2.0/self.L)*dx2_self + (-4.0/self.L)*dx4_self + (-1.0/self.L)*s_self
+            dfdl_nonlinear = (-1.0/self.L) * orbit_field.nonlinear(orbit_field).state
             dfdl = dfdl_linear + dfdl_nonlinear
 
             # Derivative of mapping with respect to T is the same as -1/T * u_t

@@ -102,26 +102,25 @@ def _adjoint_descent(orbit, parameter_constraints=(False,False,False), **kwargs)
     max_iter = kwargs.get('max_iter', 32*orbit.N*orbit.M)
     preconditioning = kwargs.get('preconditioning', True)
 
-    h = 1
+    step_size = 1
     n_iter = 0
     # By default assume failure
     exit_code = 0
 
-    # not optimized for orbit.residual()
     mapping = orbit.spatiotemporal_mapping()
-    residual = mapping.norm()
+    residual = mapping.residual(apply_mapping=False)
     while residual > atol and n_iter < max_iter:
         dx = orbit.rmatvec(mapping, parameter_constraints=parameter_constraints,
                            preconditioning=preconditioning)
-        next_orbit = orbit.increment(dx, stepsize=-1.0*h)
+        next_orbit = orbit.increment(dx, stepsize=-1.0*step_size)
         next_mapping = next_orbit.spatiotemporal_mapping()
-        next_residual = next_mapping.norm()
+        next_residual = next_mapping.residual(apply_mapping=False)
         while next_residual >= residual:
-            h = 0.5*h
-            next_orbit = orbit.increment(dx, stepsize=-1.0*h)
+            step_size = 0.5*step_size
+            next_orbit = orbit.increment(dx, stepsize=-1.0*step_size)
             next_mapping = next_orbit.spatiotemporal_mapping()
-            next_residual = next_mapping.norm()
-            if h <= 10**-8:
+            next_residual = next_mapping.residual(apply_mapping=False)
+            if step_size <= 10**-8:
 
                 return orbit, exit_code
         else:
@@ -277,7 +276,7 @@ def _scipy_optimize_minimize_wrapper(_fun, orbit, method=None, bounds=None,
 def _matvec_wrapper(orbit, **kwargs):
 
     def mv_func(v):
-        # _process_newton_step turns state vector into class object.
+        # _state_vector_to_orbit turns state vector into class object.
         v_orbit = _state_vector_to_orbit(orbit, v, **kwargs)
         return orbit.matvec(v_orbit, **kwargs).state.reshape(-1, 1)
 
