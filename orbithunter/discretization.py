@@ -53,7 +53,7 @@ def rediscretize(x, parameter_based=False, **kwargs):
         return x
     else:
         #placeholders for workaround of rfft normalization change
-        oldN,oldM = x.N, x.M
+        oldN, oldM = x.N, x.M
         if np.mod(newN,2) or np.mod(newM,2):
             raise ValueError('New discretization size must be an even number, preferably a power of 2')
         else:
