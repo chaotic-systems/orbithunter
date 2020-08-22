@@ -6,22 +6,6 @@ spatiotemporal Fourier modes.
  
 Recent Changes
 --------------
-<<<<<<< HEAD
-By using classmethod decorator and lru_cache from functools was able to make computations
-more efficient. 
-
-Benchmarking,
-For the single test performed, the following were the average time per descent method step
-
-	1. Old research code (numpy arrays only) 0.00149 secs per step 24.4680 secs total
-	2. Orbithunter master branch  0.0016 secs per step, 26.33392 secs total
-	3. Orbithunter orbithunter-cache-classmethods 0.00094 secs per step 15.4545 total
-
-
-PEP 8 and Refactoring
----------------------
-1. Redo __init__ methods to be less messy, call to super()
-=======
 RelativeOrbitKS method refactoring to accomodate caching.
 Computational benchmarks
 1. old research code : Total time 54.5456, per step 0.0033
@@ -31,7 +15,6 @@ Computational benchmarks
 PEP 8 and Refactoring
 ---------------------
 
->>>>>>> orbithunter-caching-classmethods
 
 To-do
 -----

@@ -5,6 +5,7 @@ from scipy.fft import rfft, irfft
 from scipy.linalg import block_diag
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from functools import lru_cache
+from json import dumps
 import copy
 import os
 import sys
@@ -181,8 +182,18 @@ class OrbitKS:
         state = field / (num * np.max(np.abs(field.ravel())))
         return self.__class__(state=state, state_type='field', T=self.T, L=self.L, S=self.S)
 
-    def __repr__(self):
+    def __str__(self):
         return self.__class__.__name__ + "()"
+
+    def __repr__(self):
+        # alias to save space
+        fs = np.format_float_scientific
+        dict_ = {'residual': fs(self.residual(), 2),
+                 'N': self.N, 'M': self.M,
+                 'T': fs(self.T, 2), 'L': fs(self.L, 2), 'S': fs(self.S, 2)}
+        # convert the dictionary to a string via json.dumps
+        dictstr = dumps(dict_)
+        return self.__class__.__name__ + '(' + dictstr + ')'
 
     def __getattr__(self, attr):
         # Only called if self.attr is not found.
@@ -648,6 +659,7 @@ class OrbitKS:
         other_field = other.convert(to='field')
         nonlinear = swap_modes(np.multiply(self.elementwise_dxn(self.parameters),
                                            field.statemul(other_field).convert(to='modes').state), dimension='space')
+
         matvec_modes = linear + nonlinear
         if not parameter_constraints[0]:
             # Compute the product of the partial derivative with respect to T with the vector's value of T.
@@ -968,10 +980,11 @@ class OrbitKS:
         """
         # Elementwise product, both self and other should be in physical field basis.
         assert (self.state_type == 'field') and (other.state_type == 'field')
-        pseudospectral = self.statemul(other)
+        pseudospectral_modes = self.statemul(other).convert(to='modes').state
         # Return Spatial derivative with 1/2 factor. The conversion to modes does not do anything unless original
         # state has discrete symmetry
-        return 0.5 * pseudospectral.dx().convert(to='modes')
+        return 0.5 * swap_modes(np.multiply(self.elementwise_dxn(self.parameters),
+                                            pseudospectral_modes), dimension='space')
 
     def rpseudospectral(self, other):
         """ nonlinear computation of the nonlinear term of the adjoint Kuramoto-Sivashinsky equation
@@ -1444,7 +1457,6 @@ class OrbitKS:
         """
         # For specific computation of the linear component instead
         # of arbitrary derivatives we can optimize the calculation by being specific.
-
         assert self.state_type == 'modes', 'Convert to spatiotemporal Fourier mode basis before computations.'
         modes = self.convert(to='modes').state
         elementwise_dt = self.elementwise_dtn(self.parameters)
@@ -1459,9 +1471,7 @@ class OrbitKS:
         # Return Spatial derivative with 1/2 factor. The conversion to modes does not do anything unless original
         # state has discrete symmetry
         orbit_field = self.convert(to='field')
-
-        nonlinear = 0.5 * swap_modes(np.multiply(self.elementwise_dxn(self.parameters),
-                                orbit_field.statemul(orbit_field).convert(to='modes').state), dimension='space')
+        nonlinear = orbit_field.pseudospectral(orbit_field)
 
         mapping_modes = linear + nonlinear
         return self.__class__(state=mapping_modes, state_type='modes', T=self.T, L=self.L)
@@ -1593,25 +1603,20 @@ class OrbitKS:
         elif filename == 'initial':
             filename = 'initial_' + self.parameter_dependent_filename()
 
-        if directory == 'default':
-            directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/')), '')
+        if directory == 'local':
+            directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/local/')), '')
         elif directory == '':
             pass
         elif not os.path.isdir(directory):
-            warnings.warn('Trying to save figure to a directory that does not exist:' + directory, Warning)
-            sys.stdout.flush()
-            proceed = input('Would you like to create this directory? If no, '
-                            'then figure will save where current script is located [y]/[n]')
-            if proceed == 'y':
-                os.mkdir(directory)
+            raise OSError('Trying to write to directory that does not exist.')
 
-        filename = os.path.join(directory, filename)
+        save_path = os.path.join(directory, filename)
         if verbose:
-            print('Saving data to {}'.format(filename))
-        with h5py.File(filename, 'w') as f:
+            print('Saving data to {}'.format(save_path))
+        with h5py.File(save_path, 'w') as f:
             f.create_dataset("field", data=self.convert(to='field').state)
-            f.create_dataset("speriod", data=self.L)
-            f.create_dataset("period", data=self.T)
+            f.create_dataset("space_period", data=self.L)
+            f.create_dataset("time_period", data=self.T)
             f.create_dataset("space_discretization", data=self.M)
             f.create_dataset("time_discretization", data=self.N)
             f.create_dataset("spatial_shift", data=self.S)
@@ -2079,7 +2084,6 @@ class RelativeOrbitKS(OrbitKS):
         """
 
         assert (self.state_type == 'modes') and (other.state_type == 'modes')
-
         matvec_orbit = super().matvec(other, parameter_constraints=parameter_constraints,
                                       preconditioning=preconditioning)
         modes = self.state
@@ -2113,7 +2117,6 @@ class RelativeOrbitKS(OrbitKS):
         """ Extension of the parent method to RelativeOrbitKS """
         # For specific computation of the linear component instead
         # of arbitrary derivatives we can optimize the calculation by being specific.
-
         rmatvec_orbit = super().rmatvec(other, parameter_constraints=parameter_constraints,
                                         preconditioning=preconditioning)
         other_modes = other.state
@@ -2132,7 +2135,6 @@ class RelativeOrbitKS(OrbitKS):
         else:
             rmatvec_orbit.state += comoving_other_modes
 
-
         if not parameter_constraints[0]:
             # Derivative of comoving component with respect to T is the same as -1/T * phi * u_x
             comoving_T_contribution = np.dot((-1.0 / self.T) * (-1.0 * self.S / self.T) * modes_dx.ravel(),
@@ -2141,6 +2143,7 @@ class RelativeOrbitKS(OrbitKS):
                 rmatvec_orbit.T += comoving_T_contribution / self.T
             else:
                 rmatvec_orbit.T += comoving_T_contribution
+
 
         if not parameter_constraints[1]:
             # Derivative of comoving component with respect to L is the same as -1/L * phi * u_x

@@ -10,15 +10,15 @@ warnings.resetwarnings()
 __all__ = ['read_h5', 'parse_class']
 
 def read_h5(filename, directory='', state_type='modes'):
-    if directory == 'data':
-        directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/')), '')
+    if directory == 'local':
+        directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/local/')), '')
 
     class_generator, data_format = parse_class(filename)
     with h5py.File(os.path.abspath(os.path.join(directory, filename)), 'r') as f:
         if data_format == 'new':
             field = np.array(f['field'])
-            L = float(f['speriod'][()])
-            T = float(f['period'][()])
+            L = float(f['space_period'][()])
+            T = float(f['time_period'][()])
             S = float(f['spatial_shift'][()])
             orbit = class_generator(state=field, state_type='field', T=T, L=L, S=S)
         else:
