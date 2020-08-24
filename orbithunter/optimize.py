@@ -128,7 +128,7 @@ def _adjoint_descent(orbit, parameter_constraints=(False,False,False), **kwargs)
             n_iter += 1
             if kwargs.get('verbose', False):
                 if np.mod(n_iter, 2500) == 0:
-                    print('Current residual', orbit.residual())
+                    print('Step number {} residual {}'.format(n_iter, orbit.residual()))
                 elif np.mod(n_iter, 100) == 0:
                     print('.', end='')
                 sys.stdout.flush()

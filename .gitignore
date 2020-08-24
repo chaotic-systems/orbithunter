@@ -128,11 +128,18 @@ dmypy.json
 
 .pyre/
 
-# temp files
+# notebook temp files
 *~
 
 # IDE settings
 .idea/
 
-notebooks/*.csv
+# data produced in notebooks (should save to data/local/* and figs/local/*)
 notebooks/*.h5
+notebooks/*.png
+notebooks/*.jpg
+
+# local data 
+data/local/*.h5
+figs/local/*.jpg
+figs/local/*.png

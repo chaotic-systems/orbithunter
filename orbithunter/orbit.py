@@ -17,7 +17,7 @@ import h5py
 warnings.resetwarnings()
 
 __all__ = ['OrbitKS', 'RelativeOrbitKS', 'ShiftReflectionOrbitKS', 'AntisymmetricOrbitKS', 'EquilibriumOrbitKS',
-           'RelativeEquilibriumOrbitKS']
+           'RelativeEquilibriumOrbitKS', 'change_orbit_type']
 
 
 class OrbitKS:
@@ -86,7 +86,6 @@ class OrbitKS:
                     self.N, self.M = shp
                 elif state_type == 's_modes':
                     self.N, self.M = shp[0], shp[1] + 2
-
                 self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
                 self.T, self.L = T, L
             else:
@@ -188,7 +187,7 @@ class OrbitKS:
     def __repr__(self):
         # alias to save space
         fs = np.format_float_scientific
-        dict_ = {'residual': fs(self.residual(), 2),
+        dict_ = {'state_type': self.state_type, 'residual': fs(self.residual(), 2),
                  'N': self.N, 'M': self.M,
                  'T': fs(self.T, 2), 'L': fs(self.L, 2), 'S': fs(self.S, 2)}
         # convert the dictionary to a string via json.dumps
@@ -339,7 +338,7 @@ class OrbitKS:
         spacetime_dtn = np.kron(dt_n_matrix, np.eye(self.parameters[-1]))
         return spacetime_dtn
 
-    def dt(self, power=1, return_modes=False):
+    def dt(self, power=1):
         """ A time derivative of the current state.
 
         Parameters
@@ -362,13 +361,10 @@ class OrbitKS:
         if np.mod(power, 2):
             dtn_modes = swap_modes(dtn_modes, dimension='time')
 
-        if return_modes:
-            return dtn_modes
-        else:
-            orbit_dtn = self.__class__(state=dtn_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
-            return orbit_dtn.convert(to=self.state_type)
+        orbit_dtn = self.__class__(state=dtn_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
+        return orbit_dtn.convert(to=self.state_type)
 
-    def dx(self, power=1):
+    def dx(self, power=1, ):
         """ A spatial derivative of the current state.
 
         Parameters
@@ -387,7 +383,6 @@ class OrbitKS:
         Dimensions provided to np.tile in defining elementwise_dxn were originally (self.N-1, 1).
         """
         modes = self.convert(to='modes').state
-
         # Elementwise multiplication of modes with frequencies, this is the derivative.
         dxn_modes = np.multiply(self.elementwise_dxn(self.parameters, power=power), modes)
 
@@ -655,12 +650,11 @@ class OrbitKS:
         linear = dt + dx2 + dx4
 
         # Compute nonlinear term
-        field = self.convert(to='field')
+        self_field = self.convert(to='field')
         other_field = other.convert(to='field')
-        nonlinear = swap_modes(np.multiply(self.elementwise_dxn(self.parameters),
-                                           field.statemul(other_field).convert(to='modes').state), dimension='space')
+        nonlinear_modes = self_field.pseudospectral(other_field).state
 
-        matvec_modes = linear + nonlinear
+        matvec_modes = linear + nonlinear_modes
         if not parameter_constraints[0]:
             # Compute the product of the partial derivative with respect to T with the vector's value of T.
             # This is typically an incremental value dT.
@@ -672,8 +666,7 @@ class OrbitKS:
             dx2_self = np.multiply(elementwise_dx2, modes)
             dx4_self = np.multiply(elementwise_dx4, modes)
             dfdl_linear = (-2.0/self.L)*dx2_self + (-4.0/self.L)*dx4_self
-            dfdl_nonlinear = (-1.0/self.L) * 0.5 * swap_modes(np.multiply(self.elementwise_dxn(self.parameters),
-                                field.statemul(field).convert(to='modes').state), dimension='space')
+            dfdl_nonlinear = (-1.0/self.L) * self_field.pseudospectral(self_field)
             dfdl = dfdl_linear + dfdl_nonlinear
             matvec_modes += other.L * dfdl
 
@@ -1001,12 +994,18 @@ class OrbitKS:
         -----
         The nonlinear product is the name given to the elementwise product equivalent to the
         convolution of spatiotemporal Fourier modes. It's faster and more accurate hence why it is used.
-        The matrix vector product takes the form -1 * u * d_x v. The spatial frequency matrix is passed to avoid
-        redundant function calls, improving speed.
+        The matrix vector product takes the form -1 * u * d_x v.
 
         """
         # Take spatial derivative
-        return -1.0 * self.convert(to='field').statemul(other.dx().convert(to='field')).convert(to='modes')
+        field = self.convert(to='field')
+        # this function is typically called in .rmatvec(), which asserts state_type == 'modes'.
+        other_modes_dx = swap_modes(np.multiply(self.elementwise_dxn(self.parameters),
+                                                other.state), dimension='space')
+        other_field_dx = other.__class__(state=other_modes_dx, state_type='modes').convert(to='field')
+
+        nonlinear = -1.0 * field.statemul(other_field_dx).convert(to='modes').state
+        return nonlinear
 
     def random_initial_condition(self, T, L, *args, **kwargs):
         """ Initial a set of random spatiotemporal Fourier modes
@@ -1140,12 +1139,8 @@ class OrbitKS:
         linear = -1.0 * dt + dx2 + dx4
 
         # Nonlinear component, equal to -(u .* v_x)
-        field = self.convert(to='field')
-        other_modes_dx = swap_modes(np.multiply(elementwise_dx,
-                                                other_modes), dimension='space')
-        other_field_dx = other.__class__(state=other_modes_dx, state_type='modes').convert(to='field')
-
-        nonlinear = -1.0 * field.statemul(other_field_dx).convert(to='modes').state
+        self_field = self.convert(to='field')
+        nonlinear = self_field.rpseudospectral(other)
         rmatvec_modes = linear + nonlinear
 
         if not parameter_constraints[0]:
@@ -1154,19 +1149,22 @@ class OrbitKS:
             rmatvec_T = dfdt.ravel().dot(other_modes.ravel())
             if preconditioning:
                 rmatvec_T = rmatvec_T / self.T
-
+        else:
+            rmatvec_T = 0
 
         if not parameter_constraints[1]:
             # Derivative with respect to L equal to DF/DL * v
             dfdl_linear = ((-2.0/self.L)*np.multiply(elementwise_dx2, modes)
                            + (-4.0/self.L)*np.multiply(elementwise_dx4, modes))
-            nonlinear = 0.5 * swap_modes(np.multiply(self.elementwise_dxn(self.parameters),
-                                         field.statemul(field).convert(to='modes').state), dimension='space')
+            nonlinear = 0.5 * swap_modes(np.multiply(elementwise_dx,
+                                         self_field.statemul(self_field).convert(to='modes').state), dimension='space')
             dfdl_nonlinear = (-1.0 / self.L) * nonlinear
             dfdl = dfdl_linear + dfdl_nonlinear
             rmatvec_L = dfdl.ravel().dot(other_modes.ravel())
             if preconditioning:
                 rmatvec_L = rmatvec_L / (self.L**4)
+        else:
+            rmatvec_L = 0
 
         if preconditioning:
             # Apply left preconditioning
@@ -1458,7 +1456,7 @@ class OrbitKS:
         # For specific computation of the linear component instead
         # of arbitrary derivatives we can optimize the calculation by being specific.
         assert self.state_type == 'modes', 'Convert to spatiotemporal Fourier mode basis before computations.'
-        modes = self.convert(to='modes').state
+        modes = self.state
         elementwise_dt = self.elementwise_dtn(self.parameters)
         elementwise_dx2 = self.elementwise_dxn(self.parameters, power=2)
         elementwise_dx4 = self.elementwise_dxn(self.parameters, power=4)
@@ -1466,14 +1464,14 @@ class OrbitKS:
         dt = swap_modes(np.multiply(elementwise_dt, modes), dimension='time')
         dx2 = np.multiply(elementwise_dx2, modes)
         dx4 = np.multiply(elementwise_dx4, modes)
-        linear = dt + dx2 + dx4
+        linear_modes = dt + dx2 + dx4
 
         # Return Spatial derivative with 1/2 factor. The conversion to modes does not do anything unless original
         # state has discrete symmetry
         orbit_field = self.convert(to='field')
-        nonlinear = orbit_field.pseudospectral(orbit_field)
+        nonlinear_modes = orbit_field.pseudospectral(orbit_field).state
 
-        mapping_modes = linear + nonlinear
+        mapping_modes = linear_modes + nonlinear_modes
         return self.__class__(state=mapping_modes, state_type='modes', T=self.T, L=self.L)
 
     def statemul(self, other):
@@ -1624,300 +1622,6 @@ class OrbitKS:
         return None
 
 
-class AntisymmetricOrbitKS(OrbitKS):
-
-    def __init__(self, state=None, state_type='field', T=0., L=0., **kwargs):
-
-        try:
-            if state is not None:
-                shp = state.shape
-                self.state = state
-                self.state_type = state_type
-                if state_type == 'modes':
-                    self.N, self.M = shp[0] + 1, 2*shp[1] + 2
-                elif state_type == 'field':
-                    self.N, self.M = shp
-                elif state_type == 's_modes':
-                    self.N, self.M = shp[0], shp[1]+2
-
-                self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
-                self.T, self.L = T, L
-            else:
-                self.random_initial_condition(T, L, **kwargs)
-            # self.mode_shape = (self.N, self.m)
-            # For uniform save format
-            self.S = 0.
-        except ValueError:
-            print('Incompatible type provided for field or modes: 2-D NumPy arrays only')
-
-    def dx(self, power=1):
-        """ Overwrite of parent method """
-        if np.mod(power, 2):
-            dxn_s_modes = swap_modes(np.multiply(self.elementwise_dxn(self.parameters, power=power),
-                                                 self.convert(to='s_modes').state), dimension='space')
-            # have to keep in spatial modes
-            return self.__class__(state=dxn_s_modes, state_type='s_modes',
-                                  T=self.T, L=self.L)
-        else:
-            dxn_modes = np.multiply(self.elementwise_dxn(self.parameters, power=power),
-                                    self.convert(to='modes').state)
-            return self.__class__(state=dxn_modes, state_type='modes',
-                                  T=self.T, L=self.L).convert(to=self.state_type)
-
-    @classmethod
-    @lru_cache(maxsize=16)
-    def elementwise_dxn(cls, parameters, power=1):
-        """ Matrix of temporal mode frequencies
-
-        Creates and returns a matrix whose elements
-        are the properly ordered spatial frequencies,
-        which is the same shape as the spatiotemporal
-        Fourier mode state. The elementwise product
-        with a set of spatiotemporal Fourier modes
-        is equivalent to taking a spatial derivative.
-
-        Returns
-        ----------
-        matrix
-            Matrix of spatial frequencies
-        """
-        q = cls.wave_vector(parameters, power=power)
-        # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
-        c1, c2 = so2_coefficients(power=power)
-        # Create elementwise spatial frequency matrix
-        if np.mod(power, 2):
-            # If the order of the derivative is odd, need to apply to spatial modes not spacetime modes.
-            dxn_multipliers = np.tile(np.concatenate((c1*q, c2*q), axis=1), (parameters[3], 1))
-        else:
-            # if order is even, make the frequencies into an array with same shape as modes; c1 = c2 when power is even.
-            dxn_multipliers = np.tile(c1*q, (parameters[-2], 1))
-        return dxn_multipliers
-
-    def dx_matrix(self, power=1, **kwargs):
-        """ Overwrite of parent method """
-        state_type = kwargs.get('state_type', self.state_type)
-        # Define spatial wavenumber vector
-        if state_type == 'modes':
-            _, c = so2_coefficients(power=power)
-            dx_n_matrix = c * np.diag(self.wave_vector(self.parameters, power=power).ravel())
-            dx_matrix_complete = np.kron(np.eye(self.N-1), dx_n_matrix)
-        else:
-            dx_n_matrix = np.kron(so2_generator(power=power), np.diag(self.wave_vector(self.parameters,
-                                                                                       power=power).ravel()))
-            dx_matrix_complete = np.kron(np.eye(self.N), dx_n_matrix)
-        return dx_matrix_complete
-
-    def from_fundamental_domain(self, inplace=False, **kwargs):
-        """ Overwrite of parent method """
-        half = kwargs.get('half', 'left')
-        if half == 'left':
-            full_field = np.concatenate((self.state, self.reflection().state), axis=1)
-        else:
-            full_field = np.concatenate((self.reflection().state, self.state), axis=1)
-        return self.__class__(state=full_field, state_type='field', T=self.T, L=2.0*self.L)
-
-    def mode_padding(self, size, inplace=False, dimension='space'):
-        """ Overwrite of parent method """
-        if dimension == 'time':
-            first_half = self.state[:-self.n, :]
-            second_half = self.state[-self.n:, :]
-            padding_number = int((size-self.N) // 2)
-            padding = np.zeros([padding_number, self.state.shape[1]])
-            padded_modes = np.concatenate((first_half, padding, second_half, padding), axis=0)
-        else:
-            padding_number = int((size-self.M) // 2)
-            padding = np.zeros([self.state.shape[0], padding_number])
-            padded_modes = np.concatenate((self.state, padding), axis=1)
-
-        return self.__class__(state=padded_modes, state_type=self.state_type, T=self.T, L=self.L)
-
-    def mode_truncation(self, size, inplace=False, dimension='space'):
-        """ Overwrite of parent method """
-        if dimension == 'time':
-            truncate_number = int(size // 2) - 1
-            first_half = self.state[:truncate_number+1, :]
-            second_half = self.state[-self.n:-self.n+truncate_number, :]
-            truncated_modes = np.concatenate((first_half, second_half), axis=0)
-        else:
-            truncate_number = int(size // 2) - 1
-            truncated_modes = self.state[:, :truncate_number]
-        return self.__class__(state=truncated_modes, state_type=self.state_type, T=self.T, L=self.L)
-
-    def random_initial_condition(self, T, L, **kwargs):
-        """ Initial a set of random spatiotemporal Fourier modes
-
-        Parameters
-        ----------
-        **kwargs
-            time_scale : int
-                The number of temporal frequencies to keep after truncation.
-            space_scale : int
-                The number of spatial frequencies to get after truncation.
-        Returns
-        -------
-        self :
-            OrbitKS whose state has been modified to be a set of random Fourier modes.
-
-        Notes
-        -----
-        Anecdotal evidence suggests that "worse" initial conditions converge more often to solutions of the
-        predetermined symmetry group. In other words it's better to start far away from the chaotic attractor
-        because then it is less likely to start near equilibria. Spatial scale currently unused, still testing
-        for the best random fields.
-
-        """
-        spectrum_type = kwargs.get('spectrum', 'random')
-        if T == 0.:
-            self.T = 20 + 160*np.random.rand()
-        else:
-            self.T = T
-        if L == 0.:
-            self.L = 22 + 44*np.random.rand()
-        else:
-            self.L = L
-        self.N = kwargs.get('N', np.max([32, 2**(int(np.log2(self.T)-1))]))
-        self.M = kwargs.get('M', np.max([2**(int(np.log2(self.L))), 32]))
-        self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
-        time_scale = np.min([kwargs.get('time_scale', self.n), self.n])
-        space_scale = np.min([kwargs.get('space_scale', self.m), self.m])
-        if spectrum_type == 'gaussian':
-            rmodes = np.random.randn(self.N-1, self.m)
-            mollifier_exponents = space_scale + -1 * np.tile(np.arange(0, self.m)+1, (self.n, 1))
-            mollifier = 10.0**mollifier_exponents
-            mollifier[:, :space_scale] = 1
-            mollifier[time_scale:, :] = 0
-            mollifier = np.concatenate((mollifier, mollifier), axis=0)
-            mollifier = np.concatenate((np.ones([1, ]), mollifier), axis=0)
-            self.state = np.multiply(mollifier, rmodes)
-        else:
-            # Account for different sized spectra
-            rmodes = np.random.randn(self.N-1, self.m)
-            mollifier_exponents = space_scale + -1 * np.tile(np.arange(0, self.m)+1, (self.n, 1))
-            mollifier = 10.0**mollifier_exponents
-            mollifier[:, :space_scale] = 1
-            mollifier[time_scale:, :] = 0
-            mollifier = np.concatenate((mollifier, mollifier), axis=0)
-            mollifier = np.concatenate((np.ones([1, ]), mollifier), axis=0)
-            self.state = np.multiply(mollifier, rmodes)
-
-        # self.mode_shape = rmodes.shape
-        self.convert(to='field', inplace=True)
-        tmp = self // (1.0/4.0)
-        self.state = tmp.state
-        self.convert(to='modes', inplace=True)
-        return self
-
-    def time_transform_matrix(self):
-        """ Inverse Time Fourier transform operator
-
-        Returns
-        -------
-        matrix :
-            Matrix operator whose action maps a set of spatiotemporal modes into a set of spatial modes
-
-        Notes
-        -----
-        Only used for the construction of the Jacobian matrix. Do not use this for the Fourier transform.
-        """
-        dft_mat = rfft(np.eye(self.N), norm='ortho', axis=0)
-        time_dft_mat = np.concatenate((dft_mat[:-1, :].real,
-                                       dft_mat[1:-1, :].imag), axis=0)
-        ab_time_dft_mat = np.insert(time_dft_mat,
-                                    np.arange(time_dft_mat.shape[1]),
-                                    np.zeros([time_dft_mat.shape[0], time_dft_mat.shape[1]]),
-                                    axis=1)
-        return np.kron(ab_time_dft_mat, np.eye(self.m))
-
-    def inv_time_transform_matrix(self):
-        """ Time Fourier transform operator
-
-        Returns
-        -------
-        matrix :
-            Matrix operator whose action maps a set of spatial modes into a set of spatiotemporal modes.
-
-        Notes
-        -----
-        Only used for the construction of the Jacobian matrix. Do not use this for the Fourier transform.
-        """
-        idft_mat_real = irfft(np.eye(self.N//2 + 1), norm='ortho', axis=0)
-        idft_mat_imag = irfft(1j*np.eye(self.N//2 + 1), norm='ortho', axis=0)
-        time_idft_mat = np.concatenate((idft_mat_real[:, :-1],
-                                        idft_mat_imag[:, 1:-1]), axis=1)
-        ab_time_idft_mat = np.insert(time_idft_mat,
-                                     np.arange(time_idft_mat.shape[0]),
-                                     np.zeros([time_idft_mat.shape[0], time_idft_mat.shape[1]]),
-                                     axis=0)
-        return np.kron(ab_time_idft_mat, np.eye(self.m))
-
-    def time_transform(self, inplace=False):
-        """ Spatial Fourier transform
-
-        Parameters
-        ----------
-        inplace : bool
-            Whether or not to perform the operation "in place" (overwrite the current state if True).
-
-        Returns
-        -------
-        OrbitKS :
-            OrbitKS whose state is in the spatial Fourier mode basis.
-
-        """
-        # Take rfft, accounting for unitary normalization.
-        modes = rfft(self.state, norm='ortho', axis=0)
-        modes_real = modes.real[:-1, -self.m:]
-        modes_imag = modes.imag[1:-1, -self.m:]
-        spacetime_modes = np.concatenate((modes_real, modes_imag), axis=0)
-
-        if inplace:
-            self.state = spacetime_modes
-            self.state_type = 'modes'
-            return self
-        else:
-            return self.__class__(state=spacetime_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
-
-    def inv_time_transform(self, inplace=False):
-        """ Spatial Fourier transform
-
-        Parameters
-        ----------
-        inplace : bool
-            Whether or not to perform the operation "in place" (overwrite the current state if True).
-
-        Returns
-        -------
-        OrbitKS :
-            OrbitKS whose state is in the spatial Fourier mode basis.
-
-        """
-        # Take rfft, accounting for unitary normalization.
-
-        modes = self.state
-        time_real = modes[:-self.n, :]
-        time_imaginary = 1j*np.concatenate((np.zeros([1, self.m]), modes[-self.n:, :]), axis=0)
-        spacetime_modes = np.concatenate((time_real + time_imaginary, np.zeros([1, self.m])), axis=0)
-        imaginary_space_modes = irfft(spacetime_modes, norm='ortho', axis=0)
-        space_modes = np.concatenate((np.zeros(imaginary_space_modes.shape), imaginary_space_modes), axis=1)
-
-        if inplace:
-            self.state = space_modes
-            self.state_type = 's_modes'
-            return self
-        else:
-            return self.__class__(state=space_modes, state_type='s_modes', T=self.T, L=self.L, S=self.S)
-
-    def to_fundamental_domain(self, inplace=False, **kwargs):
-        """ Overwrite of parent method """
-        half = kwargs.get('half', 'left')
-        if half == 'left':
-            fundamental_domain = self.__class__(state=self.convert(to='field').state[:, :-int(self.M//2)],
-                                                state_type='field', T=self.T, L=self.L / 2.0)
-        else:
-            fundamental_domain = self.__class__(state=self.convert(to='field').state[:, -int(self.M//2):],
-                                                state_type='field', T=self.T, L=self.L / 2.0)
-        return fundamental_domain
-
 
 class RelativeOrbitKS(OrbitKS):
 
@@ -2010,7 +1714,7 @@ class RelativeOrbitKS(OrbitKS):
                                        T=self.T, L=self.L, S=-1.0*self.S).convert(to=original_state)
         return frame_change_
 
-    def dt(self, power=1):
+    def dt(self, power=1, ):
         """ A time derivative of the current state.
 
         Parameters
@@ -2136,8 +1840,6 @@ class RelativeOrbitKS(OrbitKS):
         matvec_orbit.state += comoving_modes
         return matvec_orbit
 
-
-
     def rmatvec(self, other, parameter_constraints=(False, False, False), preconditioning=True, **kwargs):
         """ Extension of the parent method to RelativeOrbitKS """
         # For specific computation of the linear component instead
@@ -2222,9 +1924,354 @@ class RelativeOrbitKS(OrbitKS):
         return self.change_reference_frame()
 
 
+class AntisymmetricOrbitKS(OrbitKS):
+
+    def __init__(self, state=None, state_type='field', T=0., L=0., **kwargs):
+
+        try:
+            if state is not None:
+                shp = state.shape
+                self.state = state
+                self.state_type = state_type
+                if state_type == 'modes':
+                    self.N, self.M = shp[0] + 1, 2*shp[1] + 2
+                elif state_type == 'field':
+                    self.N, self.M = shp
+                elif state_type == 's_modes':
+                    self.N, self.M = shp[0], shp[1]+2
+
+                self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
+                self.T, self.L = T, L
+            else:
+                self.random_initial_condition(T, L, **kwargs)
+            # self.mode_shape = (self.N, self.m)
+            # For uniform save format
+            self.S = 0.
+        except ValueError:
+            print('Incompatible type provided for field or modes: 2-D NumPy arrays only')
+
+    def dx(self, power=1):
+        """ Overwrite of parent method """
+        if np.mod(power, 2):
+            dxn_s_modes = swap_modes(np.multiply(self.elementwise_dxn(self.parameters, power=power),
+                                                 self.convert(to='s_modes').state), dimension='space')
+            # have to keep in spatial modes
+            return self.__class__(state=dxn_s_modes, state_type='s_modes',
+                                  T=self.T, L=self.L)
+        else:
+            dxn_modes = np.multiply(self.elementwise_dxn(self.parameters, power=power),
+                                    self.convert(to='modes').state)
+            return self.__class__(state=dxn_modes, state_type='modes',
+                                  T=self.T, L=self.L).convert(to=self.state_type)
+
+    @classmethod
+    @lru_cache(maxsize=16)
+    def elementwise_dxn(cls, parameters, power=1):
+        """ Matrix of temporal mode frequencies
+
+        Creates and returns a matrix whose elements
+        are the properly ordered spatial frequencies,
+        which is the same shape as the spatiotemporal
+        Fourier mode state. The elementwise product
+        with a set of spatiotemporal Fourier modes
+        is equivalent to taking a spatial derivative.
+
+        Returns
+        ----------
+        matrix
+            Matrix of spatial frequencies
+        """
+        q = cls.wave_vector(parameters, power=power)
+        # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
+        c1, c2 = so2_coefficients(power=power)
+        # Create elementwise spatial frequency matrix
+        if np.mod(power, 2):
+            # If the order of the derivative is odd, need to apply to spatial modes not spacetime modes.
+            dxn_multipliers = np.tile(np.concatenate((c1*q, c2*q), axis=1), (parameters[3], 1))
+        else:
+            # if order is even, make the frequencies into an array with same shape as modes; c1 = c2 when power is even.
+            dxn_multipliers = np.tile(c1*q, (parameters[-2], 1))
+        return dxn_multipliers
+
+    def dx_matrix(self, power=1, **kwargs):
+        """ Overwrite of parent method """
+        state_type = kwargs.get('state_type', self.state_type)
+        # Define spatial wavenumber vector
+        if state_type == 'modes':
+            _, c = so2_coefficients(power=power)
+            dx_n_matrix = c * np.diag(self.wave_vector(self.parameters, power=power).ravel())
+            dx_matrix_complete = np.kron(np.eye(self.parameters[-2]), dx_n_matrix)
+        else:
+            dx_n_matrix = np.kron(so2_generator(power=power), np.diag(self.wave_vector(self.parameters,
+                                                                                       power=power).ravel()))
+            dx_matrix_complete = np.kron(np.eye(self.parameters[3]), dx_n_matrix)
+        return dx_matrix_complete
+
+    def from_fundamental_domain(self, inplace=False, **kwargs):
+        """ Overwrite of parent method """
+        half = kwargs.get('half', 'left')
+        if half == 'left':
+            full_field = np.concatenate((self.state, self.reflection().state), axis=1)
+        else:
+            full_field = np.concatenate((self.reflection().state, self.state), axis=1)
+        return self.__class__(state=full_field, state_type='field', T=self.T, L=2.0*self.L)
+
+    def mode_padding(self, size, inplace=False, dimension='space'):
+        """ Overwrite of parent method """
+        if dimension == 'time':
+            first_half = self.state[:-self.n, :]
+            second_half = self.state[-self.n:, :]
+            padding_number = int((size-self.N) // 2)
+            padding = np.zeros([padding_number, self.state.shape[1]])
+            padded_modes = np.concatenate((first_half, padding, second_half, padding), axis=0)
+        else:
+            padding_number = int((size-self.M) // 2)
+            padding = np.zeros([self.state.shape[0], padding_number])
+            padded_modes = np.concatenate((self.state, padding), axis=1)
+
+        return self.__class__(state=padded_modes, state_type=self.state_type, T=self.T, L=self.L)
+
+    def mode_truncation(self, size, inplace=False, dimension='space'):
+        """ Overwrite of parent method """
+        if dimension == 'time':
+            truncate_number = int(size // 2) - 1
+            first_half = self.state[:truncate_number+1, :]
+            second_half = self.state[-self.n:-self.n+truncate_number, :]
+            truncated_modes = np.concatenate((first_half, second_half), axis=0)
+        else:
+            truncate_number = int(size // 2) - 1
+            truncated_modes = self.state[:, :truncate_number]
+        return self.__class__(state=truncated_modes, state_type=self.state_type, T=self.T, L=self.L)
+
+    def pseudospectral(self, other):
+        """ nonlinear computation of the nonlinear term of the Kuramoto-Sivashinsky equation
+
+        Parameters
+        ----------
+
+        other : OrbitKS
+            The second component of the nonlinear product see Notes for details
+        qk_matrix : matrix
+            The matrix with the correctly ordered spatial frequencies.
+
+        Notes
+        -----
+        The nonlinear product is the name given to the elementwise product equivalent to the
+        convolution of spatiotemporal Fourier modes. It's faster and more accurate hence why it is used.
+        The matrix vector product takes the form d_x (u * v), but the "normal" usage is d_x (u * u); in the latter
+        case other is the same as self. The spatial frequency matrix is passed to avoid redundant function calls,
+        improving speed.
+
+        """
+        # Elementwise product, both self and other should be in physical field basis.
+        assert (self.state_type == 'field') and (other.state_type == 'field')
+        pseudospectral_spatial_modes = self.statemul(other).convert(to='s_modes').state
+        # Return Spatial derivative with 1/2 factor. The conversion to modes does not do anything unless original
+        # state has discrete symmetry
+        nonlinear_spatial_modes = 0.5 * swap_modes(np.multiply(self.elementwise_dxn(self.parameters),
+                                            pseudospectral_spatial_modes), dimension='space')
+        orbit_nonlinear_contribution = self.__class__(state=nonlinear_spatial_modes,
+                                                   state_type='s_modes').convert(to='modes')
+        return orbit_nonlinear_contribution
+
+    def random_initial_condition(self, T, L, **kwargs):
+        """ Initial a set of random spatiotemporal Fourier modes
+
+        Parameters
+        ----------
+        **kwargs
+            time_scale : int
+                The number of temporal frequencies to keep after truncation.
+            space_scale : int
+                The number of spatial frequencies to get after truncation.
+        Returns
+        -------
+        self :
+            OrbitKS whose state has been modified to be a set of random Fourier modes.
+
+        Notes
+        -----
+        Anecdotal evidence suggests that "worse" initial conditions converge more often to solutions of the
+        predetermined symmetry group. In other words it's better to start far away from the chaotic attractor
+        because then it is less likely to start near equilibria. Spatial scale currently unused, still testing
+        for the best random fields.
+
+        """
+        spectrum_type = kwargs.get('spectrum', 'random')
+        if T == 0.:
+            self.T = 20 + 160*np.random.rand()
+        else:
+            self.T = T
+        if L == 0.:
+            self.L = 22 + 44*np.random.rand()
+        else:
+            self.L = L
+        self.N = kwargs.get('N', np.max([32, 2**(int(np.log2(self.T)-1))]))
+        self.M = kwargs.get('M', np.max([2**(int(np.log2(self.L))), 32]))
+        self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
+        time_scale = np.min([kwargs.get('time_scale', self.n), self.n])
+        space_scale = np.min([kwargs.get('space_scale', self.m), self.m])
+        if spectrum_type == 'gaussian':
+            rmodes = np.random.randn(self.N-1, self.m)
+            mollifier_exponents = space_scale + -1 * np.tile(np.arange(0, self.m)+1, (self.n, 1))
+            mollifier = 10.0**mollifier_exponents
+            mollifier[:, :space_scale] = 1
+            mollifier[time_scale:, :] = 0
+            mollifier = np.concatenate((mollifier, mollifier), axis=0)
+            mollifier = np.concatenate((np.ones([1, ]), mollifier), axis=0)
+            self.state = np.multiply(mollifier, rmodes)
+        else:
+            # Account for different sized spectra
+            rmodes = np.random.randn(self.N-1, self.m)
+            mollifier_exponents = space_scale + -1 * np.tile(np.arange(0, self.m)+1, (self.n, 1))
+            mollifier = 10.0**mollifier_exponents
+            mollifier[:, :space_scale] = 1
+            mollifier[time_scale:, :] = 0
+            mollifier = np.concatenate((mollifier, mollifier), axis=0)
+            mollifier = np.concatenate((np.ones([1, ]), mollifier), axis=0)
+            self.state = np.multiply(mollifier, rmodes)
+
+        # self.mode_shape = rmodes.shape
+        self.convert(to='field', inplace=True)
+        tmp = self // (1.0/4.0)
+        self.state = tmp.state
+        self.convert(to='modes', inplace=True)
+        return self
+
+    def time_transform_matrix(self):
+        """ Inverse Time Fourier transform operator
+
+        Returns
+        -------
+        matrix :
+            Matrix operator whose action maps a set of spatiotemporal modes into a set of spatial modes
+
+        Notes
+        -----
+        Only used for the construction of the Jacobian matrix. Do not use this for the Fourier transform.
+        """
+        dft_mat = rfft(np.eye(self.N), norm='ortho', axis=0)
+        time_dft_mat = np.concatenate((dft_mat[:-1, :].real,
+                                       dft_mat[1:-1, :].imag), axis=0)
+        # Note that if np.insert is given a 2-d array it will insert 1-d arrays corresponding to the axis argument.
+        # in other words, this is inserting columns of zeros.
+        ab_time_dft_mat = np.insert(time_dft_mat,
+                                    np.arange(time_dft_mat.shape[1]),
+                                    np.zeros([time_dft_mat.shape[0], time_dft_mat.shape[1]]),
+                                    axis=1)
+        return np.kron(ab_time_dft_mat, np.eye(self.m))
+
+    def inv_time_transform_matrix(self):
+        """ Time Fourier transform operator
+
+        Returns
+        -------
+        matrix :
+            Matrix operator whose action maps a set of spatial modes into a set of spatiotemporal modes.
+
+        Notes
+        -----
+        Only used for the construction of the Jacobian matrix. Do not use this for the Fourier transform.
+        """
+        idft_mat_real = irfft(np.eye(self.N//2 + 1), norm='ortho', axis=0)
+        idft_mat_imag = irfft(1j*np.eye(self.N//2 + 1), norm='ortho', axis=0)
+        time_idft_mat = np.concatenate((idft_mat_real[:, :-1],
+                                        idft_mat_imag[:, 1:-1]), axis=1)
+        ab_time_idft_mat = np.insert(time_idft_mat,
+                                     np.arange(time_idft_mat.shape[0]),
+                                     np.zeros([time_idft_mat.shape[0], time_idft_mat.shape[1]]),
+                                     axis=0)
+        return np.kron(ab_time_idft_mat, np.eye(self.m))
+
+    def time_transform(self, inplace=False):
+        """ Spatial Fourier transform
+
+        Parameters
+        ----------
+        inplace : bool
+            Whether or not to perform the operation "in place" (overwrite the current state if True).
+
+        Returns
+        -------
+        OrbitKS :
+            OrbitKS whose state is in the spatial Fourier mode basis.
+
+        """
+        # Take rfft, accounting for unitary normalization.
+        modes = rfft(self.state, norm='ortho', axis=0)
+        modes_real = modes.real[:-1, -self.m:]
+        modes_imag = modes.imag[1:-1, -self.m:]
+        spacetime_modes = np.concatenate((modes_real, modes_imag), axis=0)
+
+        if inplace:
+            self.state = spacetime_modes
+            self.state_type = 'modes'
+            return self
+        else:
+            return self.__class__(state=spacetime_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
+
+    def inv_time_transform(self, inplace=False):
+        """ Spatial Fourier transform
+
+        Parameters
+        ----------
+        inplace : bool
+            Whether or not to perform the operation "in place" (overwrite the current state if True).
+
+        Returns
+        -------
+        OrbitKS :
+            OrbitKS whose state is in the spatial Fourier mode basis.
+
+        """
+        # Take rfft, accounting for unitary normalization.
+
+        modes = self.state
+        time_real = modes[:-self.n, :]
+        time_imaginary = 1j*np.concatenate((np.zeros([1, self.m]), modes[-self.n:, :]), axis=0)
+        spacetime_modes = np.concatenate((time_real + time_imaginary, np.zeros([1, self.m])), axis=0)
+        imaginary_space_modes = irfft(spacetime_modes, norm='ortho', axis=0)
+        space_modes = np.concatenate((np.zeros(imaginary_space_modes.shape), imaginary_space_modes), axis=1)
+
+        if inplace:
+            self.state = space_modes
+            self.state_type = 's_modes'
+            return self
+        else:
+            return self.__class__(state=space_modes, state_type='s_modes', T=self.T, L=self.L, S=self.S)
+
+    def to_fundamental_domain(self, inplace=False, **kwargs):
+        """ Overwrite of parent method """
+        half = kwargs.get('half', 'left')
+        if half == 'left':
+            fundamental_domain = self.__class__(state=self.convert(to='field').state[:, :-int(self.M//2)],
+                                                state_type='field', T=self.T, L=self.L / 2.0)
+        else:
+            fundamental_domain = self.__class__(state=self.convert(to='field').state[:, -int(self.M//2):],
+                                                state_type='field', T=self.T, L=self.L / 2.0)
+        return fundamental_domain
+
+
 class ShiftReflectionOrbitKS(OrbitKS):
 
     def __init__(self, state=None, state_type='field', T=0., L=0., **kwargs):
+        """ Orbit subclass for solutions with spatiotemporal shift-reflect symmetry
+
+
+
+        Parameters
+        ----------
+        state
+        state_type
+        T
+        L
+        kwargs
+
+        Notes
+        -----
+        Technically could inherit some functions from AntisymmetricOrbitKS but in regards to the Physics
+        going on it is more coherent to have it as a subclass of OrbitKS only.
+        """
         try:
             if state is not None:
                 shp = state.shape
@@ -2286,6 +2333,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
             dxn_multipliers = np.tile(np.concatenate((c1*q, c2*q), axis=1), (parameters[3], 1))
         else:
             # if order is even, make the frequencies into an array with same shape as modes; c1 = c2 when power is even.
+            # N-1 = parameters[-2]
             dxn_multipliers = np.tile(c1*q, (parameters[-2], 1))
         return dxn_multipliers
 
@@ -2293,14 +2341,15 @@ class ShiftReflectionOrbitKS(OrbitKS):
         """ Overwrite of parent method """
         state_type = kwargs.get('state_type', self.state_type)
         # Define spatial wavenumber vector
-        if state_type == 'modes':
-            _, c = so2_coefficients(power=power)
-            dx_n_matrix = c * np.diag(self.wave_vector(self.parameters, power=power).ravel())
-            dx_matrix_complete = np.kron(np.eye(self.N-1), dx_n_matrix)
-        else:
+        if state_type == 's_modes':
             dx_n_matrix = np.kron(so2_generator(power=power), np.diag(self.wave_vector(self.parameters,
                                                                                        power=power).ravel()))
-            dx_matrix_complete = np.kron(np.eye(self.N), dx_n_matrix)
+            dx_matrix_complete = np.kron(np.eye(self.parameters[3]), dx_n_matrix)
+        else:
+            _, c = so2_coefficients(power=power)
+            dx_n_matrix = c * np.diag(self.wave_vector(self.parameters, power=power).ravel())
+            dx_matrix_complete = np.kron(np.eye(self.parameters[-2]), dx_n_matrix)
+
         return dx_matrix_complete
 
     def from_fundamental_domain(self):
@@ -2337,6 +2386,37 @@ class ShiftReflectionOrbitKS(OrbitKS):
     @property
     def parameters(self):
         return (self.T, self.L, self.S, self.N, self.M, self.n, self.m, self.N-1, self.m)
+
+    def pseudospectral(self, other):
+        """ nonlinear computation of the nonlinear term of the Kuramoto-Sivashinsky equation
+
+        Parameters
+        ----------
+
+        other : OrbitKS
+            The second component of the nonlinear product see Notes for details
+        qk_matrix : matrix
+            The matrix with the correctly ordered spatial frequencies.
+
+        Notes
+        -----
+        The nonlinear product is the name given to the elementwise product equivalent to the
+        convolution of spatiotemporal Fourier modes. It's faster and more accurate hence why it is used.
+        The matrix vector product takes the form d_x (u * v), but the "normal" usage is d_x (u * u); in the latter
+        case other is the same as self. The spatial frequency matrix is passed to avoid redundant function calls,
+        improving speed.
+
+        """
+        # Elementwise product, both self and other should be in physical field basis.
+        assert (self.state_type == 'field') and (other.state_type == 'field')
+        pseudospectral_modes = self.statemul(other).convert(to='s_modes').state
+        # Return Spatial derivative with 1/2 factor. The conversion to modes does not do anything unless original
+        # state has discrete symmetry
+        nonlinear_spatial_modes = 0.5 * swap_modes(np.multiply(self.elementwise_dxn(self.parameters),
+                                            pseudospectral_modes), dimension='space')
+        nonlinear_spacetime_modes = self.__class__(state=nonlinear_spatial_modes,
+                                                   state_type='s_modes').convert(to='modes').state
+        return nonlinear_spacetime_modes
 
     def random_initial_condition(self, T, L, **kwargs):
         """ Initial a set of random spatiotemporal Fourier modes
@@ -2443,13 +2523,16 @@ class ShiftReflectionOrbitKS(OrbitKS):
             OrbitKS whose state is in the spatial Fourier mode basis.
 
         """
-        # Take rfft, accounting for unitary normalization.
+        # Take irfft, accounting for unitary normalization.
+        assert self.state_type == 'modes'
         modes = self.state
         even_indices = np.arange(0, self.N//2, 2)
         odd_indices = np.arange(1, self.N//2, 2)
+
         time_real = modes[:-self.n, :]
         time_imaginary = 1j*np.concatenate((np.zeros([1, self.m]), modes[-self.n:, :]), axis=0)
         spacetime_modes = np.concatenate((time_real + time_imaginary, np.zeros([1, self.m])), axis=0)
+
         real_space, imaginary_space = spacetime_modes.copy(), spacetime_modes.copy()
         real_space[even_indices, :] = 0
         imaginary_space[odd_indices, :] = 0
@@ -2528,6 +2611,49 @@ class ShiftReflectionOrbitKS(OrbitKS):
 class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
     def __init__(self, state=None, state_type='field', T=0., L=0., S=0., **kwargs):
+        """ Subclass for equilibrium solutions (all of which are antisymmetric w.r.t. space).
+        Parameters
+        ----------
+        state
+        state_type
+        T
+        L
+        S
+        kwargs
+
+        Notes
+        -----
+        For convenience, this subclass accepts any (even) value for the time discretization. Only a single time point
+        is required however to fully represent the solution and therefore perform any computations. If the discretization
+        size is greater than 1 then then different bases will have the following shapes: field (N, M). spatial modes =
+        (N, m), spatiotemporal modes (1, m). In other words, discretizations of this type can still be used in
+        the optimization codes but will be much more inefficient. The reason for this choice is because it is possible
+        to start with a spatiotemporal orbit with no symmetry (i.e. OrbitKS) and still end up at an equilibrium
+        solution. Therefore, I am accommodating transformations from other orbit types to EquilibriumOrbitKS. To
+        make the computations more efficient all that is required is usage of the method
+        self.optimize_for_calculations(), which converts N -> 1, making the shape of the state (1, M) in the
+        physical field basis. Also can inherit more methods with this choice.
+        More details are included in the thesis and in the documentation.
+        While only the imaginary components of the spatial modes are non-zero, both real and imaginary components are
+        kept to allow for odd order spatial derivatives, required for the nonlinear term. Other allowed operations such
+        as rotation are preferably performed after converting to a different symmetry type such as AntisymmetricOrbitKS
+        or OrbitKS.
+
+                #dx
+        #elementwise_dxn
+        #dx_matrix
+        # from_fundamental_domain
+        # mode_padding
+        # mode_truncation
+        # pseudospectral
+        # random_initial_condition
+        # time_transform_matrix
+        # inv_time_transform_matrix
+        # time_transform
+        # inv_time_transform
+        # to_fundamental_domain
+
+        """
         try:
             if state is not None:
                 shp = state.shape
@@ -2555,59 +2681,6 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         """ Overwrite of parent method """
         return np.concatenate((self.state.reshape(-1, 1),
                                np.array([[float(self.L)]])), axis=0)
-
-    def dx(self, power=1):
-        """ Overwrite of parent method """
-        if np.mod(power, 2):
-            dxn_s_modes = swap_modes(np.multiply(self.elementwise_dxn(self.parameters, power=power),
-                                                 self.convert(to='s_modes').state), dimension='space')
-            # have to keep in spatial modes
-            return self.__class__(state=dxn_s_modes, state_type='s_modes',
-                                  T=self.T, L=self.L)
-        else:
-            dxn_modes = np.multiply(self.elementwise_dxn(self.parameters, power=power),
-                                    self.convert(to='modes').state)
-            return self.__class__(state=dxn_modes, state_type='modes',
-                                  T=self.T, L=self.L).convert(to=self.state_type)
-
-    def dx_matrix(self, power=1, **kwargs):
-        """ Overwrite of parent method """
-        state_type = kwargs.get('state_type', self.state_type)
-        # Define spatial wavenumber vector
-        if state_type == 'modes':
-            dx_n_matrix = np.diag(self.wave_vector(self.parameters).reshape(-1)**power)
-        else:
-            dx_n_matrix = np.kron(so2_generator(power=power), np.diag(self.wave_vector(self.parameters).reshape(-1)**power))
-        return dx_n_matrix
-
-    @classmethod
-    @lru_cache(maxsize=16)
-    def elementwise_dxn(cls, parameters, power=1):
-        """ Matrix of temporal mode frequencies
-
-        Creates and returns a matrix whose elements
-        are the properly ordered spatial frequencies,
-        which is the same shape as the spatiotemporal
-        Fourier mode state. The elementwise product
-        with a set of spatiotemporal Fourier modes
-        is equivalent to taking a spatial derivative.
-
-        Returns
-        ----------
-        matrix
-            Matrix of spatial frequencies
-        """
-        q = cls.wave_vector(parameters, power=power)
-        # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
-        c1, c2 = so2_coefficients(power=power)
-        # Create elementwise spatial frequency matrix
-        if np.mod(power, 2):
-            # If the order of the derivative is odd, need to apply to spatial modes not spacetime modes.
-            dxn_multipliers = np.tile(np.concatenate((c1*q, c2*q), axis=1), (parameters[3], 1))
-        else:
-            # if order is even, make the frequencies into an array with same shape as modes; c1 = c2 when power is even.
-            dxn_multipliers = np.tile(c1*q, (parameters[-2], 1))
-        return dxn_multipliers
 
     def from_fundamental_domain(self, inplace=False, **kwargs):
         """ Overwrite of parent method """
@@ -2641,6 +2714,22 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             truncated_modes = self.state[:, :truncate_number]
             return EquilibriumOrbitKS(state=truncated_modes, state_type=self.state_type, L=self.L)
 
+    def optimize_for_calculations(self):
+        """ Discard redundant field information.
+
+        Returns
+        -------
+        EquilibriumOrbitKS
+            Instance wherein the new field has a single time discretization point.
+
+        Notes
+        -----
+        Instead of truncating modes, its easiest to just slice the physical field, taking the row corresponding to t=0.
+        """
+        field_single_time_point = self.convert(to='field').state[-1, :].reshape(1, -1)
+        # Keep whatever value of time period T was stored in the original orbit for transformation purposes.
+        return self.__class__(state=field_single_time_point, state_type='field', T=self.T, L=self.L, S=self.S)
+
     @property
     def parameters(self):
         return (self.T, self.L, self.S, self.N, self.M, self.n, self.m, 1, self.m)
@@ -2654,11 +2743,6 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         if not parameter_constraints:
             current.L = current.L/(self.L**4)
         return current
-
-    def nonlinear(self, other):
-        """ Overwrite of parent method """
-        orbit_nonlinear = self.convert(to='field').statemul(other.convert(to='field'))
-        return 0.5 * orbit_nonlinear.dx().convert(to='modes')
 
     def random_initial_condition(self, L, **kwargs):
         """ Initial a set of random spatiotemporal Fourier modes
@@ -2717,7 +2801,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         self.convert(to='modes', inplace=True)
         return self
 
-    def rnonlinear(self, other):
+    def rpseudospectral(self, other):
         """ Overwrite of parent method """
         return -1.0*self.convert(to='field').statemul(other.dx().convert(to='field')).convert(to='modes')
 
@@ -2753,6 +2837,32 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         return orbit_rmatvec
 
+    def inv_space_transform(self, inplace=False):
+        """ Spatial Fourier transform
+
+        Parameters
+        ----------
+        inplace : bool
+            Whether or not to perform the operation "in place" (overwrite the current state if True).
+
+        Returns
+        -------
+        OrbitKS :
+            OrbitKS whose state is in the spatial Fourier mode basis.
+
+        """
+        # Make the modes complex valued again.
+        complex_modes = 1j * self.state[:, -self.m:].reshape(1, -1)
+        # Re-add the zeroth and Nyquist spatial frequency modes (zeros) and then transform back
+        z = np.zeros([1, 1])
+        field = irfft(np.concatenate((z, complex_modes, z), axis=1), norm='ortho', axis=1)
+        if inplace:
+            self.state_type = 'field'
+            self.state = field
+            return self
+        else:
+            return self.__class__(state=field, state_type='field', T=self.T, L=self.L, S=self.S)
+
     def spatiotemporal_mapping(self):
         """ Overwrite of parent method """
         # For specific computation of the linear component instead
@@ -2776,11 +2886,11 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         constant associated with a forward in time transformation. The reason for this is for comparison
         of states between different subclasses.
         """
-        return (1./np.sqrt(self.N)) * np.concatenate((0*np.eye(self.m), np.eye(self.m)), axis=0)
+        return (1. / np.sqrt(self.N)) * np.concatenate((0*np.eye(self.m), np.eye(self.m)), axis=0)
 
     def time_transform_matrix(self):
         """ Overwrite of parent method """
-        return (1./np.sqrt(self.N)) * np.concatenate((0*np.eye(self.m), np.eye(self.m)), axis=1)
+        return (1. / np.sqrt(self.N)) * np.concatenate((0*np.eye(self.m), np.eye(self.m)), axis=1)
 
     def time_transform(self, inplace=False):
         """ Overwrite of parent method
@@ -2799,7 +2909,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             self.state_type = 'modes'
             return self
         else:
-            return EquilibriumOrbitKS(state=spacetime_modes, state_type='modes', L=self.L)
+            return self.__class__(state=spacetime_modes, state_type='modes', L=self.L)
 
     def inv_time_transform(self, inplace=False):
         """ Overwrite of parent method
@@ -2811,7 +2921,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         """
         real = np.zeros(self.state.shape)
         imaginary = self.state
-        spatial_modes = np.concatenate((real, imaginary), axis=1)
+        spatial_modes = (1.0 / np.sqrt(self.N)) * np.concatenate((real, imaginary), axis=1)
         if inplace:
             self.state = spatial_modes
             self.state_type = 's_modes'
@@ -2863,62 +2973,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
                                      axis=0)
         return np.kron(ab_time_idft_mat, np.eye(self.m))
 
-    def time_transform(self, inplace=False):
-        """ Spatial Fourier transform
 
-        Parameters
-        ----------
-        inplace : bool
-            Whether or not to perform the operation "in place" (overwrite the current state if True).
-
-        Returns
-        -------
-        OrbitKS :
-            OrbitKS whose state is in the spatial Fourier mode basis.
-
-        """
-        # Take rfft, accounting for unitary normalization.
-        modes = rfft(self.state, norm='ortho', axis=0)
-        modes_real = modes.real[:-1, -self.m:]
-        modes_imag = modes.imag[1:-1, -self.m:]
-        spacetime_modes = np.concatenate((modes_real, modes_imag), axis=0)
-
-        if inplace:
-            self.state = spacetime_modes
-            self.state_type = 'modes'
-            return self
-        else:
-            return self.__class__(state=spacetime_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
-
-    def inv_time_transform(self, inplace=False):
-        """ Spatial Fourier transform
-
-        Parameters
-        ----------
-        inplace : bool
-            Whether or not to perform the operation "in place" (overwrite the current state if True).
-
-        Returns
-        -------
-        OrbitKS :
-            OrbitKS whose state is in the spatial Fourier mode basis.
-
-        """
-        # Take rfft, accounting for unitary normalization.
-
-        modes = self.state
-        time_real = modes[:-self.n, :]
-        time_imaginary = 1j*np.concatenate((np.zeros([1, self.m]), modes[-self.n:, :]), axis=0)
-        spacetime_modes = np.concatenate((time_real + time_imaginary, np.zeros([1, self.m])), axis=0)
-        imaginary_space_modes = irfft(spacetime_modes, norm='ortho', axis=0)
-        space_modes = np.concatenate((np.zeros(imaginary_space_modes.shape), imaginary_space_modes), axis=1)
-
-        if inplace:
-            self.state = space_modes
-            self.state_type = 's_modes'
-            return self
-        else:
-            return self.__class__(state=space_modes, state_type='s_modes', T=self.T, L=self.L, S=self.S)
 
     def to_fundamental_domain(self, half='left', **kwargs):
         """ Overwrite of parent method """
@@ -2936,7 +2991,6 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         super().__init__(state=state, state_type=state_type, T=T, L=L, S=S, **kwargs)
         self.frame = frame
         # self.mode_shape = (1, self.M-2)
-
 
     def calculate_shift(self, inplace=False):
         """ Calculate the phase difference between the spatial modes at t=0 and t=T """
@@ -2979,7 +3033,8 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             return np.zeros(self.state.shape)
         else:
             raise ValueError(
-                'Attempting to compute time derivative of '+self.__str__+ 'in physical reference frame.')
+                'Attempting to compute time derivative of ' + str(self) + ' in physical reference frame.'
+                + 'If this is truly desired, convert to RelativeOrbitKS first.')
 
     def dt_matrix(self, power=1):
         """ The time derivative matrix operator for the current state.
@@ -3011,8 +3066,34 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         spacetime_dtn = np.kron(dt_n_matrix, np.eye(self.parameters[-1]))
         return spacetime_dtn
 
-    def elementwise_dx(self):
-        return super().elementwise_dx()[0, :].reshape(1, -1)
+    @classmethod
+    @lru_cache(maxsize=16)
+    def elementwise_dxn(cls, parameters, power=1):
+        """ Matrix of temporal mode frequencies
+
+        Creates and returns a matrix whose elements
+        are the properly ordered spatial frequencies,
+        which is the same shape as the spatiotemporal
+        Fourier mode state. The elementwise product
+        with a set of spatiotemporal Fourier modes
+        is equivalent to taking a spatial derivative.
+
+        Returns
+        ----------
+        matrix
+            Matrix of spatial frequencies
+        """
+        q = cls.wave_vector(parameters, power=power)
+        # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
+        c1, c2 = so2_coefficients(power=power)
+        # Create elementwise spatial frequency matrix
+        if np.mod(power, 2):
+            # For derivatives of odd order, need to shape the array such that it is consistent with spatial modes.
+            dxn_multipliers = np.tile(np.concatenate((c1*q, c2*q), axis=1), (parameters[3], 1))
+        else:
+            # If even, make it shaped like spacetime modes. Note: c1 = c2 when power is even.
+            dxn_multipliers = c1*q.reshape(1, -1)
+        return dxn_multipliers
 
     def from_fundamental_domain(self):
         """ For compatibility purposes with plotting and other utilities """
@@ -3357,3 +3438,32 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
     def to_fundamental_domain(self):
         return self.change_reference_frame()
+
+
+def change_orbit_type(orbit, new_type):
+    """ Utility for converting between different classes.
+
+    Parameters
+    ----------
+    orbit : Instance of OrbitKS or any of the derived classes.
+        The orbit instance to be converted
+    new_type : str or class object (not an instance).
+        The target class that orbit will be converted to.
+
+    Returns
+    -------
+
+    """
+    if isinstance(new_type, str):
+        class_dict = {'OrbitKS': OrbitKS,
+                      'AntisymmetricOrbitKS': AntisymmetricOrbitKS,
+                      'ShiftReflectionOrbitKS': ShiftReflectionOrbitKS,
+                      'RelativeOrbitKS': RelativeOrbitKS,
+                      'EquilibriumOrbitKS': EquilibriumOrbitKS,
+                      'RelativeEquilibriumOrbitKS': RelativeEquilibriumOrbitKS}
+        class_generator = class_dict[new_type]
+    else:
+        class_generator = new_type
+
+    return class_generator(state=orbit.state, state_type=orbit.state_type, T=orbit.T, L=orbit.L, S=orbit.S)
+

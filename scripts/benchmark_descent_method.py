@@ -5,13 +5,13 @@ from orbithunter import *
 import time
 
 def main(*args, method='adj', **kwargs):
-    orbit = read_h5('OrbitKS_L42p007_T33p116.h5', state_type='modes')
-    rpo_orbit = read_h5('RelativeOrbitKS_L22p007_T53p924.h5', directory='data', state_type='modes')
+    orbit = read_h5('OrbitKS_L42p007_T33p116.h5', directory='local', state_type='modes')
+    rpo_orbit = read_h5('RelativeOrbitKS_L22p007_T53p924.h5', directory='local', state_type='modes')
     # anti_orbit = read_h5('anti_L16p87_T24p39.h5', directory='data', state_type='modes')
     # sr_orbit = read_h5('ppo_L34p01_T64p70.h5', directory='data', state_type='modes')
     # eqva_orbit = read_h5('eqva_L11p436.h5', directory='data', state_type='modes')
     # reqva_orbit = read_h5('reqva_L27p39.h5', directory='data', state_type='modes')
-    orbit_list = [orbit, rpo_orbit] #, sr_orbit, anti_orbit, eqva_orbit, reqva_orbit]
+    orbit_list = [rpo_orbit]#, rpo_orbit] #, sr_orbit, anti_orbit, eqva_orbit, reqva_orbit]
     for o in orbit_list:
         o.L += 0.01
         max_iter = 32768

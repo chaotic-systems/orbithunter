@@ -17,8 +17,8 @@ def read_h5(filename, directory='', state_type='modes'):
     with h5py.File(os.path.abspath(os.path.join(directory, filename)), 'r') as f:
         if data_format == 'new':
             field = np.array(f['field'])
-            L = float(f['space_period'][()])
-            T = float(f['time_period'][()])
+            L = float(f['L'][()])
+            T = float(f['T'][()])
             S = float(f['spatial_shift'][()])
             orbit = class_generator(state=field, state_type='field', T=T, L=L, S=S)
         else:
@@ -55,7 +55,7 @@ def parse_class(filename):
                   'ppo': ShiftReflectionOrbitKS, 'ShiftReflectionOrbitKS': ShiftReflectionOrbitKS,
                   'rpo': RelativeOrbitKS, 'RelativeOrbitKS': RelativeOrbitKS,
                   'eqva': EquilibriumOrbitKS, 'EquilibriumOrbitKS': EquilibriumOrbitKS,
-                  'reqva':RelativeOrbitKS, 'RelativeEquilibriumOrbitKS':RelativeOrbitKS}
+                  'reqva': RelativeEquilibriumOrbitKS, 'RelativeEquilibriumOrbitKS': RelativeEquilibriumOrbitKS}
 
     class_generator = class_dict.get(class_name, RelativeOrbitKS)
     return class_generator, data_format
