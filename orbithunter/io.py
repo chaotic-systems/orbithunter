@@ -17,8 +17,8 @@ def read_h5(filename, directory='', state_type='modes'):
     with h5py.File(os.path.abspath(os.path.join(directory, filename)), 'r') as f:
         if data_format == 'new':
             field = np.array(f['field'])
-            L = float(f['L'][()])
-            T = float(f['T'][()])
+            L = float(f['space_period'][()])
+            T = float(f['time_period'][()])
             S = float(f['spatial_shift'][()])
             orbit = class_generator(state=field, state_type='field', T=T, L=L, S=S)
         else:
@@ -70,14 +70,13 @@ def verify_integrity(orbit):
     if orbit.__class__.__name__ == 'RelativeOrbitKS':
         residual_imported_S = orbit.residual()
         orbit_inverted_shift = orbit.__class__(state=orbit.state, state_type=orbit.state_type,
-                                           T=orbit.T, L=orbit.L, S=-1.0*orbit.S)
+                                               T=orbit.T, L=orbit.L, S=-1.0*orbit.S)
         residual_negated_S = orbit_inverted_shift.residual()
         if residual_imported_S > residual_negated_S:
             return orbit_inverted_shift
         else:
             return orbit
     else:
-
         return orbit
 
 

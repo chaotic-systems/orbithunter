@@ -143,3 +143,4 @@ notebooks/*.jpg
 data/local/*.h5
 figs/local/*.jpg
 figs/local/*.png
+!data/
