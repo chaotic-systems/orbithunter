@@ -282,7 +282,7 @@ class OrbitKS:
             if self.state_type == 's_modes':
                 converted_orbit = self.time_transform()
             elif self.state_type == 'field':
-                converted_orbit= self.spacetime_transform()
+                converted_orbit = self.spacetime_transform()
             else:
                 converted_orbit = self
         else:
@@ -808,16 +808,13 @@ class OrbitKS:
             yticks = np.array([0, orbit_to_plot.T])
             ylabels = np.array(['0', 'inf'])
 
-        if orbit_to_plot.L > 2*pi:
-            xticks = np.arange(0, orbit_to_plot.L, 2*pi)
-            xlabels = [str(int(x/(2*pi))) for x in xticks]
-        elif orbit_to_plot.L > pi:
-            xticks = np.arange(0, orbit_to_plot.L, pi)
-            xlabels = [str(int(x/pi)) for x in xticks]
+        if orbit_to_plot.L > 2*pi*np.sqrt(2):
+            xticks = np.arange(0, orbit_to_plot.L, 2*pi*np.sqrt(2))
+            xlabels = [str(int(x/(2*pi*np.sqrt(2)))) for x in xticks]
         else:
-            orbit_to_plot.L = 1
-            xticks = np.array([0, orbit_to_plot.L])
-            xlabels = np.array(['0', 'inf'])
+            scaled_L = np.round(orbit_to_plot.L / 2*pi*np.sqrt(2), 2)
+            xticks = np.array([0, scaled_L])
+            xlabels = np.array(['0', '$\\approx$'+str(np.round(orbit_to_plot.L, 2))])
 
         # Modify the size so that relative sizes between different figures is approximately representative
         # of the different sizes; helps with side-by-side comparison.
@@ -1146,7 +1143,7 @@ class OrbitKS:
         else:
             return rmatvec_orbit
 
-    def rotate(self, distance=0, direction='space', inplace=False):
+    def rotate(self, distance=0, direction='space'):
         """ Rotate the velocity field in either space or time.
 
         Parameters
@@ -1173,6 +1170,9 @@ class OrbitKS:
         The orbit only remains a converged solution if rotations coincide with collocation
         points.  i.e. multiples of L / M and T / N. The reason for this is because arbitrary rotations require
         interpolation of the field.
+
+        Rotation breaks discrete symmetry and destroys the solution. Users encouraged to change to OrbitKS first.
+
         """
         if direction == 'space':
             thetak = distance*self.wave_vector(self.parameters)
@@ -1181,58 +1181,41 @@ class OrbitKS:
 
         cosinek = np.cos(thetak)
         sinek = np.sin(thetak)
-        original_state_type = copy.copy(self.state_type)
 
         if direction == 'space':
-            self.convert(to='s_modes', inplace=True)
-            # Rotation breaks discrete symmetry and destroys the solution.
-            if self.__class__.__name__ in ['ShiftReflectionOrbitKS', 'AntisymmetricOrbitKS']:
-                warnings.warn('Performing a spatial rotation on a orbit with discrete symmetry is greatly discouraged.')
-
+            orbit_to_rotate = self.convert(to='s_modes')
             # Refer to rotation matrix in 2-D for reference.
-            cosine_block = np.tile(cosinek.reshape(1, -1), (self.N, 1))
-            sine_block = np.tile(sinek.reshape(1, -1), (self.N, 1))
+            cosine_block = np.tile(cosinek.reshape(1, -1), (orbit_to_rotate.N, 1))
+            sine_block = np.tile(sinek.reshape(1, -1), (orbit_to_rotate.N, 1))
 
             # Rotation performed on spatial modes because otherwise rotation is ill-defined for Antisymmetric and
             # Shift-reflection symmetric tori.
-            spatial_modes_real = self.state[:, :-self.m]
-            spatial_modes_imaginary = self.state[:, -self.m:]
+            spatial_modes_real = orbit_to_rotate.state[:, :-orbit_to_rotate.m]
+            spatial_modes_imaginary = orbit_to_rotate.state[:, -orbit_to_rotate.m:]
             rotated_real = (np.multiply(cosine_block, spatial_modes_real)
                             + np.multiply(sine_block, spatial_modes_imaginary))
             rotated_imag = (-np.multiply(sine_block, spatial_modes_real)
                             + np.multiply(cosine_block, spatial_modes_imaginary))
             rotated_s_modes = np.concatenate((rotated_real, rotated_imag), axis=1)
-            if inplace:
-                self.state = rotated_s_modes
-                self.state_type = 's_modes'
-                self.convert(to=original_state_type)
-                return self
-            else:
-                return self.__class__(state=rotated_s_modes, state_type='s_modes',
-                                      T=self.T, L=self.L, S=self.S).convert(to=original_state_type)
-        else:
-            self.convert(to='modes', inplace=True)
-            # Refer to rotation matrix in 2-D for reference.
-            cosine_block = np.tile(cosinek.reshape(-1, 1), (1, self.state.shape[1]))
-            sine_block = np.tile(sinek.reshape(-1, 1), (1, self.state.shape[1]))
 
-            modes_timereal = self.state[1:-self.n, :]
-            modes_timeimaginary = self.state[-self.n:, :]
+            return self.__class__(state=rotated_s_modes, state_type='s_modes',
+                                  T=self.T, L=self.L, S=self.S).convert(to=self.state_type)
+        else:
+            orbit_to_rotate = self.convert(to='modes')
+            # Refer to rotation matrix in 2-D for reference.
+            cosine_block = np.tile(cosinek.reshape(-1, 1), (1, orbit_to_rotate.parameters[-1]))
+            sine_block = np.tile(sinek.reshape(-1, 1), (1, orbit_to_rotate.parameters[-1]))
+
+            modes_timereal = orbit_to_rotate.state[1:-orbit_to_rotate.n, :]
+            modes_timeimaginary = orbit_to_rotate.state[-orbit_to_rotate.n:, :]
             # Elementwise product to account for matrix product with "2-D" rotation matrix
             rotated_real = (np.multiply(cosine_block, modes_timereal)
                             + np.multiply(sine_block, modes_timeimaginary))
             rotated_imag = (-np.multiply(sine_block, modes_timereal)
                             + np.multiply(cosine_block, modes_timeimaginary))
             time_rotated_modes = np.concatenate((self.state[0, :].reshape(1, -1), rotated_real, rotated_imag), axis=0)
-            if inplace:
-                self.state = time_rotated_modes
-                self.state_type = 'modes'
-                self.convert(to=original_state_type, inplace=True)
-                return self
-            else:
-                self.convert(to=original_state_type)
-                return self.__class__(state=time_rotated_modes,
-                                      T=self.T, L=self.L, S=self.S).convert(to=original_state_type)
+            return self.__class__(state=time_rotated_modes,
+                                  T=self.T, L=self.L, S=self.S).convert(to=self.state_type)
 
     def shift_reflection(self):
         """ Return a OrbitKS with shift-reflected velocity field
@@ -1611,6 +1594,16 @@ class RelativeOrbitKS(OrbitKS):
         self.frame = frame
         self.S = S
 
+    def __repr__(self):
+        # alias to save space
+        fs = np.format_float_scientific
+        dict_ = {'state_type': self.state_type, 'frame': self.frame,
+                 'N': self.N, 'M': self.M,
+                 'T': fs(self.T, 2), 'L': fs(self.L, 2), 'S': fs(self.S, 2)}
+        # convert the dictionary to a string via json.dumps
+        dictstr = dumps(dict_)
+        return self.__class__.__name__ + '(' + dictstr + ')'
+
     def calculate_shift(self, inplace=False):
         """ Calculate the phase difference between the spatial modes at t=0 and t=T """
         s_modes = self.convert(to='s_modes').state
@@ -1647,14 +1640,14 @@ class RelativeOrbitKS(OrbitKS):
         RelativeOrbitKS :
             RelativeOrbitKS in transformed reference frame.
         """
+        # shift is ALWAYS stored as the shift amount from comoving to physical frame.
         if self.frame == 'comoving':
             shift = self.S
         else:
             shift = -1.0*self.S
-        original_state = self.state_type
         s_modes = self.convert(to='s_modes').state
         time_vector = np.flipud(np.linspace(0, self.T, num=self.N, endpoint=True)).reshape(-1, 1)
-        translation_per_period = -1.0 * self.S / self.T
+        translation_per_period = -1.0 * shift / self.T
         time_dependent_translations = translation_per_period*time_vector
         thetak = time_dependent_translations.reshape(-1, 1)*self.wave_vector(self.parameters).ravel()
         cosine_block = np.cos(thetak)
@@ -1666,9 +1659,9 @@ class RelativeOrbitKS(OrbitKS):
         frame_rotated_s_modes_imag = (np.multiply(real_modes, sine_block)
                                       + np.multiply(imag_modes, cosine_block))
         frame_rotated_s_modes = np.concatenate((frame_rotated_s_modes_real, frame_rotated_s_modes_imag), axis=1)
-        frame_change_ = self.__class__(state=frame_rotated_s_modes, state_type='s_modes',
-                                       T=self.T, L=self.L, S=-1.0*self.S).convert(to=original_state)
-        return frame_change_
+
+        return self.__class__(state=frame_rotated_s_modes, state_type='s_modes',
+                              T=self.T, L=self.L, S=self.S).convert(to=self.state_type)
 
     def dt(self, power=1, return_modes=True):
         """ A time derivative of the current state.
@@ -1803,7 +1796,7 @@ class RelativeOrbitKS(OrbitKS):
         rmatvec_comoving = -1.0 * other.comoving_mapping_component()
 
         # this is needed for efficiency unless all parameters are fixed, but that isn't ever a realistic choice.
-        self_dx = self.dx(return_modes=True)
+        self_dx = self.dx(return_modes=True).ravel()
         if not parameter_constraints[0]:
             # Derivative of comoving component with respect to T is the same as -1/T * phi * u_x
             rmatvec_comoving.T = np.dot((-1.0 / self.T) * (-1.0 * self.S / self.T) * self_dx,
@@ -1979,6 +1972,10 @@ class AntisymmetricOrbitKS(OrbitKS):
             truncate_number = int(size // 2) - 1
             truncated_modes = self.state[:, :truncate_number]
         return self.__class__(state=truncated_modes, state_type=self.state_type, T=self.T, L=self.L)
+
+    @property
+    def parameters(self):
+        return (self.T, self.L, self.S, self.N, self.M, self.n, self.m, self.N-1, self.m)
 
     def pseudospectral(self, other, return_modes=False):
         """ nonlinear computation of the nonlinear term of the Kuramoto-Sivashinsky equation
@@ -2227,19 +2224,24 @@ class ShiftReflectionOrbitKS(OrbitKS):
         except ValueError:
             print('Incompatible type provided for field or modes: 2-D NumPy arrays only')
 
-    def dx(self, power=1):
+    def dx(self, power=1, return_modes=False):
         """ Overwrite of parent method """
         if np.mod(power, 2):
             dxn_s_modes = swap_modes(np.multiply(self.elementwise_dxn(self.parameters, power=power),
                                                  self.convert(to='s_modes').state), dimension='space')
-            # have to keep in spatial modes
-            return self.__class__(state=dxn_s_modes, state_type='s_modes',
-                                  T=self.T, L=self.L)
+            # Typically have to keep odd ordered spatial derivatives as spatial modes or field.
+            if return_modes:
+                return dxn_s_modes
+            else:
+                return self.__class__(state=dxn_s_modes, state_type='s_modes', T=self.T, L=self.L)
         else:
             dxn_modes = np.multiply(self.elementwise_dxn(self.parameters, power=power),
                                     self.convert(to='modes').state)
-            return self.__class__(state=dxn_modes, state_type='modes',
-                                  T=self.T, L=self.L).convert(to=self.state_type)
+            if return_modes:
+                return dxn_modes
+            else:
+                return self.__class__(state=dxn_modes, state_type='modes', T=self.T, L=self.L
+                                      ).convert(to=self.state_type)
 
     @classmethod
     @lru_cache(maxsize=16)
@@ -2639,11 +2641,11 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         """ Overwrite of parent method """
         if dimension == 'time':
             truncated_modes = self.state[-size:, :]
-            return EquilibriumOrbitKS(state=truncated_modes, L=self.L)
+            return self.__class__(state=truncated_modes, L=self.L)
         else:
             truncate_number = int(size // 2) - 1
             truncated_modes = self.state[:, :truncate_number]
-            return EquilibriumOrbitKS(state=truncated_modes, state_type=self.state_type, L=self.L)
+            return self.__class__(state=truncated_modes, state_type=self.state_type, L=self.L)
 
     def flatten_time_dimension(self):
         """ Discard redundant field information.
@@ -2661,7 +2663,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         field_single_time_point = self.convert(to='field').state[-1, :].reshape(1, -1)
         # Keep whatever value of time period T was stored in the original orbit for transformation purposes.
         return self.__class__(state=field_single_time_point, state_type='field',
-                              T=self.T, L=self.L, S=self.S).convert(to=self.state_type)
+                              L=self.L).convert(to=self.state_type)
 
     @property
     def parameters(self):
@@ -2893,7 +2895,14 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         self.frame = frame
 
     def calculate_shift(self, inplace=False):
-        """ Calculate the phase difference between the spatial modes at t=0 and t=T """
+        """ Calculate the phase difference between the spatial modes at t=0 and t=T
+
+        Notes
+        -----
+        If already in the comoving frame then this will not provide useful information, but cannot change
+        reference frames if shift is not defined. I'm leaving it up to the user to use this method correctly.
+
+        """
         s_modes = self.convert(to='s_modes').state
         modes1 = s_modes[-1, :].reshape(-1, 1)
         modes0 = s_modes[0, :].reshape(-1, 1)
@@ -2931,34 +2940,23 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
                 'Attempting to compute time derivative of ' + str(self) + ' in physical reference frame.'
                 + 'If this is truly desired, convert to RelativeOrbitKS first.')
 
-    @classmethod
-    @lru_cache(maxsize=16)
-    def elementwise_dxn(cls, parameters, power=1):
-        """ Matrix of temporal mode frequencies
-
-        Creates and returns a matrix whose elements
-        are the properly ordered spatial frequencies,
-        which is the same shape as the spatiotemporal
-        Fourier mode state. The elementwise product
-        with a set of spatiotemporal Fourier modes
-        is equivalent to taking a spatial derivative.
+    def flatten_time_dimension(self):
+        """ Discard redundant field information.
 
         Returns
-        ----------
-        matrix
-            Matrix of spatial frequencies
+        -------
+        EquilibriumOrbitKS
+            Instance wherein the new field has a single time discretization point.
+
+        Notes
+        -----
+        Equivalent to calling mode_truncation with size=1, dimension='time'.
+        This method exists because when it is called it is much more explicit w.r.t. what is being done.
         """
-        q = cls.wave_vector(parameters, power=power)
-        # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
-        c1, c2 = so2_coefficients(power=power)
-        # Create elementwise spatial frequency matrix
-        if np.mod(power, 2):
-            # For derivatives of odd order, need to shape the array such that it is consistent with spatial modes.
-            dxn_multipliers = np.tile(np.concatenate((c1*q, c2*q), axis=1), (parameters[3], 1))
-        else:
-            # If even, make it shaped like spacetime modes. Note: c1 = c2 when power is even.
-            dxn_multipliers = c1*q.reshape(1, -1)
-        return dxn_multipliers
+        field_single_time_point = self.convert(to='field').state[-1, :].reshape(1, -1)
+        # Keep whatever value of time period T was stored in the original orbit for transformation purposes.
+        return self.__class__(state=field_single_time_point, state_type='field',
+                              T=self.T, L=self.L, S=self.S).convert(to=self.state_type)
 
     def from_fundamental_domain(self):
         """ For compatibility purposes with plotting and other utilities """
@@ -3075,51 +3073,17 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         constant associated with a forward in time transformation. The reason for this is for comparison
         of states between different subclasses.
         """
-        (1./np.sqrt(self.N)) * np.concatenate((0*np.eye(self.m), np.eye(self.m)), axis=0)
-        return
+        return (1.0 / np.sqrt(self.N)) * np.tile(np.eye(self.M-2), (self.N, 1))
 
     def time_transform_matrix(self):
-        """ Overwrite of parent method """
-        return (1./np.sqrt(self.N)) * np.concatenate((0*np.eye(self.m), np.eye(self.m)), axis=1)
-
-    def time_transform(self, inplace=False):
-        """ Overwrite of parent method """
-        # Select the nonzero (imaginary) components of modes and transform in time (w.r.t. axis=0)
-        spacetime_modes = (1./np.sqrt(self.N)) * self.state
-        if inplace:
-            self.state = spacetime_modes
-            self.state_type = 'modes'
-            return self
-        else:
-            return self.__class__(state=spacetime_modes, state_type='modes', L=self.L)
-
-    def inv_time_transform(self, inplace=False):
-        """ Overwrite of parent method """
-        real = np.zeros(self.state.shape)
-        imaginary = self.state
-        spatial_modes = np.concatenate((real, imaginary), axis=1)
-        if inplace:
-            self.state = spatial_modes
-            self.state_type = 's_modes'
-            return self
-        else:
-            return self.__class__(state=spatial_modes, state_type='s_modes', L=self.L)
-
-    def inv_time_transform_matrix(self):
         """ Overwrite of parent method
 
         Notes
         -----
-        Originally this transform just selected the antisymmetric spatial modes (imaginary component),
-        but in order to be consistent with all other time transforms, I will actually apply the normalization
-        constant associated with a forward in time transformation. The reason for this is for comparison
-        of states between different subclasses.
-        """
-        return (np.sqrt(self.N)) * np.eye(self.parameters[-1])
+        N * (M-2) repeats of modes coming in, M-2 coming out, so M-2 rows.
 
-    def time_transform_matrix(self):
-        """ Overwrite of parent method """
-        return (1. / np.sqrt(self.N)) * np.concatenate((np.eye(self.m), np.eye(self.m)), axis=1)
+        """
+        return (np.sqrt(self.N)) * np.concatenate((np.zeros([self.N - 1, self.M-2]), np.eye(self.M-2)), axis=1)
 
     def time_transform(self, inplace=False):
         """ Overwrite of parent method
@@ -3138,7 +3102,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             self.state_type = 'modes'
             return self
         else:
-            return self.__class__(state=spacetime_modes, state_type='modes', L=self.L)
+            return self.__class__(state=spacetime_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
 
     def inv_time_transform(self, inplace=False):
         """ Overwrite of parent method
@@ -3148,15 +3112,13 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         Taking the IRFFT, with orthogonal normalization is equivalent to dividing by the normalization constant; because
         there would only be
         """
-        real = np.zeros(self.state.shape)
-        imaginary = self.state
-        spatial_modes = (1.0 / np.sqrt(self.N)) * np.concatenate((real, imaginary), axis=1)
+        spatial_modes = (1.0 / np.sqrt(self.N)) * self.state[-1, :].reshape(1, -1)
         if inplace:
             self.state = spatial_modes
             self.state_type = 's_modes'
             return self
         else:
-            return self.__class__(state=spatial_modes, state_type='s_modes', L=self.L)
+            return self.__class__(state=spatial_modes, state_type='s_modes', T=self.T, L=self.L, S=self.S)
 
     def to_fundamental_domain(self):
         return self.change_reference_frame()

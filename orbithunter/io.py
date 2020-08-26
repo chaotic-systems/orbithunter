@@ -9,16 +9,23 @@ warnings.resetwarnings()
 
 __all__ = ['read_h5', 'parse_class']
 
-def read_h5(filename, directory='', state_type='modes'):
+
+def read_h5(filename, directory='', data_format='orbithunter', state_type='modes'):
     if directory == 'local':
         directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/local/')), '')
 
-    class_generator, data_format = parse_class(filename)
+    class_generator = parse_class(filename)
     with h5py.File(os.path.abspath(os.path.join(directory, filename)), 'r') as f:
-        if data_format == 'new':
+        if data_format == 'orbithunter':
             field = np.array(f['field'])
             L = float(f['space_period'][()])
             T = float(f['time_period'][()])
+            S = float(f['spatial_shift'][()])
+            orbit = class_generator(state=field, state_type='field', T=T, L=L, S=S)
+        elif data_format == 'orbithunter_old':
+            field = np.array(f['field'])
+            L = float(f['L'][()])
+            T = float(f['T'][()])
             S = float(f['spatial_shift'][()])
             orbit = class_generator(state=field, state_type='field', T=T, L=L, S=S)
         else:
@@ -45,11 +52,6 @@ def parse_class(filename):
         name_count = np.array([filename.count(class_name) for class_name in all_names])
         class_name = np.array(all_names)[np.argmax(name_count)]
 
-    if class_name in new_names:
-        data_format = 'new'
-    else:
-        data_format = 'old'
-
     class_dict = {'none': OrbitKS, 'full': OrbitKS, 'OrbitKS': OrbitKS,
                   'anti': AntisymmetricOrbitKS, 'AntisymmetricOrbitKS': AntisymmetricOrbitKS,
                   'ppo': ShiftReflectionOrbitKS, 'ShiftReflectionOrbitKS': ShiftReflectionOrbitKS,
@@ -58,7 +60,7 @@ def parse_class(filename):
                   'reqva': RelativeEquilibriumOrbitKS, 'RelativeEquilibriumOrbitKS': RelativeEquilibriumOrbitKS}
 
     class_generator = class_dict.get(class_name, RelativeOrbitKS)
-    return class_generator, data_format
+    return class_generator
 
 def _make_proper_pathname(pathname_tuple,folder=False):
     if folder:
