@@ -171,6 +171,8 @@ def _gauss_newton(orbit, max_iter=500, parameter_constraints=(False,False,False)
         while next_residual > residual:
             # Continues until either step is too small or residual is decreases
             damp += 1
+            next_orbit = orbit.increment(dorbit, stepsize=2**-damp)
+            next_residual = next_orbit.residual()
             if damp > max_damp:
                 return orbit, exit_code
         else:

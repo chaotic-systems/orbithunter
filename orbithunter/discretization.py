@@ -39,46 +39,35 @@ def parameter_based_discretization(orbit, **kwargs):
     else:
         return orbit
 
-def rediscretize(x, parameter_based=False, **kwargs):
+def rediscretize(orbit, parameter_based=False, **kwargs):
     # Return class object with new discretization size. Not performed in place
     # because it is used in other functions; don't want user to be caught unawares
     if parameter_based:
-        newN, newM = parameter_based_discretization(x)
+        newN, newM = parameter_based_discretization(orbit)
     else:
-        newN, newM = kwargs.get('newN',x.N), kwargs.get('newM',x.M)
+        newN, newM = kwargs.get('newN',orbit.N), kwargs.get('newM',orbit.M)
     # Copy state information to new orbit; don't perform operations inplace, only create new orbit
-    placeholder_orbit = x.__class__(state=x.state, state_type=x.state_type, T=x.T, L=x.L, S=x.S)
+    placeholder_orbit = orbit.__class__(state=orbit.state, state_type=orbit.state_type, T=orbit.T, L=orbit.L, S=orbit.S)
     placeholder_orbit = placeholder_orbit.convert(to='modes')
-    if newN == x.N and newM == x.M:
-        return x
+    if newN == orbit.N and newM == orbit.M:
+        return orbit
     else:
-        #placeholders for workaround of rfft normalization change
-        oldN, oldM = x.N, x.M
         if np.mod(newN, 2) or np.mod(newM, 2):
             raise ValueError('New discretization size must be an even number, preferably a power of 2')
         else:
-            if newM == x.M:
+            if newM == orbit.M:
                 pass
-            elif newM > x.M:
+            elif newM > orbit.M:
                 placeholder_orbit = placeholder_orbit.mode_padding(newM, dimension='space')
-            elif newM < x.M:
+            elif newM < orbit.M:
                 placeholder_orbit = placeholder_orbit.mode_truncation(newM, dimension='space')
 
-            if newN == x.N:
+            if newN == orbit.N:
                 pass
-            elif newN > x.N:
+            elif newN > orbit.N:
                 placeholder_orbit = placeholder_orbit.mode_padding(newN, dimension='time')
-            elif newN < x.N:
+            elif newN < orbit.N:
                 placeholder_orbit = placeholder_orbit.mode_truncation(newN, dimension='time')
 
+            return placeholder_orbit.convert(to=orbit.state_type)
 
-            # Keep the norm of the physical field the same, need to
-            # account for discrepancy between new and old Fourier transform
-            # normalization factors. This is equivalent to normalizing
-            # by 1/N and 1/M on forward transforms; the reason why
-            # it was not implemented this way is to not have to keep
-            # track of normalization factors anywhere but here.
-            placeholder_orbit.state = (np.sqrt(newN*newM)/np.sqrt(oldN*oldM))*placeholder_orbit.state
-            placeholder_orbit.convert(inplace=True, to=x.state_type)
-
-            return placeholder_orbit
