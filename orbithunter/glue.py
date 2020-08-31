@@ -1,10 +1,10 @@
-from __future__ import print_function, division
+from orbithunter.discretization import rediscretize, correct_aspect_ratios
+from orbithunter.io import read_h5
 import numpy as np
 import os
 import itertools
 import warnings
-from orbithunter.discretization import rediscretize, correct_aspect_ratios
-from orbithunter.io import read_h5
+
 __all__ = ['combine', 'concat']
 
 

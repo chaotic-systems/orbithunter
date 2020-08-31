@@ -69,6 +69,7 @@ def _make_proper_pathname(pathname_tuple,folder=False):
         return os.path.abspath(os.path.join(*pathname_tuple))
 
 def verify_integrity(orbit):
+    orbit, code = orbit.status()
     if orbit.__class__.__name__ in ['RelativeOrbitKS', 'RelativeEquilibriumOrbitKS']:
         residual_imported_S = orbit.residual()
         orbit_inverted_shift = orbit.__class__(state=orbit.state, state_type=orbit.state_type,

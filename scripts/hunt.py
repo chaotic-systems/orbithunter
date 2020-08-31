@@ -20,14 +20,11 @@ def str2bool(val):
 
 def hunt(x, verbose=True):
     if verbose:
-        print('Beginning search for {}, T={} L={}. Dimensions:{}x{}'.format(x.__class__.__name__, x.T, x.L, x.N, x.M))
+        print('Beginning search for {}'.format(repr(x)))
     result = th.converge(x, verbose=verbose)
     if result.exit_code:
-        datname = result.orbit.parameter_dependent_filename(extension='h5')
-        figname = result.orbit.parameter_dependent_filename(extension='jpg')
-        x.to_h5(directory='default', filename=''.join(['initial_', datname]), verbose=verbose)
-        result.orbit.to_h5(directory='default', filename=datname, verbose=verbose)
-        result.orbit.plot(show=False, save=True, filename=figname, verbose=verbose)
+        result.orbit.to_h5(directory='default',)
+        result.orbit.plot(show=False, save=True, )
 
     return None
 

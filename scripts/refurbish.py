@@ -1,54 +1,35 @@
 import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(sys.argv[0], '../..')))
-import orbithunter as th
+from orbithunter import *
+import glob
 
 def main(*args,**kwargs):
-    # Re-do all previous calculations; relatively but not extraordinarily time consuming.
-    # Walk through the parent folder to find all data.
-    overwrite=False
-    for dirpath, dirname, filenames in os.walk('C:\\Users\\matt\\Desktop\\gudorf\\KS\\python\\data_and_figures\\'):
-        if dirpath.count('fail') != 0:
-            # Skip over "fail" folders, which contain only placeholder files to avoid redundant bad calculations.
-            continue
+    figs_only = False
+    overwrite = False
+    directory_root = 'C:\\Users\\Matt\\Desktop\\data_and_figures\\'
+    fail_counter = 0
+    for orbit_h5 in glob.glob('C:\\Users\\matt\\Desktop\\gudorf\\KS\\python\\data_and_figures\\**\\*.h5',
+                             recursive=True):
+        if orbit_h5.upper().count('FAIL') != 0 or orbit_h5.upper().count('OTHER') != 0:
+            pass
         else:
-            for f in filenames:
-                if f.split('_')[0] in ['Orbit', 'AntisymmetricOrbit',
-                                       'ShiftReflectionOrbit', 'RelativeOrbit', 'EquilibriumOrbit']:
-                    continue
-                cls = th.parse_class(f)
-                if cls is not None and f.endswith('.h5'):
-                    if dirpath.count('block') != 0:
-                        # Different naming format for tiles/blocks
-                        x = th.read_h5(f, directory=dirpath)
-                        x.convert(to='modes')
-                        basename = '_'.join((f.split('.')[0]).split('_')[1:])
-                        h5name = '_'.join([x.__class__.__name__, basename + '.h5'])
-                        pngname ='_'.join([x.__class__.__name__, basename + '.png'])
-                        savename = os.path.join(dirpath, h5name)
-                    else:
-                        # Normal naming format.
-                        x = th.read_h5(f, directory=dirpath)
-                        # x.convert(to='modes')
-                        h5name=x.parameter_dependent_filename('.h5')
-                        pngname=x.parameter_dependent_filename('.png')
-                        savename = os.path.join(dirpath, h5name)
-
-                    if os.path.isfile(savename) and overwrite == False:
-                        # If the target filename already exists then skip a redundant calculation.
-                        continue
-                    else:
-                        # x = rediscretize(x, parameter_based=True)
-                        print(f, [x.N, x.M])
-                        sys.stdout.flush()
-                        result = th.converge(x, verbose=True)
-                        if (result.exit_code == 1) | (result.exit_code == 3):
-                            result.orbit.to_h5(filename=h5name, directory=dirpath)
-                            figdirpath = os.path.abspath(os.path.join(dirpath, '../figs/'))
-                            result.orbit.plot(show=False, save=True, filename=pngname,
-                                              verbose=True, directory=figdirpath)
-                        else:
-                            sys.stdout.flush()
+            orbit = read_h5(orbit_h5, data_format='kstori')
+            sub_directory = os.path.split(orbit_h5.split('data_and_figures')[-1])[0]
+            directory = directory_root+sub_directory+'\\'
+            full_save_name = os.path.join(directory, orbit.parameter_dependent_filename())
+            if (not os.path.isfile(full_save_name)) or (overwrite is True):
+                if figs_only:
+                    orbit.plot(show=False, directory=directory)
+                converge_result = converge(orbit, atol=orbit.M*orbit.N*10**-15)
+                if converge_result.exit_code == 1:
+                    converge_result.orbit.to_h5(directory=directory, verbose=True)
+                    converge_result.orbit.plot(show=False, save=True, directory=directory)
+                else:
+                    fail_counter += 1
+            else:
+                pass
+    print('There were {} failures to converge'.format(fail_counter))
     return None
 if __name__=="__main__":
     sys.exit(main())

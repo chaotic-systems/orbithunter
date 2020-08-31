@@ -1,7 +1,7 @@
 import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(sys.argv[0], '../..')))
-import torihunter as th
+from orbithunter import *
 from argparse import ArgumentParser,ArgumentTypeError, FileType, ArgumentDefaultsHelpFormatter
 
 def str2bool(val):
@@ -17,10 +17,10 @@ def str2bool(val):
 def main():
     parser = ArgumentParser('glue', formatter_class=ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument('--direction', default='space', help='"space" or "time", decides on gluing direction')
+    parser.add_argument('--direction', default='space', help='"space" or "time", decides the gluing direction')
 
-    example0 =  os.path.abspath(os.path.join(sys.argv[0],'../../examples/glue_example0.h5'))
-    example1 =  os.path.abspath(os.path.join(sys.argv[0],'../../examples/glue_example1.h5'))
+    example0 = os.path.abspath(os.path.join(sys.argv[0],'../../examples/glue_example0.h5'))
+    example1 = os.path.abspath(os.path.join(sys.argv[0],'../../examples/glue_example1.h5'))
     examplenames = ' '.join([example0, example1])
     parser.add_argument('--input', default=examplenames, nargs=2, help='two *.h5 filenames separated by whitespace')
 
@@ -32,20 +32,15 @@ def main():
     args = parser.parse_args()
     # try:
     first_Orbit_filename, second_Orbit_filename = args.input.split()
-    Orbit = th.read_h5(first_Orbit_filename, cls=th.ShiftReflectionOrbit)
-    other_Orbit = th.read_h5(second_Orbit_filename, cls=th.ShiftReflectionOrbit)
-    glued_Orbit = th.glue(Orbit, other_Orbit, direction=args.direction)
-    result = th.converge(glued_Orbit)
+    Orbit = read_h5(first_Orbit_filename, cls=ShiftReflectionOrbitKS()
+    other_Orbit = read_h5(second_Orbit_filename, cls=ShiftReflectionOrbitKS()
+    glued_Orbit = glue(Orbit, other_Orbit, direction=args.direction)
+    result = converge(glued_OrbitKS())
 
     if result.success:
         result.Orbit.to_h5(filename=args.output)
         if args.figure:
             result.Orbit.plot(filename=args.output)
-    #     except AttributeError:
-    #         pass
-    # except NameError:
-    #     print('Invalid input, needs to be the names of two *.h5 files separated by whitespace')
-    #     pass
 
 
 if __name__=="__main__":

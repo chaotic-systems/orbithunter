@@ -7,7 +7,6 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from functools import lru_cache
 from json import dumps
 import os
-import sys
 import warnings
 import numpy as np
 import matplotlib.pyplot as plt
@@ -229,7 +228,7 @@ class OrbitKS:
         elif equilibrium_check < self.N*self.M*10**-10:
             # If there is sufficient evidence that solution is an equilibrium, change its class
             code = 3
-            return self.__class__(state=equilibrium_modes, T=self.T, L=self.L, S=self.S), code
+            return EquilibriumOrbitKS(state=equilibrium_modes, T=self.T, L=self.L, S=self.S), code
 
         else:
             return self, 1
@@ -757,7 +756,6 @@ class OrbitKS:
         return (self.T, self.L, self.S, self.N, self.M, self.n, self.m, self.N-1, self.M-2)
 
     def parameter_dependent_filename(self, extension='.h5', decimals=3):
-
         Lsplit = str(self.L).split('.')
         Lint = str(Lsplit[0])
         Ldec = str(Lsplit[1])
@@ -799,7 +797,7 @@ class OrbitKS:
         the current N and M values as defaults.
 
         """
-        fontsize = kwargs.get('fontsize', 12)
+        fontsize = kwargs.get('fontsize', 10)
         verbose = kwargs.get('verbose', False)
         extension = kwargs.get('extension', '.png')
         plt.rc('text', usetex=True)
@@ -834,11 +832,11 @@ class OrbitKS:
             xmult = (orbit_to_plot.L // 64) + 1
             xscale = xmult * 2*pi*np.sqrt(2)
             xticks = np.arange(0, orbit_to_plot.L, xscale)
-            xlabels = [str(xmult*int(x // xscale)) for x in xticks]
+            xlabels = [str(int(xmult*int(x // xscale))) for x in xticks]
         else:
             scaled_L = np.round(orbit_to_plot.L / (2*pi*np.sqrt(2)), 2)
             xticks = np.array([0, scaled_L])
-            xlabels = np.array(['0', '$\\approx$'+str(scaled_L)])
+            xlabels = np.array(['0', str(scaled_L)])
 
         # Modify the size so that relative sizes between different figures is approximately representative
         # of the different sizes; helps with side-by-side comparison.
@@ -863,8 +861,10 @@ class OrbitKS:
         # Custom colorbar values
         maxu = round(np.max(orbit_to_plot.state.ravel()) - 0.1, 2)
         minu = round(np.min(orbit_to_plot.state.ravel()) + 0.1, 2)
-        cbarticks = [minu, 0., maxu]
+
+        cbarticks = [minu, maxu]
         cbarticklabels = [str(i) for i in np.round(cbarticks, 1)]
+
         fig.subplots_adjust(right=0.95)
         divider = make_axes_locatable(ax)
         cax = divider.append_axes('right', size=0.05, pad=0.02)
@@ -1891,13 +1891,27 @@ class RelativeOrbitKS(OrbitKS):
                                np.array([[float(self.S)]])), axis=0)
 
     def status(self):
-        """ Check if orbit has meaningful translation symmetry """
+        """ Check whether the orbit converged to an equilibrium or close-to-zero solution """
+        # Take the L_2 norm of the field, if uniformly close to zero, the magnitude will be very small.
+        zero_check = np.linalg.norm(self.convert(to='field').state.ravel())
+        # Calculate the time derivative
+        equilibrium_modes = self.dt().state
+        # Equilibrium have non-zero zeroth modes in time, exclude these from the norm.
+        equilibrium_check = np.linalg.norm(equilibrium_modes[1:, :])
 
-        if np.abs(self.S) < self.L / self.M:
-            return OrbitKS(state=self.state, state_type=self.state_type, T=self.T, L=self.L).status()
+        # See if the L_2 norm is beneath a threshold value, if so, replace with zeros.
+        if zero_check < self.N*self.M*10**-10:
+            code = 4
+            return self.__class__(state=np.zeros([self.N, self.M]), state_type='field',
+                                  T=self.T, L=self.L, S=self.S), code
+        # Equilibrium is defined by having no temporal variation, i.e. time derivative is a uniformly zero.
+        elif equilibrium_check < self.N*self.M*10**-10:
+            # If there is sufficient evidence that solution is an equilibrium, change its class
+            code = 3
+            return RelativeEquilibriumOrbitKS(state=equilibrium_modes, T=self.T, L=self.L, S=self.S), code
+
         else:
-            return super().status()
-
+            return self, 1
     def to_fundamental_domain(self):
         return self.change_reference_frame(to='comoving')
 
@@ -2676,6 +2690,8 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         """
         L = float(L)
+        if state.ndim == 1:
+            state = state.reshape(1, -1)
         try:
             if state is not None:
                 shp = state.shape
@@ -2692,7 +2708,6 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             self.n, self.m = 1, int(self.M // 2) - 1
         except ValueError:
             print('Incompatible type provided for field or modes: 2-D NumPy arrays only')
-
         self.L = L
         # For uniform save format
 

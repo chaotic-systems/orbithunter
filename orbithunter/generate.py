@@ -1,56 +1,9 @@
-from __future__ import print_function, division
-import numpy as np
-import warnings
-import os
 from math import pi
-import random
-warnings.simplefilter(action='ignore', category=ImportWarning)
-warnings.resetwarnings()
+import numpy as np
+import os
 
 
 
-def random_initial_condition(param_tuple, **kwargs):
-    if T == 0.:
-        self.T = 20 + 100*np.random.rand(1)
-    else:
-        self.T = T
-    if L == 0.:
-        self.L = 22 + 44*np.random.rand(1)
-    else:
-        self.L = L
-    self.N = kwargs.get('N', np.max([32, 2**(int(np.log2(self.T)-1))]))
-    self.M = kwargs.get('M', np.max([2**(int(np.log2(self.L))), 32]))
-    self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
-    self.random_modes(**kwargs)
-    self.convert(to='field', inplace=True)
-    tmp = self // (1.0/4.0)
-    self.state = tmp.state
-    self.convert(to='modes', inplace=True)
-    symmetry = kwargs.get('symmetry','ppo')
-    amplitude = kwargs.get('amplitude',5.)
-    scale_type = kwargs.get('scale_type','random')
-    tms = kwargs.get('tms',False)
-    N,M,T,L = param_tuple
-    if symmetry == 'ppo':
-        uu = ppo.initial_condition_generator(N,M,T,L,amplitude=amplitude,scale_type=scale_type,tms=tms)
-        Orbit = (uu,N,M,T,L,0)
-    elif symmetry == 'rpo':
-        uu = rpo.initial_condition_generator(N,M,T,L,amplitude=amplitude,scale_type=scale_type,tms=tms)
-        if L < 88:
-            Orbit = (uu, N, M, T, L, random.randint(1,int(M//2))*(L/M))
-        elif L > 500:
-            Orbit = (uu, N, M, T, L, 0)
-        else:
-            Orbit = (uu, N, M, T, L, (L/30))
-    elif symmetry == 'anti':
-        uu = anti.initial_condition_generator(N,M,T,L,amplitude=amplitude,scale_type=scale_type,tms=tms)
-        Orbit = (uu, N, M, T, L, 0)
-    elif symmetry == 'none':
-        uu = none.initial_condition_generator(N,M,T,L,amplitude=amplitude,scale_type=scale_type,tms=tms)
-        Orbit = (uu, N, M, T, L, 0)
-    else:
-        Orbit = (np.zeros([N,M]),N,M,T,L,1)
-    return Orbit
 
 
 def average_spectrum_initial_condition(param_tuple,*args,**kwargs):
@@ -248,7 +201,8 @@ def glued_initial_condition(OrbitA,OrbitB,*args,**kwargs):
     #         ncombo+=1
     return ARtori,Rtori,Ctori,CBtori,GOrbit
 
-def initial_condition_generator(N,M,T,L,**kwargs):
+
+def random_initial_condition(N,M,T,L,**kwargs):
     amplitude = kwargs.get('amplitude',5)
     scale_type = kwargs.get('scale_type','random')
     n = int(N-1)
@@ -287,7 +241,6 @@ def initial_condition_generator(N,M,T,L,**kwargs):
     renormed_uu = np.reshape(renormed_u,[N,M])
     return renormed_uu
 
-def initial_condition_generator(N,M,T,L,**kwargs):
     amplitude = kwargs.get('amplitude',5)
     scale_type = kwargs.get('scale_type','random')
     tms = kwargs.get('tms',False)
@@ -339,7 +292,6 @@ def initial_condition_generator(N,M,T,L,**kwargs):
         renormed_uu = np.reshape(renormed_u,[N,M])
     return renormed_uu
 
-def initial_condition_generator(N,M,T,L,**kwargs):
     amplitude = kwargs.get('amplitude',5)
     scale_type = kwargs.get('scale_type','random')
     tms = kwargs.get('tms',False)
@@ -410,7 +362,6 @@ def initial_condition_generator(N,M,T,L,**kwargs):
         renormed_uu = np.reshape(renormed_u,[N,M])
     return renormed_uu
 
-def initial_condition_generator(N,M,T,L,**kwargs):
     amplitude = kwargs.get('amplitude',5)
     scale_type = kwargs.get('scale_type','nonphysical')
     n = int(N-1)
@@ -451,7 +402,7 @@ def initial_condition_generator(N,M,T,L,**kwargs):
     renormed_uu = np.reshape(renormed_u,[N,M])
     return renormed_uu
 
-def initial_condition_generator(N,M,T,L,**kwargs):
+
     amplitude = kwargs.get('amplitude',5)
     scale_type = kwargs.get('scale_type','random')
     tms = kwargs.get('tms',False)
@@ -522,7 +473,6 @@ def initial_condition_generator(N,M,T,L,**kwargs):
         renormed_uu = np.reshape(renormed_u,[N,M])
     return renormed_uu
 
-def initial_condition_generator(N,M,T,L):
     n = int(N//2)-1
     m = int(M//2)-1
     L = float(np.real(L))
@@ -556,7 +506,7 @@ def initial_condition_generator(N,M,T,L):
     renormed_uu = np.reshape(renormed_u,[N,M])
     return renormed_uu
 
-def initial_condition_generator(N,M,T,L):
+
     n = int(N//2)-1
     m = int(M//2)-1
     L = float(np.real(L))
@@ -590,7 +540,6 @@ def initial_condition_generator(N,M,T,L):
     renormed_uu = np.reshape(renormed_u,[N,M])
     return renormed_uu
 
-def initial_condition_generator(N,M,T,L):
     n = int(N-1)
     m = int(M//2)-1
     L = float(np.real(L))
@@ -611,39 +560,3 @@ def initial_condition_generator(N,M,T,L):
     renormed_u = 6 * u_vec / np.max(np.abs(u_vec))
     renormed_uu = np.reshape(renormed_u,[N,M])
     return renormed_uu
-
-def main(*args,**kwargs):
-    # symmetry=kwargs.get('symmetry','ppo')
-    # gluetype=kwargs.get('gluetype',0)
-    # buffersize=kwargs.get('buffersize',1)
-    # rotateOrbit = kwargs.get('rotateOrbit',True)
-    # mindiscdirection = kwargs.get('mindisc','none')
-    # file0 = "C:\\Users\\matt\\Desktop\\gudorf\\KS\\python\\data_and_figures\\L22_initial_conditions\\rpo\\rpo1_32b32.h5"
-    # file1 = "C:\\Users\\matt\\Desktop\\gudorf\\KS\\python\\data_and_figures\\L22_initial_conditions\\rpo\\rpo2_32b32.h5"
-    # # file0 = "C:\\Users\\matt\\Desktop\\gudorf\\KS\\python\\data_and_figures\\L22_initial_conditions\\ppo\\ppo1_32b32.h5"
-    # # file1 = "C:\\Users\\matt\\Desktop\\gudorf\\KS\\python\\data_and_figures\\L22_initial_conditions\\ppo\\ppo2_32b32.h5"
-    # # file1 = "C:\\Users\\matt\\Desktop\\gudorf\\KS\\python\\data_and_figures\\converged\\rpo\\data\\rpo_L21p74_T78.h5"
-    # if gluetype:
-    #     gluename='space'
-    # else:
-    #     gluename='time'
-    #
-    # conv_figs_dir = ''.join(["C:\\Users\\matt\\Desktop\\tests\\conv\\"])
-    # fail_figs_dir = ''.join(["C:\\Users\\matt\\Desktop\\tests\\fail\\"])
-    # OrbitLT = Orbit_io.import_Orbit(file0)
-    # OrbitRB = Orbit_io.import_Orbit(file1)
-    # base0_tmp=file0.split("\\")[-1]
-    # base1_tmp=file1.split("\\")[-1]
-    # base0 = base0_tmp.split('.h5')[0]
-    # base1 = base1_tmp.split('.h5')[0]
-    #
-    # glued_Orbit = glued_initial_condition(OrbitLT,OrbitRB,symmetry=symmetry,gluetype=gluetype,buffersize=buffersize,slicenotchop=slicenotchop,rotateOrbit=rotateOrbit)
-    # ksplot.plot_spatiotemporal_field(glued_Orbit,symmetry='none',display_flag=True)
-    # glued_Orbit_final = disc.minimize_discretization(glued_Orbit,symmetry=symmetry,direction=mindiscdirection)
-    # ksplot.plot_spatiotemporal_field(glued_Orbit_final,symmetry='none',display_flag=True)
-    # u,N,M,T,L,S = glued_Orbit_final
-
-    return None
-
-if __name__=='__main__':
-    main()
