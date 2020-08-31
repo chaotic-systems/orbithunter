@@ -110,8 +110,8 @@ def main(*args,**kwargs):
         vv = np.flipud(np.transpose(vv))
         N0,M0 = np.shape(uu)
         T = T - transient_T
-        torus = (uu,N0,M0,T,L0,0)
-        torus_io.export_torus(torus,'C:\\Users\\matth\\Desktop\\jupyter\\MNG_uu_largeL.h5',symmetry='none')
+        Orbit = (uu,N0,M0,T,L0,0)
+        Orbit_io.export_Orbit(Orbit,'C:\\Users\\matth\\Desktop\\jupyter\\MNG_uu_largeL.h5',symmetry='none')
     elif init == 'random':
         v = np.random.randn(int(N//2)-1,1) + 1j*np.random.randn(int(N//2)-1,1)
         v = np.concatenate(([[0]], v, [[0]], np.flipud(np.conj(v))), axis=0)
@@ -182,11 +182,11 @@ def main(*args,**kwargs):
         vv = np.flipud(np.transpose(vv))
         N0,M0 = np.shape(uu)
         T = T - transient_T
-        torus = (uu,N0,M0,T,L0,0)
-        torus_io.export_torus(torus,'MNG_uu_largeLRandom.h5',symmetry='none')
+        Orbit = (uu,N0,M0,T,L0,0)
+        Orbit_io.export_Orbit(Orbit,'MNG_uu_largeLRandom.h5',symmetry='none')
     elif init =='import':
-        torus_imported = torus_io.import_torus("MNG_uu_largeL.h5")
-        uu,N0,M0,T,L,S0 = torus_imported
+        Orbit_imported = Orbit_io.import_Orbit("MNG_uu_largeL.h5")
+        uu,N0,M0,T,L,S0 = Orbit_imported
         vv = fft(uu,axis=1)/np.sqrt(M0)
 
     # N,M = np.shape(uu)

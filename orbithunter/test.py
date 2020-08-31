@@ -125,15 +125,15 @@ def FFT_testing_suite(tori_tuple):
     return True
 
 
-def test_integration_tolerance(torus_converged,torus_init,**kwargs):
-    uC,NC,MC,TC,LC,SC = torus_converged
-    uI,NI,MI,TI,LI,SI = torus_init
+def test_integration_tolerance(Orbit_converged,Orbit_init,**kwargs):
+    uC,NC,MC,TC,LC,SC = Orbit_converged
+    uI,NI,MI,TI,LI,SI = Orbit_init
     symmetry=kwargs.get('symmetry','rpo')
-    residual = ks.compute_residual_fromtuple(torus_converged,symmetry=symmetry)
+    residual = ks.compute_residual_fromtuple(Orbit_converged,symmetry=symmetry)
     NMresidual = NC*MC*residual
-    torus_integrated = ETDRK4.ETDRK4_timeseries(torus_converged,symmetry=symmetry)
-    torus_comparison = disc.rediscretize(torus_integrated,newN=NC,newM=MC)
-    u_integrated = torus_comparison[0]
+    Orbit_integrated = ETDRK4.ETDRK4_timeseries(Orbit_converged,symmetry=symmetry)
+    Orbit_comparison = disc.rediscretize(Orbit_integrated,newN=NC,newM=MC)
+    u_integrated = Orbit_comparison[0]
 
     converged_integrated_norm = np.linalg.norm(uC.flatten()-u_integrated.flatten())
     init_integrated_norm = np.linalg.norm(uI.flatten()-u_integrated.flatten())
@@ -143,9 +143,9 @@ def test_integration_tolerance(torus_converged,torus_init,**kwargs):
     print('The L_2 difference between init and converged is', init_converged_norm)
     print('The L_2 difference between converged and integrated is', converged_integrated_norm,'when the residual is,',residual,NMresidual)
 
-    ksplot.plot_spatiotemporal_field(torus_init,symmetry='none',display_flag=True,filename='init4.png')
-    ksplot.plot_spatiotemporal_field(torus_converged,symmetry='none',display_flag=True,filename='converged4.png')
-    ksplot.plot_spatiotemporal_field(torus_integrated,symmetry='none',display_flag=True,filename='integrated4.png')
+    ksplot.plot_spatiotemporal_field(Orbit_init,symmetry='none',display_flag=True,filename='init4.png')
+    ksplot.plot_spatiotemporal_field(Orbit_converged,symmetry='none',display_flag=True,filename='converged4.png')
+    ksplot.plot_spatiotemporal_field(Orbit_integrated,symmetry='none',display_flag=True,filename='integrated4.png')
 
     return None
 

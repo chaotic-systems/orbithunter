@@ -71,17 +71,17 @@ def masked_window_fields(self, Tmin=0, Tmax=0, Xmin=0, Xmax=0,*args,**kwargs):
     symmetry = kwargs.get('symmetry','rpo')
     rotation = kwargs.get('rotation',0)
     if rotation!=0:
-        orbit = rpo.rotate_torus(torus,rotation)
+        orbit = rpo.rotate_Orbit(Orbit,rotation)
     if symmetry =='rpo':
-        torus = rpo.mvf_rotate_torus(torus)
-    uu,N,M,T,L,S0 = torus
+        Orbit = rpo.mvf_rotate_Orbit(Orbit)
+    uu,N,M,T,L,S0 = Orbit
     # cutout_counter = 0
     # nmin,nmax,mmin,mmax = [],[],[],[]
     # field_without_cutout= ()
     # cutouts = ()
     # if isinstance(Tmin,list):
     #     while cutout_counter < np.length(Tmin):
-    #         nmin_tmp,nmax_tmp,mmin_tmp,mmax_tmp = discretization_window(torus,Xmin[cutout_counter],Xmax[cutout_counter]
+    #         nmin_tmp,nmax_tmp,mmin_tmp,mmax_tmp = discretization_window(Orbit,Xmin[cutout_counter],Xmax[cutout_counter]
     #                                                     ,Tmin[cutout_counter],Tmax[cutout_counter])
     #         nmin,nmax = np.append(nmin,nmin_tmp),np.append(nmax,nmax_tmp)
     #         mmin,mmax = np.append(mmin,mmin_tmp),np.append(mmax,mmax_tmp)
@@ -96,7 +96,7 @@ def masked_window_fields(self, Tmin=0, Tmax=0, Xmin=0, Xmax=0,*args,**kwargs):
     #         cutouts += ((uu_mask_not_cutout,N,M,T,L,S0),)
     #         fields_without_cutouts += ((uu_mask_cutout,N,M,T,L,S0),)
     # else:
-    nmin,nmax,mmin,mmax = discretization_window(torus,Xmin,Xmax
+    nmin,nmax,mmin,mmax = discretization_window(Orbit,Xmin,Xmax
                                                 ,Tmin,Tmax)
     cutout= np.ones(np.shape(uu),dtype=int)
     not_cutout= np.zeros(np.shape(uu),dtype=int)
@@ -104,13 +104,13 @@ def masked_window_fields(self, Tmin=0, Tmax=0, Xmin=0, Xmax=0,*args,**kwargs):
     not_cutout[nmax:nmin,mmin:mmax] = 1
     uu_not_cutout = np.ma.masked_array(uu,not_cutout)
     uu_cutout = np.ma.masked_array(uu,cutout)
-    cutout_torus = (uu_cutout,N,M,T,L,S0)
-    not_cutout_torus =(uu_not_cutout,N,M,T,L,S0)
-    return not_cutout_torus,cutout_torus
+    cutout_Orbit = (uu_cutout,N,M,T,L,S0)
+    not_cutout_Orbit =(uu_not_cutout,N,M,T,L,S0)
+    return not_cutout_Orbit,cutout_Orbit
 
 
 def discretization_window(self, Tmin=0, Tmax=0, Xmin=0, Xmax=0):
-    u,N,M,T,L,S = torus
+    u,N,M,T,L,S = Orbit
     Lp = L/(2*pi)
     nmin,nmax = -int(N*(Tmin/T)),-int(N*(Tmax/T))
     mmin,mmax = int(M*(Xmin/Lp)),int(M*(Xmax/Lp))

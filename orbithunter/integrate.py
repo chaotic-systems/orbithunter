@@ -6,18 +6,18 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 import h5py
 warnings.resetwarnings()
 from scipy.fftpack import fft,ifft
-from . import generate as torus_init
+from . import generate as Orbit_init
 import os
 from scipy.linalg import eig,inv
 
 
-def spatial_integration(torus,*args,**kwargs):
+def spatial_integration(Orbit,*args,**kwargs):
     return None
 
 
-def ETDRK4(torus,**kwargs):
+def ETDRK4(Orbit,**kwargs):
     symmetry=kwargs.get('symmetry','ppo')
-    UU,N,M,T,L,S = torus
+    UU,N,M,T,L,S = Orbit
     nstp = kwargs.get('nstp',N*M)
 
     if N==1:
@@ -86,10 +86,10 @@ def ETDRK4(torus,**kwargs):
     # plt.figure()
     # plt.imshow(uu,cmap='jet')
     # plt.show()
-    torus_tmp = (uu,nstp,M,T,L,S)
-    torus = torus_init.relevant_symmetry_operation(torus_tmp,symmetry=symmetry)
+    Orbit_tmp = (uu,nstp,M,T,L,S)
+    Orbit = Orbit_init.relevant_symmetry_operation(Orbit_tmp,symmetry=symmetry)
 
-    return torus
+    return Orbit
 
 
 def ETDRK4_reproduce_L22():
@@ -179,8 +179,8 @@ def ETDRK4_reproduce_L22():
             k_vec = ((2*pi*M)/L0)*np.fft.fftfreq(M)
             k_vec[int(M//2)]=0
 
-            torus_tuple = (uu,N,M,T,L0,0)
-            S0 = rpo.calculate_shift2(torus_tuple)
+            Orbit_tuple = (uu,N,M,T,L0,0)
+            S0 = rpo.calculate_shift2(Orbit_tuple)
             vvcorrect = fft(uu,axis=1)/M
             tt = np.flipud(tt)
             complex_rotation = np.exp(1j*tt*k_vec*(S0/T))
@@ -199,28 +199,28 @@ def ETDRK4_reproduce_L22():
         save_filename = ''.join([folder,filename,'_',str(time_trunc_number),'b',str(32),'.h5'])
         N,M = np.shape(uu)
         if symmetry=='rpo':
-            torus_tuple = (uu,N,M,T,L0,S0)
-            torus_tuple = rpo.mvf_rotate_torus(torus_tuple)
-            uu,N,M,T,L0,S0 = torus_tuple
-            torus_tuple = (uu,N,M,T,L0,-S0)
-            torus_tuple_full = rpo.mvf_rotate_torus(torus_tuple)
-        # uu,N,M,T,L0,S0 = torus_tuple
+            Orbit_tuple = (uu,N,M,T,L0,S0)
+            Orbit_tuple = rpo.mvf_rotate_Orbit(Orbit_tuple)
+            uu,N,M,T,L0,S0 = Orbit_tuple
+            Orbit_tuple = (uu,N,M,T,L0,-S0)
+            Orbit_tuple_full = rpo.mvf_rotate_Orbit(Orbit_tuple)
+        # uu,N,M,T,L0,S0 = Orbit_tuple
         # plt.figure()
         # plt.imshow(uu,interpolation='nearest',extent=[0,L0,0,T],cmap='jet')
         # plt.colorbar()
         # plt.xlabel('x')
         # plt.ylabel('t')
         # plt.show()
-        torus_tuple=(uu,N,M,T,L0,S0)
-        torus_tuple = disc.rediscretize(torus_tuple, newN=time_trunc_number)
-        uu_truncated,N,M,T,L0,S0 = torus_tuple
+        Orbit_tuple=(uu,N,M,T,L0,S0)
+        Orbit_tuple = disc.rediscretize(Orbit_tuple, newN=time_trunc_number)
+        uu_truncated,N,M,T,L0,S0 = Orbit_tuple
         # plt.figure()
         # plt.imshow(uu_truncated,interpolation='nearest',extent=[0,L0,0,T],cmap='jet')
         # plt.colorbar()
         # plt.xlabel('x')
         # plt.ylabel('t')
         # plt.show()
-        torus_io.export_torus(save_filename, torus_tuple,symmetry=symmetry)
+        Orbit_io.export_Orbit(save_filename, Orbit_tuple,symmetry=symmetry)
     return None
 
 
@@ -252,20 +252,20 @@ def ustability_matrix(LINEAR,DX,FFT,IFFT,u):
     return A_n
 
 
-def ETDRK4_jacobian(torus0,**kwargs):
+def ETDRK4_jacobian(Orbit0,**kwargs):
     symmetry=kwargs.get('symmetry','ppo')
     nstp=kwargs.get('nstp',4096)
     stepsbetweensave=kwargs.get('stepsbetweensaves',1)
 
-    U,N,M,T,L,S = torus0
-    torus0 = disc.rediscretize(torus0,newN=8*N)
+    U,N,M,T,L,S = Orbit0
+    Orbit0 = disc.rediscretize(Orbit0,newN=8*N)
 
     # if symmetry=='ppo':
     #     T=T/2
-    #     torus0 = (U,N,M,T,L,S)
+    #     Orbit0 = (U,N,M,T,L,S)
     if symmetry=='rpo':
-        torus0 = symm.frame_rotation(torus0)
-        U,N,M,T,L,S = torus0
+        Orbit0 = symm.frame_rotation(Orbit0)
+        U,N,M,T,L,S = Orbit0
 
     FFT = ksdm.FFT_x_matrix(1,M,symmetry=symmetry)
     IFFT = ksdm.IFFT_x_matrix(1,M,symmetry=symmetry)
@@ -411,14 +411,14 @@ def ETDRK4_jacobian(torus0,**kwargs):
     return J,eigenvalues,real_exponents
 
 
-def jacobianeigenvalues(torus_filename,**kwargs):
+def jacobianeigenvalues(Orbit_filename,**kwargs):
     symmetry=kwargs.get('symmetry','ppo')
     nstp=kwargs.get('nstp',4096)
-    torus0 = torus_io.import_torus(torus_filename)
-    U,N,M,T,L,S = torus0
+    Orbit0 = Orbit_io.import_Orbit(Orbit_filename)
+    U,N,M,T,L,S = Orbit0
     # if symmetry=='ppo':
     #     T=T/2
-    #     torus0 = (U,N,M,T,L,S)
+    #     Orbit0 = (U,N,M,T,L,S)
 
 
     FFT = ksdm.ppo.FFT_x_matrix(1,M)
@@ -433,14 +433,14 @@ def jacobianeigenvalues(torus_filename,**kwargs):
     L_op = np.reshape((k**2.0)-(k**4.0),M-2)
     LINEAR = np.diag(L_op)
 
-    uu = ETDRK4_timeseries(torus0,nstp=nstp)
-    torus_integrated = (uu,np.shape(uu)[0],np.shape(uu)[1],T,L,S)
+    uu = ETDRK4_timeseries(Orbit0,nstp=nstp)
+    Orbit_integrated = (uu,np.shape(uu)[0],np.shape(uu)[1],T,L,S)
     uuSR = -1.0*np.roll(np.roll(np.fliplr(uu),1,axis=1),(np.shape(uu)[0])//2,axis=0)
-    torus_integratedSR = (uuSR,np.shape(uu)[0],np.shape(uu)[1],T,L,S)
-    torus_diff = (uu-uuSR,np.shape(uu)[0],np.shape(uu)[1],T,L,S)
-    ksplot.plot_spatiotemporal_field(torus_integrated,symmetry='none',display_flag=True,padding=False)
-    ksplot.plot_spatiotemporal_field(torus_integratedSR,symmetry='none',display_flag=True,padding=False)
-    ksplot.plot_spatiotemporal_field(torus_integratedSR,symmetry='none',display_flag=True,padding=False)
+    Orbit_integratedSR = (uuSR,np.shape(uu)[0],np.shape(uu)[1],T,L,S)
+    Orbit_diff = (uu-uuSR,np.shape(uu)[0],np.shape(uu)[1],T,L,S)
+    ksplot.plot_spatiotemporal_field(Orbit_integrated,symmetry='none',display_flag=True,padding=False)
+    ksplot.plot_spatiotemporal_field(Orbit_integratedSR,symmetry='none',display_flag=True,padding=False)
+    ksplot.plot_spatiotemporal_field(Orbit_integratedSR,symmetry='none',display_flag=True,padding=False)
     Jn = np.eye(M-2)
     nmax = int(nstp)-1
     nmax = int(nstp//2)-1
@@ -481,10 +481,10 @@ def main():
     filename = ''.join([init_dir,"ppo1_128b128.h5"])
     symmetry='rpo'
     nstp = 8192*2
-    torus = torus_io.import_torus(filename)
-    uu=ETDRK4_timeseries(torus,symmetry=symmetry,nstp=nstp)
+    Orbit = Orbit_io.import_Orbit(filename)
+    uu=ETDRK4_timeseries(Orbit,symmetry=symmetry,nstp=nstp)
 
-    ETDRK4_jacobian(torus,symmetry=symmetry,stepsbetweensaves=50)
+    ETDRK4_jacobian(Orbit,symmetry=symmetry,stepsbetweensaves=50)
 
 
     return None

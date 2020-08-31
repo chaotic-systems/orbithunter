@@ -20,7 +20,7 @@ __all__ = ['OrbitKS', 'RelativeOrbitKS', 'ShiftReflectionOrbitKS', 'Antisymmetri
 
 
 class OrbitKS:
-    """ Object that represents invariant 2-torus solution of the Kuramoto-Sivashinsky equation.
+    """ Object that represents invariant 2-Orbit solution of the Kuramoto-Sivashinsky equation.
 
     Parameters
     ----------
@@ -71,7 +71,8 @@ class OrbitKS:
     --------
     """
 
-    def __init__(self, state=None, state_type='modes', T=0., L=0., S=0., **kwargs):
+    def __init__(self, state=None, state_type='modes', T=0., L=0., **kwargs):
+        T, L = float(T), float(L)
         try:
             if state is not None:
                 shp = state.shape
@@ -96,8 +97,6 @@ class OrbitKS:
         except ValueError:
             print('Incompatible type provided for field or modes: 2-D NumPy arrays only')
 
-        # For uniform save format
-        self.S = S
 
     def __add__(self, other):
         return self.__class__(state=(self.state + other.state),
@@ -791,7 +790,7 @@ class OrbitKS:
             newM : int
                 Even integer for the new discretization size in space.
             filename : str
-                The save name of the figure, if save==True
+                The (custom) save name of the figure, if save==True. Save name will be generated otherwise.
             directory : str
                 The location to save to, if save==True
         Notes
@@ -800,11 +799,13 @@ class OrbitKS:
         the current N and M values as defaults.
 
         """
+        fontsize = kwargs.get('fontsize', 12)
+        verbose = kwargs.get('verbose', False)
+        extension = kwargs.get('extension', '.png')
         plt.rc('text', usetex=True)
         plt.rc('font', family='serif')
-        plt.rcParams.update({'font.size': 8})
-        plt.rcParams['text.usetex']=True
-        verbose = kwargs.get('verbose', False)
+        plt.rcParams.update({'font.size': fontsize})
+        plt.rcParams['text.usetex'] = True
 
         if padding:
             pad_n, pad_m = kwargs.get('newN', 32*self.N), kwargs.get('newM', 16*self.M)
@@ -821,8 +822,8 @@ class OrbitKS:
             orbit_to_plot = plot_orbit_tmp.convert(to='field')
 
         if orbit_to_plot.T != 0:
-            timetick_step = np.min([10, 10 * (2**(int(np.log10(orbit_to_plot.T))))])
-            yticks = np.arange(timetick_step, orbit_to_plot.T, timetick_step)
+            timetick_step = np.min([50, 5 * (int(np.log2(orbit_to_plot.T)) - 2)])
+            yticks = np.arange(0, orbit_to_plot.T, timetick_step)
             ylabels = np.array([str(int(y)) for y in yticks])
         else:
             orbit_to_plot.T = 1
@@ -830,73 +831,71 @@ class OrbitKS:
             ylabels = np.array(['0', '$\\infty$'])
 
         if orbit_to_plot.L > 2*pi*np.sqrt(2):
-            xticks = np.arange(0, orbit_to_plot.L, 2*pi*np.sqrt(2))
-            xlabels = [str(int(x/(2*pi*np.sqrt(2)))) for x in xticks]
+            xmult = (orbit_to_plot.L // 64) + 1
+            xscale = xmult * 2*pi*np.sqrt(2)
+            xticks = np.arange(0, orbit_to_plot.L, xscale)
+            xlabels = [str(xmult*int(x // xscale)) for x in xticks]
         else:
-            scaled_L = np.round(orbit_to_plot.L / 2*pi*np.sqrt(2), 2)
+            scaled_L = np.round(orbit_to_plot.L / (2*pi*np.sqrt(2)), 2)
             xticks = np.array([0, scaled_L])
             xlabels = np.array(['0', '$\\approx$'+str(scaled_L)])
 
         # Modify the size so that relative sizes between different figures is approximately representative
         # of the different sizes; helps with side-by-side comparison.
-        default_figsize = (max([2.5, orbit_to_plot.L / (2*pi*np.sqrt(2))]), max([2.5, orbit_to_plot.T / 10]))
-        figsize = kwargs.get('figsize', default_figsize)
+        default_figsize = (max([0.5, 2**np.log10(orbit_to_plot.L)]), max([0.5, 2**np.log10(orbit_to_plot.T)]))
 
+        figsize = kwargs.get('figsize', default_figsize)
         fig, ax = plt.subplots(figsize=figsize)
-        # plot the field
-        image = ax.imshow(orbit_to_plot.state, extent=[0, orbit_to_plot.L, 0, orbit_to_plot.T], cmap='jet')
+        image = ax.imshow(orbit_to_plot.state, extent=[0, 0.9*figsize[0], 0, 0.9*figsize[1]],
+                          cmap='jet', interpolation='none')
+
+        # Rescale the position of the xticks from x, t units to figure units.
+        xticks = ((xticks - xticks.min()) / (xticks.max()-xticks.min())) * 0.9*figsize[0]
+        yticks = ((yticks - yticks.min()) / (yticks.max()-yticks.min())) * 0.9*figsize[1]
+
         # Include custom ticks and tick labels
         ax.set_xticks(xticks)
         ax.set_yticks(yticks)
-        ax.set_xticklabels(xlabels, fontsize=12)
-        ax.set_yticklabels(ylabels, fontsize=12)
+        ax.set_xticklabels(xlabels)
+        ax.set_yticklabels(ylabels)
         ax.grid(True, linestyle=':', color='k', alpha=0.8)
-        fig.subplots_adjust(right=0.9)
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes('right', size=0.1, pad=0.02)
 
         # Custom colorbar values
-        maxu = round(np.max(orbit_to_plot.state.ravel())-0.1, 2)
-        minu = round(np.min(orbit_to_plot.state.ravel())+0.1, 2)
-        plt.colorbar(image, cax=cax, ticks=[minu, maxu])
+        maxu = round(np.max(orbit_to_plot.state.ravel()) - 0.1, 2)
+        minu = round(np.min(orbit_to_plot.state.ravel()) + 0.1, 2)
+        cbarticks = [minu, 0., maxu]
+        cbarticklabels = [str(i) for i in np.round(cbarticks, 1)]
+        fig.subplots_adjust(right=0.95)
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes('right', size=0.05, pad=0.02)
+        cbar = plt.colorbar(image, cax=cax, ticks=cbarticks)
+        cbar.ax.set_yticklabels(cbarticklabels, fontdict={'fontsize': fontsize-2})
         plt.tight_layout()
+
         if save:
             filename = kwargs.get('filename', None)
-            directory = kwargs.get('directory', '')
+            directory = kwargs.get('directory', 'local')
 
             # Create save name if one doesn't exist.
             if filename is None:
-                filename = self.parameter_dependent_filename(extension='.png')
+                filename = self.parameter_dependent_filename(extension=extension)
             elif filename.endswith('.h5'):
-                filename = filename.split('.h5')[0] + '.png'
+                filename = filename.split('.h5')[0] + extension
 
             # Create save directory if one doesn't exist.
-            if directory is None:
-                pass
-            else:
-                if directory == 'default':
+            if isinstance(directory, str):
+                if directory == 'local':
                     directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../figs/')), '')
-                elif directory == '':
-                    pass
-                elif not os.path.isdir(directory):
-                    warnings.warn('Trying to save figure to a directory that does not exist:' + directory, Warning)
-                    sys.stdout.flush()
-                    proceed = input('Would you like to create this directory? [y]/[n]')
-                    if proceed == 'y':
-                        os.mkdir(directory)
-                    else:
-                        directory = ''
-
                 filename = os.path.join(directory, filename)
+
             if verbose:
                 print('Saving figure to {}'.format(filename))
-            plt.savefig(filename, bbox_inches='tight', pad_inches=0)
+            plt.savefig(filename, bbox_inches='tight', pad_inches=0.)
 
         if show:
             plt.show()
-        else:
-            plt.close()
 
+        plt.close()
         return None
 
     def precondition(self, parameters, parameter_constraints=(False, False)):
@@ -1546,7 +1545,7 @@ class OrbitKS:
         """ Placeholder for subclassees, included for compatibility"""
         return self
 
-    def to_h5(self, filename=None, directory='', verbose=False):
+    def to_h5(self, filename=None, directory='local', verbose=False):
         """ Export current state information to HDF5 file
 
         Parameters
@@ -1555,7 +1554,7 @@ class OrbitKS:
             Name for the save file
         directory :
             Location to save at
-        verbose : If true, prints save messages to std out
+        verbose : If true, prints save messages to stspacd out
         """
         if filename is None:
             filename = self.parameter_dependent_filename()
@@ -1572,13 +1571,15 @@ class OrbitKS:
         save_path = os.path.join(directory, filename)
         if verbose:
             print('Saving data to {}'.format(save_path))
+
+        # Undefined (scalar) parameters will be accounted for by __getattr__
         with h5py.File(save_path, 'w') as f:
             f.create_dataset("field", data=self.convert(to='field').state)
-            f.create_dataset("space_period", data=self.L)
-            f.create_dataset("time_period", data=self.T)
+            f.create_dataset("space_period", data=float(self.L))
+            f.create_dataset("time_period", data=float(self.T))
             f.create_dataset("space_discretization", data=self.M)
             f.create_dataset("time_discretization", data=self.N)
-            f.create_dataset("spatial_shift", data=self.S)
+            f.create_dataset("spatial_shift", data=float(self.S))
             f.create_dataset("residual", data=float(self.residual()))
         return None
 
@@ -1586,6 +1587,7 @@ class OrbitKS:
 class RelativeOrbitKS(OrbitKS):
 
     def __init__(self, state=None, state_type='field', T=0., L=0., S=0., frame='comoving', **kwargs):
+        T, L, S = float(T), float(L), float(S)
         try:
             if state is not None:
                 shp = state.shape
@@ -1646,7 +1648,7 @@ class RelativeOrbitKS(OrbitKS):
         """ Operator that constitutes the co-moving frame term """
         return -1.0 * (self.S / self.T)*self.dx_matrix()
 
-    def change_reference_frame(self):
+    def change_reference_frame(self, to='comoving'):
         """ Transform to (or from) the co-moving frame depending on the current reference frame
 
         Parameters
@@ -1658,12 +1660,29 @@ class RelativeOrbitKS(OrbitKS):
         -------
         RelativeOrbitKS :
             RelativeOrbitKS in transformed reference frame.
+
+        Notes
+        -----
+        This operation occurs in spatial Fourier mode basis because I feel its more straightforward to understand
+        a time parameterized shift of spatial modes; this is the consistent approach given how the shifts are
+        calculated.
+
+        Spatiotemporal modes are not designed to be used in the physical reference frame due to Gibbs' phenomenon
+        due to discontinuity. Physical reference frame should really only be used to plot the relative periodic field.
         """
         # shift is ALWAYS stored as the shift amount from comoving to physical frame.
-        if self.frame == 'comoving':
-            shift = self.S
+        if to == 'comoving':
+            if self.frame == 'physical':
+                shift = -1.0 * self.S
+            else:
+                return self
+        elif to == 'physical':
+            if self.frame == 'comoving':
+                shift = self.S
+            else:
+                return self
         else:
-            shift = -1.0*self.S
+            raise ValueError('Trying to change to unrecognizable reference frame.')
         s_modes = self.convert(to='s_modes').state
         time_vector = np.flipud(np.linspace(0, self.T, num=self.N, endpoint=True)).reshape(-1, 1)
         translation_per_period = -1.0 * shift / self.T
@@ -1678,8 +1697,7 @@ class RelativeOrbitKS(OrbitKS):
         frame_rotated_s_modes_imag = (np.multiply(real_modes, sine_block)
                                       + np.multiply(imag_modes, cosine_block))
         frame_rotated_s_modes = np.concatenate((frame_rotated_s_modes_real, frame_rotated_s_modes_imag), axis=1)
-
-        return self.__class__(state=frame_rotated_s_modes, state_type='s_modes',
+        return self.__class__(state=frame_rotated_s_modes, state_type='s_modes', frame=to,
                               T=self.T, L=self.L, S=self.S).convert(to=self.state_type)
 
     def dt(self, power=1, return_modes=False):
@@ -1703,7 +1721,7 @@ class RelativeOrbitKS(OrbitKS):
                 'Attempting to compute time derivative of '+self.__str__+ 'in physical reference frame.')
 
     def from_fundamental_domain(self):
-        return self.change_reference_frame()
+        return self.change_reference_frame(to='physical')
 
     def jacobian(self, parameter_constraints=(False, False, False)):
         """ Jacobian that includes the spatial translation term for relative periodic tori
@@ -1881,13 +1899,13 @@ class RelativeOrbitKS(OrbitKS):
             return super().status()
 
     def to_fundamental_domain(self):
-        return self.change_reference_frame()
+        return self.change_reference_frame(to='comoving')
 
 
 class AntisymmetricOrbitKS(OrbitKS):
 
     def __init__(self, state=None, state_type='field', T=0., L=0., **kwargs):
-
+        T, L = float(T), float(L)
         try:
             if state is not None:
                 shp = state.shape
@@ -1905,8 +1923,6 @@ class AntisymmetricOrbitKS(OrbitKS):
             else:
                 self.random_initial_condition(T, L, **kwargs)
 
-            # For uniform save format
-            self.S = 0.
         except ValueError:
             print('Incompatible type provided for field or modes: 2-D NumPy arrays only')
 
@@ -2243,6 +2259,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
         Technically could inherit some functions from AntisymmetricOrbitKS but in regards to the Physics
         going on it is more coherent to have it as a subclass of OrbitKS only.
         """
+        T, L = float(T), float(L)
         try:
             if state is not None:
                 shp = state.shape
@@ -2259,7 +2276,6 @@ class ShiftReflectionOrbitKS(OrbitKS):
             else:
                 self.random_initial_condition(T=T, L=L, **kwargs)
             # For uniform save format
-            self.S = 0.
         except ValueError:
             print('Incompatible type provided for field or modes: 2-D NumPy arrays only')
 
@@ -2331,6 +2347,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
         """ Reconstruct full field from discrete fundamental domain """
         field = np.concatenate((self.reflection().state, self.state), axis=0)
         return self.__class__(state=field, state_type='field', T=2*self.T, L=self.L)
+
     def mode_padding(self, size, inplace=False, dimension='space'):
         """ Overwrite of parent method """
         modes = self.convert(to='modes')
@@ -2614,7 +2631,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
 
 class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
-    def __init__(self, state=None, state_type='field', T=0., L=0., S=0., **kwargs):
+    def __init__(self, state=None, state_type='field', L=0., **kwargs):
         """ Subclass for equilibrium solutions (all of which are antisymmetric w.r.t. space).
         Parameters
         ----------
@@ -2658,6 +2675,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         # to_fundamental_domain
 
         """
+        L = float(L)
         try:
             if state is not None:
                 shp = state.shape
@@ -2677,8 +2695,6 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         self.L = L
         # For uniform save format
-        self.T = T
-        self.S = S
 
     def state_vector(self):
         """ Overwrite of parent method """
@@ -2784,6 +2800,14 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
     @property
     def parameters(self):
         return (self.T, self.L, self.S, self.N, self.M, self.n, self.m, 1, self.m)
+
+    def parameter_dependent_filename(self, extension='.h5', decimals=2):
+        Lsplit = str(self.L).split('.')
+        Lint = str(Lsplit[0])
+        Ldec = str(Lsplit[1])
+        Lname = ''.join([Lint, 'p', Ldec[:decimals]])
+        save_filename = ''.join([self.__class__.__name__, '_L', Lname, extension])
+        return save_filename
 
     def precondition(self, parameters, parameter_constraints=False):
         """ Precondition a vector with the inverse (aboslute value) of linear spatial terms
@@ -2995,6 +3019,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
     def __init__(self, state=None, state_type='field', T=0., L=0., S=0., frame='comoving', **kwargs):
+        T, L, S = float(T), float(L), float(S)
         try:
             if state is not None:
                 # This is the best way I've found for passing modes but also wanting N != 1. without specifying
@@ -3029,7 +3054,6 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         # For uniform save format
         self.frame = frame
         self.S = S
-        self.frame = frame
 
     def calculate_shift(self, inplace=False):
         """ Calculate the phase difference between the spatial modes at t=0 and t=T
@@ -3099,7 +3123,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
     def from_fundamental_domain(self):
         """ For compatibility purposes with plotting and other utilities """
-        return self.change_reference_frame()
+        return self.change_reference_frame(to='physical')
 
     def jac_lin(self):
         """ Extension of the OrbitKS method that includes the term for spatial translation symmetry"""
@@ -3320,7 +3344,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             return self.__class__(state=spatial_modes, state_type='s_modes', T=self.T, L=self.L, S=self.S)
 
     def to_fundamental_domain(self):
-        return self.change_reference_frame()
+        return self.change_reference_frame(to='comoving')
 
 
 def change_orbit_type(orbit, new_type):

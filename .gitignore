@@ -139,8 +139,6 @@ notebooks/*.h5
 notebooks/*.png
 notebooks/*.jpg
 
-# local data 
-data/local/*.h5
-figs/local/*.jpg
-figs/local/*.png
-!data/
+# local data and figures
+data/local/*
+figs/local/*

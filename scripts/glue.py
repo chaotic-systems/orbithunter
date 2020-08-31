@@ -31,16 +31,16 @@ def main():
 
     args = parser.parse_args()
     # try:
-    first_torus_filename, second_torus_filename = args.input.split()
-    torus = th.read_h5(first_torus_filename, cls=th.ShiftReflectionTorus)
-    other_torus = th.read_h5(second_torus_filename, cls=th.ShiftReflectionTorus)
-    glued_torus = th.glue(torus, other_torus, direction=args.direction)
-    result = th.converge(glued_torus)
+    first_Orbit_filename, second_Orbit_filename = args.input.split()
+    Orbit = th.read_h5(first_Orbit_filename, cls=th.ShiftReflectionOrbit)
+    other_Orbit = th.read_h5(second_Orbit_filename, cls=th.ShiftReflectionOrbit)
+    glued_Orbit = th.glue(Orbit, other_Orbit, direction=args.direction)
+    result = th.converge(glued_Orbit)
 
     if result.success:
-        result.torus.to_h5(filename=args.output)
+        result.Orbit.to_h5(filename=args.output)
         if args.figure:
-            result.torus.plot(filename=args.output)
+            result.Orbit.plot(filename=args.output)
     #     except AttributeError:
     #         pass
     # except NameError:

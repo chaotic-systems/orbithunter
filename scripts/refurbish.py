@@ -13,8 +13,8 @@ def main(*args,**kwargs):
             continue
         else:
             for f in filenames:
-                if f.split('_')[0] in ['Torus', 'AntisymmetricTorus',
-                                       'ShiftReflectionTorus', 'RelativeTorus', 'EquilibriumTorus']:
+                if f.split('_')[0] in ['Orbit', 'AntisymmetricOrbit',
+                                       'ShiftReflectionOrbit', 'RelativeOrbit', 'EquilibriumOrbit']:
                     continue
                 cls = th.parse_class(f)
                 if cls is not None and f.endswith('.h5'):

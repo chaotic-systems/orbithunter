@@ -5,20 +5,20 @@ import torihunter as th
 def main(*args, method='hybrid', **kwargs):
 
 
-    merger_torus_final = merger_result.torus
-    # torus = th.Torus(state=torus.state, statetype='modes', L=torus.L, T=torus.T, S=torus.S)
-    # torus.plot()
-    # torus.convert(to='modes')
-    # test = torus.convert(to='field')
+    merger__final = merger_result.Orbit
+    # Orbit = th.Orbit(state=Orbit.state, statetype='modes', L=Orbit.L, T=Orbit.T, S=Orbit.S)
+    # Orbit.plot()
+    # Orbit.convert(to='modes')
+    # test = Orbit.convert(to='field')
     # x = th.read_h5(filename)
     # x.statetype='modes'
-    # x = th.Torus(state=x.state, statetype='modes', L=x.L, T=x.T, S=x.S)
+    # x = th.Orbit(state=x.state, statetype='modes', L=x.L, T=x.T, S=x.S)
     # x = rediscretize(x, parameter_based=True)
     result = th.converge(orbit, verbose=True)
 
     if result.success:
-        result.torus.to_h5()
-        result.torus.plot(show=True)
+        result.Orbit.to_h5()
+        result.Orbit.plot(show=True)
 
 
     return None

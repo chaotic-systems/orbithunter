@@ -16,17 +16,22 @@ def correct_aspect_ratios(orbit, other_orbit, direction='space', **kwargs):
         newN = max([mode_orbit.N, mode_other_orbit.N])
 
         # The division/multiplication by 2 ensures that new discretization size is an even number.
-        orbit_correct_shape = rediscretize(mode_orbit, newN=newN, newM=2*(int(orbit_speriod_fraction*totalM + 1) // 2))
-        other_orbit_correct_shape = rediscretize(mode_other_orbit, newN=newN, newM=2*(int(other_orbit_speriod_fraction*totalM + 1) // 2))
+        orbit_correct_shape = rediscretize(mode_orbit, newN=newN,
+                                           newM=2*(int(orbit_speriod_fraction*totalM + 1) // 2))
+        other_orbit_correct_shape = rediscretize(mode_other_orbit, newN=newN,
+                                                 newM=2*(int(other_orbit_speriod_fraction*totalM + 1) // 2))
     else:
         # Identical explanation as above just different dimension
         orbit_period_fraction = mode_orbit.T / (mode_orbit.T + mode_other_orbit.T)
         other_orbit_period_fraction = mode_other_orbit.T / (mode_orbit.T + mode_other_orbit.T)
         totalN = (mode_orbit.N + mode_other_orbit.N)
         newM = max([mode_orbit.M, mode_other_orbit.M])
-        orbit_correct_shape = rediscretize(mode_orbit, newN=2*(int(orbit_period_fraction*totalN + 1) // 2), newM=newM)
-        other_orbit_correct_shape = rediscretize(mode_other_orbit, newN=2*(int(other_orbit_period_fraction*totalN + 1) // 2), newM=newM)
-    return orbit_correct_shape.convert(to=orbit.state_type), other_orbit_correct_shape.convert(to=other_orbit.state_type)
+        orbit_correct_shape = rediscretize(mode_orbit,
+                                           newN=2*(int(orbit_period_fraction*totalN + 1) // 2), newM=newM)
+        other_orbit_correct_shape = rediscretize(mode_other_orbit,
+                                                 newN=2*(int(other_orbit_period_fraction*totalN + 1) // 2), newM=newM)
+    return (orbit_correct_shape.convert(to=orbit.state_type),
+            other_orbit_correct_shape.convert(to=other_orbit.state_type))
 
 def parameter_based_discretization(orbit, **kwargs):
     resolution=kwargs.get('resolution', 'normal')
@@ -45,10 +50,9 @@ def rediscretize(orbit, parameter_based=False, **kwargs):
     if parameter_based:
         newN, newM = parameter_based_discretization(orbit)
     else:
-        newN, newM = kwargs.get('newN',orbit.N), kwargs.get('newM',orbit.M)
+        newN, newM = kwargs.get('newN', orbit.N), kwargs.get('newM', orbit.M)
     # Copy state information to new orbit; don't perform operations inplace, only create new orbit
     placeholder_orbit = orbit.__class__(state=orbit.state, state_type=orbit.state_type, T=orbit.T, L=orbit.L, S=orbit.S)
-    placeholder_orbit = placeholder_orbit.convert(to='modes')
     if newN == orbit.N and newM == orbit.M:
         return orbit
     else:

@@ -17,8 +17,8 @@ def main(filename):
                 if data_file.endswith(".h5"):
                     basename = data_file.split('.h5')[0]
                     print(basename)
-                    torus = torus_io.import_torus(''.join([folder,data_file]))
-                    U,N,M,T,L,S = torus
+                    Orbit = Orbit_io.import_Orbit(''.join([folder,data_file]))
+                    U,N,M,T,L,S = Orbit
 
 
     return None
@@ -49,8 +49,8 @@ def main(path_to_data,*args,**kwargs):
     parse filename or directory name info. ''for x in 
     '''
     if os.path.isfile(path_to_data) and path_to_data.endswith(".h5"):
-        torus = torus_io.import_torus(path_to_data)
-        u,n,m,t,l,s = torus
+        Orbit = Orbit_io.import_Orbit(path_to_data)
+        u,n,m,t,l,s = Orbit
         # if args:
         #     minD,maxD = args
         # else:
@@ -59,9 +59,9 @@ def main(path_to_data,*args,**kwargs):
         #     else:
         #         minD,maxD = t-t/4.,t+t/4.
         # if increase:
-        #     continuation_loop(torus,maxD,instance_folder,symmetry=symmetry,dimension=dimension,save=save,deltamodifier=deltamodifier)
+        #     continuation_loop(Orbit,maxD,instance_folder,symmetry=symmetry,dimension=dimension,save=save,deltamodifier=deltamodifier)
         # if decrease:
-        #     continuation_loop(torus,minD,instance_folder,symmetry=symmetry,dimension=dimension,save=save,deltamodifier=deltamodifier)
+        #     continuation_loop(Orbit,minD,instance_folder,symmetry=symmetry,dimension=dimension,save=save,deltamodifier=deltamodifier)
 
     elif os.path.isdir(path_to_data):
         for dirs,subdirs,files in os.walk(path_to_data):
@@ -70,8 +70,8 @@ def main(path_to_data,*args,**kwargs):
                     basename = file.split('.h5')[0]
                     print('Starting numerical continuation on', basename)
                     import_filepath = os.path.abspath(os.path.join(d,s,file))
-                    torus = torus_io.import_torus(import_filepath)
-                    u,n,m,t,l,s = torus
+                    Orbit = Orbit_io.import_Orbit(import_filepath)
+                    u,n,m,t,l,s = Orbit
 
                     if args:
                         minD,maxD = args
@@ -81,25 +81,25 @@ def main(path_to_data,*args,**kwargs):
                         else:
                             minD,maxD = t-t/4.,t+t/4.
                     if increase:
-                        continuation_loop(torus,maxD,instance_folder,symmetry=symmetry,dimension=dimension,save=save,deltamodifier=deltamodifier)
+                        continuation_loop(Orbit,maxD,instance_folder,symmetry=symmetry,dimension=dimension,save=save,deltamodifier=deltamodifier)
                     if decrease:
-                        continuation_loop(torus,minD,instance_folder,symmetry=symmetry,dimension=dimension,save=save,deltamodifier=deltamodifier)
+                        continuation_loop(Orbit,minD,instance_folder,symmetry=symmetry,dimension=dimension,save=save,deltamodifier=deltamodifier)
 
     if dimension:
-        torus = (U,N,M,T,D,S)
+        Orbit = (U,N,M,T,D,S)
     else:
-        torus = (U,N,M,D,L,S)
-    torus,delta = continuation_initial_condition(torus,Dlim,delta,retcode=retcode,dimension=dimension,deltamodifier=deltamodifier)
+        Orbit = (U,N,M,D,L,S)
+    Orbit,delta = continuation_initial_condition(Orbit,Dlim,delta,retcode=retcode,dimension=dimension,deltamodifier=deltamodifier)
     print_large_message(instance_folder,delta,N,M,T,L,S,symmetry,fixedL,fixedT)
     while retcode==1:
-        torus,retcode,residual = ks.find_torus(torus,symmetry=symmetry,fixedL=fixedL,fixedT=fixedT)
-        torus,retcode,_ = ksdm.find_torus(torus,symmetry=symmetry,fixedL=fixedL,fixedT=fixedT)
+        Orbit,retcode,residual = ks.find_Orbit(Orbit,symmetry=symmetry,fixedL=fixedL,fixedT=fixedT)
+        Orbit,retcode,_ = ksdm.find_Orbit(Orbit,symmetry=symmetry,fixedL=fixedL,fixedT=fixedT)
         if retcode:
-            previous_torus = torus
-            torus_io.export_data_and_fig(torus,instance_folder,decimals=5,symmetry=symmetry)
-            torus,delta = continuation_step(torus,Dlim,delta,retcode=retcode,dimension=dimension)
+            previous_Orbit = Orbit
+            Orbit_io.export_data_and_fig(Orbit,instance_folder,decimals=5,symmetry=symmetry)
+            Orbit,delta = continuation_step(Orbit,Dlim,delta,retcode=retcode,dimension=dimension)
 
-    return torus
+    return Orbit
 
 
 if __name__=='__main__':

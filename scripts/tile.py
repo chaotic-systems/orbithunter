@@ -38,23 +38,23 @@ def main(*args, **kwargs):
                         pass
                     else:
                         print('Attempting to converge', symbolic_block, 'assuming symmetry',symmetry)
-                        block_torus_high_res = ksinit.symbolic_initial_condition(symbolic_instance,period,speriod,padded=True)
-                        blockU,blockN,blockM,blockT,blockL,blockS = block_torus_high_res
-                        block_pathnames = fh.create_save_data_pathnames(block_torus_high_res,directory_structure,custom_name=block_aliases[0],TL=False,NM=False)
+                        block_Orbit_high_res = ksinit.symbolic_initial_condition(symbolic_instance,period,speriod,padded=True)
+                        blockU,blockN,blockM,blockT,blockL,blockS = block_Orbit_high_res
+                        block_pathnames = fh.create_save_data_pathnames(block_Orbit_high_res,directory_structure,custom_name=block_aliases[0],TL=False,NM=False)
                         minN,minM = np.min([16,2**(int(np.log2(max([blockT,2])))+1)]), np.max([16,2**(int(np.log2(blockL)))])
                         for newN,newM in ((n,m) for n in np.arange(minN,129,16) for m in np.arange(minM,65,16)):
-                            block_torus = disc.rediscretize(block_torus_high_res,newN=newN,newM=newM)
-                            # ksplot.plot_spatiotemporal_field(block_torus,symmetry=symmetry,filename=block_pathnames.initialpng)
-                            block_torus_adjoint,retcode,res = ks.find_torus(block_torus,symmetry=symmetry)
-                            converged_torus,retcode,res = ksdm.find_torus(block_torus_adjoint,symmetry=symmetry)
-                            print('T,L,S',converged_torus[-3],converged_torus[-2],converged_torus[-1])
+                            block_Orbit = disc.rediscretize(block_Orbit_high_res,newN=newN,newM=newM)
+                            # ksplot.plot_spatiotemporal_field(block_Orbit,symmetry=symmetry,filename=block_pathnames.initialpng)
+                            block_Orbit_adjoint,retcode,res = ks.find_Orbit(block_Orbit,symmetry=symmetry)
+                            converged_Orbit,retcode,res = ksdm.find_Orbit(block_Orbit_adjoint,symmetry=symmetry)
+                            print('T,L,S',converged_Orbit[-3],converged_Orbit[-2],converged_Orbit[-1])
 
                             if retcode:
                                 print('Solution Converged: Saving to ', block_pathnames.h5)
-                                ksplot.plot_spatiotemporal_field(block_torus,symmetry=symmetry,filename=block_pathnames.initialpng)
-                                ksplot.plot_spatiotemporal_field(block_torus_adjoint,symmetry=symmetry,filename=block_pathnames.adjointpng)
-                                ksplot.plot_spatiotemporal_field(converged_torus,symmetry=symmetry,filename=block_pathnames.finalpng)
-                                torus_io.export_torus(converged_torus,block_pathnames.h5,symmetry=symmetry)
+                                ksplot.plot_spatiotemporal_field(block_Orbit,symmetry=symmetry,filename=block_pathnames.initialpng)
+                                ksplot.plot_spatiotemporal_field(block_Orbit_adjoint,symmetry=symmetry,filename=block_pathnames.adjointpng)
+                                ksplot.plot_spatiotemporal_field(converged_Orbit,symmetry=symmetry,filename=block_pathnames.finalpng)
+                                Orbit_io.export_Orbit(converged_Orbit,block_pathnames.h5,symmetry=symmetry)
                                 break
                             else:
                                 print('Failure. Trying new discretization.')

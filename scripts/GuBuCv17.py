@@ -5,13 +5,13 @@ from torihunter import *
 import numpy as np
 
 
-def plot_cartoon_torus():
+def plot_cartoon_Orbit():
     PWD = os.path.dirname(__file__)
     data_dir = os.path.abspath(os.path.join(PWD, "../../../data_and_figures/"))
     data_dir= os.path.join(data_dir,'')
     savedir = os.path.abspath(os.path.join(PWD, ''.join(["../../../../../.././GuBuCv17_figs/"])))
-    #Draw approximate torus with non-matching tangent space and then
-    #with underlying torus with correct tangent space.
+    #Draw approximate Orbit with non-matching tangent space and then
+    #with underlying Orbit with correct tangent space.
     N = 400
     nu = np.reshape(np.linspace(0,2*pi,num=N),[N,1])
     u = np.reshape(np.linspace(0,2*pi,num=N),[1,N])
@@ -55,7 +55,7 @@ def plot_tile_guesses_and_cutouts():
     '''Tile Guesses'''
     halfdefect_and_defect_import_filepath = os.path.abspath(os.path.join(data_dir,"./trawl/rpo/data/rpo_L21p99_T94p59.h5"))
     halfdefect_and_defect_initial_filename = os.path.abspath(os.path.join(savedir,"./MNG_halfdefect_defect_initial.png"))
-    halfdefect_and_defect_guess = torus_io.import_torus(halfdefect_and_defect_import_filepath)
+    halfdefect_and_defect_guess = Orbit_io.import_Orbit(halfdefect_and_defect_import_filepath)
     u,n,m,t,L,s = halfdefect_and_defect_guess
     halfdefect_filename = os.path.abspath(os.path.join(savedir,"./MNG_halfdefect_guess.png"))
     field_minus_halfdefect_filename = os.path.abspath(os.path.join(savedir,"./MNG_halfdefect_cutout.png"))
@@ -78,7 +78,7 @@ def plot_tile_guesses_and_cutouts():
     halfdefect2_initial_filename = os.path.abspath(os.path.join(savedir,"./halfdefect2_initial.png"))
     field_minus_halfdefect2_filename = os.path.abspath(os.path.join(savedir,"./halfdefect2guess.png"))
     halfdefect2_filename = os.path.abspath(os.path.join(savedir,"./halfdefect2guess_cutout.png"))
-    halfdefect2_torus_guess = torus_io.import_torus(halfdefect2_import_filepath)
+    halfdefect2_Orbit_guess = Orbit_io.import_Orbit(halfdefect2_import_filepath)
     Tmin,Tmax,Xmin,Xmax = 18,35,0.6,3
     ksplot.import_and_plot(halfdefect2_import_filepath,Tmin,Tmax,Xmin,Xmax,cutout=True
                            ,filename_init=halfdefect2_initial_filename,filename=field_minus_halfdefect2_filename,cutoutfilename=halfdefect2_filename
@@ -90,8 +90,8 @@ def plot_tile_guesses_and_cutouts():
     hook_initial_filename = os.path.abspath(os.path.join(savedir,"./MNG_hook_initial.png"))
     hook_filename = os.path.abspath(os.path.join(savedir,"./MNG_hook_guess.png"))
     field_minus_hook_filename = os.path.abspath(os.path.join(savedir,"./MNG_hook_cutout.png"))
-    hook_torus_guess = torus_io.import_torus(hook_import_filepath)
-    u,n,m,t,L,s = hook_torus_guess
+    hook_Orbit_guess = Orbit_io.import_Orbit(hook_import_filepath)
+    u,n,m,t,L,s = hook_Orbit_guess
     rotation = L/2.
     #Half cell shift then x[1,2.5] t[0,10.25]
     Tmin,Tmax,Xmin,Xmax = 0,10.5,0.6,2.7
@@ -121,9 +121,9 @@ def plot_tile_guesses_and_cutouts():
     hookondefect_initial_filename = os.path.abspath(os.path.join(savedir,"./MNG_hookondefect_initial.png"))
     hookondefect_filename = os.path.abspath(os.path.join(savedir,"./MNG_hookondefect_guess.png"))
     field_minus_hookondefect_filename = os.path.abspath(os.path.join(savedir,"./MNG_hookondefect_cutout.png"))
-    hookondefect_torus_guess = torus_io.import_torus(hookondefect_import_filepath)
+    hookondefect_Orbit_guess = Orbit_io.import_Orbit(hookondefect_import_filepath)
     #rotate by 1pi, xnew[.8,3] t=[30,50]
-    _,_,_,_,L,_ = hookondefect_torus_guess
+    _,_,_,_,L,_ = hookondefect_Orbit_guess
     rotation = 1./(L/(2*pi))*L
     Tmin,Tmax,Xmin,Xmax = 30,50,0.6,3.0
     ksplot.import_and_plot(hookondefect_import_filepath,Tmin,Tmax,Xmin,Xmax,cutout=True
@@ -137,9 +137,9 @@ def plot_tile_guesses_and_cutouts():
     hookondefect2_initial_filename = os.path.abspath(os.path.join(savedir,"./MNG_hookondefect2_initial.png"))
     hookondefect2_filename = os.path.abspath(os.path.join(savedir,"./MNG_hookondefect2_guess.png"))
     field_minus_hookondefect2_filename = os.path.abspath(os.path.join(savedir,"./MNG_hookondefect2_cutout.png"))
-    hookondefect2_torus_guess = torus_io.import_torus(hookondefect2_import_filepath)
+    hookondefect2_Orbit_guess = Orbit_io.import_Orbit(hookondefect2_import_filepath)
     #half-cell, xnew[.8,3] t=[30,50]
-    _,_,_,_,L,_ = hookondefect2_torus_guess
+    _,_,_,_,L,_ = hookondefect2_Orbit_guess
     rotation = -L/2.
     #rotate by 1pi, xnew[.25,3] t=[30,50]
     Tmin,Tmax,Xmin,Xmax = 35,55,0.25,2.55
@@ -151,7 +151,7 @@ def plot_tile_guesses_and_cutouts():
     hookondefect3_initial_filename = os.path.abspath(os.path.join(savedir,"./MNG_hookondefect3_initial.png"))
     hookondefect3_filename = os.path.abspath(os.path.join(savedir,"./MNG_hookondefect3_guess.png"))
     field_minus_hookondefect3_filename = os.path.abspath(os.path.join(savedir,"./MNG_hookondefect3_cutout.png"))
-    hookondefect3_torus_guess = torus_io.import_torus(hookondefect3_import_filepath)
+    hookondefect3_Orbit_guess = Orbit_io.import_Orbit(hookondefect3_import_filepath)
     Tmin,Tmax,Xmin,Xmax = 0,25,0,2.5
     ksplot.import_and_plot(hookondefect3_import_filepath,Tmin,Tmax,Xmin,Xmax,cutout=True
                            ,filename_init=hookondefect3_initial_filename,filename=field_minus_hookondefect3_filename,cutoutfilename=hookondefect3_filename
@@ -172,7 +172,7 @@ def converge_tiles():
 
     # halfdefect_and_defect_import_filepath = os.path.abspath(os.path.join(data_dir,"./trawl/rpo/data/rpo_L21p99_T94p59.h5"))
     # halfdefect_and_defect_initial_filename = os.path.abspath(os.path.join(savedir,"./MNG_halfdefect_defect_initial.png"))
-    # halfdefect_and_defect_guess = torus_io.import_torus(halfdefect_and_defect_import_filepath)
+    # halfdefect_and_defect_guess = Orbit_io.import_Orbit(halfdefect_and_defect_import_filepath)
     # u,n,m,t,L,s = halfdefect_and_defect_guess
     # halfdefect_filename = os.path.abspath(os.path.join(savedir,"./MNG_halfdefect_guess.png"))
     # field_minus_halfdefect_filename = os.path.abspath(os.path.join(savedir,"./MNG_halfdefect_cutout.png"))
@@ -181,26 +181,26 @@ def converge_tiles():
     #
     # rotatex = (0.2/(L/(2*pi)))*L
     # Tmin,Tmax,Xmin,Xmax = 0,15,0,2.2
-    # torus = torus_io.import_torus(halfdefect_and_defect_import_filepath)
-    # u,n,m,t,l,s = torus
+    # Orbit = Orbit_io.import_Orbit(halfdefect_and_defect_import_filepath)
+    # u,n,m,t,l,s = Orbit
     # newN,newM=16*n,16*m
-    # torus=disc.rediscretize(torus,newN=newN,newM=newM)
-    # torus=sub.windowed_subdomain(torus,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
-    # ksplot.plot_spatiotemporal_field(torus,symmetry=symmetry,display_flag=True)
-    # ksplot.plot_spatiotemporal_field(torus,symmetry='none',display_flag=True)
+    # Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    # Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
+    # ksplot.plot_spatiotemporal_field(Orbit,symmetry=symmetry,display_flag=True)
+    # ksplot.plot_spatiotemporal_field(Orbit,symmetry='none',display_flag=True)
     #
-    # uw,nw,mw,tw,lw,sw = torus
+    # uw,nw,mw,tw,lw,sw = Orbit
     # smalln,smallm = 2*int((nw/(2*newN))*n),2*int((mw/(2*newM))*m)
     # # smalln,smallm = 2,4
     #
-    # torus=disc.rediscretize(torus,newN=smalln,newM=smallm)
-    # torus_adj,retcode,res = ks.find_torus(torus,symmetry=symmetry)
-    # torus_f,retcode,stats = ksdm.find_torus(torus_adj,symmetry=symmetry)
-    # newsymm=test.retest_symmetry_type(torus_f,symmetry=symmetry)
+    # Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    # Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry)
+    # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
+    # newsymm=test.retest_symmetry_type(Orbit_f,symmetry=symmetry)
     # if retcode and newsymm==symmetry:
-    #     # torus_io.export_data_and_fig(torus_f,savedir,symmetry=symmetry)
-    #     ksplot.plot_spatiotemporal_field(torus_f,symmetry=symmetry,filename=final_figname)
-    #     torus_io.export_torus(torus_f,final_dataname,symmetry=symmetry)
+    #     # Orbit_io.export_data_and_fig(Orbit_f,savedir,symmetry=symmetry)
+    #     ksplot.plot_spatiotemporal_field(Orbit_f,symmetry=symmetry,filename=final_figname)
+    #     Orbit_io.export_Orbit(Orbit_f,final_dataname,symmetry=symmetry)
     #
     # ''''''
     #
@@ -209,21 +209,21 @@ def converge_tiles():
     # field_minus_defect_filename = os.path.abspath(os.path.join(savedir,"./MNG_defect_cutout.png"))
     # final_figname = os.path.abspath(os.path.join(savedir,"./figs/MNG_defectf.png"))
     # final_dataname = os.path.abspath(os.path.join(savedir,"./data/MNG_defectf.h5"))
-    # torus = torus_io.import_torus(halfdefect_and_defect_import_filepath)
-    # u,n,m,t,l,s = torus
+    # Orbit = Orbit_io.import_Orbit(halfdefect_and_defect_import_filepath)
+    # u,n,m,t,l,s = Orbit
     # newN,newM=16*n,16*m
-    # torus=disc.rediscretize(torus,newN=newN,newM=newM)
-    # torus=sub.windowed_subdomain(torus,Tmin,Tmax,Xmin,Xmax)
-    # uw,nw,mw,tw,lw,sw = torus
+    # Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    # Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax)
+    # uw,nw,mw,tw,lw,sw = Orbit
     # smalln,smallm = 2*int((nw/newN)*n),2*int((mw/newM)*m)
-    # torus=disc.rediscretize(torus,newN=smalln,newM=smallm)
-    # torus_adj,retcode,res = ks.find_torus(torus,symmetry=symmetry)
-    # torus_f,retcode,stats = ksdm.find_torus(torus_adj,symmetry=symmetry)
-    # newsymm=test.retest_symmetry_type(torus_f,symmetry=symmetry)
+    # Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    # Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry)
+    # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
+    # newsymm=test.retest_symmetry_type(Orbit_f,symmetry=symmetry)
     # if retcode and newsymm==symmetry:
-    #     # torus_io.export_data_and_fig(torus_f,savedir,symmetry=symmetry)
-    #     ksplot.plot_spatiotemporal_field(torus_f,symmetry=symmetry,filename=final_figname)
-    #     torus_io.export_torus(torus_f,final_dataname,symmetry=symmetry)
+    #     # Orbit_io.export_data_and_fig(Orbit_f,savedir,symmetry=symmetry)
+    #     ksplot.plot_spatiotemporal_field(Orbit_f,symmetry=symmetry,filename=final_figname)
+    #     Orbit_io.export_Orbit(Orbit_f,final_dataname,symmetry=symmetry)
     #
     #
     # ''''''
@@ -235,23 +235,23 @@ def converge_tiles():
     # halfdefect2_filename = os.path.abspath(os.path.join(savedir,"./halfdefect2guess_cutout.png"))
     # final_figname = os.path.abspath(os.path.join(savedir,"./figs/MNG_halfdefect2f.png"))
     # final_dataname = os.path.abspath(os.path.join(savedir,"./data/MNG_halfdefect2f.h5"))
-    # halfdefect2_torus_guess = torus_io.import_torus(halfdefect2_import_filepath)
+    # halfdefect2_Orbit_guess = Orbit_io.import_Orbit(halfdefect2_import_filepath)
     # Tmin,Tmax,Xmin,Xmax = 18,35,0.6,3
-    # torus = torus_io.import_torus(halfdefect2_import_filepath)
-    # u,n,m,t,l,s = torus
+    # Orbit = Orbit_io.import_Orbit(halfdefect2_import_filepath)
+    # u,n,m,t,l,s = Orbit
     # newN,newM=16*n,16*m
-    # torus=disc.rediscretize(torus,newN=newN,newM=newM)
-    # torus=sub.windowed_subdomain(torus,Tmin,Tmax,Xmin,Xmax)
-    # uw,nw,mw,tw,lw,sw = torus
+    # Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    # Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax)
+    # uw,nw,mw,tw,lw,sw = Orbit
     # smalln,smallm = 2*int((nw/newN)*n),2*int((mw/newM)*m)
-    # torus=disc.rediscretize(torus,newN=smalln,newM=smallm)
-    # torus_adj,retcode,res = ks.find_torus(torus,symmetry=symmetry)
-    # torus_f,retcode,stats = ksdm.find_torus(torus_adj,symmetry=symmetry)
-    # newsymm = retest_symmetry_type(torus_f,symmetry=symmetry)
+    # Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    # Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry)
+    # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
+    # newsymm = retest_symmetry_type(Orbit_f,symmetry=symmetry)
     # if retcode and newsymm==symmetry:
-    #     # torus_io.export_data_and_fig(torus_f,savedir,symmetry=symmetry)
-    #     ksplot.plot_spatiotemporal_field(torus_f,symmetry=symmetry,filename=final_figname)
-    #     torus_io.export_torus(torus_f,final_dataname,symmetry=symmetry)
+    #     # Orbit_io.export_data_and_fig(Orbit_f,savedir,symmetry=symmetry)
+    #     ksplot.plot_spatiotemporal_field(Orbit_f,symmetry=symmetry,filename=final_figname)
+    #     Orbit_io.export_Orbit(Orbit_f,final_dataname,symmetry=symmetry)
     #
     #
     # hook_import_filepath = os.path.abspath(os.path.join(data_dir,"./trawl/ppo/data/ppo_L21p99_T10p25.h5"))
@@ -260,31 +260,31 @@ def converge_tiles():
     # field_minus_hook_filename = os.path.abspath(os.path.join(savedir,"./MNG_hook_cutout.png"))
     # final_figname = os.path.abspath(os.path.join(savedir,"./figs/MNG_hookf.png"))
     # final_dataname = os.path.abspath(os.path.join(savedir,"./data/MNG_hookf.h5"))
-    # torus = torus_io.import_torus(hook_import_filepath)
+    # Orbit = Orbit_io.import_Orbit(hook_import_filepath)
     #
-    # u,n,m,t,L,s = torus
+    # u,n,m,t,L,s = Orbit
     # rotatex = L/2.
     # #Half cell shift then x[1,2.5] t[0,10.25]
     # Tmin,Tmax,Xmin,Xmax = 0,10.5,0.5,2.7
-    # u,n,m,t,l,s = torus
+    # u,n,m,t,l,s = Orbit
     # newN,newM=16*n,16*m
-    # torus=disc.rediscretize(torus,newN=newN,newM=newM)
-    # torus=sub.windowed_subdomain(torus,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
-    # uw,nw,mw,tw,lw,sw = torus
+    # Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    # Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
+    # uw,nw,mw,tw,lw,sw = Orbit
     # smalln,smallm = 2*int((nw/newN)*n),2*int((mw/newM)*m)
-    # torus=disc.rediscretize(torus,newN=smalln,newM=smallm)
+    # Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
     #
     # # smalln,smallm = int((nw/newN)*n),int((mw/newM)*m)
     # smalln,smallm = 16,20
-    # torus=disc.rediscretize(torus,newN=smalln,newM=smallm)
-    # torus_adj,retcode,res = ks.find_torus(torus,symmetry=symmetry)
-    # torus_f,retcode,stats = ksdm.find_torus(torus_adj,symmetry=symmetry)
-    # newsymm=test.retest_symmetry_type(torus_f,symmetry=symmetry)
+    # Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    # Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry)
+    # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
+    # newsymm=test.retest_symmetry_type(Orbit_f,symmetry=symmetry)
     #
     # if retcode and newsymm==symmetry:
-    #     # torus_io.export_data_and_fig(torus_f,savedir,symmetry=symmetry)
-    #     ksplot.plot_spatiotemporal_field(torus_f,symmetry=symmetry,filename=final_figname)
-    #     torus_io.export_torus(torus_f,final_dataname,symmetry=symmetry)
+    #     # Orbit_io.export_data_and_fig(Orbit_f,savedir,symmetry=symmetry)
+    #     ksplot.plot_spatiotemporal_field(Orbit_f,symmetry=symmetry,filename=final_figname)
+    #     Orbit_io.export_Orbit(Orbit_f,final_dataname,symmetry=symmetry)
     #
     # ''''''
     #
@@ -298,25 +298,25 @@ def converge_tiles():
     # #half-cell, xnew[.8,3] t=[30,50]
     # #rotate by 1pi, xnew[.25,3] t=[30,50]
     # Tmin,Tmax,Xmin,Xmax = 35,55 ,0.25,2.55
-    # torus = torus_io.import_torus(hookondefect2_import_filepath)
-    # _,_,_,_,L,_ = torus
+    # Orbit = Orbit_io.import_Orbit(hookondefect2_import_filepath)
+    # _,_,_,_,L,_ = Orbit
     # rotatex = -L/2.
-    # u,n,m,t,l,s = torus
+    # u,n,m,t,l,s = Orbit
     # newN,newM=16*n,16*m
-    # torus=disc.rediscretize(torus,newN=newN,newM=newM)
-    # torus=sub.windowed_subdomain(torus,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
-    # ksplot.plot_spatiotemporal_field(torus,symmetry=symmetry,display_flag=True)
+    # Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    # Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
+    # ksplot.plot_spatiotemporal_field(Orbit,symmetry=symmetry,display_flag=True)
     #
-    # uw,nw,mw,tw,lw,sw = torus
+    # uw,nw,mw,tw,lw,sw = Orbit
     # smalln,smallm = 4*int((nw/newN)*n),2*int((mw/newM)*m)
-    # torus=disc.rediscretize(torus,newN=smalln,newM=smallm)
-    # torus_adj,retcode,res = ks.find_torus(torus,symmetry=symmetry)
-    # torus_f,retcode,stats = ksdm.find_torus(torus_adj,symmetry=symmetry)
-    # newsymm=test.retest_symmetry_type(torus_f,symmetry=symmetry)
+    # Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    # Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry)
+    # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
+    # newsymm=test.retest_symmetry_type(Orbit_f,symmetry=symmetry)
     # if retcode and newsymm==symmetry:
-    #     # torus_io.export_data_and_fig(torus_f,savedir,symmetry=symmetry)
-    #     ksplot.plot_spatiotemporal_field(torus_f,symmetry=symmetry,filename=final_figname)
-    #     torus_io.export_torus(torus_f,final_dataname,symmetry=symmetry)
+    #     # Orbit_io.export_data_and_fig(Orbit_f,savedir,symmetry=symmetry)
+    #     ksplot.plot_spatiotemporal_field(Orbit_f,symmetry=symmetry,filename=final_figname)
+    #     Orbit_io.export_Orbit(Orbit_f,final_dataname,symmetry=symmetry)
     #
     #
     # ''''''
@@ -327,22 +327,22 @@ def converge_tiles():
     # hookondefect3_filename = os.path.abspath(os.path.join(savedir,"./MNG_hookondefect3_guess.png"))
     # final_figname = os.path.abspath(os.path.join(savedir,"./figs/MNG_hookondefect3f.png"))
     # final_dataname = os.path.abspath(os.path.join(savedir,"./data/MNG_hookondefect3f.h5"))
-    # torus = torus_io.import_torus(hookondefect3_import_filepath)
+    # Orbit = Orbit_io.import_Orbit(hookondefect3_import_filepath)
     # Tmin,Tmax,Xmin,Xmax = 0,25,0,2.5
-    # u,n,m,t,l,s = torus
+    # u,n,m,t,l,s = Orbit
     # newN,newM=16*n,16*m
-    # torus=disc.rediscretize(torus,newN=newN,newM=newM)
-    # torus=sub.windowed_subdomain(torus,Tmin,Tmax,Xmin,Xmax)
-    # uw,nw,mw,tw,lw,sw = torus
+    # Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    # Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax)
+    # uw,nw,mw,tw,lw,sw = Orbit
     # smalln,smallm = 2*int((nw/newN)*n),2*int((mw/newM)*m)
-    # torus=disc.rediscretize(torus,newN=smalln,newM=smallm)
-    # torus_adj,retcode,res = ks.find_torus(torus,symmetry=symmetry)
-    # torus_f,retcode,stats = ksdm.find_torus(torus_adj,symmetry=symmetry)
-    # newsymm=test.retest_symmetry_type(torus_f,symmetry=symmetry)
+    # Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    # Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry)
+    # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
+    # newsymm=test.retest_symmetry_type(Orbit_f,symmetry=symmetry)
     # if retcode and newsymm==symmetry:
-    #     # torus_io.export_data_and_fig(torus_f,savedir,symmetry=symmetry)
-    #     ksplot.plot_spatiotemporal_field(torus_f,symmetry=symmetry,filename=final_figname)
-    #     torus_io.export_torus(torus_f,final_dataname,symmetry=symmetry)
+    #     # Orbit_io.export_data_and_fig(Orbit_f,savedir,symmetry=symmetry)
+    #     ksplot.plot_spatiotemporal_field(Orbit_f,symmetry=symmetry,filename=final_figname)
+    #     Orbit_io.export_Orbit(Orbit_f,final_dataname,symmetry=symmetry)
     #
     #
     # ''''''
@@ -356,26 +356,26 @@ def converge_tiles():
     # hookondefect_filename = os.path.abspath(os.path.join(savedir,"./MNG_hookondefect_guess.png"))
     # final_figname = os.path.abspath(os.path.join(savedir,"./figs/MNG_hookondefectf.png"))
     # final_dataname = os.path.abspath(os.path.join(savedir,"./data/MNG_hookondefectf.h5"))
-    # torus = torus_io.import_torus(hookondefect_import_filepath)
+    # Orbit = Orbit_io.import_Orbit(hookondefect_import_filepath)
     # #rotate by 1pi, xnew[.8,3] t=[30,50]
-    # _,n,m,_,L,_ = torus
+    # _,n,m,_,L,_ = Orbit
     # rotatex = 1./(L/(2*pi))*L
     # Tmin,Tmax,Xmin,Xmax = 30,50,0.6,3.0
-    # u,n,m,t,l,s = torus
+    # u,n,m,t,l,s = Orbit
     # newN,newM=16*n,16*m
-    # torus=disc.rediscretize(torus,newN=newN,newM=newM)
-    # torus=sub.windowed_subdomain(torus,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
-    # ksplot.plot_spatiotemporal_field(torus,symmetry=symmetry,display_flag=True)
-    # uw,nw,mw,tw,lw,sw = torus
+    # Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    # Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
+    # ksplot.plot_spatiotemporal_field(Orbit,symmetry=symmetry,display_flag=True)
+    # uw,nw,mw,tw,lw,sw = Orbit
     # smalln,smallm = 4*int((nw/newN)*n),2*int((mw/newM)*m)
-    # torus=disc.rediscretize(torus,newN=smalln,newM=smallm)
-    # torus_adj,retcode,res = ks.find_torus(torus,symmetry=symmetry)
-    # torus_f,retcode,stats = ksdm.find_torus(torus_adj,symmetry=symmetry)
-    # newsymm=test.retest_symmetry_type(torus_f,symmetry=symmetry)
+    # Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    # Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry)
+    # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
+    # newsymm=test.retest_symmetry_type(Orbit_f,symmetry=symmetry)
     # if retcode and newsymm==symmetry:
-    #     # torus_io.export_data_and_fig(torus_f,savedir,symmetry=symmetry)
-    #     ksplot.plot_spatiotemporal_field(torus_f,symmetry=symmetry,filename=final_figname)
-    #     torus_io.export_torus(torus_f,final_dataname,symmetry=symmetry)
+    #     # Orbit_io.export_data_and_fig(Orbit_f,savedir,symmetry=symmetry)
+    #     ksplot.plot_spatiotemporal_field(Orbit_f,symmetry=symmetry,filename=final_figname)
+    #     Orbit_io.export_Orbit(Orbit_f,final_dataname,symmetry=symmetry)
     #
     #
     #
@@ -395,15 +395,15 @@ def converge_tiles():
     # for newN in range(minN,maxN,4):
     #     for newM in range(minM,maxM,4):
     #         step_max = 32*newN*newM
-    #         torus=disc.rediscretize(torus,newN=newN,newM=newM)
-    #         torus_adj,retcode,res = ks.find_torus(torus,symmetry=symmetry,step_max=step_max)
-    #         torus_f,retcode,stats = ksdm.find_torus(torus_adj,symmetry=symmetry)
-    #         newsymm=test.retest_symmetry_type(torus_f,symmetry=symmetry)
+    #         Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    #         Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry,step_max=step_max)
+    #         Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
+    #         newsymm=test.retest_symmetry_type(Orbit_f,symmetry=symmetry)
     #         if retcode and newsymm==symmetry:
     #             convarray[-ncount,mcount]=1
     #         else:
     #             print('################################## FAILURE ##############################################################')
-    #         ksplot.plot_spatiotemporal_field(torus_f,symmetry=symmetry,filename=''.join([str(newN),'p',str(newM),'.png']))
+    #         ksplot.plot_spatiotemporal_field(Orbit_f,symmetry=symmetry,filename=''.join([str(newN),'p',str(newM),'.png']))
     #
     #         mcount+=1
     #     ncount+=1
@@ -437,24 +437,24 @@ def converge_tiles():
     # final_figname = os.path.abspath(os.path.join(savedir,"./figs/MNG_gap.png"))
     # final_dataname = os.path.abspath(os.path.join(savedir,"./data/MNG_gapf.h5"))
     # Tmin,Tmax,Xmin,Xmax = 0,15,0,2.7
-    # torus = torus_io.import_torus(gap_import_filepath)
-    # u,n,m,t,l,s = torus
+    # Orbit = Orbit_io.import_Orbit(gap_import_filepath)
+    # u,n,m,t,l,s = Orbit
     # newN,newM=16*n,16*m
-    # torus=disc.rediscretize(torus,newN=newN,newM=newM)
-    # torus=sub.windowed_subdomain(torus,Tmin,Tmax,Xmin,Xmax)
-    # # ksplot.plot_spatiotemporal_field(torus,symmetry=symmetry,display_flag=True)
-    # uw,nw,mw,tw,lw,sw = torus
+    # Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    # Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax)
+    # # ksplot.plot_spatiotemporal_field(Orbit,symmetry=symmetry,display_flag=True)
+    # uw,nw,mw,tw,lw,sw = Orbit
     # smalln,smallm = 2*int((nw/newN)*n),2*int((mw/newM)*m)
-    # torus=disc.rediscretize(torus,newN=smalln,newM=smallm)
-    # torus_adj,retcode,res = ks.find_torus(torus,symmetry=symmetry)
-    # torus_f,retcode,stats = ksdm.find_torus(torus_adj,symmetry=symmetry)
-    # # torus_f,retcode,stats = ksdm.find_torus(torus,symmetry=symmetry)
+    # Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    # Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry)
+    # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
+    # # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit,symmetry=symmetry)
     #
-    # newsymm=test.retest_symmetry_type(torus_f,symmetry=symmetry)
+    # newsymm=test.retest_symmetry_type(Orbit_f,symmetry=symmetry)
     # if retcode and newsymm==symmetry:
-    #     ksplot.plot_spatiotemporal_field(torus_f,symmetry=symmetry,filename=final_figname)
-    #     torus_io.export_torus(torus_f,final_dataname,symmetry=symmetry)
-    #     # torus_io.export_data_and_fig(torus_f,savedir,symmetry=symmetry)
+    #     ksplot.plot_spatiotemporal_field(Orbit_f,symmetry=symmetry,filename=final_figname)
+    #     Orbit_io.export_Orbit(Orbit_f,final_dataname,symmetry=symmetry)
+    #     # Orbit_io.export_data_and_fig(Orbit_f,savedir,symmetry=symmetry)
     # ''''''
     #
     # symmetry='anti'
@@ -464,32 +464,32 @@ def converge_tiles():
     # final_figname = os.path.abspath(os.path.join(savedir,"./figs/MNG_gap.png"))
     # final_dataname = os.path.abspath(os.path.join(savedir,"./data/MNG_gap2f.h5"))
     # Tmin,Tmax,Xmin,Xmax = 5,25,0,2.8
-    # torus = torus_io.import_torus(gap2_import_filepath)
-    # u,n,m,t,l,s = torus
+    # Orbit = Orbit_io.import_Orbit(gap2_import_filepath)
+    # u,n,m,t,l,s = Orbit
     # newN,newM=16*n,16*m
     # rotatex=0.1*(2*pi)
-    # torus=disc.rediscretize(torus,newN=newN,newM=newM)
-    # torus=sub.windowed_subdomain(torus,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
-    # ksplot.plot_spatiotemporal_field(torus,symmetry='none',display_flag=True)
-    # uw,nw,mw,tw,lw,sw = torus
+    # Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    # Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
+    # ksplot.plot_spatiotemporal_field(Orbit,symmetry='none',display_flag=True)
+    # uw,nw,mw,tw,lw,sw = Orbit
     # smalln,smallm = 4*int((nw/newN)*n),2*int((mw/newM)*m)
-    # torus=disc.rediscretize(torus,newN=smalln,newM=smallm)
-    # torus_adj,retcode,res = ks.find_torus(torus,symmetry=symmetry)
-    # torus_f,retcode,stats = ksdm.find_torus(torus_adj,symmetry=symmetry)
-    # # torus_f,retcode,stats = ksdm.find_torus(torus,symmetry=symmetry)
-    # newsymm=test.retest_symmetry_type(torus_f,symmetry=symmetry)
-    # ksplot.plot_spatiotemporal_field(torus_f,symmetry='none',display_flag=True)
+    # Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    # Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry)
+    # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
+    # # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit,symmetry=symmetry)
+    # newsymm=test.retest_symmetry_type(Orbit_f,symmetry=symmetry)
+    # ksplot.plot_spatiotemporal_field(Orbit_f,symmetry='none',display_flag=True)
     # if retcode and newsymm==symmetry:
-    #     ksplot.plot_spatiotemporal_field(torus_f,symmetry=symmetry,filename=final_figname)
-    #     torus_io.export_torus(torus_f,final_dataname,symmetry=symmetry)
-    #     # torus_io.export_data_and_fig(torus_f,savedir,symmetry=symmetry)
+    #     ksplot.plot_spatiotemporal_field(Orbit_f,symmetry=symmetry,filename=final_figname)
+    #     Orbit_io.export_Orbit(Orbit_f,final_dataname,symmetry=symmetry)
+    #     # Orbit_io.export_data_and_fig(Orbit_f,savedir,symmetry=symmetry)
     ''''''
 
 
     #3-to-1
     symmetry='none'
     threetoone_import_filepath = fh.make_proper_pathname((save_folder_pathnames.root,"./trawl/ppo/data/ppo_L20p053_T31p323.h5"),folder=False)
-    threetoone_initial = torus_io.import_torus(threetoone_import_filepath)
+    threetoone_initial = Orbit_io.import_Orbit(threetoone_import_filepath)
     ksplot.plot_spatiotemporal_field(threetoone_initial,symmetry=symmetry,display_flag=True)
 
     symmetry='rpo'
@@ -497,21 +497,21 @@ def converge_tiles():
     rotatex = -1.4*2*pi
     Tmin,Tmax,Xmin,Xmax = 10,t/2,0,0
     newN,newM=16*n,16*m
-    torus=disc.rediscretize(threetoone_initial,newN=newN,newM=newM)
-    torus=sub.windowed_subdomain(torus,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
-    ksplot.plot_spatiotemporal_field(torus,symmetry=symmetry,display_flag=True)
+    Orbit=disc.rediscretize(threetoone_initial,newN=newN,newM=newM)
+    Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
+    ksplot.plot_spatiotemporal_field(Orbit,symmetry=symmetry,display_flag=True)
 
-    uw,nw,mw,tw,lw,sw = torus
+    uw,nw,mw,tw,lw,sw = Orbit
     # smalln,smallm = 4*int((nw/(2*newN))*n),2*int((mw/(2*newM))*m)
     # smalln,smallm = 2**(int(np.log2(lw))),2**(int(np.log2(tw))+1)
     smalln,smallm = 24,32
-    torus=disc.rediscretize(torus,newN=smalln,newM=smallm)
-    torus_adj,retcode,res = ks.find_torus(torus,symmetry=symmetry,step_max=64*smalln*smallm)
-    torus_f,retcode,stats = ksdm.find_torus(torus_adj,symmetry=symmetry)
+    Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry,step_max=64*smalln*smallm)
+    Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
     if retcode:
-        TL_pathnames,NM_pathnames,custom_pathnames = fh.create_save_data_pathnames(torus_f,save_folder_pathnames,custom_name='MNG_321')
-        ksplot.plot_spatiotemporal_field(torus_f,symmetry=symmetry,filename=custom_pathnames.finalpng)
-        torus_io.export_torus(torus_f,custom_pathnames.h5,symmetry=symmetry)
+        TL_pathnames,NM_pathnames,custom_pathnames = fh.create_save_data_pathnames(Orbit_f,save_folder_pathnames,custom_name='MNG_321')
+        ksplot.plot_spatiotemporal_field(Orbit_f,symmetry=symmetry,filename=custom_pathnames.finalpng)
+        Orbit_io.export_Orbit(Orbit_f,custom_pathnames.h5,symmetry=symmetry)
         _ = ksplot.import_and_plot(threetoone_import_filepath,Tmin,Tmax,Xmin,Xmax,cutout=True
                                ,filename_init=TL_pathnames.png,filename=custom_pathnames.png,cutoutfilename=custom_pathnames.initpng
                                ,dpi=dpi,symmetry='ppo')
@@ -529,27 +529,27 @@ def plot_converged_tiles():
     '''Converged Tiles'''
     '''Defect 1'''
     defect1_filepath = os.path.abspath(os.path.join(data_dir,"./tiles/defects/defect1/final_tile/rpo_L13p02_T15.h5"))
-    defect1_torus = torus_io.import_torus(defect1_filepath)
-    defect1_torus = disc.rediscretize(defect1_torus,newN=32,newM=32)
-    uu,n,m,t,l,s = defect1_torus
+    defect1_Orbit = Orbit_io.import_Orbit(defect1_filepath)
+    defect1_Orbit = disc.rediscretize(defect1_Orbit,newN=32,newM=32)
+    uu,n,m,t,l,s = defect1_Orbit
     ld,td = l,t
 
     vvdefect = np.reshape(ks.fft_(uu,n,m,symmetry='rpo'),[31,30])
 
     '''Defect 2'''
     defect2_filepath = os.path.abspath(os.path.join(data_dir,"./tiles/defects/defect2/final_tile/rpo_L17p5_T17.h5"))
-    defect2_torus = torus_io.import_torus(defect2_filepath)
+    defect2_Orbit = Orbit_io.import_Orbit(defect2_filepath)
     '''Hook'''
     hook_filepath = os.path.abspath(os.path.join(data_dir,"./tiles/hook/final_tile/rpo_L13p07_T10.h5"))
-    hook_torus = torus_io.import_torus(hook_filepath)
-    hook_torus = disc.rediscretize(hook_torus,newN=32,newM=32)
-    uu,n,m,t,l,s = hook_torus
+    hook_Orbit = Orbit_io.import_Orbit(hook_filepath)
+    hook_Orbit = disc.rediscretize(hook_Orbit,newN=32,newM=32)
+    uu,n,m,t,l,s = hook_Orbit
     lh,th = l,t
     # uu = -1*np.fliplr(np.roll(uu,-3,axis=1))
-    # hook_torus = (uu,n,m,t,l,-s)
+    # hook_Orbit = (uu,n,m,t,l,-s)
     vvhook = np.reshape(ks.fft_(uu,n,m,symmetry='rpo'),[31,30])
-    ksplot.plot_spatiotemporal_field(defect1_torus,symmetry='rpo',display_flag=True)
-    ksplot.plot_spatiotemporal_field(hook_torus,symmetry='rpo',display_flag=True)
+    ksplot.plot_spatiotemporal_field(defect1_Orbit,symmetry='rpo',display_flag=True)
+    ksplot.plot_spatiotemporal_field(hook_Orbit,symmetry='rpo',display_flag=True)
 
     fig,(ax1,ax2,ax3)=plt.subplots(1,3)
     ax1.imshow(np.abs(vvdefect),cmap='jet',interpolation='none',extent=[0,ld,0,td])
@@ -559,10 +559,10 @@ def plot_converged_tiles():
     plt.show()
     '''Gap'''
     gap_filepath = os.path.abspath(os.path.join(data_dir,"./tiles/gap/final_tile/anti_L17p5_T17.h5"))
-    gap_torus = torus_io.import_torus(gap_filepath)
+    gap_Orbit = Orbit_io.import_Orbit(gap_filepath)
     '''Streak'''
     streak_filepath = os.path.abspath(os.path.join(data_dir,"./tiles/streak/final_tile/eqva_L3p195.h5"))
-    streak_torus = torus_io.import_torus(streak_filepath)
+    streak_Orbit = Orbit_io.import_Orbit(streak_filepath)
 
     '''Figure save filenames'''
     defect1_fig_filename = os.path.abspath(os.path.join(savedir,"./MNG_defect.png"))
@@ -571,11 +571,11 @@ def plot_converged_tiles():
     gap_fig_filename = os.path.abspath(os.path.join(savedir,"./MNG_gap.png"))
     streak_fig_filename = os.path.abspath(os.path.join(savedir,"./MNG_streak.png"))
 
-    ksplot.plot_spatiotemporal_field(defect1_torus,symmetry='rpo',filename=defect1_fig_filename,dpi=dpi)
-    ksplot.plot_spatiotemporal_field(defect2_torus,symmetry='rpo',filename=defect2_fig_filename,dpi=dpi)
-    ksplot.plot_spatiotemporal_field(hook_torus,symmetry='rpo',filename=hook_fig_filename,dpi=dpi)
-    ksplot.plot_spatiotemporal_field(gap_torus,symmetry='anti',filename=gap_fig_filename,dpi=dpi)
-    ksplot.plot_spatiotemporal_field(streak_torus,symmetry='eqvatime',filename=streak_fig_filename,dpi=dpi)
+    ksplot.plot_spatiotemporal_field(defect1_Orbit,symmetry='rpo',filename=defect1_fig_filename,dpi=dpi)
+    ksplot.plot_spatiotemporal_field(defect2_Orbit,symmetry='rpo',filename=defect2_fig_filename,dpi=dpi)
+    ksplot.plot_spatiotemporal_field(hook_Orbit,symmetry='rpo',filename=hook_fig_filename,dpi=dpi)
+    ksplot.plot_spatiotemporal_field(gap_Orbit,symmetry='anti',filename=gap_fig_filename,dpi=dpi)
+    ksplot.plot_spatiotemporal_field(streak_Orbit,symmetry='eqvatime',filename=streak_fig_filename,dpi=dpi)
     return None
 
 
@@ -748,9 +748,9 @@ def plot_frankenstein_tiling(**kwargs):
     streak = os.path.abspath(os.path.join(data_dir,"./tiles/streak/final_tile/eqva_L3p195.h5"))
     dpi = 1000
 
-    hookondefect = torus_io.import_torus(hookondefect)
-    halfdefect = torus_io.import_torus(halfdefect)
-    streak = torus_io.import_torus(streak)
+    hookondefect = Orbit_io.import_Orbit(hookondefect)
+    halfdefect = Orbit_io.import_Orbit(halfdefect)
+    streak = Orbit_io.import_Orbit(streak)
     U,N,M,T,L,S = hookondefect
 
     hookondefect = disc.rediscretize(hookondefect,newN=16*N,newM=16*M)
@@ -764,8 +764,8 @@ def plot_frankenstein_tiling(**kwargs):
     tilingdir = os.path.abspath(os.path.join(PWD,"../../data_and_figures/GuBuCv17"))
     tilingdir = os.path.join(tilingdir,'')
 
-    torus_io.export_torus(hookondefect,os.path.abspath(os.path.join(tilingdir,'./HOD.h5')),symmetry='rpo')
-    torus_io.export_torus(halfdefect,os.path.abspath(os.path.join(tilingdir,'./HD.h5')),symmetry='rpo')
+    Orbit_io.export_Orbit(hookondefect,os.path.abspath(os.path.join(tilingdir,'./HOD.h5')),symmetry='rpo')
+    Orbit_io.export_Orbit(halfdefect,os.path.abspath(os.path.join(tilingdir,'./HD.h5')),symmetry='rpo')
 
     doublestreak= disc.rediscretize_eqva(streak,newN=hookondefect[1],newM=hookondefect[2]//2)
     u,n,m,t,l,s = doublestreak
@@ -814,14 +814,14 @@ def plot_frankenstein_tiling(**kwargs):
     ksplot.plot_spatiotemporal_field(fundamental_domain, symmetry='none',filename=subdomain_fundamental_filename,padding=False,dpi=dpi)
     ksplot.plot_spatiotemporal_field(ppo_initial, symmetry='ppo',filename=initial_figure_filename,dpi=dpi,padding=False)
 
-    ppo_adjoint,ret,res = ks.find_torus(ppo_initial,symmetry='ppo')
-    ppo_final,retcode,_ = ksdm.find_torus(ppo_adjoint,symmetry='ppo')
-    # torus_io.export_torus(ppo_final,'ppo_tiling_final_2.h5',symmetry='ppo')
+    ppo_adjoint,ret,res = ks.find_Orbit(ppo_initial,symmetry='ppo')
+    ppo_final,retcode,_ = ksdm.find_Orbit(ppo_adjoint,symmetry='ppo')
+    # Orbit_io.export_Orbit(ppo_final,'ppo_tiling_final_2.h5',symmetry='ppo')
     u,n,m,T,L,S = ppo_final
     # print('final T,L',T,L)
     # if retcode:
     #     ksplot.plot_spatiotemporal_field(ppo_final, symmetry='ppo',display_flag=True,filename='ppo_tiling_final_2.png',dpi=1000)
-    #     torus_io.export_torus(ppo_final,finaldata)
+    #     Orbit_io.export_Orbit(ppo_final,finaldata)
     return None
 
 
@@ -860,34 +860,34 @@ def plot_ppo1ppo2ppo3_gluing(*args,**kwargs):
     filegluenamebase = ''.join([basename_zero,"_",basename_one,"_",gluename])
     dataname = ''.join([savedatadir,filegluenamebase,".h5"])
     datanameFAIL = ''.join([saveFAILdir,filegluenamebase,".h5"])
-    torus_zero = torus_io.import_torus(filename_zero)
-    torus_one = torus_io.import_torus(filename_one)
+    Orbit_zero = Orbit_io.import_Orbit(filename_zero)
+    Orbit_one = Orbit_io.import_Orbit(filename_one)
     print('Attempting to glue',basename_zero, basename_one, 'in', gluename)
     tori_pair_initial,aspect_ratio_tori,\
-    rotated_tori,chopped_tori,convex_buffer_tori,glued_torus \
-        = torus_init.glued_initial_condition(torus_zero,torus_one,symmetry=symmetry,fixedL=fixedL,
+    rotated_tori,chopped_tori,convex_buffer_tori,glued_Orbit \
+        = Orbit_init.glued_initial_condition(Orbit_zero,Orbit_one,symmetry=symmetry,fixedL=fixedL,
                                              gluetype=gluetype,buffertype=buffertype,resolution=resolution)
-    initial_torus = torus_init.merge_fields(tori_pair_initial,symmetry=symmetry,gluetype=gluetype,tori_pair=True)
-    aspect_ratio_torus = torus_init.merge_fields(aspect_ratio_tori,symmetry=symmetry,gluetype=gluetype,tori_pair=True)
-    rotated_torus = torus_init.merge_fields(rotated_tori,symmetry=symmetry,gluetype=gluetype,tori_pair=True)
-    chopped_torus = torus_init.merge_fields(chopped_tori,symmetry=symmetry,gluetype=gluetype)
-    convex_buffer_torus = torus_init.merge_fields(convex_buffer_tori,symmetry=symmetry,gluetype=gluetype)
+    initial_Orbit = Orbit_init.merge_fields(tori_pair_initial,symmetry=symmetry,gluetype=gluetype,tori_pair=True)
+    aspect_ratio_Orbit = Orbit_init.merge_fields(aspect_ratio_tori,symmetry=symmetry,gluetype=gluetype,tori_pair=True)
+    rotated_Orbit = Orbit_init.merge_fields(rotated_tori,symmetry=symmetry,gluetype=gluetype,tori_pair=True)
+    chopped_Orbit = Orbit_init.merge_fields(chopped_tori,symmetry=symmetry,gluetype=gluetype)
+    convex_buffer_Orbit = Orbit_init.merge_fields(convex_buffer_tori,symmetry=symmetry,gluetype=gluetype)
 
-    ksplot.plot_gluing_process(initial_torus,aspect_ratio_torus,rotated_torus,chopped_torus,convex_buffer_torus,glued_torus,glued_torus,symmetry=symmetry,gluetype=gluetype,display_flag=True)
+    ksplot.plot_gluing_process(initial_Orbit,aspect_ratio_Orbit,rotated_Orbit,chopped_Orbit,convex_buffer_Orbit,glued_Orbit,glued_Orbit,symmetry=symmetry,gluetype=gluetype,display_flag=True)
 
-    glued_torus_adjoint,retcode,res = ks.find_torus(glued_torus,symmetry=symmetry)
-    converged_torus,retcode,res = ksdm.find_torus(glued_torus_adjoint,symmetry=symmetry)
+    glued_Orbit_adjoint,retcode,res = ks.find_Orbit(glued_Orbit,symmetry=symmetry)
+    converged_Orbit,retcode,res = ksdm.find_Orbit(glued_Orbit_adjoint,symmetry=symmetry)
 
-    newsymm = test.retest_symmetry_type(converged_torus,symmetry=symmetry)
-    print('Tf,Lf,Sf',converged_torus[-3],converged_torus[-2],converged_torus[-1])
+    newsymm = test.retest_symmetry_type(converged_Orbit,symmetry=symmetry)
+    print('Tf,Lf,Sf',converged_Orbit[-3],converged_Orbit[-2],converged_Orbit[-1])
     if retcode and newsymm==symmetry:
         gluing_filename = ''.join([savegluedir,filegluenamebase,"_gluing.png"])
         final_figname = ''.join([savefigsdir,filegluenamebase,".png"])
         final_dataname = ''.join([savedatadir,filegluenamebase,".h5"])
         print('Solution Converged: Saving to ', dataname)
-        ksplot.plot_gluing_process(initial_torus,aspect_ratio_torus,rotated_torus,chopped_torus,convex_buffer_torus,glued_torus,converged_torus,symmetry=symmetry,gluetype=gluetype,filename=gluing_filename)
-        ksplot.plot_spatiotemporal_field(converged_torus,symmetry=symmetry,filename=final_figname)
-        torus_io.export_torus(converged_torus,final_dataname,symmetry=symmetry)
+        ksplot.plot_gluing_process(initial_Orbit,aspect_ratio_Orbit,rotated_Orbit,chopped_Orbit,convex_buffer_Orbit,glued_Orbit,converged_Orbit,symmetry=symmetry,gluetype=gluetype,filename=gluing_filename)
+        ksplot.plot_spatiotemporal_field(converged_Orbit,symmetry=symmetry,filename=final_figname)
+        Orbit_io.export_Orbit(converged_Orbit,final_dataname,symmetry=symmetry)
         dataname_ppo1ppo2 = final_dataname
 
     '''glue ppo1ppo2 to ppo3 to create ppo1ppo2ppo3'''
@@ -901,32 +901,32 @@ def plot_ppo1ppo2ppo3_gluing(*args,**kwargs):
     filename_one =os.path.join(initial_condition_directory,filename_one)
     filegluenamebase = ''.join([basename_zero,"_",basename_one,"_",gluename])
     dataname = ''.join([savedatadir,filegluenamebase,".h5"])
-    torus_zero = torus_io.import_torus(filename_zero)
-    torus_one = torus_io.import_torus(filename_one)
+    Orbit_zero = Orbit_io.import_Orbit(filename_zero)
+    Orbit_one = Orbit_io.import_Orbit(filename_one)
     print('Attempting to glue',basename_zero, basename_one, 'in', gluename)
 
     tori_pair_initial,aspect_ratio_tori,\
-    rotated_tori,chopped_tori,convex_buffer_tori,glued_torus \
-        = torus_init.glued_initial_condition(torus_zero,torus_one,symmetry=symmetry,fixedL=fixedL,
+    rotated_tori,chopped_tori,convex_buffer_tori,glued_Orbit \
+        = Orbit_init.glued_initial_condition(Orbit_zero,Orbit_one,symmetry=symmetry,fixedL=fixedL,
                                              gluetype=gluetype,buffertype=buffertype,resolution=resolution)
-    initial_torus = torus_init.merge_fields(tori_pair_initial,symmetry=symmetry,gluetype=gluetype,tori_pair=True)
-    aspect_ratio_torus = torus_init.merge_fields(aspect_ratio_tori,symmetry=symmetry,gluetype=gluetype,tori_pair=True)
-    rotated_torus = torus_init.merge_fields(rotated_tori,symmetry=symmetry,gluetype=gluetype,tori_pair=True)
-    chopped_torus = torus_init.merge_fields(chopped_tori,symmetry=symmetry,gluetype=gluetype)
-    convex_buffer_torus = torus_init.merge_fields(convex_buffer_tori,symmetry=symmetry,gluetype=gluetype)
-    glued_torus_adjoint,retcode,res = ks.find_torus(glued_torus,symmetry=symmetry)
-    converged_torus,retcode,res = ksdm.find_torus(glued_torus_adjoint,symmetry=symmetry)
+    initial_Orbit = Orbit_init.merge_fields(tori_pair_initial,symmetry=symmetry,gluetype=gluetype,tori_pair=True)
+    aspect_ratio_Orbit = Orbit_init.merge_fields(aspect_ratio_tori,symmetry=symmetry,gluetype=gluetype,tori_pair=True)
+    rotated_Orbit = Orbit_init.merge_fields(rotated_tori,symmetry=symmetry,gluetype=gluetype,tori_pair=True)
+    chopped_Orbit = Orbit_init.merge_fields(chopped_tori,symmetry=symmetry,gluetype=gluetype)
+    convex_buffer_Orbit = Orbit_init.merge_fields(convex_buffer_tori,symmetry=symmetry,gluetype=gluetype)
+    glued_Orbit_adjoint,retcode,res = ks.find_Orbit(glued_Orbit,symmetry=symmetry)
+    converged_Orbit,retcode,res = ksdm.find_Orbit(glued_Orbit_adjoint,symmetry=symmetry)
 
-    newsymm = test.retest_symmetry_type(converged_torus,symmetry=symmetry)
-    print('Tf,Lf,Sf',converged_torus[-3],converged_torus[-2],converged_torus[-1])
+    newsymm = test.retest_symmetry_type(converged_Orbit,symmetry=symmetry)
+    print('Tf,Lf,Sf',converged_Orbit[-3],converged_Orbit[-2],converged_Orbit[-1])
     if retcode and newsymm==symmetry:
         gluing_filename = ''.join([savegluedir,filegluenamebase,"_gluing.png"])
         final_figname = ''.join([savefigsdir,filegluenamebase,".png"])
         final_dataname = ''.join([savedatadir,filegluenamebase,".h5"])
         print('Solution Converged: Saving to ', dataname)
-        ksplot.plot_gluing_process(initial_torus,aspect_ratio_torus,rotated_torus,chopped_torus,convex_buffer_torus,glued_torus,converged_torus,symmetry=symmetry,gluetype=gluetype,filename=gluing_filename)
-        ksplot.plot_spatiotemporal_field(converged_torus,symmetry=symmetry,filename=final_figname)
-        torus_io.export_torus(converged_torus,final_dataname,symmetry=symmetry)
+        ksplot.plot_gluing_process(initial_Orbit,aspect_ratio_Orbit,rotated_Orbit,chopped_Orbit,convex_buffer_Orbit,glued_Orbit,converged_Orbit,symmetry=symmetry,gluetype=gluetype,filename=gluing_filename)
+        ksplot.plot_spatiotemporal_field(converged_Orbit,symmetry=symmetry,filename=final_figname)
+        Orbit_io.export_Orbit(converged_Orbit,final_dataname,symmetry=symmetry)
         dataname_ppo1ppo2 = final_dataname
 
     return None
@@ -947,30 +947,30 @@ def continue_tiles(*args,**kwargs):
     deltamodifier=kwargs.get('deltamodifier',1)
 
     dataname = os.path.abspath(os.path.join(parent_folder,"./data/MNG_defect_hookondefect_time.h5"))
-    torus = torus_io.import_torus(dataname)
+    Orbit = Orbit_io.import_Orbit(dataname)
     continuation.pseudoarclength_continuation(dataname,dimension=dimension,increase=1,decrease=0,symmetry='rpo',save=save,deltamodifier=deltamodifier)
     continuation.pseudoarclength_continuation(dataname,dimension=dimension,increase=0,decrease=1,symmetry='rpo',save=save,deltamodifier=deltamodifier)
 
     dataname = os.path.abspath(os.path.join(parent_folder,"./data/MNG_hookf.h5"))
-    # torus = torus_io.import_torus(dataname)
+    # Orbit = Orbit_io.import_Orbit(dataname)
     # continuation.pseudoarclength_continuation(dataname,dimension=dimension,increase=1,decrease=0,symmetry=symmetry,save=save,deltamodifier=2)
     continuation.pseudoarclength_continuation(dataname,dimension=dimension,increase=0,decrease=1,symmetry=symmetry,save=save,deltamodifier=deltamodifier)
 
     dataname = os.path.abspath(os.path.join(parent_folder,"./data/MNG_hookondefect2f.h5"))
-    # torus = torus_io.import_torus(dataname)
+    # Orbit = Orbit_io.import_Orbit(dataname)
     continuation.pseudoarclength_continuation(dataname,dimension=dimension,increase=0,decrease=decrease,symmetry=symmetry,save=save,deltamodifier=0.5)
 
     dataname = os.path.abspath(os.path.join(parent_folder,"./data/MNG_defectf.h5"))
-    # torus = torus_io.import_torus(dataname)
+    # Orbit = Orbit_io.import_Orbit(dataname)
     continuation.pseudoarclength_continuation(dataname,dimension=dimension,increase=increase,decrease=decrease,symmetry=symmetry,save=save,deltamodifier=deltamodifier)
 
     dataname = os.path.abspath(os.path.join(parent_folder,"./data/MNG_gapf.h5"))
-    torus = torus_io.import_torus(dataname)
+    Orbit = Orbit_io.import_Orbit(dataname)
     continuation.pseudoarclength_continuation(dataname,dimension=dimension,increase=1,decrease=0,symmetry='anti',save=save,deltamodifier=deltamodifier)
     continuation.pseudoarclength_continuation(dataname,dimension=dimension,increase=0,decrease=1,symmetry='anti',save=save,deltamodifier=deltamodifier)
 
     dataname = os.path.abspath(os.path.join(parent_folder,"./data/MNG_reallylong.h5"))
-    # torus = torus_io.import_torus(dataname)
+    # Orbit = Orbit_io.import_Orbit(dataname)
     continuation.pseudoarclength_continuation(dataname,dimension=dimension,increase=increase,decrease=decrease,symmetry='anti',save=save,deltamodifier=deltamodifier)
 
     return None
@@ -990,31 +990,31 @@ def quantized_family(*args,**kwargs):
     # data_dir = os.path.abspath(os.path.join(PWD, "../../../data_and_figures/"))
     # save_folder = os.path.join(data_dir,'')
     import_folder = os.path.join(os.path.abspath(os.path.join(PWD, ''.join(["../../../data_and_figures/GuBuCv17/data"]))),'')
-    hookondefect = torus_io.import_torus(''.join([import_folder,'MNG_hookondefect2f.h5']))
+    hookondefect = Orbit_io.import_Orbit(''.join([import_folder,'MNG_hookondefect2f.h5']))
     # ksplot.plot_spatiotemporal_field(hookondefect,symmetry=symmetry,display_flag=True)
 
-    defect = torus_io.import_torus(''.join([import_folder,'MNG_defectf.h5']))
+    defect = Orbit_io.import_Orbit(''.join([import_folder,'MNG_defectf.h5']))
     filegluenamebase = 'MNG_defect_hookondefect_time'
-    ARtori,Rtori,Ctori,CBtori,Gtorus = torus_init.glued_initial_condition(hookondefect,defect,symmetry=symmetry,fixedL=fixedL,gluetype=gluetype,buffertype=buffertype,resolution=resolution)
-    # Itorus = torus_init.merge_fields(tori_pair_init,symmetry=symmetry,gluetype=gluetype,tori_pair=True)
-    ARtorus = torus_init.merge_fields(ARtori,symmetry=symmetry,gluetype=gluetype,tori_pair=True)
-    Rtorus = torus_init.merge_fields(Rtori,symmetry=symmetry,gluetype=gluetype,tori_pair=True)
-    Ctorus = torus_init.merge_fields(Ctori,symmetry=symmetry,gluetype=gluetype)
-    CBtorus = torus_init.merge_fields(CBtori,symmetry=symmetry,gluetype=gluetype)
-    # ksplot.plot_spatiotemporal_field(Gtorus,symmetry=symmetry,display_flag=True)
+    ARtori,Rtori,Ctori,CBtori,GOrbit = Orbit_init.glued_initial_condition(hookondefect,defect,symmetry=symmetry,fixedL=fixedL,gluetype=gluetype,buffertype=buffertype,resolution=resolution)
+    # IOrbit = Orbit_init.merge_fields(tori_pair_init,symmetry=symmetry,gluetype=gluetype,tori_pair=True)
+    AROrbit = Orbit_init.merge_fields(ARtori,symmetry=symmetry,gluetype=gluetype,tori_pair=True)
+    ROrbit = Orbit_init.merge_fields(Rtori,symmetry=symmetry,gluetype=gluetype,tori_pair=True)
+    COrbit = Orbit_init.merge_fields(Ctori,symmetry=symmetry,gluetype=gluetype)
+    CBOrbit = Orbit_init.merge_fields(CBtori,symmetry=symmetry,gluetype=gluetype)
+    # ksplot.plot_spatiotemporal_field(GOrbit,symmetry=symmetry,display_flag=True)
 
-    Gtorus,retcode,res = ks.find_torus(Gtorus,symmetry=symmetry)
-    Ftorus,retcode,res = ksdm.find_torus(Gtorus,symmetry=symmetry)
-    newsymm = test.retest_symmetry_type(Gtorus,symmetry=symmetry)
-    print('Tf,Lf,Sf',Ftorus[-3],Ftorus[-2],Ftorus[-1])
+    GOrbit,retcode,res = ks.find_Orbit(GOrbit,symmetry=symmetry)
+    FOrbit,retcode,res = ksdm.find_Orbit(GOrbit,symmetry=symmetry)
+    newsymm = test.retest_symmetry_type(GOrbit,symmetry=symmetry)
+    print('Tf,Lf,Sf',FOrbit[-3],FOrbit[-2],FOrbit[-1])
     if retcode and newsymm==symmetry:
         gluing_filename = ''.join([import_folder,filegluenamebase,"_gluing.png"])
         final_figname = ''.join([import_folder,filegluenamebase,".png"])
         final_dataname = ''.join([import_folder,filegluenamebase,".h5"])
         print('Solution Converged: Saving to ', final_dataname)
-        ksplot.plot_gluing_process(ARtorus,Rtorus,Ctorus,CBtorus,Gtorus,Ftorus,symmetry=symmetry,gluetype=gluetype,filename=gluing_filename)
-        ksplot.plot_spatiotemporal_field(Ftorus,symmetry=symmetry,filename=final_figname)
-        torus_io.export_torus(Ftorus,final_dataname,symmetry=symmetry)
+        ksplot.plot_gluing_process(AROrbit,ROrbit,COrbit,CBOrbit,GOrbit,FOrbit,symmetry=symmetry,gluetype=gluetype,filename=gluing_filename)
+        ksplot.plot_spatiotemporal_field(FOrbit,symmetry=symmetry,filename=final_figname)
+        Orbit_io.export_Orbit(FOrbit,final_dataname,symmetry=symmetry)
     else:
         print('Gluing did not converge')
     return None
@@ -1039,10 +1039,10 @@ def random_figures(*args,**kwargs):
     for file0 in file_list:
         if file0.endswith(".h5"):
             filename = os.path.join(data_dir,file0)
-            torus = torus_io.import_torus(filename)
+            Orbit = Orbit_io.import_Orbit(filename)
             basename = filename.split('.h5')[0]
             save_fig_name = ''.join([basename,'.png'])
-            ksplot.plot_spatiotemporal_field(torus,symmetry=symmetry,filename=save_fig_name)
+            ksplot.plot_spatiotemporal_field(Orbit,symmetry=symmetry,filename=save_fig_name)
 
 
     return None
@@ -1111,44 +1111,44 @@ def tile_properties():
     '''Converged Tiles'''
     '''Defect'''
     defect_filepath = os.path.abspath(os.path.join(data_dir,"./tiles/defects/defect1/final_tile/rpo_L13p02_T15.h5"))
-    defect_torus = torus_io.import_torus(defect_filepath)
+    defect_Orbit = Orbit_io.import_Orbit(defect_filepath)
     '''Gap'''
     gap_filepath = os.path.abspath(os.path.join(data_dir,"./tiles/gap/final_tile/anti_L17p5_T17.h5"))
-    gap_torus = torus_io.import_torus(gap_filepath)
+    gap_Orbit = Orbit_io.import_Orbit(gap_filepath)
     '''Streak'''
     streak_filepath = os.path.abspath(os.path.join(data_dir,"./tiles/streak/final_tile/eqva_L3p195.h5"))
-    streak_torus = torus_io.import_torus(streak_filepath)
+    streak_Orbit = Orbit_io.import_Orbit(streak_filepath)
     '''Hook'''
     hook_filepath = os.path.abspath(os.path.join(data_dir,"./tiles/hook/final_tile/rpo_L13p07_T10.h5"))
-    hook_torus = torus_io.import_torus(hook_filepath)
+    hook_Orbit = Orbit_io.import_Orbit(hook_filepath)
 
     threetoone_import_filepath = os.path.abspath(os.path.join(data_dir,"./trawl/rpo/data/rpo_L21p97_T36p42.h5"))
-    threetoone_torus = torus_io.import_torus(threetoone_import_filepath)
+    threetoone_Orbit = Orbit_io.import_Orbit(threetoone_import_filepath)
 
     # threetoone_import_filepath = os.path.abspath(os.path.join(data_dir,"./GuBuCv17/hookondefect.h5"))
-    # threetoone_torus = torus_io.import_torus(threetoone_import_filepath)
+    # threetoone_Orbit = Orbit_io.import_Orbit(threetoone_import_filepath)
 
     hookondefect_import_filepath =os.path.abspath(os.path.join(data_dir,"./trawl/ppo/data/ppo_L21p97_T73p52.h5"))
     hookondefect_initial_filename = os.path.abspath(os.path.join(savedir,"./MNG_hookondefect_initial.png"))
     hookondefect_filename = os.path.abspath(os.path.join(savedir,"./MNG_hookondefect_guess.png"))
     final_figname = os.path.abspath(os.path.join(savedir,"./figs/MNG_hookondefectf.png"))
     final_dataname = os.path.abspath(os.path.join(savedir,"./data/MNG_hookondefectf.h5"))
-    torus = torus_io.import_torus(hookondefect_import_filepath)
+    Orbit = Orbit_io.import_Orbit(hookondefect_import_filepath)
     #rotate by 1pi, xnew[.8,3] t=[30,50]
-    _,n,m,_,L,_ = torus
+    _,n,m,_,L,_ = Orbit
     rotatex = 1./(L/(2*pi))*L
     Tmin,Tmax,Xmin,Xmax = 30,50,0.6,3.0
-    u,n,m,t,l,s = torus
+    u,n,m,t,l,s = Orbit
     newN,newM=16*n,16*m
-    torus=disc.rediscretize(torus,newN=newN,newM=newM)
-    hookondefect_torus=sub.windowed_subdomain(torus,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
-    # ksplot.plot_spatiotemporal_field(torus,symmetry='rpo',display_flag=True)
-    uw,nw,mw,tw,lw,sw = hookondefect_torus
+    Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    hookondefect_Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
+    # ksplot.plot_spatiotemporal_field(Orbit,symmetry='rpo',display_flag=True)
+    uw,nw,mw,tw,lw,sw = hookondefect_Orbit
     smalln,smallm = 4*int((nw/newN)*n),2*int((mw/newM)*m)
-    torus=disc.rediscretize(hookondefect_torus,newN=smalln,newM=smallm)
-    ksplot.plot_spatiotemporal_field(torus,display_flag=True,symmetry='none')
+    Orbit=disc.rediscretize(hookondefect_Orbit,newN=smalln,newM=smallm)
+    ksplot.plot_spatiotemporal_field(Orbit,display_flag=True,symmetry='none')
 
-    uu,N,M,T,L,S = torus
+    uu,N,M,T,L,S = Orbit
     vv = fft(uu,axis=1)/np.sqrt(M)
     qk_vec = 1j*(2*pi*M/L)*np.fft.fftfreq(M)
     qk_vec[int(M//2)]=0
@@ -1165,7 +1165,7 @@ def tile_properties():
     energy = 0.5*np.sum(np.linalg.norm(np.reshape(vv,[N*M,1]))**2)
     print('HOD,      P,D,E',power,dissipation,energy)
 
-    uu,N,M,T,L,S = defect_torus
+    uu,N,M,T,L,S = defect_Orbit
     vv = fft(uu,axis=1)/np.sqrt(M)
     qk_vec = 1j*(2*pi*M/L)*np.fft.fftfreq(M)
     qk_vec[int(M//2)]=0
@@ -1184,7 +1184,7 @@ def tile_properties():
     print('P,D,E',power,dissipation,energy)
 
 
-    uu,N,M,T,L,S = hook_torus
+    uu,N,M,T,L,S = hook_Orbit
     vv = fft(uu,axis=1)/np.sqrt(M)
     qk_vec = 1j*(2*pi*M/L)*np.fft.fftfreq(M)
     qk_vec[int(M//2)]=0
@@ -1202,7 +1202,7 @@ def tile_properties():
     energy = 0.5*np.sum(np.linalg.norm(np.reshape(vv,[N*M,1]))**2)
     print('P,D,E',power,dissipation,energy)
 
-    uu,N,M,T,L,S = gap_torus
+    uu,N,M,T,L,S = gap_Orbit
     vv = fft(uu,axis=1)/np.sqrt(M)
     qk_vec = 1j*(2*pi*M/L)*np.fft.fftfreq(M)
     qk_vec[int(M//2)]=0
@@ -1220,7 +1220,7 @@ def tile_properties():
     energy = 0.5*np.sum(np.linalg.norm(np.reshape(vv,[N*M,1]))**2)
     print('P,D,E',power,dissipation,energy)
 
-    uu,N,M,T,L,S = streak_torus
+    uu,N,M,T,L,S = streak_Orbit
     vv = fft(uu,axis=1)/np.sqrt(M)
     qk_vec = 1j*(2*pi*M/L)*np.fft.fftfreq(M)
     qk_vec[int(M//2)]=0
@@ -1238,8 +1238,8 @@ def tile_properties():
     energy = 0.5*np.sum(np.linalg.norm(np.reshape(vv,[N*M,1]))**2)
     print('P,D,E',power,dissipation,energy)
 
-    uu,N,M,T,L,S = threetoone_torus
-    ksplot.plot_spatiotemporal_field(threetoone_torus,display_flag=True,symmetry='none')
+    uu,N,M,T,L,S = threetoone_Orbit
+    ksplot.plot_spatiotemporal_field(threetoone_Orbit,display_flag=True,symmetry='none')
     vv = fft(uu,axis=1)/np.sqrt(M)
     qk_vec = 1j*(2*pi*M/L)*np.fft.fftfreq(M)
     qk_vec[int(M//2)]=0
@@ -1261,11 +1261,11 @@ def tile_properties():
     #     if data_file.endswith(".h5"):
     #         basename = data_file.split('.h5')[0]
     #         print(basename)
-    #         torus = torus_io.import_torus(''.join([parent_folder,data_file]))
-    #         # ksplot.plot_spatiotemporal_field(torus,display_flag=True,symmetry='rpo')
+    #         Orbit = Orbit_io.import_Orbit(''.join([parent_folder,data_file]))
+    #         # ksplot.plot_spatiotemporal_field(Orbit,display_flag=True,symmetry='rpo')
     #
-    #         uu,N,M,T,L,S = torus
-    #         # ksplot.plot_spatiotemporal_field(threetoone_torus,display_flag=True,symmetry='rpo')
+    #         uu,N,M,T,L,S = Orbit
+    #         # ksplot.plot_spatiotemporal_field(threetoone_Orbit,display_flag=True,symmetry='rpo')
     #         vv = fft(uu,axis=1)/np.sqrt(M)
     #         qk_vec = 1j*(2*pi*M/L)*np.fft.fftfreq(M)
     #         qk_vec[int(M//2)]=0
@@ -1297,9 +1297,9 @@ def eigenvectors():
     # halfdefect2_initial_filename = os.path.abspath(os.path.join(savedir,"./halfdefect2_initial.png"))
     # field_minus_halfdefect2_filename = os.path.abspath(os.path.join(savedir,"./halfdefect2guess.png"))
     # halfdefect2_filename = os.path.abspath(os.path.join(savedir,"./halfdefect2guess_cutout.png"))
-    torus = torus_io.import_torus(ppo_filepath)
+    Orbit = Orbit_io.import_Orbit(ppo_filepath)
     # Tmin,Tmax,Xmin,Xmax = 18,35,0.6,3
-    state_vec,N,M = ks.tuple_to_statevec(torus,symmetry=symmetry)
+    state_vec,N,M = ks.tuple_to_statevec(Orbit,symmetry=symmetry)
     T,L,S = state_vec[-3:]
     eigvalues,eigvectors = eig(np.dot(np.transpose(ksdm.ppo.jacobian(state_vec,N,M,du_only=1)),ksdm.ppo.jacobian(state_vec,N,M,du_only=1)))
     print(np.size(eigvalues))
@@ -1313,8 +1313,8 @@ def eigenvectors():
         else:
             test = np.reshape(ks.ppo.ifft_(np.imag(vv),N,M),[N,M]) + np.reshape(ks.ppo.ifft_(np.real(vv),N,M),[N,M])
             # uu = np.reshape(ks.ppo.ifft_(vv,N,M),[N,M])
-            eigvtorus = (test,N,M,T,L,S)
-            ksplot.plot_spatiotemporal_field(eigvtorus,symmetry=symmetry,display_flag=True)
+            eigvOrbit = (test,N,M,T,L,S)
+            ksplot.plot_spatiotemporal_field(eigvOrbit,symmetry=symmetry,display_flag=True)
             counter+=1
     return None
 
@@ -1327,22 +1327,22 @@ def reconverge_defect():
 
     symmetry='none'
     defect1_filepath = os.path.abspath(os.path.join(data_dir,"./tiles/defects/defect1/final_tile/rpo_L13p02_T15.h5"))
-    defect1_torus = torus_io.import_torus(defect1_filepath)
-    torus = disc.rediscretize(defect1_torus,newN=32,newM=32)
-    torus = symm.frame_rotation(torus)
-    uu,n,m,t,l,s = torus
-    # torus = (uu,n,m,t,l,0)
-    # ksplot.plot_spatiotemporal_field(torus,symmetry='none',display_flag=True)
+    defect1_Orbit = Orbit_io.import_Orbit(defect1_filepath)
+    Orbit = disc.rediscretize(defect1_Orbit,newN=32,newM=32)
+    Orbit = symm.frame_rotation(Orbit)
+    uu,n,m,t,l,s = Orbit
+    # Orbit = (uu,n,m,t,l,0)
+    # ksplot.plot_spatiotemporal_field(Orbit,symmetry='none',display_flag=True)
 
-    torus_adj,retcode,res = ks.find_torus(torus,symmetry='none')
-    torus_f,retcode,stats = ksdm.find_torus(torus_adj,symmetry='none')
-    ksplot.plot_spatiotemporal_field(torus_f,symmetry='none',display_flag=True)
+    Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry='none')
+    Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry='none')
+    ksplot.plot_spatiotemporal_field(Orbit_f,symmetry='none',display_flag=True)
 
     return None
 
 
 def main():
-    # plot_cartoon_torus()
+    # plot_cartoon_Orbit()
     # plot_plot_trawling_initial_to_final()
     # plot_tile_guesses_and_cutouts()
     # plot_converged_tiles()
