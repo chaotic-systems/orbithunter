@@ -2,7 +2,7 @@ import os,sys
 import numpy as np
 import time
 sys.path.insert(0, os.path.abspath(os.path.join(sys.argv[0], '../..')))
-import torihunter as th
+from orbithunter import *
 from joblib import Parallel, delayed
 from argparse import ArgumentParser, ArgumentTypeError, ArgumentDefaultsHelpFormatter
 
@@ -21,7 +21,7 @@ def str2bool(val):
 def hunt(x, verbose=True):
     if verbose:
         print('Beginning search for {}'.format(repr(x)))
-    result = th.converge(x, verbose=verbose)
+    result = converge(x, verbose=verbose)
     if result.exit_code:
         result.orbit.to_h5(directory='default',)
         result.orbit.plot(show=False, save=True, )

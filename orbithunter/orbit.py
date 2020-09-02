@@ -124,7 +124,8 @@ class OrbitKS:
         This is not state-wise multiplication because that it more complicated and depends on symmetry type.
         Current implementation makes it so no checks of the type of num need to be made.
         """
-        return self.__class__(state=num*self.state,  T=self.T, L=self.L, S=self.S, state_type=self.state_type)
+        return self.__class__(state=np.multiply(num, self.state), state_type=self.state_type,
+                              T=self.T, L=self.L, S=self.S)
 
     def __rmul__(self, num):
         """ Scalar multiplication
@@ -139,7 +140,8 @@ class OrbitKS:
         This is not state-wise multiplication because that it more complicated and depends on symmetry type.
         Current implementation makes it so no checks of the type of num need to be made.
         """
-        return self.__class__(state=num*self.state,  T=self.T, L=self.L, S=self.S, state_type=self.state_type)
+        return self.__class__(state=np.multiply(num, self.state), state_type=self.state_type,
+                              T=self.T, L=self.L, S=self.S)
 
     def __truediv__(self, num):
         """ Scalar multiplication
@@ -153,7 +155,8 @@ class OrbitKS:
         -----
         State-wise division is ill-defined because of division by 0.
         """
-        return self.__class__(state=self.state / num, T=self.T, L=self.L, S=self.S, state_type=self.state_type)
+        return self.__class__(state=np.divide(self.state, num), state_type=self.state_type,
+                              T=self.T, L=self.L, S=self.S)
 
     def __floordiv__(self, num):
         """ Scalar multiplication
@@ -161,22 +164,30 @@ class OrbitKS:
         Parameters
         ----------
         num : float
-            Scalar value to renormalize by.
+            Scalar value to division by.
 
         Notes
         -----
-        This renormalizes the physical field such that the absolute value of the max/min takes on a new value
-        of (1.0 / num).
-
-        Examples
-        --------
-        >>> renormalized_orbit = self // (1.0/2.0)
-        >>> print(np.max(np.abs(renormalized_orbit.state.ravel())))
-        2.0
+        State-wise division is ill-defined because of division by 0.
         """
-        field = self.convert(to='field').state
-        state = field / (num * np.max(np.abs(field.ravel())))
-        return self.__class__(state=state, state_type='field', T=self.T, L=self.L, S=self.S)
+        return self.__class__(state=np.divide(self.state, num), state_type=self.state_type,
+                              T=self.T, L=self.L, S=self.S)
+
+    def __pow__(self, power):
+        """ Scalar multiplication
+
+        Parameters
+        ----------
+        num : float
+            Scalar value to multiply by.
+
+        Notes
+        -----
+        This is not state-wise multiplication because that it more complicated and depends on symmetry type.
+        Current implementation makes it so no checks of the type of num need to be made.
+        """
+        return self.__class__(state=self.state**power, state_type=self.state_type,
+                              T=self.T, L=self.L, S=self.S)
 
     def __str__(self):
         return self.__class__.__name__ + "()"
@@ -390,6 +401,8 @@ class OrbitKS:
             orbit_dxn = self.__class__(state=dxn_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
             return orbit_dxn.convert(to=self.state_type)
 
+
+
     @classmethod
     @lru_cache(maxsize=16)
     def wave_vector(cls, parameters, power=1):
@@ -458,7 +471,7 @@ class OrbitKS:
             # if spacetime modes, use the corresponding mode shape parameters
             spacetime_dxn = np.kron(np.eye(self.parameters[-2]), space_dxn)
         else:
-            # else use time discretization size..
+            # else use time discretization size.
             spacetime_dxn = np.kron(np.eye(self.parameters[3]), space_dxn)
 
         return spacetime_dxn
@@ -583,7 +596,7 @@ class OrbitKS:
             self_field = self.convert(to='field')
             spatial_period_derivative = ((-2.0 / self.L) * self.dx(power=2, return_modes=True)
                                          + (-4.0 / self.L) * self.dx(power=4, return_modes=True)
-                                         + (-1.0 / self.L) * self_field.pseudospectral(self_field, return_modes=True))
+                                         + (-1.0 / self.L) * self_field.nonlinear(self_field, return_modes=True))
 
             jac_ = np.concatenate((jac_, spatial_period_derivative.reshape(-1, 1)), axis=1)
 
@@ -659,7 +672,7 @@ class OrbitKS:
         other_field = other.convert(to='field')
         matvec_modes = (other.dt(return_modes=True) + other.dx(power=2, return_modes=True)
                          + other.dx(power=4, return_modes=True)
-                         + self_field.pseudospectral(other_field, return_modes=True))
+                         + self_field.nonlinear(other_field, return_modes=True))
 
         if not parameter_constraints[0]:
             # Compute the product of the partial derivative with respect to T with the vector's value of T.
@@ -671,7 +684,7 @@ class OrbitKS:
             # This is typically an incremental value dL.
             dfdl = ((-2.0/self.L)*self.dx(power=2, return_modes=True)
                     + (-4.0/self.L)*self.dx(power=4, return_modes=True)
-                    + (-1.0/self.L) * self_field.pseudospectral(self_field, return_modes=True))
+                    + (-1.0/self.L) * self_field.nonlinear(self_field, return_modes=True))
             matvec_modes += other.L * dfdl
 
         matvec_orbit = self.__class__(state=matvec_modes, state_type='modes', T=self.T, L=self.L)
@@ -753,7 +766,7 @@ class OrbitKS:
 
     @property
     def parameters(self):
-        return (self.T, self.L, self.S, self.N, self.M, self.n, self.m, self.N-1, self.M-2)
+        return self.T, self.L, self.S, self.N, self.M, max([self.n, 1]), self.m, max([self.N-1, 1]), self.M-2
 
     def parameter_dependent_filename(self, extension='.h5', decimals=3):
         Lsplit = str(self.L).split('.')
@@ -840,7 +853,7 @@ class OrbitKS:
 
         # Modify the size so that relative sizes between different figures is approximately representative
         # of the different sizes; helps with side-by-side comparison.
-        default_figsize = (max([0.5, 2**np.log10(orbit_to_plot.L)]), max([0.5, 2**np.log10(orbit_to_plot.T)]))
+        default_figsize = (max([0.5, 2**np.log10(orbit_to_plot.L)]), max([0.5, 3 * 2**(np.log10(orbit_to_plot.T)-1)]))
 
         figsize = kwargs.get('figsize', default_figsize)
         fig, ax = plt.subplots(figsize=figsize)
@@ -968,7 +981,7 @@ class OrbitKS:
         else:
             return np.tile(p.reshape(-1, 1), (1, p.size+(2-sum(parameter_constraints))))
 
-    def pseudospectral(self, other, return_modes=False):
+    def nonlinear(self, other, return_modes=False):
         """ nonlinear computation of the nonlinear term of the Kuramoto-Sivashinsky equation
 
         Parameters
@@ -991,7 +1004,7 @@ class OrbitKS:
         assert (self.state_type == 'field') and (other.state_type == 'field')
         return 0.5 * self.statemul(other).dx(return_modes=return_modes)
 
-    def rpseudospectral(self, other, return_modes=False):
+    def rnonlinear(self, other, return_modes=False):
         """ nonlinear computation of the nonlinear term of the adjoint Kuramoto-Sivashinsky equation
 
         Parameters
@@ -1098,6 +1111,29 @@ class OrbitKS:
         reflected_field = -1.0*np.roll(np.fliplr(self.convert(to='field').state), 1, axis=1)
         return self.__class__(state=reflected_field, state_type='field', T=self.T, L=self.L, S=-1.0*self.S)
 
+    def renormalize(self, new_absolute_max):
+        """ Scalar multiplication
+
+        Parameters
+        ----------
+        num : float
+            Scalar value to renormalize by.
+
+        Notes
+        -----
+        This renormalizes the physical field such that the absolute value of the max/min takes on a new value
+        of num.
+
+        Examples
+        --------
+        >>> renormalized_orbit = self // (1.0/2.0)
+        >>> print(np.max(np.abs(renormalized_orbit.state.ravel())))
+        2.0
+        """
+        field = self.convert(to='field').state
+        state = new_absolute_max * field / np.max(np.abs(field.ravel()))
+        return self.__class__(state=state, state_type='field', T=self.T, L=self.L, S=self.S)
+
     def residual(self, apply_mapping=True):
         """ The value of the cost function
 
@@ -1137,7 +1173,7 @@ class OrbitKS:
         self_field = self.convert(to='field')
         rmatvec_modes = (-1.0 * other.dt(return_modes=True) + other.dx(power=2, return_modes=True)
                          + other.dx(power=4, return_modes=True)
-                         + self_field.rpseudospectral(other, return_modes=True))
+                         + self_field.rnonlinear(other, return_modes=True))
 
         other_modes_in_vector_form = other.state.ravel()
         if not parameter_constraints[0]:
@@ -1150,7 +1186,7 @@ class OrbitKS:
             # change in L, dL, equal to DF/DL * v
             rmatvec_L = ((-2.0 / self.L) * self.dx(power=2, return_modes=True)
                          + (-4.0 / self.L) * self.dx(power=4, return_modes=True)
-                         + (-1.0 / self.L) * self_field.pseudospectral(self_field, return_modes=True)
+                         + (-1.0 / self.L) * self_field.nonlinear(self_field, return_modes=True)
                         ).ravel().dot(other_modes_in_vector_form)
         else:
             rmatvec_L = 0
@@ -1427,11 +1463,11 @@ class OrbitKS:
         :return:
         """
         assert self.state_type == 'modes', 'Convert to spatiotemporal Fourier mode basis before computations.'
-        # to avoid two IFFT calls, convert before pseudospectral product
+        # to avoid two IFFT calls, convert before nonlinear product
         orbit_field = self.convert(to='field')
         mapping_modes = (self.dt(return_modes=True) + self.dx(power=2, return_modes=True)
                          + self.dx(power=4, return_modes=True)
-                         + orbit_field.pseudospectral(orbit_field, return_modes=True))
+                         + orbit_field.nonlinear(orbit_field, return_modes=True))
         return self.__class__(state=mapping_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
 
     def statemul(self, other):
@@ -1447,8 +1483,11 @@ class OrbitKS:
         Only really makes sense when taking an elementwise product between Tori defined on spatiotemporal
         domains of the same size.
         """
-        return self.__class__(state=np.multiply(self.state, other.state),
-                              state_type=self.state_type, T=self.T, L=self.L, S=self.S)
+        if isinstance(other, np.ndarray):
+            product = np.multiply(self.state, other)
+        else:
+            product = np.multiply(self.state, other.state)
+        return self.__class__(state=product, state_type=self.state_type, T=self.T, L=self.L, S=self.S)
 
     def time_transform(self, inplace=False):
         """ Temporal Fourier transform
@@ -1770,7 +1809,7 @@ class RelativeOrbitKS(OrbitKS):
             self_field = self.convert(to='field')
             spatial_period_derivative = ((-2.0 / self.L) * self.dx(power=2, return_modes=True)
                                          + (-4.0 / self.L) * self.dx(power=4, return_modes=True)
-                                         + (-1.0 / self.L) * self_field.pseudospectral(self_field, return_modes=True))
+                                         + (-1.0 / self.L) * self_field.nonlinear(self_field, return_modes=True))
             jac_ = np.concatenate((jac_, spatial_period_derivative.reshape(-1, 1)), axis=1)
 
         if not parameter_constraints[2]:
@@ -2044,9 +2083,9 @@ class AntisymmetricOrbitKS(OrbitKS):
 
     @property
     def parameters(self):
-        return (self.T, self.L, self.S, self.N, self.M, self.n, self.m, self.N-1, self.m)
+        return self.T, self.L, self.S, self.N, self.M, max([self.n, 1]), self.m, max([self.N-1, 1]), self.m
 
-    def pseudospectral(self, other, return_modes=False):
+    def nonlinear(self, other, return_modes=False):
         """ nonlinear computation of the nonlinear term of the Kuramoto-Sivashinsky equation
 
         Parameters
@@ -2422,9 +2461,9 @@ class ShiftReflectionOrbitKS(OrbitKS):
 
     @property
     def parameters(self):
-        return (self.T, self.L, self.S, self.N, self.M, self.n, self.m, self.N-1, self.m)
+        return self.T, self.L, self.S, self.N, self.M, max([self.n, 1]), self.m, max([self.N-1, 1]), self.m
 
-    def pseudospectral(self, other, return_modes=False):
+    def nonlinear(self, other, return_modes=False):
         """ nonlinear computation of the nonlinear term of the Kuramoto-Sivashinsky equation
 
         Parameters
@@ -2680,7 +2719,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         # from_fundamental_domain
         # mode_padding
         # mode_truncation
-        # pseudospectral
+        # nonlinear
         # random_initial_condition
         # time_transform_matrix
         # inv_time_transform_matrix
@@ -2753,7 +2792,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             self_field = self.convert(to='field')
             spatial_period_derivative = ((-2.0 / self.L) * self.dx(power=2, return_modes=True)
                                          + (-4.0 / self.L) * self.dx(power=4, return_modes=True)
-                                         + (-1.0 / self.L) * self_field.pseudospectral(self_field, return_modes=True))
+                                         + (-1.0 / self.L) * self_field.nonlinear(self_field, return_modes=True))
             jac_ = np.concatenate((jac_, spatial_period_derivative.reshape(-1, 1)), axis=1)
 
         return jac_
@@ -2814,7 +2853,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
     @property
     def parameters(self):
-        return (self.T, self.L, self.S, self.N, self.M, self.n, self.m, 1, self.m)
+        return self.T, self.L, self.S, self.N, self.M, max([self.n, 1]), self.m, 1, self.m
 
     def parameter_dependent_filename(self, extension='.h5', decimals=2):
         Lsplit = str(self.L).split('.')
@@ -2918,14 +2957,14 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         self_field = self.convert(to='field')
         rmatvec_modes = (other.dx(power=2, return_modes=True)
                          + other.dx(power=4, return_modes=True)
-                         + self_field.rpseudospectral(other, return_modes=True))
+                         + self_field.rnonlinear(other, return_modes=True))
 
         other_modes_in_vector_form = other.state.ravel()
         if not parameter_constraints:
             # change in L, dL, equal to DF/DL * v
             rmatvec_L = ((-2.0 / self.L) * self.dx(power=2, return_modes=True)
                          + (-4.0 / self.L) * self.dx(power=4, return_modes=True)
-                         + (-1.0 / self.L) * self_field.pseudospectral(self_field, return_modes=True)
+                         + (-1.0 / self.L) * self_field.nonlinear(self_field, return_modes=True)
                          ).ravel().dot(other_modes_in_vector_form)
         else:
             rmatvec_L = 0
@@ -2947,11 +2986,11 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         :return:
         """
         assert self.state_type == 'modes', 'Convert to spatiotemporal Fourier mode basis before computations.'
-        # to avoid two IFFT calls, convert before pseudospectral product
+        # to avoid two IFFT calls, convert before nonlinear product
         orbit_field = self.convert(to='field')
         mapping_modes = (self.dx(power=2, return_modes=True)
                          + self.dx(power=4, return_modes=True)
-                         + orbit_field.pseudospectral(orbit_field, return_modes=True))
+                         + orbit_field.nonlinear(orbit_field, return_modes=True))
         return self.__class__(state=mapping_modes, state_type='modes', L=self.L)
 
     def status(self):
@@ -3173,7 +3212,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             self_field = self.convert(to='field')
             spatial_period_derivative = ((-2.0 / self.L) * self.dx(power=2, return_modes=True)
                                           + (-4.0 / self.L) * self.dx(power=4, return_modes=True)
-                                          + (-1.0 / self.L) * self_field.pseudospectral(self_field, return_modes=True))
+                                          + (-1.0 / self.L) * self_field.nonlinear(self_field, return_modes=True))
             jac_ = np.concatenate((jac_, spatial_period_derivative.reshape(-1, 1)), axis=1)
 
         if not parameter_constraints[2]:
@@ -3242,7 +3281,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
     @property
     def parameters(self):
-        return (self.T, self.L, self.S, self.N, self.M, self.n, self.m, 1, self.M-2)
+        return self.T, self.L, self.S, self.N, self.M, max([self.n, 1]), self.m, 1, self.M-2
 
     def random_initial_condition(self, T, L, *args, **kwargs):
         """ Extension of parent modes to include spatial-shift initialization """
@@ -3265,12 +3304,12 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             OrbitKS.state = u_t + u_xx + u_xxxx + 1/2 (u^2)_x
         :return:
         """
-        # to avoid two IFFT calls, convert before pseudospectral product
+        # to avoid two IFFT calls, convert before nonlinear product
         modes = self.convert(to='modes')
         field = self.convert(to='field')
         mapping_modes = (modes.dx(power=2, return_modes=True)
                          + modes.dx(power=4, return_modes=True)
-                         + field.pseudospectral(field, return_modes=True)
+                         + field.nonlinear(field, return_modes=True)
                          + modes.comoving_mapping_component(return_modes=True))
         return self.__class__(state=mapping_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
 

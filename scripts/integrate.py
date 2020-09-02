@@ -1,7 +1,7 @@
 from __future__ import print_function, division, absolute_import
 import os,sys
 sys.path.insert(0, os.path.abspath(os.path.join(sys.argv[0], '../..')))
-from torihunter import *
+from orbithunter import *
 import numpy as np
 
 

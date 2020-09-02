@@ -98,7 +98,7 @@ def converge(orbit, *args, method='hybrid', **kwargs):
 def _adjoint_descent(orbit, parameter_constraints=(False,False,False), **kwargs):
     # Specific modifying exponent for changes in period, domain_size
     # Absolute tolerance for the descent method.
-    atol = kwargs.get('atol', orbit.N*orbit.M*10**-6)
+    atol = 10**-6
     max_iter = kwargs.get('max_iter', 32*orbit.N*orbit.M)
     preconditioning = kwargs.get('preconditioning', True)
 

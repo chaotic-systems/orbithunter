@@ -1,6 +1,7 @@
 import numpy as np
 
-__all__ = ['correct_aspect_ratios', 'parameter_based_discretization', 'rediscretize']
+__all__ = ['correct_aspect_ratios', 'rediscretize']
+
 
 def correct_aspect_ratios(orbit, other_orbit, direction='space', **kwargs):
     mode_orbit = orbit.convert(inplace=False)
@@ -33,7 +34,30 @@ def correct_aspect_ratios(orbit, other_orbit, direction='space', **kwargs):
     return (orbit_correct_shape.convert(to=orbit.state_type),
             other_orbit_correct_shape.convert(to=other_orbit.state_type))
 
-def parameter_based_discretization(orbit, **kwargs):
+
+def _parameter_based_discretization(orbit, **kwargs):
+    """ Follow orbithunter conventions for discretization size.
+
+
+    Parameters
+    ----------
+    orbit : Orbit or Orbit subclass
+    orbithunter class instance whose time, space periods will be used to determine the new discretization values.
+    kwargs :
+    resolution : str
+    Takes values 'coarse', 'normal', 'fine'. These options return one of three orbithunter conventions for the
+    discretization size.
+
+    Returns
+    -------
+    int, int
+    The new spatiotemporal discretization given as the number of time points (rows) and number of space points (columns)
+
+    Notes
+    -----
+    This function should only ever be called by rediscretize, the returned values can always be accessed by
+    the appropriate attributes of the rediscretized orbit.
+    """
     resolution=kwargs.get('resolution', 'normal')
     if resolution == 'coarse':
         return np.max([2**(int(np.log2(orbit.T)-2)), 32]), np.max([2**(int(np.log2(orbit.L)-1)), 32])
@@ -42,17 +66,20 @@ def parameter_based_discretization(orbit, **kwargs):
     elif resolution == 'fine':
         return np.max([2**(int(np.log2(orbit.T)+4)), 32]), np.max([2**(int(np.log2(orbit.L))+2), 32])
     else:
-        return orbit
+        return orbit.N, orbit.M
+
 
 def rediscretize(orbit, parameter_based=False, **kwargs):
     # Return class object with new discretization size. Not performed in place
     # because it is used in other functions; don't want user to be caught unawares
+    # Copy state information to new orbit; don't perform operations inplace, only create new orbit
+    placeholder_orbit = orbit.__class__(state=orbit.state, state_type=orbit.state_type,
+                                        T=orbit.T, L=orbit.L, S=orbit.S).convert(to='modes')
     if parameter_based:
-        newN, newM = parameter_based_discretization(orbit)
+        newN, newM = _parameter_based_discretization(orbit, **kwargs)
     else:
         newN, newM = kwargs.get('newN', orbit.N), kwargs.get('newM', orbit.M)
-    # Copy state information to new orbit; don't perform operations inplace, only create new orbit
-    placeholder_orbit = orbit.__class__(state=orbit.state, state_type=orbit.state_type, T=orbit.T, L=orbit.L, S=orbit.S)
+
     if newN == orbit.N and newM == orbit.M:
         return orbit
     else:

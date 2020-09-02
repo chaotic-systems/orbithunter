@@ -202,7 +202,7 @@ def glued_initial_condition(OrbitA,OrbitB,*args,**kwargs):
     return ARtori,Rtori,Ctori,CBtori,GOrbit
 
 
-def random_initial_condition(N,M,T,L,**kwargs):
+def random_initial_condition(N,M,T,L, **kwargs):
     amplitude = kwargs.get('amplitude',5)
     scale_type = kwargs.get('scale_type','random')
     n = int(N-1)

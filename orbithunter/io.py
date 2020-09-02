@@ -59,7 +59,7 @@ def parse_class(filename):
                   'eqva': EquilibriumOrbitKS, 'EquilibriumOrbitKS': EquilibriumOrbitKS,
                   'reqva': RelativeEquilibriumOrbitKS, 'RelativeEquilibriumOrbitKS': RelativeEquilibriumOrbitKS}
 
-    class_generator = class_dict.get(class_name, RelativeOrbitKS)
+    class_generator = class_dict.get(class_name, OrbitKS)
     return class_generator
 
 def _make_proper_pathname(pathname_tuple,folder=False):
