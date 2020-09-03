@@ -64,7 +64,7 @@ def parse_class(filename):
 
 def _make_proper_pathname(pathname_tuple,folder=False):
     if folder:
-        return os.path.join(os.path.abspath(os.path.join(*pathname_tuple)),'')
+        return os.path.join(os.path.abspath(os.path.join(*pathname_tuple)), '')
     else:
         return os.path.abspath(os.path.join(*pathname_tuple))
 

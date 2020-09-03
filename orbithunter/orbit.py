@@ -401,8 +401,6 @@ class OrbitKS:
             orbit_dxn = self.__class__(state=dxn_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
             return orbit_dxn.convert(to=self.state_type)
 
-
-
     @classmethod
     @lru_cache(maxsize=16)
     def wave_vector(cls, parameters, power=1):
@@ -549,7 +547,7 @@ class OrbitKS:
         return self.__class__(state=self.state+stepsize*other.state, state_type=self.state_type,
                               T=self.T+stepsize*other.T, L=self.L+stepsize*other.L, S=self.S+stepsize*other.S)
 
-    def jacobian(self, parameter_constraints=(False, False)):
+    def jacobian(self, parameter_constraints=(False, False), preconditioning=None):
         """ Jacobian matrix evaluated at the current state.
         Parameters
         ----------
@@ -565,7 +563,15 @@ class OrbitKS:
         # The Jacobian components for the spatiotemporal Fourier modes
         jac_ = self.jac_lin() + self.jac_nonlin()
         jac_ = self.jacobian_parameter_derivatives_concat(jac_, parameter_constraints=parameter_constraints)
-        return jac_
+
+        if preconditioning == 'right':
+            return np.dot(jac_, self.preconditioner(parameter_constraints=parameter_constraints,
+                                                    preconditioning=preconditioning))
+        elif preconditioning == 'left':
+            return np.dot(self.preconditioner(parameter_constraints=parameter_constraints,
+                                              preconditioning=preconditioning), jac_)
+        else:
+            return jac_
 
     def jacobian_parameter_derivatives_concat(self, jac_, parameter_constraints=(False, False)):
         """ Concatenate parameter partial derivatives to Jacobian matrix
@@ -810,12 +816,12 @@ class OrbitKS:
         the current N and M values as defaults.
 
         """
-        fontsize = kwargs.get('fontsize', 10)
+        # fontsize = kwargs.get('fontsize', 10)
         verbose = kwargs.get('verbose', False)
         extension = kwargs.get('extension', '.png')
         plt.rc('text', usetex=True)
         plt.rc('font', family='serif')
-        plt.rcParams.update({'font.size': fontsize})
+        # plt.rcParams.update({'font.size': fontsize})
         plt.rcParams['text.usetex'] = True
 
         if padding:
@@ -857,12 +863,12 @@ class OrbitKS:
 
         figsize = kwargs.get('figsize', default_figsize)
         fig, ax = plt.subplots(figsize=figsize)
-        image = ax.imshow(orbit_to_plot.state, extent=[0, 0.9*figsize[0], 0, 0.9*figsize[1]],
+        image = ax.imshow(orbit_to_plot.state, extent=[0, orbit_to_plot.L, 0, orbit_to_plot.T],
                           cmap='jet', interpolation='none')
 
-        # Rescale the position of the xticks from x, t units to figure units.
-        xticks = ((xticks - xticks.min()) / (xticks.max()-xticks.min())) * 0.9*figsize[0]
-        yticks = ((yticks - yticks.min()) / (yticks.max()-yticks.min())) * 0.9*figsize[1]
+        # # Rescale the position of the xticks from x, t units to figure units.
+        # xticks = ((xticks - xticks.min()) / (xticks.max()-xticks.min())) * 0.9*figsize[0]
+        # yticks = ((yticks - yticks.min()) / (yticks.max()-yticks.min())) * 0.9*figsize[1]
 
         # Include custom ticks and tick labels
         ax.set_xticks(xticks)
@@ -882,7 +888,8 @@ class OrbitKS:
         divider = make_axes_locatable(ax)
         cax = divider.append_axes('right', size=0.05, pad=0.02)
         cbar = plt.colorbar(image, cax=cax, ticks=cbarticks)
-        cbar.ax.set_yticklabels(cbarticklabels, fontdict={'fontsize': fontsize-2})
+        # cbar.ax.set_yticklabels(cbarticklabels, fontdict={'fontsize': fontsize-2})
+        cbar.ax.set_yticklabels(cbarticklabels)
         plt.tight_layout()
 
         if save:
@@ -947,7 +954,7 @@ class OrbitKS:
 
         return self
 
-    def preconditioner(self, parameter_constraints=(False, False), side='left'):
+    def preconditioner(self, parameter_constraints=(False, False), preconditioning='left'):
         """ Preconditioning matrix
 
         Parameters
@@ -964,22 +971,22 @@ class OrbitKS:
             Preconditioning matrix
 
         """
-        # Preconditioner is the inverse of the aboslute value of the linear spatial derivative operators.
-        qk_matrix = self.elementwise_dxn(self.parameters)
-        ptmp = 1 / (np.abs(self.elementwise_dtn(self.parameters)) + qk_matrix**2 + qk_matrix**4)
-        p = ptmp.ravel()
+        # Preconditioner is the inverse of the absolute value of the linear spatial derivative operators.
+
+        p_multipliers = 1.0 / (np.abs(self.elementwise_dtn(self.parameters))
+                               + np.abs(self.elementwise_dxn(self.parameters, power=2))
+                               + self.elementwise_dxn(self.parameters, power=4))
         parameters = []
         # If including parameters, need an extra diagonal matrix to account for this (right-side preconditioning)
-        if side == 'right':
+        if preconditioning == 'right':
             if not parameter_constraints[0]:
                 parameters.append(1 / self.T)
             if not parameter_constraints[1]:
                 parameters.append(1 / (self.L**4))
-            parameters = np.array(parameters).reshape(1, -1)
-            p_row = np.concatenate((p.reshape(1, -1), parameters.reshape(1, -1)), axis=1)
-            return np.tile(p_row, (p.size, 1))
+            return np.diag(np.concatenate((p_multipliers.reshape(-1, 1),
+                                           np.array(parameters).reshape(-1, 1)), axis=0).ravel())
         else:
-            return np.tile(p.reshape(-1, 1), (1, p.size+(2-sum(parameter_constraints))))
+            return np.diag(p_multipliers.ravel())
 
     def nonlinear(self, other, return_modes=False):
         """ nonlinear computation of the nonlinear term of the Kuramoto-Sivashinsky equation
@@ -1452,8 +1459,12 @@ class OrbitKS:
         """
         return np.dot(self.time_transform_matrix(), self.space_transform_matrix())
 
-    def spatiotemporal_mapping(self):
+    def spatiotemporal_mapping(self, preconditioning=False):
         """ The Kuramoto-Sivashinsky equation evaluated at the current state.
+
+        kwargs :
+        preconditioning : bool
+        Apply custom preconditioner, only used in numerical methods.
 
         Returns
         -------
@@ -1462,13 +1473,24 @@ class OrbitKS:
             OrbitKS.state = u_t + u_xx + u_xxxx + 1/2 (u^2)_x
         :return:
         """
+
+        # to be efficient, should be in modes basis.
         assert self.state_type == 'modes', 'Convert to spatiotemporal Fourier mode basis before computations.'
+
         # to avoid two IFFT calls, convert before nonlinear product
         orbit_field = self.convert(to='field')
+
+        # Compute the Kuramoto-sivashinsky equation
         mapping_modes = (self.dt(return_modes=True) + self.dx(power=2, return_modes=True)
                          + self.dx(power=4, return_modes=True)
                          + orbit_field.nonlinear(orbit_field, return_modes=True))
-        return self.__class__(state=mapping_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
+        # Put the result in an orbit instance.
+        spacetime_mapping = self.__class__(state=mapping_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
+
+        if preconditioning:
+            return spacetime_mapping.precondition(self.parameters)
+        else:
+            return spacetime_mapping
 
     def statemul(self, other):
         """ Elementwise multiplication of two Tori states

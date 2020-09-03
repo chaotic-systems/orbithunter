@@ -2,8 +2,26 @@ from math import pi
 from orbithunter import *
 import numpy as np
 
+__all__ = ['integrate']
+
 
 def dx_spatial_modes(orbit_instance, power=1):
+    """ Modification of spatial derivative method
+
+    Parameters
+    ----------
+    orbit_instance
+    power
+
+    Returns
+    -------
+
+    Notes
+    -----
+    Rewritten to accomodate returning spatial modes.
+
+    """
+
     modes = orbit_instance.convert(to='s_modes').state
     # Elementwise multiplication of modes with frequencies, this is the derivative.
     dxn_modes = np.multiply(orbit_instance.elementwise_dxn(orbit_instance.parameters, power=power), modes)
