@@ -27,3 +27,5 @@ def so2_coefficients(power=1):
     return np.sum(so2_generator(power=power), axis=0)
 
 
+
+

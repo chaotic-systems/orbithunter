@@ -336,7 +336,7 @@ def random_initial_condition(N,M,T,L, **kwargs):
         temporal_spectrum_nozero_tmp = -1.*(temporal_range_nozero-tms)**2
         temporal_spectrum_nozero_tmp = np.tile(temporal_spectrum_nozero_tmp,(1,m))
         temporal_spectrum = np.concatenate((np.concatenate((temporal_spectrum_tmp,temporal_spectrum_tmp),axis=1)
-                                            ,np.concatenate((temporal_spectrum_nozero_tmp,temporal_spectrum_nozero_tmp),axis=1)),axis=0)
+                                            , np.concatenate((temporal_spectrum_nozero_tmp,temporal_spectrum_nozero_tmp),axis=1)),axis=0)
 
         spatiotemporal_spectrum = np.multiply(np.exp(temporal_spectrum),spatially_smoothed)
 
@@ -362,7 +362,7 @@ def random_initial_condition(N,M,T,L, **kwargs):
         renormed_uu = np.reshape(renormed_u,[N,M])
     return renormed_uu
 
-    amplitude = kwargs.get('amplitude',5)
+    amplitude = kwargs.get('amplitude', 5)
     scale_type = kwargs.get('scale_type','nonphysical')
     n = int(N-1)
     m = int(M//2)-1

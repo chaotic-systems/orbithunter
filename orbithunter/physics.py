@@ -35,6 +35,8 @@ def dissipation(orbit_instance, average=None):
     Returns the field, not a scalar (or array thereof), so space or spacetime averages are an additional
     step. This is to be  as flexible as possible; this is really only a function that exists for readability
     but also allows for visualization.
+
+    Field computed is u_xx**2.
     """
 
     return _averaging_wrapper(orbit_instance.dx(power=2).convert(to='field')**2,
@@ -58,7 +60,7 @@ def energy_variation(orbit_instance, average=None):
 
     Returns
     -------
-    Field equivalent to u_t * u.
+    Field equivalent to u_t * u. Spatial average, <u_t * u> should equal <power> - <dissipation> = <u_x**2> - <u_xx**2>
     """
     return _averaging_wrapper(orbit_instance.convert(to='field').statemul(orbit_instance.dt().convert(to='field')),
                               average=average)

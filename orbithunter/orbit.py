@@ -96,7 +96,6 @@ class OrbitKS:
         except ValueError:
             print('Incompatible type provided for field or modes: 2-D NumPy arrays only')
 
-
     def __add__(self, other):
         return self.__class__(state=(self.state + other.state),
                               T=self.T, L=self.L, S=self.S, state_type=self.state_type)
@@ -220,6 +219,32 @@ class OrbitKS:
         return np.concatenate((self.state.reshape(-1, 1),
                                np.array([[float(self.T)]]),
                                np.array([[float(self.L)]])), axis=0)
+
+    def from_numpy_array(self, state_array, **kwargs):
+        """ Utility to convert from numpy array to orbithunter format for scipy wrappers.
+        :param orbit:
+        :param state_array:
+        :param parameter_constraints:
+        :return:
+
+        Notes
+        -----
+        Written as a general method that covers all subclasses instead of writing individual methods.
+        """
+        parameter_constraints = kwargs.get('parameter_constraints', (False, False, False))
+        mode_shape, mode_size = self.state.shape, self.state.size
+        d_modes = state_array.reshape(-1, 1)[:mode_size]
+
+        # slice the changes to parameters from vector
+        d_params = state_array[mode_size:].ravel()
+        for i, constrained in enumerate(parameter_constraints):
+            # if constrained then we put a 0. If there are fewer parameters than constraints then also append 0.
+            if constrained or (i >= len(d_params)):
+                d_params = np.insert(d_params, i, 0)
+
+        dT, dL, dS = d_params
+
+        return self.__class__(state=np.reshape(d_modes, mode_shape), state_type='modes', T=dT, L=dL, S=dS)
 
     def status(self):
         """ Check whether the orbit converged to an equilibrium or close-to-zero solution """
@@ -547,7 +572,7 @@ class OrbitKS:
         return self.__class__(state=self.state+stepsize*other.state, state_type=self.state_type,
                               T=self.T+stepsize*other.T, L=self.L+stepsize*other.L, S=self.S+stepsize*other.S)
 
-    def jacobian(self, parameter_constraints=(False, False), preconditioning=None):
+    def jacobian(self, **kwargs):
         """ Jacobian matrix evaluated at the current state.
         Parameters
         ----------
@@ -560,7 +585,11 @@ class OrbitKS:
             Jacobian matrix of the KSe where n_params = 2 - sum(parameter_constraints)
         """
         self.convert(to='modes', inplace=True)
+
         # The Jacobian components for the spatiotemporal Fourier modes
+        preconditioning = kwargs.get('preconditioning', False)
+        parameter_constraints = kwargs.get('parameter_constraints', (False, False))
+
         jac_ = self.jac_lin() + self.jac_nonlin()
         jac_ = self.jacobian_parameter_derivatives_concat(jac_, parameter_constraints=parameter_constraints)
 
@@ -649,7 +678,7 @@ class OrbitKS:
         """
         return np.linalg.norm(self.state.ravel(), ord=order)
 
-    def matvec(self, other, parameter_constraints=(False, False), preconditioning=True):
+    def matvec(self, other, parameter_constraints=(False, False), preconditioning=True, **kwargs):
         """ Matrix-vector product of a vector with the Jacobian of the current state.
 
         Parameters
@@ -677,8 +706,8 @@ class OrbitKS:
         self_field = self.convert(to='field')
         other_field = other.convert(to='field')
         matvec_modes = (other.dt(return_modes=True) + other.dx(power=2, return_modes=True)
-                         + other.dx(power=4, return_modes=True)
-                         + self_field.nonlinear(other_field, return_modes=True))
+                        + other.dx(power=4, return_modes=True)
+                        + self_field.nonlinear(other_field, return_modes=True))
 
         if not parameter_constraints[0]:
             # Compute the product of the partial derivative with respect to T with the vector's value of T.
@@ -695,7 +724,7 @@ class OrbitKS:
 
         matvec_orbit = self.__class__(state=matvec_modes, state_type='modes', T=self.T, L=self.L)
         if preconditioning:
-            return matvec_orbit.precondition(self.parameters)
+            return matvec_orbit.precondition(self.parameters, **kwargs)
         else:
             return matvec_orbit
 
@@ -918,45 +947,52 @@ class OrbitKS:
         plt.close()
         return None
 
-    def precondition(self, parameters, parameter_constraints=(False, False)):
+    def precondition(self, parameters, **kwargs):
         """ Precondition a vector with the inverse (aboslute value) of linear spatial terms
-
+    
         Parameters
         ----------
-
+    
         target : OrbitKS
             OrbitKS to precondition
         parameter_constraints : (bool, bool)
             Whether or not period T or spatial period L are fixed.
-
+    
         Returns
         -------
         target : OrbitKS
             Return the OrbitKS instance, modified by preconditioning.
-
+    
         Notes
         -----
         Often we want to precondition a state derived from a mapping or rmatvec (gradient descent step),
         with respect to another orbit's (current state's) parameters. By passing parameters we can access the
         cached classmethods.
+    
+        I never preconditioned the spatial shift for relative periodic solutions so I don't include it here.
         """
+        parameter_constraints = kwargs.get('parameter_constraints', (False, False, False))
         p_multipliers = 1.0 / (np.abs(self.elementwise_dtn(parameters))
                                + np.abs(self.elementwise_dxn(parameters, power=2))
                                + self.elementwise_dxn(parameters, power=4))
         self.state = np.multiply(self.state, p_multipliers)
-
-        # Precondition the change in T and L so that they do not dominate
+    
+        # Precondition the change in T and L so that they do not dominate; S accounts for subclasses;
+        # doesn't affect others.
         if not parameter_constraints[0]:
-            self.T = self.T / parameters[0]
-
+            self.T = self.T * (parameters[0]**-1)
+    
         if not parameter_constraints[1]:
-            self.L = self.L / (parameters[1]**4)
-
+            self.L = self.L * (parameters[1]**-4)
+    
+        if not parameter_constraints[2]:
+            self.S = self.S * (parameters[2]**0)
+    
         return self
-
-    def preconditioner(self, parameter_constraints=(False, False), preconditioning='left'):
+    
+    def preconditioner(self, preconditioning='left', **kwargs):
         """ Preconditioning matrix
-
+    
         Parameters
         ----------
         parameter_constraints : (bool, bool)
@@ -964,29 +1000,32 @@ class OrbitKS:
         side : str
             Takes values 'left' or 'right'. This is an accomodation for
             the typically rectangular Jacobian matrix.
-
+    
         Returns
         -------
         matrix :
             Preconditioning matrix
-
+    
         """
         # Preconditioner is the inverse of the absolute value of the linear spatial derivative operators.
 
-        p_multipliers = 1.0 / (np.abs(self.elementwise_dtn(self.parameters))
-                               + np.abs(self.elementwise_dxn(self.parameters, power=2))
-                               + self.elementwise_dxn(self.parameters, power=4))
-        parameters = []
+        p_multipliers = (1.0 / (np.abs(self.elementwise_dtn(self.parameters))
+                                + np.abs(self.elementwise_dxn(self.parameters, power=2))
+                                + self.elementwise_dxn(self.parameters, power=4))).ravel()
+
         # If including parameters, need an extra diagonal matrix to account for this (right-side preconditioning)
         if preconditioning == 'right':
-            if not parameter_constraints[0]:
-                parameters.append(1 / self.T)
-            if not parameter_constraints[1]:
-                parameters.append(1 / (self.L**4))
-            return np.diag(np.concatenate((p_multipliers.reshape(-1, 1),
-                                           np.array(parameters).reshape(-1, 1)), axis=0).ravel())
+            return np.diag(np.concatenate((p_multipliers, self._parameter_preconditioning(**kwargs)), axis=0))
         else:
-            return np.diag(p_multipliers.ravel())
+            return np.diag(p_multipliers)
+
+    def _parameter_preconditioning(self,  parameter_constraints=(False, False)):
+        parameter_multipliers = []
+        if not parameter_constraints[0]:
+            parameter_multipliers.append(self.T**-1)
+        if not parameter_constraints[1]:
+            parameter_multipliers.append(self.L**-4)
+        return np.array(parameter_multipliers)
 
     def nonlinear(self, other, return_modes=False):
         """ nonlinear computation of the nonlinear term of the Kuramoto-Sivashinsky equation
@@ -1118,23 +1157,23 @@ class OrbitKS:
         reflected_field = -1.0*np.roll(np.fliplr(self.convert(to='field').state), 1, axis=1)
         return self.__class__(state=reflected_field, state_type='field', T=self.T, L=self.L, S=-1.0*self.S)
 
-    def renormalize(self, new_absolute_max):
+    def rescale(self, new_absolute_max):
         """ Scalar multiplication
 
         Parameters
         ----------
         num : float
-            Scalar value to renormalize by.
+            Scalar value to rescale by.
 
         Notes
         -----
-        This renormalizes the physical field such that the absolute value of the max/min takes on a new value
+        This rescales the physical field such that the absolute value of the max/min takes on a new value
         of num.
 
         Examples
         --------
-        >>> renormalized_orbit = self // (1.0/2.0)
-        >>> print(np.max(np.abs(renormalized_orbit.state.ravel())))
+        >>> rescaled_orbit = self // (1.0/2.0)
+        >>> print(np.max(np.abs(rescaled_orbit.state.ravel())))
         2.0
         """
         field = self.convert(to='field').state
@@ -1157,7 +1196,7 @@ class OrbitKS:
             u = self.state.ravel()
             return 0.5 * u.dot(u)
 
-    def rmatvec(self, other, parameter_constraints=(False, False), preconditioning=True):
+    def rmatvec(self, other, **kwargs):
         """ Matrix-vector product with the adjoint of the Jacobian
 
         Parameters
@@ -1176,6 +1215,9 @@ class OrbitKS:
             evaluation of -v_t + v_xx + v_xxxx  - (u .* v_x)
 
         """
+        parameter_constraints = kwargs.get('parameter_constraints', (False, False))
+        preconditioning = kwargs.get('preconditioning', False)
+
         assert (self.state_type == 'modes') and (other.state_type == 'modes')
         self_field = self.convert(to='field')
         rmatvec_modes = (-1.0 * other.dt(return_modes=True) + other.dx(power=2, return_modes=True)
@@ -1459,7 +1501,7 @@ class OrbitKS:
         """
         return np.dot(self.time_transform_matrix(), self.space_transform_matrix())
 
-    def spatiotemporal_mapping(self, preconditioning=False):
+    def spatiotemporal_mapping(self, **kwargs):
         """ The Kuramoto-Sivashinsky equation evaluated at the current state.
 
         kwargs :
@@ -1473,9 +1515,9 @@ class OrbitKS:
             OrbitKS.state = u_t + u_xx + u_xxxx + 1/2 (u^2)_x
         :return:
         """
-
+        preconditioning = kwargs.get('preconditioning', False)
         # to be efficient, should be in modes basis.
-        assert self.state_type == 'modes', 'Convert to spatiotemporal Fourier mode basis before computations.'
+        assert self.state_type == 'modes', 'Convert to spatiotemporal Fourier mode basis before computing mapping func.'
 
         # to avoid two IFFT calls, convert before nonlinear product
         orbit_field = self.convert(to='field')
@@ -1784,7 +1826,7 @@ class RelativeOrbitKS(OrbitKS):
     def from_fundamental_domain(self):
         return self.change_reference_frame(to='physical')
 
-    def jacobian(self, parameter_constraints=(False, False, False)):
+    def jacobian(self, **kwargs):
         """ Jacobian that includes the spatial translation term for relative periodic tori
 
         Parameters
@@ -1798,7 +1840,9 @@ class RelativeOrbitKS(OrbitKS):
         matrix :
             Jacobian matrix for relative periodic tori. This is subclass method exists on
         """
-        return super().jacobian(parameter_constraints=parameter_constraints)
+        parameter_constraints = kwargs.get('parameter_constraints', (False, False, False))
+        preconditioning = kwargs.get('preconditioning', False)
+        return super().jacobian(parameter_constraints=parameter_constraints, preconditioning=preconditioning)
 
     def jacobian_parameter_derivatives_concat(self, jac_, parameter_constraints=(False, False, False)):
         """ Concatenate parameter partial derivatives to Jacobian matrix
@@ -1892,7 +1936,17 @@ class RelativeOrbitKS(OrbitKS):
         else:
             return matvec_orbit + matvec_comoving
 
-    def rmatvec(self, other, parameter_constraints=(False, False, False), preconditioning=True, **kwargs):
+    def _parameter_preconditioning(self, parameter_constraints=(False, False, False)):
+        parameter_multipliers = []
+        if not parameter_constraints[0]:
+            parameter_multipliers.append(self.T**-1)
+        if not parameter_constraints[1]:
+            parameter_multipliers.append(self.L**-4)
+        if not parameter_constraints[2]:
+            parameter_multipliers.append(self.S**0)
+        return np.array(parameter_multipliers)
+
+    def rmatvec(self, other, **kwargs):
         """ Extension of the parent method to RelativeOrbitKS
 
         Notes
@@ -1901,6 +1955,8 @@ class RelativeOrbitKS(OrbitKS):
         a class instance and then increments the original rmatvec state, T, L, S with its values.
 
         """
+        parameter_constraints = kwargs.get('parameter_constraints', (False, False, False))
+        preconditioning = kwargs.get('preconditioning', False)
         # For specific computation of the linear component instead
         # of arbitrary derivatives we can optimize the calculation by being specific.
         rmatvec_orbit = super().rmatvec(other, parameter_constraints=parameter_constraints,
@@ -1940,7 +1996,7 @@ class RelativeOrbitKS(OrbitKS):
         #     self.S = args[0]
         return self
 
-    def spatiotemporal_mapping(self):
+    def spatiotemporal_mapping(self, **kwargs):
         """ Extension of OrbitKS method to include co-moving frame term. """
         return super().spatiotemporal_mapping() + self.comoving_mapping_component()
 
@@ -1973,6 +2029,7 @@ class RelativeOrbitKS(OrbitKS):
 
         else:
             return self, 1
+
     def to_fundamental_domain(self):
         return self.change_reference_frame(to='comoving')
 
@@ -2072,7 +2129,7 @@ class AntisymmetricOrbitKS(OrbitKS):
             full_field = np.concatenate((self.reflection().state, self.state), axis=1)
         return self.__class__(state=full_field, state_type='field', T=self.T, L=2.0*self.L)
 
-    def mode_padding(self, size, inplace=False, dimension='space'):
+    def mode_padding(self, size, dimension='space'):
         """ Overwrite of parent method """
         modes = self.convert(to='modes')
         if dimension == 'time':
@@ -2089,7 +2146,7 @@ class AntisymmetricOrbitKS(OrbitKS):
         return self.__class__(state=padded_modes, state_type='modes',
                               T=self.T, L=self.L).convert(to=self.state_type)
 
-    def mode_truncation(self, size, inplace=False, dimension='space'):
+    def mode_truncation(self, size, dimension='space'):
         """ Overwrite of parent method """
         modes = self.convert(to='modes')
         if dimension == 'time':
@@ -2423,7 +2480,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
         field = np.concatenate((self.reflection().state, self.state), axis=0)
         return self.__class__(state=field, state_type='field', T=2*self.T, L=self.L)
 
-    def mode_padding(self, size, inplace=False, dimension='space'):
+    def mode_padding(self, size, dimension='space'):
         """ Overwrite of parent method """
         modes = self.convert(to='modes')
         if dimension == 'time':
@@ -2441,7 +2498,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
         return self.__class__(state=padded_modes, state_type='modes',
                               T=self.T, L=self.L).convert(to=self.state_type)
 
-    def mode_truncation(self, size, inplace=False, dimension='space'):
+    def mode_truncation(self, size, dimension='space'):
         """ Overwrite of parent method """
         modes = self.convert(to='modes')
         if dimension == 'time':
@@ -2454,32 +2511,6 @@ class ShiftReflectionOrbitKS(OrbitKS):
             truncated_modes = np.sqrt(size / modes.M) * modes.state[:, :truncate_number]
         return self.__class__(state=truncated_modes, state_type='modes',
                               T=self.T, L=self.L).convert(to=self.state_type)
-
-    def mode_padding(self, size, dimension='space'):
-        """ Overwrite of parent method """
-        if dimension == 'time':
-            first_half = self.state[:-self.n, :]
-            second_half = self.state[-self.n:, :]
-            padding_number = int((size-self.N) // 2)
-            padding = np.zeros([padding_number, self.state.shape[1]])
-            padded_modes = np.concatenate((first_half, padding, second_half, padding), axis=0)
-        else:
-            padding_number = int((size-self.M) // 2)
-            padding = np.zeros([self.state.shape[0], padding_number])
-            padded_modes = np.concatenate((self.state, padding), axis=1)
-        return self.__class__(state=padded_modes, state_type=self.state_type, T=self.T, L=self.L)
-
-    def mode_truncation(self, size, inplace=False, dimension='space'):
-        """ Overwrite of parent method """
-        if dimension == 'time':
-            truncate_number = int(size // 2) - 1
-            first_half = self.state[:truncate_number+1, :]
-            second_half = self.state[-self.n:-self.n+truncate_number, :]
-            truncated_modes = np.concatenate((first_half, second_half), axis=0)
-        else:
-            truncate_number = int(size // 2) - 1
-            truncated_modes = self.state[:, :truncate_number]
-        return self.__class__(state=truncated_modes, state_type=self.state_type, T=self.T, L=self.L)
 
     @property
     def parameters(self):
@@ -2819,7 +2850,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         return jac_
 
-    def mode_padding(self, size, inplace=False, dimension='space'):
+    def mode_padding(self, size, dimension='space'):
         """ Overwrite of parent method
 
         Notes
@@ -2843,7 +2874,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
                                                                        complex_modes, padding), axis=1)
             return self.__class__(state=padded_modes, state_type='s_modes', L=self.L).convert(to=self.state_type)
 
-    def mode_truncation(self, size, inplace=False, dimension='space'):
+    def mode_truncation(self, size, dimension='space'):
         """ Overwrite of parent method """
         if dimension == 'time':
             s_modes = self.convert(to='s_modes')
@@ -2854,6 +2885,12 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             truncate_number = int(size // 2) - 1
             truncated_modes = modes.state[:, :truncate_number]
             return self.__class__(state=truncated_modes,  state_type='modes', L=self.L).convert(to=self.state_type)
+
+    def _parameter_preconditioning(self, parameter_constraints=(False)):
+        parameter_multipliers = []
+        if not parameter_constraints[0]:
+            parameter_multipliers.append(self.L**-4)
+        return np.array(parameter_multipliers)
 
     def flatten_time_dimension(self):
         """ Discard redundant field information.
@@ -2885,7 +2922,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         save_filename = ''.join([self.__class__.__name__, '_L', Lname, extension])
         return save_filename
 
-    def precondition(self, parameters, parameter_constraints=False):
+    def precondition(self, parameters, parameter_constraints=(False)):
         """ Precondition a vector with the inverse (aboslute value) of linear spatial terms
 
         Parameters
@@ -2906,13 +2943,15 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         Often we want to precondition a state derived from a mapping or rmatvec (gradient descent step),
         with respect to another orbit's (current state's) parameters. By passing parameters we can access the
         cached classmethods.
+
+        I never preconditioned the spatial shift for relative periodic solutions so I don't include it here.
         """
         p_multipliers = 1.0 / (np.abs(self.elementwise_dxn(parameters, power=2))
                                + self.elementwise_dxn(parameters, power=4))
         self.state = np.multiply(self.state, p_multipliers)
         # Precondition the change in T and L so that they do not dominate
-        if not parameter_constraints:
-            self.L = self.L / (parameters[1]**4)
+        if not parameter_constraints[0]:
+            self.L = self.L * (parameters[0]**-4)
 
         return self
 
@@ -2973,8 +3012,10 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         self.convert(to='modes', inplace=True)
         return self
 
-    def rmatvec(self, other, parameter_constraints=False, preconditioning=True, **kwargs):
+    def rmatvec(self, other, **kwargs):
         """ Overwrite of parent method """
+        parameter_constraints = kwargs.get('parameter_constraints', False)
+        preconditioning = kwargs.get('preconditioning', False)
         assert (self.state_type == 'modes') and (other.state_type == 'modes')
         self_field = self.convert(to='field')
         rmatvec_modes = (other.dx(power=2, return_modes=True)
@@ -2997,7 +3038,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         else:
             return rmatvec_orbit
 
-    def spatiotemporal_mapping(self):
+    def spatiotemporal_mapping(self, **kwargs):
         """ The Kuramoto-Sivashinsky equation evaluated at the current state.
 
         Returns
@@ -3243,7 +3284,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
         return jac_
 
-    def mode_padding(self, size, inplace=False, dimension='space'):
+    def mode_padding(self, size, dimension='space'):
         """ Overwrite of parent method
 
         Notes
@@ -3316,7 +3357,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             self.S = args[0]
         return self
 
-    def spatiotemporal_mapping(self):
+    def spatiotemporal_mapping(self, **kwargs):
         """ The Kuramoto-Sivashinsky equation evaluated at the current state.
 
         Returns
