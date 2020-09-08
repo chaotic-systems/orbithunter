@@ -1,7 +1,7 @@
 from __future__ import print_function, division, absolute_import
 import os,sys
 sys.path.insert(0, os.path.abspath(os.path.join(sys.argv[0], '../..')))
-from torihunter import *
+from orbithunter import *
 import numpy as np
 import itertools
 
@@ -33,7 +33,7 @@ def main(*args, **kwargs):
                     all_aliases = list(set(list(itertools.product(*trinary_aliases))))
                     block_aliases = ['_'.join([symmetry,'_'.join(list(alias))]) for alias in all_aliases]
 
-                    if fh.check_tiling_log(block_aliases,folder_containing_logfile):
+                    if fh.check_tiling_log(block_aliases, folder_containing_logfile):
                         print('Attempt already made, skipping',block_aliases[0])
                         pass
                     else:
@@ -42,8 +42,8 @@ def main(*args, **kwargs):
                         blockU,blockN,blockM,blockT,blockL,blockS = block_Orbit_high_res
                         block_pathnames = fh.create_save_data_pathnames(block_Orbit_high_res,directory_structure,custom_name=block_aliases[0],TL=False,NM=False)
                         minN,minM = np.min([16,2**(int(np.log2(max([blockT,2])))+1)]), np.max([16,2**(int(np.log2(blockL)))])
-                        for newN,newM in ((n,m) for n in np.arange(minN,129,16) for m in np.arange(minM,65,16)):
-                            block_Orbit = disc.rediscretize(block_Orbit_high_res,newN=newN,newM=newM)
+                        for new_N,new_M in ((n,m) for n in np.arange(minN,129,16) for m in np.arange(minM,65,16)):
+                            block_Orbit = disc.rediscretize(block_Orbit_high_res,new_N=new_N,new_M=new_M)
                             # ksplot.plot_spatiotemporal_field(block_Orbit,symmetry=symmetry,filename=block_pathnames.initialpng)
                             block_Orbit_adjoint,retcode,res = ks.find_Orbit(block_Orbit,symmetry=symmetry)
                             converged_Orbit,retcode,res = ksdm.find_Orbit(block_Orbit_adjoint,symmetry=symmetry)

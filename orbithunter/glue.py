@@ -50,8 +50,8 @@ def best_rotation(orbit, other_orbit, direction='space'):
 
 
     bestn, bestm = np.unravel_index(np.argmin(resmat), resmat.shape)
-    high_resolution_orbit = rediscretize(field_orbit, newN=16*field_orbit.N, newM=16*field_orbit.M)
-    high_resolution_other_orbit = rediscretize(field_other_orbit, newN=16*field_other_orbit.N, newM=16*field_other_orbit.M)
+    high_resolution_orbit = rediscretize(field_orbit, new_N=16*field_orbit.N, new_M=16*field_orbit.M)
+    high_resolution_other_orbit = rediscretize(field_other_orbit, new_N=16*field_other_orbit.N, new_M=16*field_other_orbit.M)
 
     best_rotation_state = np.roll(np.roll(high_resolution_other_orbit.state, 16*bestm, axis=1), 16*bestn, axis=0)
     highres_rotation_orbit = other_orbit.__class__(state=best_rotation_state, state_type='field',
@@ -148,8 +148,8 @@ def tile(symbol_list, period, speriod, *args, **kwargs):
             blockS = (block_orbit[-1]+Stmp)
             blockN = block_orbit[1]+Ntmp
             blockM = 2*int((block_orbit[2]+Mtmp)/4.)
-            redisc_block_orbit = rediscretize(block_orbit,newM=blockM)
-            redisc_row_orbit = rediscretize(row_orbit,newM=blockM)
+            redisc_block_orbit = rediscretize(block_orbit,new_M=blockM)
+            redisc_row_orbit = rediscretize(row_orbit,new_M=blockM)
             block_orbit = (np.vstack([redisc_block_orbit[0],redisc_row_orbit[0]]),blockN,blockM,blockT,blockL,blockS)
 
     return block_orbit

@@ -10,7 +10,7 @@ warnings.resetwarnings()
 __all__ = ['read_h5', 'parse_class']
 
 
-def read_h5(filename, directory='', data_format='orbithunter', state_type='modes'):
+def read_h5(filename, directory='local', data_format='orbithunter', state_type='modes'):
     if directory == 'local':
         directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/local/')), '')
 
@@ -38,6 +38,7 @@ def read_h5(filename, directory='', data_format='orbithunter', state_type='modes
 
     return verify_integrity(orbit).convert(to=state_type)
 
+
 def parse_class(filename):
     name_string = os.path.basename(filename).split('_')[0]
 
@@ -62,11 +63,13 @@ def parse_class(filename):
     class_generator = class_dict.get(class_name, OrbitKS)
     return class_generator
 
+
 def _make_proper_pathname(pathname_tuple,folder=False):
     if folder:
         return os.path.join(os.path.abspath(os.path.join(*pathname_tuple)), '')
     else:
         return os.path.abspath(os.path.join(*pathname_tuple))
+
 
 def verify_integrity(orbit):
     orbit, code = orbit.status()

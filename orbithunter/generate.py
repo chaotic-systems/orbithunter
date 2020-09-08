@@ -47,7 +47,7 @@ def average_spectrum_initial_condition(param_tuple,*args,**kwargs):
                     wa,qa = 2*pi/Ta,2*pi/La
                     na,ma=int(maxw/wa)*Nstar,int(maxq/qa)*Mstar
                     Natilde,Matilde=na*Nstar,ma*Mstar
-                    Orbit = disc.rediscretize(Orbit,newN=Natilde,newM=Matilde)
+                    Orbit = disc.rediscretize(Orbit,new_N=Natilde,new_M=Matilde)
                     U,_,_,_,_,_ = Orbit
                     uvec=np.reshape(U,[Natilde*Matilde,1])
                     if symmetry=='rpo' or symmetry=='full':
@@ -141,8 +141,8 @@ def glued_initial_condition(OrbitA,OrbitB,*args,**kwargs):
     #     OrbitA_AR,OrbitB_AR = discretization_ratios(OrbitA,OrbitB,gluetype=gluetype)
     #     _,NAAR,MAAR,_,_,_=OrbitA_AR
     #     _,NBAR,MBAR,_,_,_=OrbitB_AR
-    #     # OrbitA_AR_large = disc.rediscretize(OrbitA_AR,newN=8*Na0,newM=8*Ma0)
-    #     # OrbitB_AR_large = disc.rediscretize(OrbitB_AR,newN=8*Nb0,newM=8*Mb0)
+    #     # OrbitA_AR_large = disc.rediscretize(OrbitA_AR,new_N=8*Na0,new_M=8*Ma0)
+    #     # OrbitB_AR_large = disc.rediscretize(OrbitB_AR,new_N=8*Nb0,new_M=8*Mb0)
     #     # OrbitAfull=rpodm.mvf_rotate_Orbit(OrbitA)
     #     # OrbitBfull=rpodm.mvf_rotate_Orbit(OrbitB)
     #     # ARtori = (OrbitAfull,OrbitBfull)
@@ -155,11 +155,11 @@ def glued_initial_condition(OrbitA,OrbitB,*args,**kwargs):
     #     Ctori = chop_fields(OrbitA_R,OrbitB_R,symmetry=symmetry,gluetype=gluetype,buffertype=buffertype)
     #     CBtori = convex_buffer(Ctori,symmetry=symmetry,gluetype=gluetype)
     #     merged_tori= merge_fields(CBtori,symmetry=symmetry,gluetype=gluetype)
-    #     GOrbit = disc.rediscretize(merged_tori,newN=nfinal,newM=mfinal)
+    #     GOrbit = disc.rediscretize(merged_tori,new_N=nfinal,new_M=mfinal)
     #     # GOrbit = disc.residual_guided_discretization(GOrbit,symmetry=symmetry)
     # else:
-    #     OrbitA = disc.rediscretize(OrbitA0,newN=8*Na,newM=8*Ma)
-    #     OrbitB = disc.rediscretize(OrbitB0,newN=8*Nb,newM=8*Mb)
+    #     OrbitA = disc.rediscretize(OrbitA0,new_N=8*Na,new_M=8*Ma)
+    #     OrbitB = disc.rediscretize(OrbitB0,new_N=8*Nb,new_M=8*Mb)
     #     OrbitA_AR,OrbitB_AR = discretization_ratios(OrbitA0,OrbitB0,gluetype=gluetype)
     #     ua,Na,Ma,Ta,La,Sa = OrbitA_AR
     #     ub,Nb,Mb,Tb,Lb,Sb = OrbitB_AR
@@ -179,7 +179,7 @@ def glued_initial_condition(OrbitA,OrbitB,*args,**kwargs):
     #         Ctori0 = chop_fields(Orbit0,Orbit1,symmetry=symmetry,gluetype=gluetype,buffertype=buffertype)
     #         CBtori0 = convex_buffer(Ctori0,symmetry=symmetry,gluetype=gluetype)
     #         merged_tori = merge_fields(CBtori0,symmetry=symmetry,gluetype=gluetype)
-    #         GOrbit0 = disc.rediscretize(merged_tori,newN=nfinal,newM=mfinal)
+    #         GOrbit0 = disc.rediscretize(merged_tori,new_N=nfinal,new_M=mfinal)
     #         # GOrbit0 = disc.residual_guided_discretization(GOrbit0,symmetry=symmetry)
     #         residual = ks.compute_residual_fromtuple(GOrbit0,symmetry=symmetry)
     #         reslist[ncombo]=residual
@@ -201,6 +201,76 @@ def glued_initial_condition(OrbitA,OrbitB,*args,**kwargs):
     #         ncombo+=1
     return ARtori,Rtori,Ctori,CBtori,GOrbit
 
+
+def random_initial_condition(self, T, L, *args, **kwargs):
+        """ Initial a set of random spatiotemporal Fourier modes
+
+        Parameters
+        ----------
+        T : float
+            Time period
+        L : float
+            Space period
+
+        **kwargs
+            time_scale : int
+                The number of temporal frequencies to keep after truncation.
+            space_scale : int
+                The number of spatial frequencies to get after truncation.
+        Returns
+        -------
+        self :
+            OrbitKS whose state has been modified to be a set of random Fourier modes.
+
+        Notes
+        -----
+        Anecdotal evidence suggests that "worse" initial conditions converge more often to solutions of the
+        predetermined symmetry group. In other words it's better to start far away from the chaotic attractor
+        because then it is less likely to start near equilibria. Spatial scale currently unused, still testing
+        for the best random fields.
+
+        """
+        if T == 0.:
+            self.T = 20 + 100*np.random.rand(1)
+        else:
+            self.T = T
+        if L == 0.:
+            self.L = 22 + 44*np.random.rand(1)
+        else:
+            self.L = L
+
+        spectrum_type = kwargs.get('spectrum', 'random')
+        self.N = kwargs.get('N', np.max([32, 2**(int(np.log2(self.T)-1))]))
+        self.M = kwargs.get('M', np.max([2**(int(np.log2(self.L))), 32]))
+        self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
+
+        if spectrum_type == 'gaussian':
+            time_scale = np.min([kwargs.get('time_scale', self.n), self.n])
+            space_scale = np.min([kwargs.get('space_scale', self.m), self.m])
+            # Account for different sized spectra
+            rmodes = np.random.randn(self.N-1, self.M-2)
+            mollifier_exponents = space_scale + -1 * np.tile(np.arange(0, self.m)+1, (self.n, 1))
+            mollifier = 10.0 ** mollifier_exponents
+            mollifier[:, :space_scale] = 1
+            mollifier[time_scale:, :] = 0
+            mollifier = np.concatenate((mollifier, mollifier), axis=1)
+            mollifier = np.concatenate((mollifier, mollifier), axis=0)
+            mollifier = np.concatenate((np.ones([1, self.M-2]), mollifier), axis=0)
+        else:
+            time_scale = np.min([kwargs.get('time_scale', self.n), self.n])
+            space_scale = np.min([kwargs.get('space_scale', self.m), self.m])
+            # Account for different sized spectra
+            rmodes = np.random.randn(self.N-1, self.M-2)
+            mollifier_exponents = space_scale + -1 * np.tile(np.arange(0, self.m)+1, (self.n, 1))
+            mollifier = 10.0 ** mollifier_exponents
+            mollifier[:, :space_scale] = 1
+            mollifier[time_scale:, :] = 0
+            mollifier = np.concatenate((mollifier, mollifier), axis=1)
+            mollifier = np.concatenate((mollifier, mollifier), axis=0)
+            mollifier = np.concatenate((np.ones([1, self.M-2]), mollifier), axis=0)
+        self.state = np.multiply(mollifier, rmodes)
+        self.state_type = 'modes'
+        return self
 
 def random_initial_condition(N,M,T,L, **kwargs):
     amplitude = kwargs.get('amplitude',5)

@@ -133,7 +133,7 @@ def test_integration_tolerance(Orbit_converged,Orbit_init,**kwargs):
     residual = ks.compute_residual_fromtuple(Orbit_converged,symmetry=symmetry)
     NMresidual = NC*MC*residual
     Orbit_integrated = ETDRK4.ETDRK4_timeseries(Orbit_converged,symmetry=symmetry)
-    Orbit_comparison = disc.rediscretize(Orbit_integrated,newN=NC,newM=MC)
+    Orbit_comparison = disc.rediscretize(Orbit_integrated,new_N=NC,new_M=MC)
     u_integrated = Orbit_comparison[0]
 
     converged_integrated_norm = np.linalg.norm(uC.flatten()-u_integrated.flatten())

@@ -14,23 +14,23 @@ def correct_aspect_ratios(orbit, other_orbit, direction='space', **kwargs):
 
         # In order to concatenate the arrays need to have the same size in the transverse direction
         # i.e. in order to concatenate horizontally need to have same height
-        newN = max([mode_orbit.N, mode_other_orbit.N])
+        new_N = max([mode_orbit.N, mode_other_orbit.N])
 
         # The division/multiplication by 2 ensures that new discretization size is an even number.
-        orbit_correct_shape = rediscretize(mode_orbit, newN=newN,
-                                           newM=2*(int(orbit_speriod_fraction*totalM + 1) // 2))
-        other_orbit_correct_shape = rediscretize(mode_other_orbit, newN=newN,
-                                                 newM=2*(int(other_orbit_speriod_fraction*totalM + 1) // 2))
+        orbit_correct_shape = rediscretize(mode_orbit, new_N=new_N,
+                                           new_M=2*(int(orbit_speriod_fraction*totalM + 1) // 2))
+        other_orbit_correct_shape = rediscretize(mode_other_orbit, new_N=new_N,
+                                                 new_M=2*(int(other_orbit_speriod_fraction*totalM + 1) // 2))
     else:
         # Identical explanation as above just different dimension
         orbit_period_fraction = mode_orbit.T / (mode_orbit.T + mode_other_orbit.T)
         other_orbit_period_fraction = mode_other_orbit.T / (mode_orbit.T + mode_other_orbit.T)
         totalN = (mode_orbit.N + mode_other_orbit.N)
-        newM = max([mode_orbit.M, mode_other_orbit.M])
+        new_M = max([mode_orbit.M, mode_other_orbit.M])
         orbit_correct_shape = rediscretize(mode_orbit,
-                                           newN=2*(int(orbit_period_fraction*totalN + 1) // 2), newM=newM)
+                                           new_N=2*(int(orbit_period_fraction*totalN + 1) // 2), new_M=new_M)
         other_orbit_correct_shape = rediscretize(mode_other_orbit,
-                                                 newN=2*(int(other_orbit_period_fraction*totalN + 1) // 2), newM=newM)
+                                                 new_N=2*(int(other_orbit_period_fraction*totalN + 1) // 2), new_M=new_M)
     return (orbit_correct_shape.convert(to=orbit.state_type),
             other_orbit_correct_shape.convert(to=other_orbit.state_type))
 
@@ -76,29 +76,29 @@ def rediscretize(orbit, parameter_based=False, **kwargs):
     placeholder_orbit = orbit.__class__(state=orbit.state, state_type=orbit.state_type,
                                         T=orbit.T, L=orbit.L, S=orbit.S).convert(to='modes')
     if parameter_based:
-        newN, newM = _parameter_based_discretization(orbit, **kwargs)
+        new_N, new_M = _parameter_based_discretization(orbit, **kwargs)
     else:
-        newN, newM = kwargs.get('newN', orbit.N), kwargs.get('newM', orbit.M)
+        new_N, new_M = kwargs.get('new_N', orbit.N), kwargs.get('new_M', orbit.M)
 
-    if newN == orbit.N and newM == orbit.M:
+    if new_N == orbit.N and new_M == orbit.M:
         return orbit
     else:
-        if np.mod(newN, 2) or np.mod(newM, 2):
+        if np.mod(new_N, 2) or np.mod(new_M, 2):
             raise ValueError('New discretization size must be an even number, preferably a power of 2')
         else:
-            if newM == orbit.M:
+            if new_M == orbit.M:
                 pass
-            elif newM > orbit.M:
-                placeholder_orbit = placeholder_orbit.mode_padding(newM, dimension='space')
-            elif newM < orbit.M:
-                placeholder_orbit = placeholder_orbit.mode_truncation(newM, dimension='space')
+            elif new_M > orbit.M:
+                placeholder_orbit = placeholder_orbit.mode_padding(new_M, dimension='space')
+            elif new_M < orbit.M:
+                placeholder_orbit = placeholder_orbit.mode_truncation(new_M, dimension='space')
 
-            if newN == orbit.N:
+            if new_N == orbit.N:
                 pass
-            elif newN > orbit.N:
-                placeholder_orbit = placeholder_orbit.mode_padding(newN, dimension='time')
-            elif newN < orbit.N:
-                placeholder_orbit = placeholder_orbit.mode_truncation(newN, dimension='time')
+            elif new_N > orbit.N:
+                placeholder_orbit = placeholder_orbit.mode_padding(new_N, dimension='time')
+            elif new_N < orbit.N:
+                placeholder_orbit = placeholder_orbit.mode_truncation(new_N, dimension='time')
 
             return placeholder_orbit.convert(to=orbit.state_type)
 

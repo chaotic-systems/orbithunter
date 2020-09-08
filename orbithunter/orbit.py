@@ -71,28 +71,14 @@ class OrbitKS:
     """
 
     def __init__(self, state=None, state_type='modes', T=0., L=0., **kwargs):
-        T, L = float(T), float(L)
+        # Capital letters per Physics conventions for variables.
+        # If no state is provided, randomly generate one.
         try:
             if state is not None:
-                shp = state.shape
-                self.state = state
-                self.state_type = state_type
-                if state_type == 'modes':
-                    # This separate behavior is for Antisymmetric and ShiftReflection Tori;
-                    # This avoids having to define subclass method with repeated code.
-                    self.N, self.M = shp[0] + 1, shp[1] + 2
-                elif state_type == 'field':
-                    self.N, self.M = shp
-                elif state_type == 's_modes':
-                    self.N, self.M = shp[0], shp[1] + 2
-                self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
-                self.T, self.L = T, L
+                self._parse_state(state, state_type, **kwargs)
             else:
-                self.state_type = 'modes'
-                self.random_initial_condition(T, L, **kwargs)
-                self.convert(to='field', inplace=True)
-                self.state = (self // (1.0/4.0)).state
-                self.convert(to='modes', inplace=True)
+                self.random_initial_condition(T, L, **kwargs).convert(to=state_type, inplace=True)
+            self.T, self.L = float(T), float(L)
         except ValueError:
             print('Incompatible type provided for field or modes: 2-D NumPy arrays only')
 
@@ -814,6 +800,21 @@ class OrbitKS:
         save_filename = ''.join([self.__class__.__name__, '_L', Lname, '_T', Tname, extension])
         return save_filename
 
+    def _parse_state(self, state, state_type, **kwargs):
+        shp = state.shape
+        self.state = state
+        self.state_type = state_type
+        if state_type == 'modes':
+            # This separate behavior is for Antisymmetric and ShiftReflection Tori;
+            # This avoids having to define subclass method with repeated code.
+            self.N, self.M = shp[0] + 1, shp[1] + 2
+        elif state_type == 'field':
+            self.N, self.M = shp
+        elif state_type == 's_modes':
+            self.N, self.M = shp[0], shp[1] + 2
+        self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
+        return self
+
     def plot(self, show=True, save=False, padding=True, fundamental_domain=True, **kwargs):
         """ Plot the velocity field as a 2-d density plot using matplotlib's imshow
 
@@ -828,9 +829,9 @@ class OrbitKS:
         fundamental_domain : bool
             Whether to plot only the fundamental domain or not.
         **kwargs :
-            newN : int
+            new_N : int
                 Even integer for the new discretization size in time
-            newM : int
+            new_M : int
                 Even integer for the new discretization size in space.
             filename : str
                 The (custom) save name of the figure, if save==True. Save name will be generated otherwise.
@@ -838,7 +839,7 @@ class OrbitKS:
                 The location to save to, if save==True
         Notes
         -----
-        newN and newM are accessed via .get() because this is the only manner in which to incorporate
+        new_N and new_M are accessed via .get() because this is the only manner in which to incorporate
         the current N and M values as defaults.
 
         """
@@ -851,8 +852,8 @@ class OrbitKS:
         plt.rcParams['text.usetex'] = True
 
         if padding:
-            pad_n, pad_m = kwargs.get('newN', 32*self.N), kwargs.get('newM', 16*self.M)
-            plot_orbit_tmp = rediscretize(self, newN=pad_n, newM=pad_m)
+            pad_n, pad_m = kwargs.get('new_N', 32*self.N), kwargs.get('new_M', 16*self.M)
+            plot_orbit_tmp = rediscretize(self, new_N=pad_n, new_M=pad_m)
         else:
             plot_orbit_tmp = self
 
@@ -1068,76 +1069,6 @@ class OrbitKS:
         else:
             return -1.0 * self.statemul(other.dx().convert(to='field')).convert(to='modes')
 
-    def random_initial_condition(self, T, L, *args, **kwargs):
-        """ Initial a set of random spatiotemporal Fourier modes
-
-        Parameters
-        ----------
-        T : float
-            Time period
-        L : float
-            Space period
-
-        **kwargs
-            time_scale : int
-                The number of temporal frequencies to keep after truncation.
-            space_scale : int
-                The number of spatial frequencies to get after truncation.
-        Returns
-        -------
-        self :
-            OrbitKS whose state has been modified to be a set of random Fourier modes.
-
-        Notes
-        -----
-        Anecdotal evidence suggests that "worse" initial conditions converge more often to solutions of the
-        predetermined symmetry group. In other words it's better to start far away from the chaotic attractor
-        because then it is less likely to start near equilibria. Spatial scale currently unused, still testing
-        for the best random fields.
-
-        """
-        if T == 0.:
-            self.T = 20 + 100*np.random.rand(1)
-        else:
-            self.T = T
-        if L == 0.:
-            self.L = 22 + 44*np.random.rand(1)
-        else:
-            self.L = L
-
-        spectrum_type = kwargs.get('spectrum', 'random')
-        self.N = kwargs.get('N', np.max([32, 2**(int(np.log2(self.T)-1))]))
-        self.M = kwargs.get('M', np.max([2**(int(np.log2(self.L))), 32]))
-        self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
-
-        if spectrum_type == 'gaussian':
-            time_scale = np.min([kwargs.get('time_scale', self.n), self.n])
-            space_scale = np.min([kwargs.get('space_scale', self.m), self.m])
-            # Account for different sized spectra
-            rmodes = np.random.randn(self.N-1, self.M-2)
-            mollifier_exponents = space_scale + -1 * np.tile(np.arange(0, self.m)+1, (self.n, 1))
-            mollifier = 10.0 ** mollifier_exponents
-            mollifier[:, :space_scale] = 1
-            mollifier[time_scale:, :] = 0
-            mollifier = np.concatenate((mollifier, mollifier), axis=1)
-            mollifier = np.concatenate((mollifier, mollifier), axis=0)
-            mollifier = np.concatenate((np.ones([1, self.M-2]), mollifier), axis=0)
-            self.state = np.multiply(mollifier, rmodes)
-        else:
-            time_scale = np.min([kwargs.get('time_scale', self.n), self.n])
-            space_scale = np.min([kwargs.get('space_scale', self.m), self.m])
-            # Account for different sized spectra
-            rmodes = np.random.randn(self.N-1, self.M-2)
-            mollifier_exponents = space_scale + -1 * np.tile(np.arange(0, self.m)+1, (self.n, 1))
-            mollifier = 10.0 ** mollifier_exponents
-            mollifier[:, :space_scale] = 1
-            mollifier[time_scale:, :] = 0
-            mollifier = np.concatenate((mollifier, mollifier), axis=1)
-            mollifier = np.concatenate((mollifier, mollifier), axis=0)
-            mollifier = np.concatenate((np.ones([1, self.M-2]), mollifier), axis=0)
-            self.state = np.multiply(mollifier, rmodes)
-        return self
-
     def reflection(self):
         """ Reflect the velocity field about the spatial midpoint
 
@@ -1161,13 +1092,7 @@ class OrbitKS:
         Notes
         -----
         This rescales the physical field such that the absolute value of the max/min takes on a new value
-        of num.
-
-        Examples
-        --------
-        >>> rescaled_orbit = self // (1.0/2.0)
-        >>> print(np.max(np.abs(rescaled_orbit.state.ravel())))
-        2.0
+        of num
         """
         field = self.convert(to='field').state
         state = new_absolute_max * field / np.max(np.abs(field.ravel()))
@@ -1680,30 +1605,7 @@ class OrbitKS:
 class RelativeOrbitKS(OrbitKS):
 
     def __init__(self, state=None, state_type='field', T=0., L=0., S=0., frame='comoving', **kwargs):
-        T, L, S = float(T), float(L), float(S)
-        try:
-            if state is not None:
-                shp = state.shape
-                self.state = state
-                self.state_type = state_type
-                if state_type == 'modes':
-                    # This separate behavior is for Antisymmetric and ShiftReflection Tori;
-                    # This avoids having to define subclass method with repeated code.
-                    self.N, self.M = shp[0] + 1, shp[1] + 2
-                elif state_type == 'field':
-                    self.N, self.M = shp
-                elif state_type == 's_modes':
-                    self.N, self.M = shp[0], shp[1] + 2
-                self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
-                self.T, self.L = T, L
-            else:
-                self.state_type = 'modes'
-                self.random_initial_condition(T, L, **kwargs)
-                self.convert(to='field', inplace=True)
-                self.state = (self // (1.0/4.0)).state
-                self.convert(to='modes', inplace=True)
-        except ValueError:
-            print('Incompatible type provided for field or modes: 2-D NumPy arrays only')
+        super().__init__(state=state, state_type=state_type, T=T, L=L, **kwargs)
         # For uniform save format
         self.frame = frame
         self.S = S
@@ -1975,6 +1877,21 @@ class RelativeOrbitKS(OrbitKS):
             parameter_multipliers.append(self.S**0)
         return np.array(parameter_multipliers)
 
+    def _parse_state(self, state, state_type, **kwargs):
+        shp = state.shape
+        self.state = state
+        self.state_type = state_type
+        if state_type == 'modes':
+            # This separate behavior is for Antisymmetric and ShiftReflection Tori;
+            # This avoids having to define subclass method with repeated code.
+            self.N, self.M = shp[0] + 1, shp[1] + 2
+        elif state_type == 'field':
+            self.N, self.M = shp
+        elif state_type == 's_modes':
+            self.N, self.M = shp[0], shp[1] + 2
+        self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
+        return self
+
     def rmatvec(self, other, **kwargs):
         """ Extension of the parent method to RelativeOrbitKS
 
@@ -2066,26 +1983,7 @@ class RelativeOrbitKS(OrbitKS):
 class AntisymmetricOrbitKS(OrbitKS):
 
     def __init__(self, state=None, state_type='field', T=0., L=0., **kwargs):
-        T, L = float(T), float(L)
-        try:
-            if state is not None:
-                shp = state.shape
-                self.state = state
-                self.state_type = state_type
-                if state_type == 'modes':
-                    self.N, self.M = shp[0] + 1, 2*shp[1] + 2
-                elif state_type == 'field':
-                    self.N, self.M = shp
-                elif state_type == 's_modes':
-                    self.N, self.M = shp[0], shp[1]+2
-
-                self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
-                self.T, self.L = T, L
-            else:
-                self.random_initial_condition(T, L, **kwargs)
-
-        except ValueError:
-            print('Incompatible type provided for field or modes: 2-D NumPy arrays only')
+        super().__init__(state=state, state_type=state_type, T=T, L=L, **kwargs)
 
     def dx(self, power=1, return_modes=False):
         """ Overwrite of parent method """
@@ -2192,6 +2090,20 @@ class AntisymmetricOrbitKS(OrbitKS):
     @property
     def parameters(self):
         return self.T, self.L, self.S, self.N, self.M, max([self.n, 1]), self.m, max([self.N-1, 1]), self.m
+
+    def _parse_state(self, state, state_type, **kwargs):
+        shp = state.shape
+        self.state = state
+        self.state_type = state_type
+        if state_type == 'modes':
+            self.N, self.M = shp[0] + 1, 2*shp[1] + 2
+        elif state_type == 'field':
+            self.N, self.M = shp
+        elif state_type == 's_modes':
+            self.N, self.M = shp[0], shp[1]+2
+
+        self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
+        return self
 
     def nonlinear(self, other, return_modes=False):
         """ nonlinear computation of the nonlinear term of the Kuramoto-Sivashinsky equation
@@ -2420,25 +2332,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
         Technically could inherit some functions from AntisymmetricOrbitKS but in regards to the Physics
         going on it is more coherent to have it as a subclass of OrbitKS only.
         """
-        T, L = float(T), float(L)
-        try:
-            if state is not None:
-                shp = state.shape
-                self.state = state
-                self.state_type = state_type
-                if state_type == 'modes':
-                    self.N, self.M = shp[0] + 1, 2*shp[1] + 2
-                elif state_type == 'field':
-                    self.N, self.M = shp
-                elif state_type == 's_modes':
-                    self.N, self.M = shp[0], shp[1]+2
-                self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
-                self.T, self.L = T, L
-            else:
-                self.random_initial_condition(T=T, L=L, **kwargs)
-            # For uniform save format
-        except ValueError:
-            print('Incompatible type provided for field or modes: 2-D NumPy arrays only')
+        super().__init__(state=state, state_type=state_type, T=T, L=L, **kwargs)
 
     def dx(self, power=1, return_modes=False):
         """ Overwrite of parent method """
@@ -2544,6 +2438,19 @@ class ShiftReflectionOrbitKS(OrbitKS):
     @property
     def parameters(self):
         return self.T, self.L, self.S, self.N, self.M, max([self.n, 1]), self.m, max([self.N-1, 1]), self.m
+
+    def _parse_state(self, state, state_type, **kwargs):
+        shp = state.shape
+        self.state = state
+        self.state_type = state_type
+        if state_type == 'modes':
+            self.N, self.M = shp[0] + 1, 2*shp[1] + 2
+        elif state_type == 'field':
+            self.N, self.M = shp
+        elif state_type == 's_modes':
+            self.N, self.M = shp[0], shp[1]+2
+        self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
+        return self
 
     def nonlinear(self, other, return_modes=False):
         """ nonlinear computation of the nonlinear term of the Kuramoto-Sivashinsky equation
@@ -2810,27 +2717,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         # to_fundamental_domain
 
         """
-        L = float(L)
-        if state.ndim == 1:
-            state = state.reshape(1, -1)
-        try:
-            if state is not None:
-                shp = state.shape
-                self.state = state
-                self.state_type = state_type
-                if state_type == 'modes':
-                    self.N, self.M = shp[0], 2*shp[1] + 2
-                elif state_type == 'field':
-                    self.N, self.M = shp
-                elif state_type == 's_modes':
-                    self.N, self.M = shp[0], shp[1]+2
-            else:
-                self.random_initial_condition(L=L, **kwargs)
-            self.n, self.m = 1, int(self.M // 2) - 1
-        except ValueError:
-            print('Incompatible type provided for field or modes: 2-D NumPy arrays only')
-        self.L = L
-        # For uniform save format
+        super().__init__(state=state, state_type=state_type, T=0., L=L, **kwargs)
 
     def state_vector(self):
         """ Overwrite of parent method """
@@ -2942,6 +2829,19 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
     @property
     def parameters(self):
         return self.T, self.L, self.S, self.N, self.M, max([self.n, 1]), self.m, 1, self.m
+
+    def _parse_state(self, state, state_type, **kwargs):
+        shp = state.shape
+        self.state = state
+        self.state_type = state_type
+        if state_type == 'modes':
+            self.N, self.M = shp[0], 2*shp[1] + 2
+        elif state_type == 'field':
+            self.N, self.M = shp
+        elif state_type == 's_modes':
+            self.N, self.M = shp[0], shp[1]+2
+        self.n, self.m = 1, int(self.M // 2) - 1
+        return self
 
     def parameter_dependent_filename(self, extension='.h5', decimals=2):
         Lsplit = str(self.L).split('.')
@@ -3165,41 +3065,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
     def __init__(self, state=None, state_type='field', T=0., L=0., S=0., frame='comoving', **kwargs):
-        T, L, S = float(T), float(L), float(S)
-        try:
-            if state is not None:
-                # This is the best way I've found for passing modes but also wanting N != 1. without specifying
-                # the keyword argument.
-                shp = state.shape
-                self.state = state
-                self.state_type = state_type
-                if state_type == 'modes':
-                    # This separate behavior is for Antisymmetric and ShiftReflection Tori;
-                    # This avoids having to define subclass method with repeated code.
-                    self.state = self.state[-1, :].reshape(1, -1)
-                    self.N, self.M = shp[0], shp[1] + 2
-                elif state_type == 'field':
-                    self.N, self.M = shp
-                elif state_type == 's_modes':
-                    self.N, self.M = shp[0], shp[1] + 2
-
-                # To allow for multiple time point fields and spatial modes, for plotting purposes.
-                expanded_time_dimension = kwargs.get('N', 1)
-                if expanded_time_dimension != 1:
-                    self.N = expanded_time_dimension
-                self.n, self.m = 1, int(self.M // 2) - 1
-                self.T, self.L = T, L
-            else:
-                self.state_type = 'modes'
-                self.random_initial_condition(T, L, **kwargs)
-                self.convert(to='field', inplace=True)
-                self.state = (self // (1.0/4.0)).state
-                self.convert(to='modes', inplace=True)
-        except ValueError:
-            print('Incompatible type provided for field or modes: 2-D NumPy arrays only')
-        # For uniform save format
-        self.frame = frame
-        self.S = S
+        super().__init__(state=state, state_type=state_type, T=T, L=L, S=S, frame=frame, **kwargs)
 
     def calculate_shift(self, inplace=False):
         """ Calculate the phase difference between the spatial modes at t=0 and t=T
@@ -3374,6 +3240,29 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
     @property
     def parameters(self):
         return self.T, self.L, self.S, self.N, self.M, max([self.n, 1]), self.m, 1, self.M-2
+
+    def _parse_state(self, state, state_type, **kwargs):
+        # This is the best way I've found for passing modes but also wanting N != 1. without specifying
+        # the keyword argument.
+        shp = state.shape
+        self.state = state
+        self.state_type = state_type
+        if state_type == 'modes':
+            # This separate behavior is for Antisymmetric and ShiftReflection Tori;
+            # This avoids having to define subclass method with repeated code.
+            self.state = self.state[-1, :].reshape(1, -1)
+            self.N, self.M = shp[0], shp[1] + 2
+        elif state_type == 'field':
+            self.N, self.M = shp
+        elif state_type == 's_modes':
+            self.N, self.M = shp[0], shp[1] + 2
+
+        # To allow for multiple time point fields and spatial modes, for plotting purposes.
+        expanded_time_dimension = kwargs.get('N', 1)
+        if expanded_time_dimension != 1:
+            self.N = expanded_time_dimension
+        self.n, self.m = 1, int(self.M // 2) - 1
+        return self
 
     def random_initial_condition(self, T, L, *args, **kwargs):
         """ Extension of parent modes to include spatial-shift initialization """

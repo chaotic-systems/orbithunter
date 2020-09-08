@@ -183,17 +183,17 @@ def converge_tiles():
     # Tmin,Tmax,Xmin,Xmax = 0,15,0,2.2
     # Orbit = Orbit_io.import_Orbit(halfdefect_and_defect_import_filepath)
     # u,n,m,t,l,s = Orbit
-    # newN,newM=16*n,16*m
-    # Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    # new_N,new_M=16*n,16*m
+    # Orbit=disc.rediscretize(Orbit,new_N=new_N,new_M=new_M)
     # Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
     # ksplot.plot_spatiotemporal_field(Orbit,symmetry=symmetry,display_flag=True)
     # ksplot.plot_spatiotemporal_field(Orbit,symmetry='none',display_flag=True)
     #
     # uw,nw,mw,tw,lw,sw = Orbit
-    # smalln,smallm = 2*int((nw/(2*newN))*n),2*int((mw/(2*newM))*m)
+    # smalln,smallm = 2*int((nw/(2*new_N))*n),2*int((mw/(2*new_M))*m)
     # # smalln,smallm = 2,4
     #
-    # Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    # Orbit=disc.rediscretize(Orbit,new_N=smalln,new_M=smallm)
     # Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry)
     # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
     # newsymm=test.retest_symmetry_type(Orbit_f,symmetry=symmetry)
@@ -211,12 +211,12 @@ def converge_tiles():
     # final_dataname = os.path.abspath(os.path.join(savedir,"./data/MNG_defectf.h5"))
     # Orbit = Orbit_io.import_Orbit(halfdefect_and_defect_import_filepath)
     # u,n,m,t,l,s = Orbit
-    # newN,newM=16*n,16*m
-    # Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    # new_N,new_M=16*n,16*m
+    # Orbit=disc.rediscretize(Orbit,new_N=new_N,new_M=new_M)
     # Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax)
     # uw,nw,mw,tw,lw,sw = Orbit
-    # smalln,smallm = 2*int((nw/newN)*n),2*int((mw/newM)*m)
-    # Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    # smalln,smallm = 2*int((nw/new_N)*n),2*int((mw/new_M)*m)
+    # Orbit=disc.rediscretize(Orbit,new_N=smalln,new_M=smallm)
     # Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry)
     # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
     # newsymm=test.retest_symmetry_type(Orbit_f,symmetry=symmetry)
@@ -239,12 +239,12 @@ def converge_tiles():
     # Tmin,Tmax,Xmin,Xmax = 18,35,0.6,3
     # Orbit = Orbit_io.import_Orbit(halfdefect2_import_filepath)
     # u,n,m,t,l,s = Orbit
-    # newN,newM=16*n,16*m
-    # Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    # new_N,new_M=16*n,16*m
+    # Orbit=disc.rediscretize(Orbit,new_N=new_N,new_M=new_M)
     # Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax)
     # uw,nw,mw,tw,lw,sw = Orbit
-    # smalln,smallm = 2*int((nw/newN)*n),2*int((mw/newM)*m)
-    # Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    # smalln,smallm = 2*int((nw/new_N)*n),2*int((mw/new_M)*m)
+    # Orbit=disc.rediscretize(Orbit,new_N=smalln,new_M=smallm)
     # Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry)
     # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
     # newsymm = retest_symmetry_type(Orbit_f,symmetry=symmetry)
@@ -267,16 +267,16 @@ def converge_tiles():
     # #Half cell shift then x[1,2.5] t[0,10.25]
     # Tmin,Tmax,Xmin,Xmax = 0,10.5,0.5,2.7
     # u,n,m,t,l,s = Orbit
-    # newN,newM=16*n,16*m
-    # Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    # new_N,new_M=16*n,16*m
+    # Orbit=disc.rediscretize(Orbit,new_N=new_N,new_M=new_M)
     # Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
     # uw,nw,mw,tw,lw,sw = Orbit
-    # smalln,smallm = 2*int((nw/newN)*n),2*int((mw/newM)*m)
-    # Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    # smalln,smallm = 2*int((nw/new_N)*n),2*int((mw/new_M)*m)
+    # Orbit=disc.rediscretize(Orbit,new_N=smalln,new_M=smallm)
     #
-    # # smalln,smallm = int((nw/newN)*n),int((mw/newM)*m)
+    # # smalln,smallm = int((nw/new_N)*n),int((mw/new_M)*m)
     # smalln,smallm = 16,20
-    # Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    # Orbit=disc.rediscretize(Orbit,new_N=smalln,new_M=smallm)
     # Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry)
     # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
     # newsymm=test.retest_symmetry_type(Orbit_f,symmetry=symmetry)
@@ -302,14 +302,14 @@ def converge_tiles():
     # _,_,_,_,L,_ = Orbit
     # rotatex = -L/2.
     # u,n,m,t,l,s = Orbit
-    # newN,newM=16*n,16*m
-    # Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    # new_N,new_M=16*n,16*m
+    # Orbit=disc.rediscretize(Orbit,new_N=new_N,new_M=new_M)
     # Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
     # ksplot.plot_spatiotemporal_field(Orbit,symmetry=symmetry,display_flag=True)
     #
     # uw,nw,mw,tw,lw,sw = Orbit
-    # smalln,smallm = 4*int((nw/newN)*n),2*int((mw/newM)*m)
-    # Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    # smalln,smallm = 4*int((nw/new_N)*n),2*int((mw/new_M)*m)
+    # Orbit=disc.rediscretize(Orbit,new_N=smalln,new_M=smallm)
     # Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry)
     # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
     # newsymm=test.retest_symmetry_type(Orbit_f,symmetry=symmetry)
@@ -330,12 +330,12 @@ def converge_tiles():
     # Orbit = Orbit_io.import_Orbit(hookondefect3_import_filepath)
     # Tmin,Tmax,Xmin,Xmax = 0,25,0,2.5
     # u,n,m,t,l,s = Orbit
-    # newN,newM=16*n,16*m
-    # Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    # new_N,new_M=16*n,16*m
+    # Orbit=disc.rediscretize(Orbit,new_N=new_N,new_M=new_M)
     # Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax)
     # uw,nw,mw,tw,lw,sw = Orbit
-    # smalln,smallm = 2*int((nw/newN)*n),2*int((mw/newM)*m)
-    # Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    # smalln,smallm = 2*int((nw/new_N)*n),2*int((mw/new_M)*m)
+    # Orbit=disc.rediscretize(Orbit,new_N=smalln,new_M=smallm)
     # Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry)
     # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
     # newsymm=test.retest_symmetry_type(Orbit_f,symmetry=symmetry)
@@ -362,13 +362,13 @@ def converge_tiles():
     # rotatex = 1./(L/(2*pi))*L
     # Tmin,Tmax,Xmin,Xmax = 30,50,0.6,3.0
     # u,n,m,t,l,s = Orbit
-    # newN,newM=16*n,16*m
-    # Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    # new_N,new_M=16*n,16*m
+    # Orbit=disc.rediscretize(Orbit,new_N=new_N,new_M=new_M)
     # Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
     # ksplot.plot_spatiotemporal_field(Orbit,symmetry=symmetry,display_flag=True)
     # uw,nw,mw,tw,lw,sw = Orbit
-    # smalln,smallm = 4*int((nw/newN)*n),2*int((mw/newM)*m)
-    # Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    # smalln,smallm = 4*int((nw/new_N)*n),2*int((mw/new_M)*m)
+    # Orbit=disc.rediscretize(Orbit,new_N=smalln,new_M=smallm)
     # Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry)
     # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
     # newsymm=test.retest_symmetry_type(Orbit_f,symmetry=symmetry)
@@ -392,10 +392,10 @@ def converge_tiles():
     # convarray = np.zeros([len(range(minN,maxN,4)),len(range(minM,maxM,4))])
     # ncount = 1
     # mcount = 0
-    # for newN in range(minN,maxN,4):
-    #     for newM in range(minM,maxM,4):
-    #         step_max = 32*newN*newM
-    #         Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    # for new_N in range(minN,maxN,4):
+    #     for new_M in range(minM,maxM,4):
+    #         step_max = 32*new_N*new_M
+    #         Orbit=disc.rediscretize(Orbit,new_N=new_N,new_M=new_M)
     #         Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry,step_max=step_max)
     #         Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
     #         newsymm=test.retest_symmetry_type(Orbit_f,symmetry=symmetry)
@@ -403,7 +403,7 @@ def converge_tiles():
     #             convarray[-ncount,mcount]=1
     #         else:
     #             print('################################## FAILURE ##############################################################')
-    #         ksplot.plot_spatiotemporal_field(Orbit_f,symmetry=symmetry,filename=''.join([str(newN),'p',str(newM),'.png']))
+    #         ksplot.plot_spatiotemporal_field(Orbit_f,symmetry=symmetry,filename=''.join([str(new_N),'p',str(new_M),'.png']))
     #
     #         mcount+=1
     #     ncount+=1
@@ -439,13 +439,13 @@ def converge_tiles():
     # Tmin,Tmax,Xmin,Xmax = 0,15,0,2.7
     # Orbit = Orbit_io.import_Orbit(gap_import_filepath)
     # u,n,m,t,l,s = Orbit
-    # newN,newM=16*n,16*m
-    # Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    # new_N,new_M=16*n,16*m
+    # Orbit=disc.rediscretize(Orbit,new_N=new_N,new_M=new_M)
     # Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax)
     # # ksplot.plot_spatiotemporal_field(Orbit,symmetry=symmetry,display_flag=True)
     # uw,nw,mw,tw,lw,sw = Orbit
-    # smalln,smallm = 2*int((nw/newN)*n),2*int((mw/newM)*m)
-    # Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    # smalln,smallm = 2*int((nw/new_N)*n),2*int((mw/new_M)*m)
+    # Orbit=disc.rediscretize(Orbit,new_N=smalln,new_M=smallm)
     # Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry)
     # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
     # # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit,symmetry=symmetry)
@@ -466,14 +466,14 @@ def converge_tiles():
     # Tmin,Tmax,Xmin,Xmax = 5,25,0,2.8
     # Orbit = Orbit_io.import_Orbit(gap2_import_filepath)
     # u,n,m,t,l,s = Orbit
-    # newN,newM=16*n,16*m
+    # new_N,new_M=16*n,16*m
     # rotatex=0.1*(2*pi)
-    # Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    # Orbit=disc.rediscretize(Orbit,new_N=new_N,new_M=new_M)
     # Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
     # ksplot.plot_spatiotemporal_field(Orbit,symmetry='none',display_flag=True)
     # uw,nw,mw,tw,lw,sw = Orbit
-    # smalln,smallm = 4*int((nw/newN)*n),2*int((mw/newM)*m)
-    # Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    # smalln,smallm = 4*int((nw/new_N)*n),2*int((mw/new_M)*m)
+    # Orbit=disc.rediscretize(Orbit,new_N=smalln,new_M=smallm)
     # Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry)
     # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
     # # Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit,symmetry=symmetry)
@@ -496,16 +496,16 @@ def converge_tiles():
     u,n,m,t,L,s = threetoone_initial
     rotatex = -1.4*2*pi
     Tmin,Tmax,Xmin,Xmax = 10,t/2,0,0
-    newN,newM=16*n,16*m
-    Orbit=disc.rediscretize(threetoone_initial,newN=newN,newM=newM)
+    new_N,new_M=16*n,16*m
+    Orbit=disc.rediscretize(threetoone_initial,new_N=new_N,new_M=new_M)
     Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
     ksplot.plot_spatiotemporal_field(Orbit,symmetry=symmetry,display_flag=True)
 
     uw,nw,mw,tw,lw,sw = Orbit
-    # smalln,smallm = 4*int((nw/(2*newN))*n),2*int((mw/(2*newM))*m)
+    # smalln,smallm = 4*int((nw/(2*new_N))*n),2*int((mw/(2*new_M))*m)
     # smalln,smallm = 2**(int(np.log2(lw))),2**(int(np.log2(tw))+1)
     smalln,smallm = 24,32
-    Orbit=disc.rediscretize(Orbit,newN=smalln,newM=smallm)
+    Orbit=disc.rediscretize(Orbit,new_N=smalln,new_M=smallm)
     Orbit_adj,retcode,res = ks.find_Orbit(Orbit,symmetry=symmetry,step_max=64*smalln*smallm)
     Orbit_f,retcode,stats = ksdm.find_Orbit(Orbit_adj,symmetry=symmetry)
     if retcode:
@@ -530,7 +530,7 @@ def plot_converged_tiles():
     '''Defect 1'''
     defect1_filepath = os.path.abspath(os.path.join(data_dir,"./tiles/defects/defect1/final_tile/rpo_L13p02_T15.h5"))
     defect1_Orbit = Orbit_io.import_Orbit(defect1_filepath)
-    defect1_Orbit = disc.rediscretize(defect1_Orbit,newN=32,newM=32)
+    defect1_Orbit = disc.rediscretize(defect1_Orbit,new_N=32,new_M=32)
     uu,n,m,t,l,s = defect1_Orbit
     ld,td = l,t
 
@@ -542,7 +542,7 @@ def plot_converged_tiles():
     '''Hook'''
     hook_filepath = os.path.abspath(os.path.join(data_dir,"./tiles/hook/final_tile/rpo_L13p07_T10.h5"))
     hook_Orbit = Orbit_io.import_Orbit(hook_filepath)
-    hook_Orbit = disc.rediscretize(hook_Orbit,newN=32,newM=32)
+    hook_Orbit = disc.rediscretize(hook_Orbit,new_N=32,new_M=32)
     uu,n,m,t,l,s = hook_Orbit
     lh,th = l,t
     # uu = -1*np.fliplr(np.roll(uu,-3,axis=1))
@@ -719,11 +719,11 @@ def plot_largeL(*args,**kwargs):
 
     ux_tuple = (uux,N,M,T,L0,0)
     ut_tuple = (uut,N,M,T,L0,0)
-    uxxxx_tuple= disc.rediscretize((uuxxxx,N,M,T,L0,0),newN=8192,newM=8192)
-    uux_tuple = disc.rediscretize((np.multiply(uu,uux),N,M,T,L0,0),newN=8192,newM=8192)
-    D_tuple = disc.rediscretize((np.multiply(uux,uux),N,M,T,L0,0),newN=8192,newM=8192)
-    P_tuple = disc.rediscretize((np.multiply(uuxx,uuxx),N,M,T,L0,0),newN=8192,newM=8192)
-    uxx_tuple = disc.rediscretize((uuxx,N,M,T,L0,0),newN=8192,newM=8192)
+    uxxxx_tuple= disc.rediscretize((uuxxxx,N,M,T,L0,0),new_N=8192,new_M=8192)
+    uux_tuple = disc.rediscretize((np.multiply(uu,uux),N,M,T,L0,0),new_N=8192,new_M=8192)
+    D_tuple = disc.rediscretize((np.multiply(uux,uux),N,M,T,L0,0),new_N=8192,new_M=8192)
+    P_tuple = disc.rediscretize((np.multiply(uuxx,uuxx),N,M,T,L0,0),new_N=8192,new_M=8192)
+    uxx_tuple = disc.rediscretize((uuxx,N,M,T,L0,0),new_N=8192,new_M=8192)
 
 
 
@@ -753,11 +753,11 @@ def plot_frankenstein_tiling(**kwargs):
     streak = Orbit_io.import_Orbit(streak)
     U,N,M,T,L,S = hookondefect
 
-    hookondefect = disc.rediscretize(hookondefect,newN=16*N,newM=16*M)
+    hookondefect = disc.rediscretize(hookondefect,new_N=16*N,new_M=16*M)
     hookondefect = symm.rotation(hookondefect,-2*2*pi,direction=1)
     hookondefect = sub.windowed_subdomain(hookondefect,35,55,0,2.4)
     hookondefect = symm.frame_rotation(hookondefect)
-    halfdefect = disc.rediscretize(halfdefect,newN=16*N,newM=16*M)
+    halfdefect = disc.rediscretize(halfdefect,new_N=16*N,new_M=16*M)
     halfdefect = sub.windowed_subdomain(halfdefect,18,38,0.8,3)
 
 
@@ -767,7 +767,7 @@ def plot_frankenstein_tiling(**kwargs):
     Orbit_io.export_Orbit(hookondefect,os.path.abspath(os.path.join(tilingdir,'./HOD.h5')),symmetry='rpo')
     Orbit_io.export_Orbit(halfdefect,os.path.abspath(os.path.join(tilingdir,'./HD.h5')),symmetry='rpo')
 
-    doublestreak= disc.rediscretize_eqva(streak,newN=hookondefect[1],newM=hookondefect[2]//2)
+    doublestreak= disc.rediscretize_eqva(streak,new_N=hookondefect[1],new_M=hookondefect[2]//2)
     u,n,m,t,l,s = doublestreak
     u = 2*u/np.max(u)
     dst = (np.concatenate((u,u),axis=1),n,2*m,2*l,2*l,0)
@@ -789,10 +789,10 @@ def plot_frankenstein_tiling(**kwargs):
     ksplot.plot_spatiotemporal_field(hookondefect, symmetry='none',filename=hodpng,padding=False,dpi=dpi)
     ksplot.plot_spatiotemporal_field(HDRt, symmetry='none',filename=hdpng,padding=False,dpi=dpi)
 
-    dsttwo = disc.rediscretize(dst,newN=HDRt[1])
+    dsttwo = disc.rediscretize(dst,new_N=HDRt[1])
     HDR_ds_t =(np.concatenate((dsttwo[0],HDRt[0]),axis=1),dsttwo[1],HDRt[2]+dsttwo[2],15,HDRt[4]+dsttwo[4],0)
     HDR_ds_t = symm.rotation(HDR_ds_t,-0.25*HDR_ds_t[4])
-    HDR_ds_t = disc.rediscretize(HDR_ds_t,newM=HODds_HODRds_t[2])
+    HDR_ds_t = disc.rediscretize(HDR_ds_t,new_M=HODds_HODRds_t[2])
     fundamental_domain = (np.concatenate((HDR_ds_t[0],HODds_HODRds_t[0]),axis=0),HDR_ds_t[1]+HODds_HODRds_t[1],HODds_HODRds_t[2],88.62262688790827/2.,30.141720076724777,0)
 
     ppo_initial = symm.relevant_symmetry_operation(fundamental_domain,symmetry='ppo')
@@ -1139,13 +1139,13 @@ def tile_properties():
     rotatex = 1./(L/(2*pi))*L
     Tmin,Tmax,Xmin,Xmax = 30,50,0.6,3.0
     u,n,m,t,l,s = Orbit
-    newN,newM=16*n,16*m
-    Orbit=disc.rediscretize(Orbit,newN=newN,newM=newM)
+    new_N,new_M=16*n,16*m
+    Orbit=disc.rediscretize(Orbit,new_N=new_N,new_M=new_M)
     hookondefect_Orbit=sub.windowed_subdomain(Orbit,Tmin,Tmax,Xmin,Xmax,rotatex=rotatex)
     # ksplot.plot_spatiotemporal_field(Orbit,symmetry='rpo',display_flag=True)
     uw,nw,mw,tw,lw,sw = hookondefect_Orbit
-    smalln,smallm = 4*int((nw/newN)*n),2*int((mw/newM)*m)
-    Orbit=disc.rediscretize(hookondefect_Orbit,newN=smalln,newM=smallm)
+    smalln,smallm = 4*int((nw/new_N)*n),2*int((mw/new_M)*m)
+    Orbit=disc.rediscretize(hookondefect_Orbit,new_N=smalln,new_M=smallm)
     ksplot.plot_spatiotemporal_field(Orbit,display_flag=True,symmetry='none')
 
     uu,N,M,T,L,S = Orbit
@@ -1328,7 +1328,7 @@ def reconverge_defect():
     symmetry='none'
     defect1_filepath = os.path.abspath(os.path.join(data_dir,"./tiles/defects/defect1/final_tile/rpo_L13p02_T15.h5"))
     defect1_Orbit = Orbit_io.import_Orbit(defect1_filepath)
-    Orbit = disc.rediscretize(defect1_Orbit,newN=32,newM=32)
+    Orbit = disc.rediscretize(defect1_Orbit,new_N=32,new_M=32)
     Orbit = symm.frame_rotation(Orbit)
     uu,n,m,t,l,s = Orbit
     # Orbit = (uu,n,m,t,l,0)

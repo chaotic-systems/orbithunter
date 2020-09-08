@@ -298,7 +298,7 @@ def main(*args,**kwargs):
     N,M = np.shape(uu)
     S = 0
     field_tuple = (uu,N,M,T,L0,S)
-    # field_tuple = rediscretize(field_tuple,newN=2**int(np.log2(N)-2))
+    # field_tuple = rediscretize(field_tuple,new_N=2**int(np.log2(N)-2))
     # uu_field,N,M,T,L,S = field_tuple
     # Ne,Me = np.shape(uu)
 
@@ -312,4 +312,6 @@ def main(*args,**kwargs):
 
 
 if __name__=='__main__':
-    main(init='random',integration_time=2000+491,transient_time=2000,domain_size=495.02,spatial_discretization=2048,step_size=0.1)
+    main(init='random',integration_time=2000+491,
+         transient_time=2000,domain_size=495.02,
+         spatial_discretization=2048,step_size=0.1)
