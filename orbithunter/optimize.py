@@ -71,61 +71,77 @@ class OrbitResult(dict):
         return list(self.keys())
 
 
-def converge(orbit_, *args, method='hybrid', **kwargs):
+def converge(orbit_, method='hybrid', **kwargs):
     orbit_.convert(to='modes', inplace=True)
-    if kwargs.get('verbose', False):
-        print('Starting {} numerical method. Initial residual {}'.format(method, orbit_.residual()))
+    if not (orbit_.residual() < kwargs.get('orbit_tol', orbit_.M * orbit_.N * 10**-6)):
 
-    if method == 'hybrid':
-        adjoint_orbit, nit_a, _ = _adjoint_descent(orbit_, **kwargs)
-        result_orbit, nit_gn, exit_code = _gauss_newton(adjoint_orbit, **kwargs)
-        nit = (nit_a, nit_gn)
-    elif method == 'adj':
-        result_orbit, nit, exit_code = _adjoint_descent(orbit_, **kwargs)
-    elif method == 'lstsq':
-        result_orbit, nit, exit_code = _gauss_newton(orbit_, **kwargs)
-    elif method == 'gmres':
-        result_orbit, nit, exit_code = _gmres(orbit_, **kwargs)
-    elif method == 'newton_krylov':
-        result_orbit, nit, exit_code = _scipy_newton_krylov_wrapper(orbit_, **kwargs)
-    elif method in ['lsqr', 'lsmr']:
-        result_orbit, nit, exit_code = _scipy_sparse_linalg_solver_wrapper(orbit_, *args, method=method, **kwargs)
-    elif method in ['cg', 'l-bfgs-b']:
-        result_orbit, nit, exit_code = _scipy_optimize_minimize_wrapper(orbit_, method=method, **kwargs)
-    elif method in ['lm', 'linearmixing', 'excitingmixing']:
-        result_orbit, nit, exit_code = _scipy_optimize_root_wrapper(orbit_, method=method, **kwargs)
+        if kwargs.get('verbose', False):
+            print('Starting {} numerical method. Initial residual {}'.format(method, orbit_.residual()))
 
+        if method == 'hybrid':
+            adjoint_orbit, n_iter_a, _ = _adjoint_descent(orbit_, **kwargs)
+            result_orbit, n_iter_gn, exit_code = _gauss_newton(adjoint_orbit, **kwargs)
+            n_iter = (n_iter_a, n_iter_gn)
+        elif method == 'adj':
+            result_orbit, n_iter, exit_code = _adjoint_descent(orbit_, **kwargs)
+        elif method == 'lstsq':
+            result_orbit, n_iter, exit_code = _gauss_newton(orbit_, **kwargs)
+        elif method in ['lsqr', 'lsmr']:
+            result_orbit, n_iter, exit_code = _scipy_sparse_linalg_solver_wrapper(orbit_, method=method, **kwargs)
+        elif method in ['cg', 'newton-cg', 'l-bfgs-b', 'tnc']:
+            result_orbit, n_iter, exit_code = _scipy_optimize_minimize_wrapper(orbit_, method=method, **kwargs)
+        elif method in ['lm', 'lgmres', 'gmres', 'minres']:
+            result_orbit, n_iter, exit_code = _scipy_optimize_root_wrapper(orbit_, method=method, **kwargs)
+        else:
+            raise ValueError('Unknown solver %s' % method)
+
+        if kwargs.get('verbose', False):
+            print_exit_messages(result_orbit, exit_code)
+        return OrbitResult(orbit=result_orbit, exit_code=exit_code, n_iter=n_iter)
     else:
-        raise ValueError('Unknown solver %s' % method)
-
-    if kwargs.get('verbose', False):
-        print_exit_messages(result_orbit, exit_code)
-
-    return OrbitResult(orbit=result_orbit, exit_code=exit_code, nit=nit)
+        return OrbitResult(orbit=orbit_, exit_code=1, n_iter=0)
 
 
-def _adjoint_descent(orbit_, **kwargs):
+def _adjoint_descent(orbit_, preconditioning=True, ftol=1e-8, **orbithunter_kwargs):
+    """
+    Parameters
+    ----------
+    orbit_
+    preconditioning
+    orbithunter_kwargs
+
+    Returns
+    -------
+
+    Notes
+    -----
+    Preconditioning left out of **orbithunter_kwargs because of its special usage
+
+    """
+
     # Specific modifying exponent for changes in period, domain_size
     # Absolute tolerance for the descent method.
-    atol = 10 ** -6
-    max_iter = kwargs.get('max_iter', 16 * orbit_.N * orbit_.M)
-    preconditioning = kwargs.get('preconditioning', True)
+    tol = orbithunter_kwargs.get('orbit_tol', orbit_.M * orbit_.N * 10**-6)
+    maxiter = orbithunter_kwargs.get('orbit_maxiter', 16 * orbit_.N * orbit_.M)
 
     step_size = 1
     n_iter = 0
     # By default assume failure
     exit_code = 0
 
-    mapping = orbit_.spatiotemporal_mapping()
+    mapping = orbit_.spatiotemporal_mapping(**orbithunter_kwargs)
     residual = mapping.residual(apply_mapping=False)
-
-    while residual > atol and n_iter < max_iter:
+    while residual > tol and n_iter < maxiter:
         # Calculate the step
-        dx = orbit_.rmatvec(mapping, **kwargs)
+        if preconditioning:
+            dx = orbit_.rmatvec(mapping, **orbithunter_kwargs).precondition(orbit_.parameters)
+        else:
+            dx = orbit_.rmatvec(mapping, **orbithunter_kwargs)
+
         # Apply the step
         next_orbit = orbit_.increment(dx, stepsize=-1.0 * step_size)
         # Calculate the mapping and store; need it for next step and to compute residual.
-        next_mapping = next_orbit.spatiotemporal_mapping()
+        next_mapping = next_orbit.spatiotemporal_mapping(**orbithunter_kwargs)
         # Compute residual to see if step succeeded
         next_residual = next_mapping.residual(apply_mapping=False)
 
@@ -133,44 +149,47 @@ def _adjoint_descent(orbit_, **kwargs):
             # reduce the step size until minimum is reached or residual decreases.
             step_size = 0.5 * step_size
             next_orbit = orbit_.increment(dx, stepsize=-1.0 * step_size)
-            next_mapping = next_orbit.spatiotemporal_mapping()
+            next_mapping = next_orbit.spatiotemporal_mapping(**orbithunter_kwargs)
             next_residual = next_mapping.residual(apply_mapping=False)
             if step_size <= 10 ** -8:
                 return orbit_, n_iter, exit_code
         else:
+            fval = (residual - next_residual) / max([residual, next_residual, 1])
+            if fval < ftol:
+                return orbit_, n_iter, exit_code
             # Update and restart loop if residual successfully decreases.
             orbit_, mapping, residual = next_orbit, next_mapping, next_residual
             n_iter += 1
-            if kwargs.get('verbose', False):
+            if orbithunter_kwargs.get('verbose', False):
                 if np.mod(n_iter, 2500) == 0:
                     print('Step number {} residual {}'.format(n_iter, orbit_.residual()))
                 elif np.mod(n_iter, 100) == 0:
                     print('.', end='')
                 sys.stdout.flush()
 
-    if orbit_.residual() <= atol:
+    if orbit_.residual() <= tol:
         orbit, exit_code = orbit_.status()
-    elif n_iter == max_iter:
+    elif n_iter == maxiter:
         exit_code = 2
 
     return orbit_, n_iter, exit_code
 
 
-def _gauss_newton(orbit_, max_iter=500, max_damp_factor=9, **kwargs):
+def _gauss_newton(orbit_, maxiter=200, max_damp_factor=9, **orbithunter_kwargs):
     # use .get() so orbit_ can be referenced.
-    atol = kwargs.get('atol', orbit_.N * orbit_.M * 10 ** -15)
+    tol = orbithunter_kwargs.get('orbit_tol', orbit_.N * orbit_.M * 10 ** -6)
 
     n_iter = 0
     exit_code = 0
     damp_factor = 0
 
     residual = orbit_.residual()
-    while residual > atol and n_iter < max_iter:
+    while residual > tol and n_iter < maxiter:
         damp_factor = 0
         n_iter += 1
-        A = orbit_.jacobian(**kwargs)
-        b = -1.0 * orbit_.spatiotemporal_mapping(**kwargs).state.ravel()
-        dorbit = orbit_.from_numpy_array(lstsq(A, b.reshape(-1, 1))[0], **kwargs)
+        A = orbit_.jacobian(**orbithunter_kwargs)
+        b = -1.0 * orbit_.spatiotemporal_mapping(**orbithunter_kwargs).state.ravel()
+        dorbit = orbit_.from_numpy_array(lstsq(A, b.reshape(-1, 1))[0], **orbithunter_kwargs)
 
         # To avoid redundant function calls, store optimization variables using
         # clunky notation.
@@ -188,15 +207,15 @@ def _gauss_newton(orbit_, max_iter=500, max_damp_factor=9, **kwargs):
             orbit_ = next_orbit
             residual = next_residual
 
-            if kwargs.get('verbose', False):
+            if orbithunter_kwargs.get('verbose', False):
                 print(damp_factor, end='')
                 if np.mod(n_iter, 50) == 0:
                     print('step ', n_iter, ' residual ', orbit_.residual())
                 sys.stdout.flush()
 
-    if orbit_.residual() <= atol:
+    if orbit_.residual() <= tol:
         orbit, exit_code = orbit_.status()
-    elif n_iter == max_iter:
+    elif n_iter == maxiter:
         exit_code = 2
     elif damp_factor > max_damp_factor:
         exit_code = 0
@@ -206,95 +225,118 @@ def _gauss_newton(orbit_, max_iter=500, max_damp_factor=9, **kwargs):
     return orbit_, n_iter, exit_code
 
 
-def _gmres(orbit_, max_iter=500, parameter_constraints=(False, False, False), max_damp_factor=9, **kwargs):
-    # A, b, x0=None, tol=1e-05, restart=None, maxiter=None, M=None, callback=None, atol=None, callback_type=None
-    return None, None, None
-
-
-def _scipy_sparse_linalg_solver_wrapper(orbit_, max_damp_factor=8, atol=1e-06, btol=1e-06,
+def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-03, btol=1e-03,
                                         method='lsqr', maxiter=None, conlim=1e+08,
-                                        show=False, calc_var=False, **kwargs):
+                                        show=False, calc_var=False, **orbithunter_kwargs):
+
     linear_operator_shape = (orbit_.state.size, orbit_.state_vector().size)
     istop = 1
-    exit_code = 0
-    itn = 0
+    n_iter = 0
+    orbit_n_iter = 0
     # Return codes that represent good results from the SciPy least-squares solvers.
     good_codes = [0, 1, 2, 4, 5]
-    while (orbit_.residual() > atol) and (istop in good_codes):
+    residual = orbit_.residual()
+
+    orbit_tol = orbithunter_kwargs.get('orbit_tol', 1e-6)
+    orbit_maxiter = orbithunter_kwargs.get('orbit_maxiter', 16*orbit_.N*orbit_.M)
+    max_damp_factor = orbithunter_kwargs.get('orbit_damp_max', 8)
+    preconditioning = orbithunter_kwargs.get('preconditioning', False)
+
+    while (residual > orbit_tol) and (istop in good_codes) and orbit_n_iter < orbit_maxiter:
+        orbit_n_iter += 1
+
         # The operator depends on the current state; A=A(orbit)
         def rmv_func(v):
             # _process_newton_step turns state vector into class object.
-            v_orbit = orbit_.from_numpy_array(v, **kwargs)
+            v_orbit = orbit_.from_numpy_array(v, **orbithunter_kwargs)
             v_orbit.T, v_orbit.L, v_orbit.S = orbit_.T, orbit_.L, orbit_.S
-            rmatvec_result = orbit_.rmatvec(v_orbit, **kwargs).state_vector().reshape(-1, 1)
-            return rmatvec_result
+            rmatvec_orbit = orbit_.rmatvec(v_orbit, **orbithunter_kwargs)
+            if preconditioning:
+                return rmatvec_orbit.precondition(orbit_.parameters).state_vector().reshape(-1, 1)
+            else:
+                return rmatvec_orbit.state_vector().reshape(-1, 1)
 
         def mv_func(v):
             # _state_vector_to_orbit turns state vector into class object.
-            v_orbit = orbit_.from_numpy_array(v, **kwargs)
+            v_orbit = orbit_.from_numpy_array(v, **orbithunter_kwargs)
             v_orbit.T, v_orbit.L, v_orbit.S = orbit_.T, orbit_.L, orbit_.S
-            return orbit_.matvec(v_orbit, **kwargs).state.reshape(-1, 1)
+            matvec_orbit = orbit_.matvec(v_orbit, **orbithunter_kwargs)
+            if preconditioning:
+                return matvec_orbit.precondition(orbit_.parameters).state.reshape(-1, 1)
+            else:
+                return matvec_orbit.state.reshape(-1, 1)
 
         orbit_linear_operator = LinearOperator(linear_operator_shape, mv_func, rmatvec=rmv_func, dtype=float)
-        b = -1.0 * orbit_.spatiotemporal_mapping().state.reshape(-1, 1)
+        b = -1.0 * orbit_.spatiotemporal_mapping(**orbithunter_kwargs).state.reshape(-1, 1)
         damp_factor = 0
+
         if method == 'lsmr':
-            result_tuple = lsmr(orbit_linear_operator, b, atol=atol, btol=btol,
+            result_tuple = lsmr(orbit_linear_operator, b, damp=damp, atol=atol, btol=btol,
                                 conlim=conlim, maxiter=maxiter, show=show)
         elif method == 'lsqr':
             # Depends heavily on scaling of the problem.
-            result_tuple = lsqr(orbit_linear_operator, b, atol=atol, btol=btol, conlim=conlim,
+            result_tuple = lsqr(orbit_linear_operator, b, damp=damp, atol=atol, btol=btol, conlim=conlim,
                                 iter_lim=maxiter, show=show, calc_var=calc_var)
         else:
             raise ValueError('Unknown solver %s' % method)
 
         x = result_tuple[0]
         istop = result_tuple[1]
-        itn += result_tuple[2]
+        n_iter += result_tuple[2]
 
-        dorbit = orbit_.from_numpy_array(x, **kwargs)
+        dorbit = orbit_.from_numpy_array(x, **orbithunter_kwargs)
         next_orbit = orbit_.increment(dorbit)
-        while next_orbit.residual() > orbit_.residual():
+        next_residual = next_orbit.residual()
+        while next_residual > residual:
             damp_factor += 1
             next_orbit = orbit_.increment(dorbit, stepsize=2 ** -damp_factor)
+            next_residual = next_orbit.residual()
             if damp_factor > max_damp_factor:
-                return orbit_, itn, exit_code
+                return orbit_, n_iter, istop
         else:
             orbit_ = next_orbit
-            if kwargs.get('verbose', False):
-                print(damp_factor, end='')
-    exit_code = 1
-    return orbit_, itn, exit_code
+            residual = next_residual
+            if orbithunter_kwargs.get('verbose', False):
+                if not (np.mod(orbit_n_iter, (orbit_maxiter // 10))):
+                    print('#', end='')
+    return orbit_, n_iter, istop
 
 
 def _scipy_optimize_minimize_wrapper(orbit_, method=None, bounds=None,
-                                     tol=None, callback=None, options=None, **kwargs):
-    
+                                     tol=None, callback=None, options=None, **orbithunter_kwargs):
+
+    # The performance of the different methods depends on preconditioning differently/
+    if method in ['newton-cg', 'tnc'] and orbithunter_kwargs.get('jacobian_on', True):
+        # This is a work-around to have different defaults for the different methods.
+        preconditioning = orbithunter_kwargs.get('preconditioning', False)
+    elif method in ['cg', 'l-bfgs-b'] and orbithunter_kwargs.get('jacobian_on', True):
+        # This is a work-around to have different defaults for the different methods.
+        preconditioning = orbithunter_kwargs.get('preconditioning', True)
+
     def _cost_function_scipy_minimize(x):
         '''
         :param x0: (n,) numpy array
         :param args: time discretization, space discretization, subClass from orbit.py
         :return: value of cost functions (0.5 * L_2 norm of spatiotemporal mapping squared)
         '''
-    
+
         '''
         Note that passing Class as a function avoids dangerous statements using eval()
         '''
-        x_orbit = orbit_.from_numpy_array(x)
+        x_orbit = orbit_.from_numpy_array(x, **orbithunter_kwargs)
         return x_orbit.residual()
-    
-    
+
     def _cost_function_jac_scipy_minimize(x):
         """ The jacobian of the cost function (scalar) can be expressed as a vector product
-    
+
         Parameters
         ----------
         x
         args
-    
+
         Returns
         -------
-    
+
         Notes
         -----
         The gradient of 1/2 F^2 = J^T F, rmatvec is a function which does this matrix vector product
@@ -302,26 +344,48 @@ def _scipy_optimize_minimize_wrapper(orbit_, method=None, bounds=None,
         """
 
         x_orbit = orbit_.from_numpy_array(x)
-        return x_orbit.rmatvec(x_orbit.spatiotemporal_mapping()).state_vector().ravel()
-    
-    if method in ['cg', 'bfgs', 'newton-cg', 'l-bfgs-b', 'tnc']:
-        jac_ = _cost_function_jac_scipy_minimize
-    else:
-        jac_ = None
+        if preconditioning:
+            return (x_orbit.rmatvec(x_orbit.spatiotemporal_mapping(), **orbithunter_kwargs)
+                    ).precondition(x_orbit.parameters).state_vector().ravel()
+        else:
+            return x_orbit.rmatvec(x_orbit.spatiotemporal_mapping(), **orbithunter_kwargs).state_vector().ravel()
 
-    result = minimize(_cost_function_scipy_minimize, orbit_.state_vector(),
-                      method=method, jac=jac_, bounds=bounds, tol=tol,
-                      callback=callback, options=options)
-    result_orbit = orbit_.from_numpy_array(result.x)
-    return result_orbit, result.nit, result.success
+    orbit_n_iter = 0
+    success = 0
+
+    while ((orbit_.residual() > orbithunter_kwargs.get('orbit_tol', orbit_.M * orbit_.N * 10**-6))
+           and (orbit_n_iter < orbithunter_kwargs.get('orbit_maxiter', 100))):
+        orbit_n_iter += 1
+        result = minimize(_cost_function_scipy_minimize, orbit_.state_vector(),
+                          method=method, jac=_cost_function_jac_scipy_minimize, bounds=bounds, tol=tol,
+                          callback=callback, options=options)
+        orbit_ = orbit_.from_numpy_array(result.x)
+        success = result.success
+    return orbit_, orbit_n_iter, success
 
 
-def _scipy_optimize_root_wrapper(orbit_, method=None, tol=None, callback=None, options=None, **kwargs):
-    # I really don't like this workaround but scipy.optimize.root can't handle unexpected arguments.
-    parameter_constraints = kwargs.get('parameter_constraints', (False, False, False))
+def _scipy_optimize_root_wrapper(orbit_, method=None, tol=None, callback=None, options=None, **orbithunter_kwargs):
+    """ Wrapper for scipy.optimize.root methods
 
-    # define the functions using orbit instance within scope instead of passing orbit 
-    # instance as arg to scipy functions. 
+    Parameters
+    ----------
+    orbit_
+    method
+    tol
+    callback
+    options
+    orbithunter_kwargs
+
+    Returns
+    -------
+
+    Notes
+    -----
+    Does not allow for preconditioning currently. Only supports the following methods: 'lm', 'lgmres', 'gmres', 'minres'
+
+    """
+    # define the functions using orbit instance within scope instead of passing orbit
+    # instance as arg to scipy functions.
 
     def _cost_function_scipy_root(x):
         '''
@@ -329,79 +393,65 @@ def _scipy_optimize_root_wrapper(orbit_, method=None, tol=None, callback=None, o
         :param args: time discretization, space discretization, subClass from orbit.py
         :return: value of cost functions (0.5 * L_2 norm of spatiotemporal mapping squared)
         '''
-    
+
         '''
         Note that passing Class as a function avoids dangerous statements using eval()
         '''
-        x_orbit = orbit_.from_numpy_array(x, parameter_constraints=parameter_constraints)
+        x_orbit = orbit_.from_numpy_array(x, **orbithunter_kwargs)
         n_params = x_orbit.state_vector().size - x_orbit.state.size
         # Root requires input shape = output shape.
-        return np.concatenate((x_orbit.spatiotemporal_mapping().state.ravel(), np.zeros(n_params)), axis=0)
-
+        return np.concatenate((x_orbit.spatiotemporal_mapping(**orbithunter_kwargs).state.ravel(),
+                               np.zeros(n_params)), axis=0)
 
     def _cost_function_jac_scipy_root(x):
         """ The jacobian of the cost function (scalar) can be expressed as a vector product
-    
+
         Parameters
         ----------
         x
         args
-    
+
         Returns
         -------
-    
+
         Notes
         -----
         The gradient of 1/2 F^2 = J^T F, rmatvec is a function which does this matrix vector product
         Will always use preconditioned version by default, not sure if wise.
         """
 
-        x_orbit = orbit_.from_numpy_array(x, parameter_constraints=parameter_constraints)
-        return np.concatenate((x_orbit.jacobian(), np.zeros([x_orbit.state_vector().size - x_orbit.state.size,
-                                                             x_orbit.state_vector().size])), axis=0)
+        x_orbit = orbit_.from_numpy_array(x, **orbithunter_kwargs)
+        n_params = x_orbit.state_vector().size - x_orbit.state.size
+        return np.concatenate((x_orbit.jacobian(**orbithunter_kwargs),
+                               np.zeros([n_params, x_orbit.state_vector().size])), axis=0)
 
-    result = root(_cost_function_scipy_root, orbit_.state_vector(),
-                  method=method, jac=_cost_function_jac_scipy_root, tol=tol,
-                  callback=callback, options=options)
-    result_orbit = orbit_.from_numpy_array(result.x)
-    return result_orbit, 0, result.success
+    # If not providing jacobian numerical approximation is used which can be beneficial.
+    if method == 'lm' and orbithunter_kwargs.get('jacobian_on', True):
+        jac_ = _cost_function_jac_scipy_root
+    elif method in ['lgmres', 'gmres', 'minres']:
+        jac_ = None
+        # These methods are actually inner loop methods of 'krylov' method; need to be passed into options dict.
+        #
+        if options is None:
+            options = {'jac_options': {'method': method}}
+            method = 'krylov'
+        elif isinstance(options, dict):
+            options['method'] = method
+            options['jac_options'] = {'method': method}
+    else:
+        jac_ = None
 
-
-def _scipy_newton_krylov_wrapper(orbit_, **kwargs):
-    """
-
-    Parameters
-    ----------
-    orbit
-    kwargs
-
-    Returns
-    -------
-
-    Notes
-    -----
-    There are advantages and disadvantages of using this over scipy.optimize.root(method='krylov'). The biggest
-    disadvantage (in my eyes) is the inability to pass *args to the solver. This means that the cost function cannot
-    be written using instance methods + conversion to and from numpy arrays. Instead, the cost function will be returned
-    by another wrapper which can be passed the instance.
-
-    """
-    nk_kwarg_list = ['iter', 'rdiff', 'method', 'inner_maxiter', 'inner_M', 'outer_k',
-                     'verbose', 'maxiter', 'f_tol', 'f_rtol', 'x_tol', 'x_rtol',
-                     'tol_norm', 'line_search', 'callback']
-
-    nkkwargs = {nk_key: kwargs.get(nk_key, None) for nk_key in nk_kwarg_list}
-
-    def _cost_func_newton_krylov(x):
-        # _state_vector_to_orbit turns state vector into class instance of the same type as orbit_.
-        x_orbit = orbit_.from_numpy_array(orbit_, x, **kwargs)
-        # Root requires input shape = output shape.
-        n_params = orbit_.state_vector().size - orbit_.state.ravel().size
-        return np.concatenate((x_orbit.spatiotemporal_mapping().state.ravel(), np.zeros(n_params)))
-
-    scipy_optimize_result = newton_krylov(_cost_func_newton_krylov, orbit_.state_vector(), **nkkwargs)
-    result_orbit = orbit_.from_numpy_array(scipy_optimize_result.x)
-    return result_orbit, 0, scipy_optimize_result.success
+    orbit_n_iter = 0
+    success = 0
+    while ((orbit_.residual() > orbithunter_kwargs.get('orbit_tol', orbit_.M * orbit_.N * 10**-6))
+           and (orbit_n_iter < orbithunter_kwargs.get('orbit_maxiter', 100))):
+        orbit_n_iter += 1
+        result = root(_cost_function_scipy_root, orbit_.state_vector(),
+                      method=method, jac=jac_, tol=tol,
+                      callback=callback, options=options)
+        orbit_ = orbit_.from_numpy_array(result.x, **orbithunter_kwargs)
+        success = result.success
+    return orbit_, orbit_n_iter, success
 
 
 def print_exit_messages(orbit, exit_code):

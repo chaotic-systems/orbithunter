@@ -596,7 +596,7 @@ class OrbitKS:
         if preconditioning == 'right':
             return np.dot(jac_, self.preconditioner(parameter_constraints=parameter_constraints,
                                                     preconditioning=preconditioning))
-        elif preconditioning == 'left':
+        elif preconditioning in ['left', True]:
             return np.dot(self.preconditioner(parameter_constraints=parameter_constraints,
                                               preconditioning=preconditioning), jac_)
         else:
@@ -678,7 +678,7 @@ class OrbitKS:
         """
         return np.linalg.norm(self.state.ravel(), ord=order)
 
-    def matvec(self, other, parameter_constraints=(False, False), preconditioning=True, **kwargs):
+    def matvec(self, other, **kwargs):
         """ Matrix-vector product of a vector with the Jacobian of the current state.
 
         Parameters
@@ -701,8 +701,9 @@ class OrbitKS:
         Equivalent to computation of v_t + v_xx + v_xxxx + d_x (u .* v)
 
         """
-        assert (self.state_type == 'modes') and (other.state_type == 'modes')
+        parameter_constraints = kwargs.get('parameter_constraints', (False, False))
 
+        assert (self.state_type == 'modes') and (other.state_type == 'modes')
         self_field = self.convert(to='field')
         other_field = other.convert(to='field')
         matvec_modes = (other.dt(return_modes=True) + other.dx(power=2, return_modes=True)
@@ -722,11 +723,7 @@ class OrbitKS:
                     + (-1.0/self.L) * self_field.nonlinear(self_field, return_modes=True))
             matvec_modes += other.L * dfdl
 
-        matvec_orbit = self.__class__(state=matvec_modes, state_type='modes', T=self.T, L=self.L)
-        if preconditioning:
-            return matvec_orbit.precondition(self.parameters, **kwargs)
-        else:
-            return matvec_orbit
+        return self.__class__(state=matvec_modes, state_type='modes', T=self.T, L=self.L)
 
     def mode_padding(self, size, dimension='space'):
         """ Increase the size of the discretization via zero-padding
@@ -947,52 +944,48 @@ class OrbitKS:
         plt.close()
         return None
 
-    def precondition(self, parameters, **kwargs):
+    def precondition(self, parameters, parameter_constraints=(False, False), **kwargs):
         """ Precondition a vector with the inverse (aboslute value) of linear spatial terms
-    
+
         Parameters
         ----------
-    
+
         target : OrbitKS
             OrbitKS to precondition
         parameter_constraints : (bool, bool)
             Whether or not period T or spatial period L are fixed.
-    
+
         Returns
         -------
         target : OrbitKS
             Return the OrbitKS instance, modified by preconditioning.
-    
+
         Notes
         -----
         Often we want to precondition a state derived from a mapping or rmatvec (gradient descent step),
         with respect to another orbit's (current state's) parameters. By passing parameters we can access the
         cached classmethods.
-    
+
         I never preconditioned the spatial shift for relative periodic solutions so I don't include it here.
         """
-        parameter_constraints = kwargs.get('parameter_constraints', (False, False, False))
         p_multipliers = 1.0 / (np.abs(self.elementwise_dtn(parameters))
                                + np.abs(self.elementwise_dxn(parameters, power=2))
                                + self.elementwise_dxn(parameters, power=4))
         self.state = np.multiply(self.state, p_multipliers)
-    
+
         # Precondition the change in T and L so that they do not dominate; S accounts for subclasses;
         # doesn't affect others.
         if not parameter_constraints[0]:
             self.T = self.T * (parameters[0]**-1)
-    
+
         if not parameter_constraints[1]:
             self.L = self.L * (parameters[1]**-4)
-    
-        if not parameter_constraints[2]:
-            self.S = self.S * (parameters[2]**0)
-    
+
         return self
-    
-    def preconditioner(self, preconditioning='left', **kwargs):
+
+    def preconditioner(self, **kwargs):
         """ Preconditioning matrix
-    
+
         Parameters
         ----------
         parameter_constraints : (bool, bool)
@@ -1000,21 +993,21 @@ class OrbitKS:
         side : str
             Takes values 'left' or 'right'. This is an accomodation for
             the typically rectangular Jacobian matrix.
-    
+
         Returns
         -------
         matrix :
             Preconditioning matrix
-    
+
         """
         # Preconditioner is the inverse of the absolute value of the linear spatial derivative operators.
-
+        side = kwargs.get('side', 'left')
         p_multipliers = (1.0 / (np.abs(self.elementwise_dtn(self.parameters))
                                 + np.abs(self.elementwise_dxn(self.parameters, power=2))
                                 + self.elementwise_dxn(self.parameters, power=4))).ravel()
 
         # If including parameters, need an extra diagonal matrix to account for this (right-side preconditioning)
-        if preconditioning == 'right':
+        if side == 'right':
             return np.diag(np.concatenate((p_multipliers, self._parameter_preconditioning(**kwargs)), axis=0))
         else:
             return np.diag(p_multipliers)
@@ -1211,12 +1204,19 @@ class OrbitKS:
         Returns
         -------
         orbit_rmatvec :
-            OrbitKS with values representative of the adjoint-vector product A^H * x. Equivalent to
-            evaluation of -v_t + v_xx + v_xxxx  - (u .* v_x)
+            OrbitKS with values representative of the adjoint-vector product
+
+        Notes
+        -----
+        The adjoint vector product in this case is defined as J^T * v,  where J is the jacobian matrix. Equivalent to
+        evaluation of -v_t + v_xx + v_xxxx  - (u .* v_x). In regards to preconditioning (which is very useful
+        for certain numerical methods, right preconditioning and left preconditioning switch meanings when the
+        jacobian is transposed. i.e. Right preconditioning of the Jacobian can include preconditioning of the state
+        parameters (which in this case are usually incremental corrections dT, dL, dS);
+        this corresponds to LEFT preconditioning of the adjoint.
 
         """
         parameter_constraints = kwargs.get('parameter_constraints', (False, False))
-        preconditioning = kwargs.get('preconditioning', False)
 
         assert (self.state_type == 'modes') and (other.state_type == 'modes')
         self_field = self.convert(to='field')
@@ -1240,11 +1240,7 @@ class OrbitKS:
         else:
             rmatvec_L = 0
 
-        rmatvec_orbit = self.__class__(state=rmatvec_modes, state_type='modes', T=rmatvec_T, L=rmatvec_L)
-        if preconditioning:
-            return rmatvec_orbit.precondition(self.parameters)
-        else:
-            return rmatvec_orbit
+        return self.__class__(state=rmatvec_modes, state_type='modes', T=rmatvec_T, L=rmatvec_L)
 
     def rotate(self, distance=0, direction='space'):
         """ Rotate the velocity field in either space or time.
@@ -1501,7 +1497,7 @@ class OrbitKS:
         """
         return np.dot(self.time_transform_matrix(), self.space_transform_matrix())
 
-    def spatiotemporal_mapping(self, **kwargs):
+    def spatiotemporal_mapping(self, *args, **kwargs):
         """ The Kuramoto-Sivashinsky equation evaluated at the current state.
 
         kwargs :
@@ -1515,7 +1511,6 @@ class OrbitKS:
             OrbitKS.state = u_t + u_xx + u_xxxx + 1/2 (u^2)_x
         :return:
         """
-        preconditioning = kwargs.get('preconditioning', False)
         # to be efficient, should be in modes basis.
         assert self.state_type == 'modes', 'Convert to spatiotemporal Fourier mode basis before computing mapping func.'
 
@@ -1527,12 +1522,7 @@ class OrbitKS:
                          + self.dx(power=4, return_modes=True)
                          + orbit_field.nonlinear(orbit_field, return_modes=True))
         # Put the result in an orbit instance.
-        spacetime_mapping = self.__class__(state=mapping_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
-
-        if preconditioning:
-            return spacetime_mapping.precondition(self.parameters)
-        else:
-            return spacetime_mapping
+        return self.__class__(state=mapping_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
 
     def statemul(self, other):
         """ Elementwise multiplication of two Tori states
@@ -1935,6 +1925,45 @@ class RelativeOrbitKS(OrbitKS):
             return matvec_orbit + matvec_comoving.precondition(self.parameters)
         else:
             return matvec_orbit + matvec_comoving
+
+    def precondition(self, parameters, parameter_constraints=(False, False), preconditioning=True, **kwargs):
+        """ Precondition a vector with the inverse (aboslute value) of linear spatial terms
+
+        Parameters
+        ----------
+
+        target : OrbitKS
+            OrbitKS to precondition
+        parameter_constraints : (bool, bool)
+            Whether or not period T or spatial period L are fixed.
+
+        Returns
+        -------
+        target : OrbitKS
+            Return the OrbitKS instance, modified by preconditioning.
+
+        Notes
+        -----
+        Often we want to precondition a state derived from a mapping or rmatvec (gradient descent step),
+        with respect to another orbit's (current state's) parameters. By passing parameters we can access the
+        cached classmethods.
+
+        I never preconditioned the spatial shift for relative periodic solutions so I don't include it here.
+        """
+        p_multipliers = 1.0 / (np.abs(self.elementwise_dtn(parameters))
+                               + np.abs(self.elementwise_dxn(parameters, power=2))
+                               + self.elementwise_dxn(parameters, power=4))
+        self.state = np.multiply(self.state, p_multipliers)
+
+        # Precondition the change in T and L so that they do not dominate; S accounts for subclasses;
+        # doesn't affect others.
+        if not parameter_constraints[0]:
+            self.T = self.T * (parameters[0]**-1)
+
+        if not parameter_constraints[1]:
+            self.L = self.L * (parameters[1]**-4)
+
+        return self
 
     def _parameter_preconditioning(self, parameter_constraints=(False, False, False)):
         parameter_multipliers = []
