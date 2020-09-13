@@ -61,7 +61,6 @@ def main(*args, method='hybrid', **kwargs):
     domains = zip(trange, lrange)
     t = time.time()
     T, L =T_min, L_min
-    tmp = cls(T=T, L=L)
     # for T, L in domains:
     #     hunt(cls(T=T, L=L), verbose=verbose)
     with Parallel(n_jobs=n_jobs) as parallel:

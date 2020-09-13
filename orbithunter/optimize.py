@@ -1,6 +1,6 @@
 from scipy.sparse.linalg import LinearOperator, lsqr, lsmr
 from scipy.linalg import lstsq
-from scipy.optimize import minimize, root, newton_krylov
+from scipy.optimize import minimize, root
 import sys
 import numpy as np
 
@@ -73,15 +73,11 @@ class OrbitResult(dict):
 
 def converge(orbit_, method='hybrid', **kwargs):
     orbit_.convert(to='modes', inplace=True)
-    if not (orbit_.residual() < kwargs.get('orbit_tol', orbit_.M * orbit_.N * 10**-6)):
 
-        if kwargs.get('verbose', False):
-            print('Starting {} numerical method. Initial residual {}'.format(method, orbit_.residual()))
-
+    if not orbit_.residual() < np.min(kwargs.get('orbit_tol', orbit_.M * orbit_.N * 10**-6)):
         if method == 'hybrid':
-            adj_maxiter, newton_maxiter = kwargs.pop('orbit_maxiter', (16 * orbit_.N * orbit_.M, 500))
-            gradient_orbit, n_iter_a, _ = _gradient_descent(orbit_, orbit_maxiter=adj_maxiter, **kwargs)
-            result_orbit, n_iter_gn, exit_code = _gauss_newton(gradient_orbit, orbit_maxiter=newton_maxiter, **kwargs)
+            gradient_orbit, n_iter_a, _ = _gradient_descent(orbit_,  **kwargs)
+            result_orbit, n_iter_gn, exit_code = _gauss_newton(gradient_orbit, **kwargs)
             n_iter = (n_iter_a, n_iter_gn)
         elif method in ['grad', 'gradient', 'gd', 'steepest']:
             result_orbit, n_iter, exit_code = _gradient_descent(orbit_, **kwargs)
@@ -97,107 +93,119 @@ def converge(orbit_, method='hybrid', **kwargs):
             raise ValueError('Unknown or unsupported solver %s' % method)
 
         if kwargs.get('verbose', False):
-            print_exit_messages(result_orbit, exit_code)
+            _print_exit_messages(result_orbit, exit_code)
 
         return OrbitResult(orbit=result_orbit, exit_code=exit_code, n_iter=n_iter)
     else:
         return OrbitResult(orbit=orbit_, exit_code=1, n_iter=0)
 
 
-def _gradient_descent(orbit_, preconditioning=True, ftol=1e-8, **orbithunter_kwargs):
+def _gradient_descent(orbit_, **kwargs):
     """
     Parameters
     ----------
     orbit_
     preconditioning
-    orbithunter_kwargs
+    kwargs
 
     Returns
     -------
 
     Notes
     -----
-    Preconditioning left out of **orbithunter_kwargs because of its special usage
+    Preconditioning left out of **kwargs because of its special usage
 
     """
 
     # Specific modifying exponent for changes in period, domain_size
     # Absolute tolerance for the descent method.
-    tol = orbithunter_kwargs.get('orbit_tol', orbit_.M * orbit_.N * 10**-6)
-    maxiter = orbithunter_kwargs.get('orbit_maxiter', 32 * orbit_.N * orbit_.M)
+    orbit_tol = kwargs.get('orbit_tol', orbit_.M * orbit_.N * 10**-6)
+    orbit_maxiter = kwargs.get('orbit_maxiter', np.min([32 * orbit_.N * orbit_.M, 100000]))
+    ftol = kwargs.get('ftol', 1e-10)
+    verbose = kwargs.get('verbose', False)
+    preconditioning=kwargs.get('preconditioning', True)
 
     step_size = 1
     n_iter = 0
     # By default assume failure
     exit_code = 0
+    if verbose:
+        print('Starting gradient descent. Initial residual={}, target={}'.format(orbit_.residual(), orbit_tol))
 
-    mapping = orbit_.spatiotemporal_mapping(**orbithunter_kwargs)
+    mapping = orbit_.spatiotemporal_mapping(**kwargs)
     residual = mapping.residual(apply_mapping=False)
-    while residual > tol and n_iter < maxiter:
+    while residual > orbit_tol and n_iter < orbit_maxiter:
         # Calculate the step
         if preconditioning:
-            dx = orbit_.rmatvec(mapping, **orbithunter_kwargs).precondition(orbit_.parameters)
+            dx = orbit_.rmatvec(mapping, **kwargs).precondition(orbit_.parameters, **kwargs)
         else:
-            dx = orbit_.rmatvec(mapping, **orbithunter_kwargs)
+            dx = orbit_.rmatvec(mapping, **kwargs)
 
         # Apply the step
-        next_orbit = orbit_.increment(dx, stepsize=-1.0 * step_size)
+        next_orbit = orbit_.increment(dx, step_size=-1.0 * step_size)
         # Calculate the mapping and store; need it for next step and to compute residual.
-        next_mapping = next_orbit.spatiotemporal_mapping(**orbithunter_kwargs)
+        next_mapping = next_orbit.spatiotemporal_mapping(**kwargs)
         # Compute residual to see if step succeeded
         next_residual = next_mapping.residual(apply_mapping=False)
 
         while next_residual >= residual:
             # reduce the step size until minimum is reached or residual decreases.
             step_size = 0.5 * step_size
-            next_orbit = orbit_.increment(dx, stepsize=-1.0 * step_size)
-            next_mapping = next_orbit.spatiotemporal_mapping(**orbithunter_kwargs)
+            next_orbit = orbit_.increment(dx, step_size=-1.0 * step_size)
+            next_mapping = next_orbit.spatiotemporal_mapping(**kwargs)
             next_residual = next_mapping.residual(apply_mapping=False)
             if step_size <= 10 ** -8:
                 return orbit_, n_iter, exit_code
         else:
             fval = (residual - next_residual) / max([residual, next_residual, 1])
             if fval < ftol:
+                if verbose:
+                    print('Gradient descent has stalled; exiting. Decrease ftol to avoid this behavior.')
                 return orbit_, n_iter, exit_code
             # Update and restart loop if residual successfully decreases.
             orbit_, mapping, residual = next_orbit, next_mapping, next_residual
             n_iter += 1
 
-            if orbithunter_kwargs.get('verbose', False):
-
-                if np.mod(n_iter, (maxiter // 10)) == 0:
+            if verbose:
+                if np.mod(n_iter, (orbit_maxiter // 10)) == 0:
                     print(' Residual={} after {} {} iterations'.format(orbit_.residual(), n_iter, 'gradient descent'))
-                elif np.mod(n_iter, (maxiter // 100)) == 0:
+                elif np.mod(n_iter, (orbit_maxiter // 100)) == 0:
                     print('#', end='')
 
-    if orbit_.residual() <= tol:
-        orbit, exit_code = orbit_.status()
-    elif n_iter == maxiter:
+    if orbit_.residual() <= orbit_tol:
+        orbit, exit_code = orbit_.verify_integrity()
+    elif n_iter == orbit_maxiter:
         exit_code = 2
 
     return orbit_, n_iter, exit_code
 
 
-def _gauss_newton(orbit_, orbit_maxiter=500, max_damp_factor=9, **orbithunter_kwargs):
-    tol = orbithunter_kwargs.get('orbit_tol', orbit_.N * orbit_.M * 10 ** -6)
+def _gauss_newton(orbit_, **kwargs):
+    orbit_tol = kwargs.get('orbit_tol', orbit_.N * orbit_.M * 10 ** -15)
+    orbit_maxiter = kwargs.get('orbit_maxiter', (orbit_.N * orbit_.M) // 4)
+    verbose = kwargs.get('verbose', False)
+
+    max_damp_factor = 9
     n_iter = 0
     residual = orbit_.residual()
+    if verbose:
+        print('Starting lstsq. Initial residual={}, target={}'.format(orbit_.residual(), orbit_tol))
 
-    while residual > tol and n_iter < orbit_maxiter:
+    while residual > orbit_tol and n_iter < orbit_maxiter:
         damp_factor = 0
         n_iter += 1
-        A = orbit_.jacobian(**orbithunter_kwargs)
-        b = -1.0 * orbit_.spatiotemporal_mapping(**orbithunter_kwargs).state.ravel()
-        dorbit = orbit_.from_numpy_array(lstsq(A, b.reshape(-1, 1))[0], **orbithunter_kwargs)
+        A = orbit_.jacobian(**kwargs)
+        b = -1.0 * orbit_.spatiotemporal_mapping(**kwargs).state.ravel()
+        dorbit = orbit_.from_numpy_array(lstsq(A, b.reshape(-1, 1))[0], **kwargs)
 
         # To avoid redundant function calls, store optimization variables using
         # clunky notation.
-        next_orbit = orbit_.increment(dorbit, stepsize=2 ** -damp_factor)
+        next_orbit = orbit_.increment(dorbit, step_size=2 ** -damp_factor)
         next_residual = next_orbit.residual()
         while next_residual > residual:
             # Continues until either step is too small or residual is decreases
             damp_factor += 1
-            next_orbit = orbit_.increment(dorbit, stepsize=2 ** -damp_factor)
+            next_orbit = orbit_.increment(dorbit, step_size=2 ** -damp_factor)
             next_residual = next_orbit.residual()
             if damp_factor > max_damp_factor:
                 return orbit_, n_iter, 0
@@ -206,14 +214,14 @@ def _gauss_newton(orbit_, orbit_maxiter=500, max_damp_factor=9, **orbithunter_kw
             orbit_ = next_orbit
             residual = next_residual
 
-            if orbithunter_kwargs.get('verbose', False):
+            if kwargs.get('verbose', False):
                 print(damp_factor, end='')
                 if np.mod(n_iter, (orbit_maxiter // 10)) == 0:
                     print('Residual={} after {} {} iterations'.format(orbit_.residual(), n_iter, 'lstsq'))
                 sys.stdout.flush()
 
-    if orbit_.residual() <= tol:
-        orbit, exit_code = orbit_.status()
+    if orbit_.residual() <= orbit_tol:
+        orbit, exit_code = orbit_.verify_integrity()
     elif n_iter == orbit_maxiter:
         exit_code = 2
     else:
@@ -224,7 +232,7 @@ def _gauss_newton(orbit_, orbit_maxiter=500, max_damp_factor=9, **orbithunter_kw
 
 def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-03, btol=1e-03,
                                         method='lsqr', maxiter=None, conlim=1e+08,
-                                        show=False, calc_var=False, **orbithunter_kwargs):
+                                        show=False, calc_var=False, **kwargs):
 
     linear_operator_shape = (orbit_.state.size, orbit_.state_vector().size)
     istop = 1
@@ -234,10 +242,10 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-03, btol=1e-03
     good_codes = [0, 1, 2, 4, 5]
     residual = orbit_.residual()
 
-    orbit_tol = orbithunter_kwargs.get('orbit_tol', orbit_.M * orbit_.N * 10**-6)
-    orbit_maxiter = orbithunter_kwargs.get('orbit_maxiter', 250)
-    max_damp_factor = orbithunter_kwargs.get('orbit_damp_max', 8)
-    preconditioning = orbithunter_kwargs.get('preconditioning', False)
+    orbit_tol = kwargs.get('orbit_tol', orbit_.M * orbit_.N * 10**-6)
+    orbit_maxiter = kwargs.get('orbit_maxiter', 250)
+    max_damp_factor = kwargs.get('orbit_damp_max', 8)
+    preconditioning = kwargs.get('preconditioning', False)
 
     while (residual > orbit_tol) and (istop in good_codes) and orbit_n_iter < orbit_maxiter:
         orbit_n_iter += 1
@@ -245,9 +253,9 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-03, btol=1e-03
         # The operator depends on the current state; A=A(orbit)
         def rmv_func(v):
             # _process_newton_step turns state vector into class object.
-            v_orbit = orbit_.from_numpy_array(v, **orbithunter_kwargs)
+            v_orbit = orbit_.from_numpy_array(v, **kwargs)
             v_orbit.T, v_orbit.L, v_orbit.S = orbit_.T, orbit_.L, orbit_.S
-            rmatvec_orbit = orbit_.rmatvec(v_orbit, **orbithunter_kwargs)
+            rmatvec_orbit = orbit_.rmatvec(v_orbit, **kwargs)
             if preconditioning:
                 return rmatvec_orbit.precondition(orbit_.parameters).state_vector().reshape(-1, 1)
             else:
@@ -255,16 +263,16 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-03, btol=1e-03
 
         def mv_func(v):
             # _state_vector_to_orbit turns state vector into class object.
-            v_orbit = orbit_.from_numpy_array(v, **orbithunter_kwargs)
+            v_orbit = orbit_.from_numpy_array(v, **kwargs)
             v_orbit.T, v_orbit.L, v_orbit.S = orbit_.T, orbit_.L, orbit_.S
-            matvec_orbit = orbit_.matvec(v_orbit, **orbithunter_kwargs)
+            matvec_orbit = orbit_.matvec(v_orbit, **kwargs)
             if preconditioning:
                 return matvec_orbit.precondition(orbit_.parameters).state.reshape(-1, 1)
             else:
                 return matvec_orbit.state.reshape(-1, 1)
 
         orbit_linear_operator = LinearOperator(linear_operator_shape, mv_func, rmatvec=rmv_func, dtype=float)
-        b = -1.0 * orbit_.spatiotemporal_mapping(**orbithunter_kwargs).state.reshape(-1, 1)
+        b = -1.0 * orbit_.spatiotemporal_mapping(**kwargs).state.reshape(-1, 1)
         damp_factor = 0
 
         if method == 'lsmr':
@@ -281,24 +289,24 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-03, btol=1e-03
         istop = result_tuple[1]
         n_iter += result_tuple[2]
 
-        dorbit = orbit_.from_numpy_array(x, **orbithunter_kwargs)
+        dorbit = orbit_.from_numpy_array(x, **kwargs)
         next_orbit = orbit_.increment(dorbit)
         next_residual = next_orbit.residual()
         while next_residual > residual:
             damp_factor += 1
-            next_orbit = orbit_.increment(dorbit, stepsize=2 ** -damp_factor)
+            next_orbit = orbit_.increment(dorbit, step_size=2 ** -damp_factor)
             next_residual = next_orbit.residual()
             if damp_factor > max_damp_factor:
                 return orbit_, n_iter, 0
         else:
             orbit_ = next_orbit
             residual = next_residual
-            if orbithunter_kwargs.get('verbose', False):
+            if kwargs.get('verbose', False):
                 if np.mod(orbit_n_iter, (orbit_maxiter // 10)) == 0:
                     print('Residual={} after {} {} iterations'.format(orbit_.residual(), orbit_n_iter, method))
 
     if orbit_.residual() <= orbit_tol:
-        orbit_, exit_code = orbit_.status()
+        orbit_, exit_code = orbit_.verify_integrity()
     elif n_iter == orbit_maxiter:
         exit_code = 2
     else:
@@ -308,18 +316,18 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-03, btol=1e-03
 
 
 def _scipy_optimize_minimize_wrapper(orbit_, method=None, bounds=None,
-                                     tol=None, callback=None, options=None, **orbithunter_kwargs):
+                                     tol=None, callback=None, options=None, **kwargs):
 
     # The performance of the different methods depends on preconditioning differently/
     if method in ['newton-cg', 'tnc']:
         # This is a work-around to have different defaults for the different methods.
-        preconditioning = orbithunter_kwargs.get('preconditioning', False)
+        preconditioning = kwargs.get('preconditioning', False)
     elif method =='l-bfgs-b':
         # This is a work-around to have different defaults for the different methods.
-        preconditioning = orbithunter_kwargs.get('preconditioning', True)
+        preconditioning = kwargs.get('preconditioning', True)
     elif method =='cg':
         # This is a work-around to have different defaults for the different methods.
-        preconditioning = orbithunter_kwargs.get('preconditioning', True)
+        preconditioning = kwargs.get('preconditioning', True)
         if options is None:
             options = {'gtol': 1e-3}
         elif isinstance(options, dict):
@@ -335,7 +343,7 @@ def _scipy_optimize_minimize_wrapper(orbit_, method=None, bounds=None,
         '''
         Note that passing Class as a function avoids dangerous statements using eval()
         '''
-        x_orbit = orbit_.from_numpy_array(x, **orbithunter_kwargs)
+        x_orbit = orbit_.from_numpy_array(x, **kwargs)
         return x_orbit.residual()
 
     def _cost_function_jac_scipy_minimize(x):
@@ -357,15 +365,15 @@ def _scipy_optimize_minimize_wrapper(orbit_, method=None, bounds=None,
 
         x_orbit = orbit_.from_numpy_array(x)
         if preconditioning:
-            return (x_orbit.rmatvec(x_orbit.spatiotemporal_mapping(), **orbithunter_kwargs)
+            return (x_orbit.rmatvec(x_orbit.spatiotemporal_mapping(), **kwargs)
                     ).precondition(x_orbit.parameters).state_vector().ravel()
         else:
-            return x_orbit.rmatvec(x_orbit.spatiotemporal_mapping(), **orbithunter_kwargs).state_vector().ravel()
+            return x_orbit.rmatvec(x_orbit.spatiotemporal_mapping(), **kwargs).state_vector().ravel()
 
     orbit_n_iter = 0
     success = True
-    while ((orbit_.residual() > orbithunter_kwargs.get('orbit_tol', orbit_.M * orbit_.N * 10**-6))
-           and (orbit_n_iter < orbithunter_kwargs.get('orbit_maxiter', 20))
+    while ((orbit_.residual() > kwargs.get('orbit_tol', orbit_.M * orbit_.N * 10**-6))
+           and (orbit_n_iter < kwargs.get('orbit_maxiter', 20))
            and success):
         orbit_n_iter += 1
         result = minimize(_cost_function_scipy_minimize, orbit_.state_vector(),
@@ -373,14 +381,14 @@ def _scipy_optimize_minimize_wrapper(orbit_, method=None, bounds=None,
                           callback=callback, options=options)
         orbit_ = orbit_.from_numpy_array(result.x)
         success = result.success
-        if orbithunter_kwargs.get('verbose', False):
-            if np.mod(orbit_n_iter, (orbithunter_kwargs.get('orbit_maxiter', 20) // 10)) == 0:
+        if kwargs.get('verbose', False):
+            if np.mod(orbit_n_iter, (kwargs.get('orbit_maxiter', 20) // 10)) == 0:
                 print('Residual={} after {} {} iterations'.format(orbit_.residual(), orbit_n_iter, method))
 
     return orbit_, orbit_n_iter, success
 
 
-def _scipy_optimize_root_wrapper(orbit_, method=None, tol=None, callback=None, options=None, **orbithunter_kwargs):
+def _scipy_optimize_root_wrapper(orbit_, method=None, tol=None, callback=None, options=None, **kwargs):
     """ Wrapper for scipy.optimize.root methods
 
     Parameters
@@ -390,7 +398,7 @@ def _scipy_optimize_root_wrapper(orbit_, method=None, tol=None, callback=None, o
     tol
     callback
     options
-    orbithunter_kwargs
+    kwargs
 
     Returns
     -------
@@ -413,10 +421,10 @@ def _scipy_optimize_root_wrapper(orbit_, method=None, tol=None, callback=None, o
         '''
         Note that passing Class as a function avoids dangerous statements using eval()
         '''
-        x_orbit = orbit_.from_numpy_array(x, **orbithunter_kwargs)
+        x_orbit = orbit_.from_numpy_array(x, **kwargs)
         n_params = x_orbit.state_vector().size - x_orbit.state.size
         # Root requires input shape = output shape.
-        return np.concatenate((x_orbit.spatiotemporal_mapping(**orbithunter_kwargs).state.ravel(),
+        return np.concatenate((x_orbit.spatiotemporal_mapping(**kwargs).state.ravel(),
                                np.zeros(n_params)), axis=0)
 
     def _cost_function_jac_scipy_root(x):
@@ -436,13 +444,13 @@ def _scipy_optimize_root_wrapper(orbit_, method=None, tol=None, callback=None, o
         Will always use preconditioned version by default, not sure if wise.
         """
 
-        x_orbit = orbit_.from_numpy_array(x, **orbithunter_kwargs)
+        x_orbit = orbit_.from_numpy_array(x, **kwargs)
         n_params = x_orbit.state_vector().size - x_orbit.state.size
-        return np.concatenate((x_orbit.jacobian(**orbithunter_kwargs),
+        return np.concatenate((x_orbit.jacobian(**kwargs),
                                np.zeros([n_params, x_orbit.state_vector().size])), axis=0)
 
     # If not providing jacobian numerical approximation is used which can be beneficial.
-    if method == 'lm' and orbithunter_kwargs.get('jacobian_on', True):
+    if method == 'lm' and kwargs.get('jacobian_on', True):
         jac_ = _cost_function_jac_scipy_root
     elif method in ['lgmres', 'gmres', 'minres']:
         jac_ = None
@@ -450,32 +458,30 @@ def _scipy_optimize_root_wrapper(orbit_, method=None, tol=None, callback=None, o
         #
         if options is None:
             options = {'jac_options': {'method': method}}
-            method = 'krylov'
         elif isinstance(options, dict):
-            options['method'] = method
             options['jac_options'] = {'method': method}
+        method = 'krylov'
     else:
         jac_ = None
 
     orbit_n_iter = 0
     success = True
-    while ((orbit_.residual() > orbithunter_kwargs.get('orbit_tol', orbit_.M * orbit_.N * 10**-6))
-           and (orbit_n_iter < orbithunter_kwargs.get('orbit_maxiter', 20))
+    while ((orbit_.residual() > kwargs.get('orbit_tol', orbit_.M * orbit_.N * 10**-6))
+           and (orbit_n_iter < kwargs.get('orbit_maxiter', 20))
            and success):
         orbit_n_iter += 1
         result = root(_cost_function_scipy_root, orbit_.state_vector(),
                       method=method, jac=jac_, tol=tol,
                       callback=callback, options=options)
-        orbit_ = orbit_.from_numpy_array(result.x, **orbithunter_kwargs)
+        orbit_ = orbit_.from_numpy_array(result.x, **kwargs)
         success = result.success
-        if orbithunter_kwargs.get('verbose', False):
-            if np.mod(orbit_n_iter, (orbithunter_kwargs.get('orbit_maxiter', 20) // 10)) == 0:
+        if kwargs.get('verbose', False):
+            if np.mod(orbit_n_iter, (kwargs.get('orbit_maxiter', 20) // 10)) == 0:
                 print('Residual={} after {} {} iterations'.format(orbit_.residual(), orbit_n_iter, method))
     return orbit_, orbit_n_iter, success
 
 
-def print_exit_messages(orbit, exit_code):
-    messages = []
+def _print_exit_messages(orbit, exit_code):
     if exit_code == 0:
         print('\nFailed to converge. Exiting with residual {}'.format(orbit.residual()))
     elif exit_code == 1:
@@ -484,10 +490,13 @@ def print_exit_messages(orbit, exit_code):
         print('\nFailed to converge. Maximum number of iterations reached.'
               ' exiting with residual {}'.format(orbit.residual()))
     elif exit_code == 3:
-        print('\nConverged to an errant equilibrium'
+        print('\nConverged to an equilibrium'
               ' exiting with residual {}'.format(orbit.residual()))
     elif exit_code == 4:
         print('\nConverged to the trivial u(x,t)=0 solution')
     elif exit_code == 5:
-        print('\n Relative periodic orbit converged to periodic orbit with no shift.')
+        print('\n Relative periodic orbit converged to periodic orbit with essentially zero shift.')
+    elif exit_code == 6:
+        print('\n Relative periodic orbit has lower residual when flipping sign of shift.'
+              ' Look for a negative sign error')
     return None

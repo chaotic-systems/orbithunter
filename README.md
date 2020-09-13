@@ -20,7 +20,7 @@ To-do
 -----
 Redo __init__ methods to be less messy, call to super()
 RelativeEquilibriumKS and EquilibriumKS need to be fully implemented. 
-RelativeEquilibriumKS.status() needs to account for shift as part of "time derivative".
+RelativeEquilibriumKS.verify_integrity() needs to account for shift as part of "time derivative".
 RelativeEquilibriumKS and EquilibriumKS raising exceptions when .dt() or .dt_matrix() are called. 
 Implement flag for reference frame of relative periodic solutions. 
 Different methods for random initial condition generation. 

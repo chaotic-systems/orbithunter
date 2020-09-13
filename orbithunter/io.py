@@ -10,36 +10,50 @@ warnings.resetwarnings()
 __all__ = ['read_h5', 'parse_class']
 
 
-def read_h5(filename, directory='local', data_format='orbithunter', state_type='modes'):
+def read_h5(filename, directory='local', data_format='orbithunter', equation='ks',
+            state_type='modes', class_name=None, check=False, **orbitkwargs):
     if directory == 'local':
         directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/local/')), '')
+    elif directory == 'orbithunter':
+        directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/')), '')
 
-    class_generator = parse_class(filename)
+    if class_name is None:
+        class_generator = parse_class(filename, equation=equation)
+    else:
+        class_generator = parse_class(class_name, equation=equation)
+
     with h5py.File(os.path.abspath(os.path.join(directory, filename)), 'r') as f:
-        if data_format == 'orbithunter':
-            field = np.array(f['field'])
-            L = float(f['space_period'][()])
-            T = float(f['time_period'][()])
-            S = float(f['spatial_shift'][()])
-            orbit = class_generator(state=field, state_type='field', T=T, L=L, S=S)
-        elif data_format == 'orbithunter_old':
-            field = np.array(f['field'])
-            L = float(f['L'][()])
-            T = float(f['T'][()])
-            S = float(f['spatial_shift'][()])
-            orbit = class_generator(state=field, state_type='field', T=T, L=L, S=S)
-        else:
-            fieldtmp = f['/data/ufield']
-            L = float(f['/data/space'][0])
-            T = float(f['/data/time'][0])
-            field = fieldtmp[:]
-            S = float(f['/data/shift'][0])
-            orbit = class_generator(state=field, state_type='field', T=T, L=L, S=S)
+        if equation == 'ks':
+            if data_format == 'orbithunter':
+                field = np.array(f['field'])
+                L = float(f['space_period'][()])
+                T = float(f['time_period'][()])
+                S = float(f['spatial_shift'][()])
+                orbit = class_generator(state=field, state_type='field', T=T, L=L, S=S, **orbitkwargs)
+            elif data_format == 'orbithunter_old':
+                field = np.array(f['field'])
+                L = float(f['L'][()])
+                T = float(f['T'][()])
+                S = float(f['spatial_shift'][()])
+                orbit = class_generator(state=field, state_type='field', T=T, L=L, S=S, **orbitkwargs)
+            else:
+                fieldtmp = f['/data/ufield']
+                L = float(f['/data/space'][0])
+                T = float(f['/data/time'][0])
+                field = fieldtmp[:]
+                S = float(f['/data/shift'][0])
+                orbit = class_generator(state=field, state_type='field', T=T, L=L, S=S, **orbitkwargs)
 
-    return verify_integrity(orbit).convert(to=state_type)
+    # verify typically returns Orbit, code; just want the orbit instance here
+    if check:
+        # The automatic importation attempts to validate symmetry/class type.
+        return orbit.verify_integrity()[0].convert(to=state_type)
+    else:
+        # If the class name is provided, force it through without verification.
+        return orbit.convert(to=state_type)
 
 
-def parse_class(filename):
+def parse_class(filename, equation='ks'):
     name_string = os.path.basename(filename).split('_')[0]
 
     old_names = ['none', 'full', 'rpo', 'reqva', 'ppo', 'eqva', 'anti']
@@ -50,8 +64,9 @@ def parse_class(filename):
     if name_string in all_names:
         class_name = name_string
     else:
-        name_count = np.array([filename.count(class_name) for class_name in all_names])
-        class_name = np.array(all_names)[np.argmax(name_count)]
+        name_index = np.array([filename.find(class_name) for class_name in all_names], dtype=float)
+        name_index[name_index < 0] = np.inf
+        class_name = np.array(all_names)[np.argmin(name_index)]
 
     class_dict = {'none': OrbitKS, 'full': OrbitKS, 'OrbitKS': OrbitKS,
                   'anti': AntisymmetricOrbitKS, 'AntisymmetricOrbitKS': AntisymmetricOrbitKS,
@@ -69,20 +84,4 @@ def _make_proper_pathname(pathname_tuple,folder=False):
         return os.path.join(os.path.abspath(os.path.join(*pathname_tuple)), '')
     else:
         return os.path.abspath(os.path.join(*pathname_tuple))
-
-
-def verify_integrity(orbit):
-    orbit, code = orbit.status()
-    if orbit.__class__.__name__ in ['RelativeOrbitKS', 'RelativeEquilibriumOrbitKS']:
-        residual_imported_S = orbit.residual()
-        orbit_inverted_shift = orbit.__class__(state=orbit.state, state_type=orbit.state_type,
-                                               T=orbit.T, L=orbit.L, S=-1.0*orbit.S)
-        residual_negated_S = orbit_inverted_shift.residual()
-        if residual_imported_S > residual_negated_S:
-            return orbit_inverted_shift
-        else:
-            return orbit
-    else:
-        return orbit
-
 

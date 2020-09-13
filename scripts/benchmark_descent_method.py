@@ -7,11 +7,11 @@ import numpy as np
 
 def main(*args, method='adj', **kwargs):
     # orbit = read_h5('OrbitKS_L42p007_T33p116.h5', directory='local', state_type='modes')
-    # rpo_orbit = read_h5('RelativeOrbitKS_L22p007_T53p924.h5', data_format='orbithunter_old', directory='local', state_type='modes')
-    # anti_orbit = read_h5('AntisymmetricOrbitKS_L16p87_T24p39.h5', data_format='kstori',directory='local', state_type='modes')
-    # sr_orbit = read_h5('ShiftReflectionOrbitKS_L34p018_T129p401.h5', data_format='orbithunter_old', directory='local', state_type='modes')
-    # eqva_orbit = read_h5('EquilibriumOrbitKS_L11p436.h5', data_format='kstori', directory='local', state_type='modes')
-    # reqva_orbit = read_h5('reqva_L27p39.h5', data_format='kstori',  directory='local', state_type='modes')
+    # rpo_orbit = read_h5('RelativeOrbitKS_L22p007_T53p924.h5', format='orbithunter_old', directory='local', state_type='modes')
+    # anti_orbit = read_h5('AntisymmetricOrbitKS_L16p87_T24p39.h5', format='kstori',directory='local', state_type='modes')
+    # sr_orbit = read_h5('ShiftReflectionOrbitKS_L34p018_T129p401.h5', format='orbithunter_old', directory='local', state_type='modes')
+    # eqva_orbit = read_h5('EquilibriumOrbitKS_L11p436.h5', format='kstori', directory='local', state_type='modes')
+    # reqva_orbit = read_h5('reqva_L27p39.h5', format='kstori',  directory='local', state_type='modes')
     # # orbit_list = [orbit, rpo_orbit, sr_orbit, anti_orbit, eqva_orbit, reqva_orbit]
     # orbit_list = [reqva_orbit]
     # for o in orbit_list:

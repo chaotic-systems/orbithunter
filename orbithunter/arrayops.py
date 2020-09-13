@@ -1,6 +1,7 @@
 import numpy as np
 from functools import lru_cache
-__all__ = ['swap_modes', 'so2_generator', 'so2_coefficients']
+from math import pi
+__all__ = ['swap_modes', 'so2_generator', 'so2_coefficients', 'calculate_spatial_shift']
 
 
 def swap_modes(modes, dimension='space'):
@@ -27,5 +28,33 @@ def so2_coefficients(power=1):
     return np.sum(so2_generator(power=power), axis=0)
 
 
+def calculate_spatial_shift(s_modes, L, **kwargs):
+    """ Calculate the phase difference between the spatial modes at t=0 and t=T """
 
+    m0 = s_modes.shape[1]//2
+    modes_included = kwargs.get('n_modes', 1)
+    modes_0 = np.concatenate((s_modes[-1, :modes_included], s_modes[-1, -m0:(-m0 + modes_included)])).ravel()
+    modes_T = np.concatenate((s_modes[0, :modes_included], s_modes[0, -m0:(-m0 + modes_included)])).ravel()
+    m = modes_T.size//2
+    from scipy.optimize import fsolve
+    import warnings
+    shift_guess = (L / (2 * pi))*float(np.arccos((np.dot(np.transpose(modes_T), modes_0)
+                                   / (np.linalg.norm(modes_T)*np.linalg.norm(modes_0)))))
+
+    def fun_(shift):
+        thetak = -1.0 * shift * ((2 * pi) / L) * np.arange(1, m+1)
+        cosinek = np.cos(thetak)
+        sinek = np.sin(thetak)
+        rotated_real_modes_T = np.multiply(cosinek,  modes_T[:-m]) + np.multiply(sinek,  modes_T[-m:])
+        rotated_imag_modes_T = np.multiply(-sinek,  modes_T[:-m]) + np.multiply(cosinek,  modes_T[-m:])
+        rotated_modes = np.concatenate((rotated_real_modes_T, rotated_imag_modes_T))
+        return np.linalg.norm(modes_0 - rotated_modes)
+
+    # suppress fsolve's warnings that occur when it stalls.
+    warnings.simplefilter(action='ignore', category=RuntimeWarning)
+    shift = fsolve(fun_, shift_guess)[0]
+    warnings.resetwarnings()
+
+    shift = np.sign(shift) * np.mod(np.abs(shift), L)
+    return shift
 

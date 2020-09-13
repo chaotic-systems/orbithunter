@@ -3,20 +3,11 @@ from orbithunter.io import read_h5
 import numpy as np
 import os
 import itertools
-import warnings
 
-__all__ = ['combine', 'concat']
+__all__ = ['combine', 'glue']
 
 
-def best_combination(orbit, other_orbit, direction='space'):
-    if orbit.__class__.__name__ == 'ShiftReflectionOrbit':
-        half_list = ['top', 'bottom']
-
-    elif orbit.__class__.__name__ == 'AntisymmetricOrbit':
-        half_list = ['left', 'right']
-    else:
-        warnings.warn('Incorrect symmetry type orbit passed to best_combination gluing optimization')
-        return orbit
+def best_combination(orbit, other_orbit, fundamental_domain_combinations, axis=0):
 
     half_combinations = list(itertools.product(half_list,repeat=2))
     residual_list = []
@@ -32,8 +23,8 @@ def best_combination(orbit, other_orbit, direction='space'):
     return best_combi
 
 
-def best_rotation(orbit, other_orbit, direction='space'):
-    field_orbit, field_other_orbit = correct_aspect_ratios(orbit, other_orbit, direction=direction)
+def best_rotation(orbit, other_orbit, axis=0):
+    field_orbit, field_other_orbit = correct_aspect_ratios(orbit, other_orbit, axis=axis)
 
     resmat = np.zeros([field_other_orbit.N, field_other_orbit.M])
     # The orbit only remains a converged solution if the rotations occur in
@@ -60,9 +51,9 @@ def best_rotation(orbit, other_orbit, direction='space'):
     return best_gluing
 
 
-def combine(orbit, other_orbit, direction='space'):
+def combine(orbit, other_orbit, axis=0):
     # Converts tori to best representatives for gluing by choosing from group orbit.
-    continuous_classes =  ['Orbit', 'RelativeOrbit']
+    continuous_classes = ['Orbit', 'RelativeOrbit']
     discrete_classes = ['ShiftReflectionOrbit', 'AntisymmetricOrbit']
     orbit_name = orbit.__class__.__name__
     other_name = other_orbit.__class__.__name__
@@ -74,30 +65,26 @@ def combine(orbit, other_orbit, direction='space'):
         return concat(orbit, other_orbit, direction=direction)
 
 
-def tile_dictionary():
-
-
-
-    return None
-
-
-def tile(symbol_list, period, speriod, *args, **kwargs):
-
-    tile_directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../../data/')), '')
-    # Defect Orbit
-    defect = read_h5(os.path.abspath(os.path.join(tile_directory,"./merger.h5")))
+def tile_dictionary_ks():
+    directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/')), '')
+    # merger Orbit
+    merger = read_h5(os.path.abspath(os.path.join(directory, "./RelativeOrbitKS_L13p026_T15p855.h5")))
 
     # Wiggle Orbit
-    wiggle = read_h5(os.path.abspath(os.path.join(tile_directory,"./streak.h5")))
+    wiggle = read_h5(os.path.abspath(os.path.join(directory, "./EquilibriumOrbitKS_L6p39.h5")))
 
     # Streak Orbit
-    streak = read_h5(os.path.abspath(os.path.join(tile_directory,"./gap.h5")))
+    streak = read_h5(os.path.abspath(os.path.join(directory, "./AntisymmetricOrbitKS_L17p590_T17p146.h5")))
 
-    tile_library = {'0': streak, '1': defect, '2': wiggle}
+    tile_library = {'0': streak, '1': merger, '2': wiggle}
 
-    symbol_array = np.reshape(symbol_list, [period, speriod])
-    tile_list = [tile_library[symbol] for symbol in symbol_list]
-    tile_array = np.reshape(tile_list,(period, speriod))
+    return tile_library
+
+
+def tile(symbol_array, tile_dict=tile_dictionary_ks):
+
+    tile_list = [tile_dict[symbol] for symbol in symbol_array.ravel()]
+    tile_array = np.reshape(tile_list, symbol_array.shape)
 
     '''
     Currently: spatial aspect ratio predetermined.
@@ -110,13 +97,13 @@ def tile(symbol_list, period, speriod, *args, **kwargs):
     blockL=0
     blockT=0
     blockS=0
-    for time_index in range(0,period):
+    for time_index in range(0, period):
         Ttmp=0
         Ltmp=0
         Stmp=0
         symbol_array_row = list(symbol_array[time_index,:])
         row_streak_count = symbol_array_row.count('0')
-        for space_index in range(0,speriod):
+        for space_index in range(0, speriod):
             if not space_index:
                 block_field_row_temp = tile_array[time_index,space_index,0]
                 if row_streak_count!=speriod:
@@ -155,27 +142,30 @@ def tile(symbol_list, period, speriod, *args, **kwargs):
     return block_orbit
 
 
-def concat(orbit, other_orbit, direction='space', **kwargs):
+def glue(orbit, other_orbit, axis=0, **kwargs):
+    """ Function for combining spatiotemporal fields
 
-    # Could've just included 'axis' as keyword argument but
-    # " direction='space' " is more informative and less confusing than "axis=1".
-    if direction == 'space':
-        axis = 1
-    else:
-        axis = 0
+    Parameters
+    ----------
+    orbit
+    other_orbit
+    axis
+    kwargs
 
-    newfield = np.concatenate((orbit.state, other_orbit.state), axis=axis)
+    Returns
+    -------
 
-    if axis:
-        newL = orbit.L + other_orbit.L
-        newT = (orbit.T + other_orbit.T)/2.0
-    else:
-        newL = (orbit.L + other_orbit.L) / 2.0
-        newT = orbit.T + other_orbit.T
+    """
+    newfield = np.concatenate((orbit.convert(to='field').state,
+                               other_orbit.convert(to='field').state), axis=axis)
 
-    glued_orbit = orbit.__class__(state=newfield, state_type='field', T=newT, L=newL)
-    glued_orbit = rediscretize(glued_orbit, normalize=True)
-    if orbit.__class__.__name__ == 'RelativeOrbit':
-        glued_orbit.S = glued_orbit.calculate_shift()
+    param_zip_enum = enumerate(zip(orbit.parameters, other_orbit.parameters))
+    new_parameters = [np.mean([p1, p2]) if (i != axis) else np.sum([p1, p2]) for i, (p1, p2) in param_zip_enum]
 
+    glued_orbit = orbit.__class__(state=newfield, state_type='field', parameters=new_parameters, **kwargs)
+    glued_orbit = rediscretize(glued_orbit, parameter_based=True, **kwargs)
     return glued_orbit
+
+
+
+
