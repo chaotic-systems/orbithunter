@@ -15,15 +15,17 @@ def main(*args, **kwargs):
     # # w = read_h5('wiggle_high_res.h5')
     # # s = read_h5('streak_high_res.h5')
 
-    test = RelativeOrbitKS(T=44, L=44, constraints={'T': True, 'L': True, 'S': True})
+    test = RelativeOrbitKS(T=44, L=44, constraints={'T': True, 'L': True, 'S': True}, seed=0)
     for orbit_name in ['RelativeEquilibriumOrbitKS_L28p810_T21p142.h5', 'EquilibriumOrbitKS_L11p39.h5',
                        'ShiftReflectionOrbitKS_L28p847_T97p242.h5', 'RelativeOrbitKS_L27p526_T68p730.h5',
                        'AntisymmetricOrbitKS_L34p913_T51p540.h5', 'OrbitKS_L31p245_T46p754.h5']:
         self = read_h5(orbit_name, directory='../data/test_data/')
-        self = rediscretize(self, new_M=self.M+2)
+        self = rediscretize(self, new_M=self.M-2)
         t0 = time.time()
         print(orbit_name)
-        r = converge(self,  orbit_tol=1e-12, verbose=True)
+        self.plot(fundamental_domain=False)
+        r = converge(self,  method='lstsq', orbit_tol=1e-12, verbose=True)
+        r.orbit.plot(fundamental_domain=False)
         t1 = time.time()
         print(orbit_name, t1-t0, r.orbit.residual())
 

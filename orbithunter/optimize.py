@@ -182,7 +182,7 @@ def _gradient_descent(orbit_, **kwargs):
 
 def _gauss_newton(orbit_, **kwargs):
     orbit_tol = kwargs.get('orbit_tol', orbit_.N * orbit_.M * 10 ** -15)
-    orbit_maxiter = kwargs.get('orbit_maxiter', (orbit_.N * orbit_.M) // 4)
+    orbit_maxiter = kwargs.get('orbit_maxiter', np.max([10, (orbit_.N * orbit_.M) // 4]))
     verbose = kwargs.get('verbose', False)
 
     max_damp_factor = 9
@@ -216,7 +216,8 @@ def _gauss_newton(orbit_, **kwargs):
 
             if kwargs.get('verbose', False):
                 print(damp_factor, end='')
-                if np.mod(n_iter, (orbit_maxiter // 10)) == 0:
+                test = np.mod(n_iter, max([1, (orbit_maxiter // 10)]))
+                if np.mod(n_iter, max([1, (orbit_maxiter // 10)])) == 0:
                     print('Residual={} after {} {} iterations'.format(orbit_.residual(), n_iter, 'lstsq'))
                 sys.stdout.flush()
 
