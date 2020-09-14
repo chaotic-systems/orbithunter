@@ -12,10 +12,10 @@ def best_combination(orbit, other_orbit, fundamental_domain_combinations, axis=0
     residual_list = []
     glued_list = []
     for halves in half_combinations:
-        orbit_domain = orbit.to_fundamental_domain(half=halves[0])
-        other_orbit_domain = other_orbit.to_fundamental_domain(half=halves[1])
+        orbit_domain = orbit._to_fundamental_domain(half=halves[0])
+        other_orbit_domain = other_orbit._to_fundamental_domain(half=halves[1])
         glued = concat(orbit_domain, other_orbit_domain, direction=direction)
-        glued_orbit = glued.from_fundamental_domain()
+        glued_orbit = glued._from_fundamental_domain()
         glued_list.extend([glued_orbit])
         residual_list.extend([glued_orbit.residual])
     best_combi = np.array(glued_list)[np.argmin(residual_list)]

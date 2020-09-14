@@ -523,7 +523,7 @@ class OrbitKS:
         dtn_multipliers = np.tile(np.concatenate(([[0]], c1*w, c2*w), axis=0), (1, dt_parameters[-1]))
         return dtn_multipliers
 
-    def from_fundamental_domain(self):
+    def _from_fundamental_domain(self):
         """ This is a placeholder for the subclasses """
         return self
 
@@ -934,7 +934,7 @@ class OrbitKS:
             plot_orbit = self.copy()
 
         if fundamental_domain:
-            plot_orbit = plot_orbit.to_fundamental_domain().convert(to='field', inplace=True)
+            plot_orbit = plot_orbit._to_fundamental_domain().convert(to='field', inplace=True)
         else:
             plot_orbit = plot_orbit.convert(to='field', inplace=True)
 
@@ -1741,7 +1741,7 @@ class OrbitKS:
                                         idft_mat_imag[:, 1:-1]), axis=1)
         return np.kron(time_idft_mat, np.eye(self.M-2))
 
-    def to_fundamental_domain(self, **kwargs):
+    def _to_fundamental_domain(self, **kwargs):
         """ Placeholder for subclassees, included for compatibility"""
         return self
 
@@ -1890,7 +1890,7 @@ class RelativeOrbitKS(OrbitKS):
             raise ValueError(
                 'Attempting to compute time derivative of '+str(self)+'in physical reference frame.')
 
-    def from_fundamental_domain(self):
+    def _from_fundamental_domain(self):
         return self.change_reference_frame(to='comoving')
 
     def from_numpy_array(self, state_array, **kwargs):
@@ -2207,7 +2207,7 @@ class RelativeOrbitKS(OrbitKS):
                 code = 1
                 return self, code
 
-    def to_fundamental_domain(self):
+    def _to_fundamental_domain(self):
         return self.change_reference_frame(to='physical')
 
 
@@ -2278,7 +2278,7 @@ class AntisymmetricOrbitKS(OrbitKS):
             dx_matrix_complete = np.kron(np.eye(self.parameters['N']), dx_n_matrix)
         return dx_matrix_complete
 
-    def from_fundamental_domain(self, inplace=False, **kwargs):
+    def _from_fundamental_domain(self, inplace=False, **kwargs):
         """ Overwrite of parent method """
         half = kwargs.get('half', 'left')
         if half == 'left':
@@ -2471,7 +2471,7 @@ class AntisymmetricOrbitKS(OrbitKS):
         else:
             return self.__class__(state=space_modes, state_type='s_modes', parameters=self.parameters)
 
-    def to_fundamental_domain(self, inplace=False, **kwargs):
+    def _to_fundamental_domain(self, inplace=False, **kwargs):
         """ Overwrite of parent method """
         half = kwargs.get('half', 'left')
         if half == 'left':
@@ -2569,7 +2569,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
 
         return dx_matrix_complete
 
-    def from_fundamental_domain(self):
+    def _from_fundamental_domain(self):
         """ Reconstruct full field from discrete fundamental domain """
         field = np.concatenate((self.reflection().state, self.state), axis=0)
         return self.__class__(state=field, state_type='field', T=2*self.T, L=self.L)
@@ -2763,7 +2763,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
                                                  np.eye(self.parameters['mode_shape'][1]))
         return full_inv_time_transform_matrix
 
-    def to_fundamental_domain(self, half='bottom'):
+    def _to_fundamental_domain(self, half='bottom'):
         """ Overwrite of parent method """
         field = self.convert(to='field').state
         if half == 'bottom':
@@ -2807,7 +2807,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
                 #dx
         #elementwise_dxn
         #dx_matrix
-        # from_fundamental_domain
+        # _from_fundamental_domain
         # mode_padding
         # mode_truncation
         # nonlinear
@@ -2816,7 +2816,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         # inv_time_transform_matrix
         # time_transform
         # inv_time_transform
-        # to_fundamental_domain
+        # _to_fundamental_domain
 
         """
         super().__init__(state=state, state_type=state_type, L=L, **kwargs)
@@ -2836,7 +2836,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         return np.concatenate((self.state.reshape(-1, 1),
                                np.array([[float(self.L)]])), axis=0)
 
-    def from_fundamental_domain(self, inplace=False, **kwargs):
+    def _from_fundamental_domain(self, inplace=False, **kwargs):
         """ Overwrite of parent method """
         half = kwargs.get('half', 'left')
         if half == 'left':
@@ -3057,7 +3057,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         Equivalent to calling mode_truncation with size=1, dimension='time'.
         This method exists because when it is called it is much more explicit w.r.t. what is being done.
         """
-        field_single_time_point = self.convert(to='field').state[-1, :].reshape(1, -1)
+        field_single_time_point = self.convert(to='field').state[0, :].reshape(1, -1)
         # Keep whatever value of time period T was stored in the original orbit for transformation purposes.
         return self.__class__(state=field_single_time_point, state_type='field',
                               L=self.L).convert(to=self.state_type)
@@ -3245,7 +3245,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         else:
             return self.__class__(state=spatial_modes, state_type='s_modes', L=self.L, N=self.N)
 
-    def to_fundamental_domain(self, half='left', **kwargs):
+    def _to_fundamental_domain(self, half='left', **kwargs):
         """ Overwrite of parent method """
         if half == 'left':
             return EquilibriumOrbitKS(state=self.convert(to='field').state[:, :-int(self.M//2)],
@@ -3298,12 +3298,12 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         Equivalent to calling mode_truncation with size=1, dimension='time'.
         This method exists because when it is called it is much more explicit w.r.t. what is being done.
         """
-        field_single_time_point = self.convert(to='field').state[-1, :].reshape(1, -1)
+        field_single_time_point = self.convert(to='field').state[, :].reshape(1, -1)
         # Keep whatever value of time period T was stored in the original orbit for transformation purposes.
         return self.__class__(state=field_single_time_point, state_type='field',
                               parameters=self.parameters).convert(to=self.state_type)
 
-    def from_fundamental_domain(self):
+    def _from_fundamental_domain(self):
         """ For compatibility purposes with plotting and other utilities """
         return self.change_reference_frame(to='physical')
 
@@ -3656,7 +3656,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         else:
             return self.__class__(state=spatial_modes, state_type='s_modes', parameters=self.parameters)
 
-    def to_fundamental_domain(self):
+    def _to_fundamental_domain(self):
         return self.change_reference_frame(to='comoving')
 
 
