@@ -5,7 +5,7 @@ from orbithunter.discretization import rediscretize
 from orbithunter.orbit import OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS, \
     AntisymmetricOrbitKS, EquilibriumOrbitKS, RelativeEquilibriumOrbitKS, change_orbit_type
 from orbithunter.arrayops import swap_modes, so2_coefficients, so2_generator, calculate_spatial_shift
-from orbithunter.integration import integrate
+from orbithunter.integration import integrate_kse
 
 __all__ = orbit.__all__
 __all__ += optimize.__all__

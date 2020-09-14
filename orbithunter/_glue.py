@@ -8,7 +8,6 @@ __all__ = ['combine', 'glue']
 
 
 def best_combination(orbit, other_orbit, fundamental_domain_combinations, axis=0):
-
     half_combinations = list(itertools.product(half_list,repeat=2))
     residual_list = []
     glued_list = []
@@ -66,15 +65,15 @@ def combine(orbit, other_orbit, axis=0):
 
 
 def tile_dictionary_ks():
-    directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/')), '')
-    # merger Orbit
-    merger = read_h5(os.path.abspath(os.path.join(directory, "./merger.h5")))
-
-    # Wiggle Orbit
-    streak = read_h5(os.path.abspath(os.path.join(directory, "./streak.h5")))
-
-    # Streak Orbit
-    wiggle = read_h5(os.path.abspath(os.path.join(directory, "./wiggle.h5")))
+    directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/tiles')), '')
+    # padded merger Orbit in comoving frame
+    merger = read_h5(os.path.abspath(os.path.join(directory, "./RelativeOrbitKS_L13p026_T15p855.h5")))
+    # padded merger orbit in physical frame.
+    merger = read_h5(os.path.abspath(os.path.join(directory, "./RelativeOrbitKS_L13p026_T15p855.h5")))
+    # padded wiggle orbit
+    wiggle = read_h5(os.path.abspath(os.path.join(directory, "./EquilibriumOrbitKS_L6p39.h5")))
+    # padded streak orbit
+    streak = read_h5(os.path.abspath(os.path.join(directory, "./AntisymmetricOrbitKS_L17p590_T17p146.h5")))
 
     tile_library = {'0': streak, '1': merger, '2': wiggle}
 
@@ -82,10 +81,22 @@ def tile_dictionary_ks():
 
 
 def tile(symbol_array, tile_dict=tile_dictionary_ks):
-
+    symbol_array_shape = symbol_array.shape
     tile_list = [tile_dict[symbol] for symbol in symbol_array.ravel()]
-    tile_array = np.reshape(tile_list, symbol_array.shape)
+    orbit_tile_shape = tile_list[0].shape
+    states_array = np.array([x.state for x in tile_list]).reshape(*symbol_array_shape, *orbit_tile_shape)
+    np.concatenate((np.concatenate(tmp, axis=-1)), axis=-2)
 
+    states_array = np.array([np.ones([32,32,32]) for x in tile_list]).reshape(*symbol_array_shape, *np.ones([32,32,32]).shape)
+    # np.concatenate((np.concatenate(tmp, axis=-1)), axis=-2)
+    # dict(zip(orbit.parameters.keys(), np.array(list(zip(orbit.parameters.values(), orbit.parameters.values(), orbit.parameters.values())))))
+    tmp = states_array.copy()
+    for y in range(1, len(orbit.shape)+1):
+        tmp = np.concatenate(tmp, axis=-y)
+
+
+    dict(zip(orbit.parameters.keys(), np.array(list(zip(orbit.parameters.values(),
+                                                        orbit.parameters.values(), orbit.parameters.values())))))
     '''
     Currently: spatial aspect ratio predetermined.
     need correct aspect ratios between columns AND ROWS
@@ -106,8 +117,8 @@ def tile(symbol_array, tile_dict=tile_dictionary_ks):
         for space_index in range(0, speriod):
             if not space_index:
                 block_field_row_temp = tile_array[time_index,space_index,0]
-                if row_streak_count!=speriod:
-                    Ttmp+=tile_array[time_index,space_index,-3]/(speriod-row_streak_count)
+                if row_streak_count != speriod:
+                    Ttmp += tile_array[time_index, space_index, -3]/(speriod - row_streak_count)
                 else:
                     Ttmp += 0
 
@@ -115,7 +126,7 @@ def tile(symbol_array, tile_dict=tile_dictionary_ks):
                 Stmp+=tile_array[time_index,space_index,-1]
             else:
                 block_field_row_temp = np.hstack([block_field_row_temp,tile_array[time_index,space_index,0]])
-                if row_streak_count==speriod:
+                if row_streak_count == speriod:
                     Ttmp += 0
                 else:
                     Ttmp+=tile_array[time_index,space_index,-3]/(speriod-row_streak_count)
@@ -156,16 +167,56 @@ def glue(orbit, other_orbit, axis=0, **kwargs):
     -------
 
     """
-    newfield = np.concatenate((orbit.convert(to='field').state,
+    new_field = np.concatenate((orbit.convert(to='field').state,
                                other_orbit.convert(to='field').state), axis=axis)
 
-    param_zip_enum = enumerate(zip(orbit.parameters, other_orbit.parameters))
-    new_parameters = [np.mean([p1, p2]) if (i != axis) else np.sum([p1, p2]) for i, (p1, p2) in param_zip_enum]
+    zipped_parameter_dict = dict(zip(orbit.parameters.keys(),
+                                 zip(orbit.parameters.values(), other_orbit.parameters.values())))
 
-    glued_orbit = orbit.__class__(state=newfield, state_type='field', parameters=new_parameters, **kwargs)
+    glued_parameters = orbit.glue_parameters(zipped_parameter_dict, axis=axis)
+    glued_orbit = orbit.__class__(state=new_field, state_type='field', parameters=glued_parameters,
+                                  nonzero_parameters=True, **kwargs)
     glued_orbit = rediscretize(glued_orbit, parameter_based=True, **kwargs)
     return glued_orbit
 
 
+def symbolic_uniqueness(symbol_array):
+    """ Check to see if a combination has already been searched for locally.
+
+    Returns
+    -------
+
+    Notes
+    -----
+    Computes the equivariant equivalents of the symbolic array being searched for.
+    Strings can become arbitrarily long but I think this is unavoidable unless symbolic dynamics are redefined
+    to get full shift.
+
+    This checks the records/logs as to whether an orbit or one of its equivariant arrangements converged with
+    a particular method.
+    """
+
+    all_rotations = itertools.product(*(list(range(a)) for a in symbol_array.shape))
+    axes = tuple(range(len(symbol_array.shape)))
+    equivariant_symbol_string_list = []
+    for rotation in all_rotations:
+        equivariant_symbol_string_list.append(to_symbol_string(np.roll(symbol_array, rotation, axis=axes)))
+
+
+
+    return None
+
+
+def to_symbol_string(symbol_array):
+    symbolic_string = symbol_array.astype(str).copy()
+    shape_of_axes_to_contract = symbol_array.shape[1:]
+    for i, shp in enumerate(shape_of_axes_to_contract):
+        symbolic_string = [(i*'_').join(list_) for list_ in np.array(symbolic_string).reshape(-1, shp).tolist()]
+    symbolic_string = ((len(shape_of_axes_to_contract))*'_').join(symbolic_string)
+    return symbolic_string
+
+
+def to_symbol_array(symbol_string, symbol_array_shape):
+    return np.array([char for char in symbol_string.replace('_', '')]).astype(int).reshape(symbol_array_shape)
 
 

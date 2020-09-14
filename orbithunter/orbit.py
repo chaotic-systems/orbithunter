@@ -783,10 +783,39 @@ class OrbitKS:
         -----
         This has its utility when initializing new instances (although not all parameters will be used)
         """
-        parameter_dict = {'T': self.T, 'L': self.L, 'S:': self.S, 'N': self.N, 'M': self.M,
+        parameter_dict = {'T': self.T, 'L': self.L, 'S': self.S, 'N': self.N, 'M': self.M,
                           'n': max([self.n, 1]), 'm': self.m, 'mode_shape': (max([self.N-1, 1]), self.M-2),
                           'dx': (self.L, self.M, self.m, max([self.N-1, 1])), 'dt': (self.T, self.N, self.n, self.M-2)}
         return parameter_dict
+
+    @classmethod
+    def glue_parameters(cls, parameter_dict_with_zipped_values, axis=0):
+        """ Class method for handling parameters in gluing
+
+        Parameters
+        ----------
+        parameter_dict_with_zipped_values
+        axis
+
+        Returns
+        -------
+
+        Notes
+        -----
+
+
+        """
+        if axis == 0:
+            T_array = np.array(parameter_dict_with_zipped_values['T'])
+            new_parameter_dict = {'T': np.sum(parameter_dict_with_zipped_values['T']),
+                                  'L': np.mean(parameter_dict_with_zipped_values['L']),
+                                  'S': 0.}
+        else:
+            new_parameter_dict = {'T': np.mean(parameter_dict_with_zipped_values['T']),
+                                  'L': np.sum(parameter_dict_with_zipped_values['L']),
+                                  'S': 0.}
+
+        return new_parameter_dict
 
     @property
     def mode_shape(self):
@@ -848,8 +877,8 @@ class OrbitKS:
 
         if kwargs.get('parameters', None) is not None:
             parameters = kwargs.get('parameters', None)
-            T = parameters['T']
-            L = parameters['L']
+            T = parameters.get('T', 0.)
+            L = parameters.get('L', 0.)
 
         if T == 0. and kwargs.get('nonzero_parameters', False):
             self.T = (kwargs.get('T_min', 20.)
@@ -2016,6 +2045,54 @@ class RelativeOrbitKS(OrbitKS):
         assert self.frame == 'comoving', 'Transform to comoving frame before truncating modes'
         return super().mode_truncation(size, dimension=dimension)
 
+    @classmethod
+    def glue_parameters(cls, parameter_dict_with_zipped_values, axis=0):
+        """ Class method for handling parameters in gluing
+
+        Parameters
+        ----------
+        parameter_dict_with_zipped_values
+        axis
+
+        Returns
+        -------
+
+        Notes
+        -----
+        The shift will be calculated when the parameters are passed to the instance because of the 'frame':'physical'
+        dict kay value pair.
+
+        """
+        if axis == 0:
+            new_parameter_dict = {'T': np.sum(parameter_dict_with_zipped_values['T']),
+                                  'L': np.mean(parameter_dict_with_zipped_values['L']),
+                                  'S': 0.,
+                                  'frame': 'physical'}
+        else:
+            new_parameter_dict = {'T': np.mean(parameter_dict_with_zipped_values['T']),
+                                  'L': np.sum(parameter_dict_with_zipped_values['L']),
+                                  'S': 0.,
+                                  'frame': 'physical'}
+        return new_parameter_dict
+
+    @property
+    def parameters(self):
+        """ Pass all parameters as one collection instead of individually.
+
+
+        Returns
+        -------
+
+        Notes
+        -----
+        This has its utility when initializing new instances (although not all parameters will be used)
+        """
+        parameter_dict = {'T': self.T, 'L': self.L, 'S': self.S, 'N': self.N, 'M': self.M,
+                          'n': max([self.n, 1]), 'm': self.m, 'mode_shape': (max([self.N-1, 1]), self.M-2),
+                          'dx': (self.L, self.M, self.m, max([self.N-1, 1])), 'dt': (self.T, self.N, self.n, self.M-2),
+                          'frame': self.frame}
+        return parameter_dict
+
     def _parameter_preconditioning(self):
         parameter_multipliers = []
         if not self.constraints['T']:
@@ -2026,22 +2103,18 @@ class RelativeOrbitKS(OrbitKS):
             parameter_multipliers.append(self.S**0)
         return np.array(parameter_multipliers)
 
-    def _parse_state(self, state, state_type, **kwargs):
-        # due to inheritance, S will always be passed as kwarg to this or random initial condition function.
-        # Unfortunately, S depends on the state so
-        super()._parse_state(state, state_type)
-        return self
-
     def _parse_parameters(self, T=0., L=0., S=0., **kwargs):
-        self.frame = kwargs.get('frame', 'comoving')
+
         self.constraints = kwargs.get('constraints', {'T': False, 'L': False, 'S': False})
 
         if kwargs.get('parameters', None) is not None:
             parameters = kwargs.get('parameters', None)
-            self.T = parameters['T']
-            self.L = parameters['L']
-            self.S = parameters['S']
+            self.frame = parameters.get('frame', 'comoving')
+            self.T = parameters.get('T', 0.)
+            self.L = parameters.get('L', 0.)
+            self.S = parameters.get('S', 0.)
         else:
+            self.frame = kwargs.get('frame', 'comoving')
             if T == 0. and kwargs.get('nonzero_parameters', False):
                 self.T = (kwargs.get('T_min', 20.)
                           + (kwargs.get('T_max', 180.) - kwargs.get('T_min', 20.))*np.random.rand())
@@ -2286,7 +2359,7 @@ class AntisymmetricOrbitKS(OrbitKS):
         -----
 
         """
-        parameter_dict = {'T': self.T, 'L': self.L, 'S:': self.S, 'N': self.N, 'M': self.M,
+        parameter_dict = {'T': self.T, 'L': self.L, 'S': self.S, 'N': self.N, 'M': self.M,
                           'n': max([self.n, 1]), 'm': self.m, 'mode_shape': (max([self.N-1, 1]), self.m),
                           'dx': (self.L, self.M, self.m, self.N, max([self.N-1, 1])),
                           'dt': (self.T, self.N, self.n, self.m)}
@@ -2568,7 +2641,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
 
     @property
     def parameters(self):
-        parameter_dict = {'T': self.T, 'L': self.L, 'S:': self.S, 'N': self.N, 'M': self.M,
+        parameter_dict = {'T': self.T, 'L': self.L, 'S': self.S, 'N': self.N, 'M': self.M,
                           'n': max([self.n, 1]), 'm': self.m, 'mode_shape': (max([self.N-1, 1]), self.m),
                           'dx': (self.L, self.M, self.m, self.N, max([self.N-1, 1])),
                           'dt': (self.T, self.N, self.n, self.m)}
@@ -2885,7 +2958,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         if kwargs.get('parameters', None) is not None:
             parameters = kwargs.get('parameters', None)
             self.T = 0.
-            self.L = parameters['L']
+            self.L = parameters.get('L', 0.)
             self.S = 0.
         else:
             # The default value is False. If its true, assign random value to L
@@ -3009,7 +3082,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
     @property
     def parameters(self):
-        parameter_dict = {'T': self.T, 'L': self.L, 'S:': self.S, 'N': self.N, 'M': self.M,
+        parameter_dict = {'T': self.T, 'L': self.L, 'S': self.S, 'N': self.N, 'M': self.M,
                           'n': max([self.n, 1]), 'm': self.m, 'mode_shape': (1, self.m),
                           'dx': (self.L, self.M, self.m, self.N, 1),
                           'dt': (self.T, self.N, self.n, self.m)}
@@ -3373,7 +3446,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         is somewhat redundant because attributes can be referenced typically, but there are instances where
         it is much easier to pass a collection instead.
         """
-        parameter_dict = {'T': self.T, 'L': self.L, 'S:': self.S, 'N': self.N, 'M': self.M,
+        parameter_dict = {'T': self.T, 'L': self.L, 'S': self.S, 'N': self.N, 'M': self.M,
                           'n': max([self.n, 1]), 'm': self.m, 'mode_shape': (1, self.M-2),
                           'dx': (self.L, self.M, self.m, 1),
                           'dt': (self.T, self.N, self.n, self.M-2)}
