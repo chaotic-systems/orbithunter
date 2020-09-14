@@ -84,17 +84,17 @@ class OrbitKS:
 
     def __add__(self, other):
         return self.__class__(state=(self.state + other.state), state_type=self.state_type,
-                              T=self.T, L=self.L, S=self.S)
+                              parameters=self.parameters)
 
     def __radd__(self, other):
         return self.__class__(state=(self.state + other.state),
-                              T=self.T, L=self.L, S=self.S, state_type=self.state_type)
+                              parameters=self.parameters, state_type=self.state_type)
 
     def __sub__(self, other):
-        return self.__class__(state=(self.state-other.state),  T=self.T, L=self.L, S=self.S, state_type=self.state_type)
+        return self.__class__(state=(self.state-other.state),  parameters=self.parameters, state_type=self.state_type)
 
     def __rsub__(self, other):
-        return self.__class__(state=(other.state - self.state), T=self.T, L=self.L, S=self.S, state_type=self.state_type)
+        return self.__class__(state=(other.state - self.state), parameters=self.parameters, state_type=self.state_type)
 
     def __mul__(self, num):
         """ Scalar multiplication
@@ -110,7 +110,7 @@ class OrbitKS:
         Current implementation makes it so no checks of the type of num need to be made.
         """
         return self.__class__(state=np.multiply(num, self.state), state_type=self.state_type,
-                              T=self.T, L=self.L, S=self.S)
+                              parameters=self.parameters)
 
     def __rmul__(self, num):
         """ Scalar multiplication
@@ -126,7 +126,7 @@ class OrbitKS:
         Current implementation makes it so no checks of the type of num need to be made.
         """
         return self.__class__(state=np.multiply(num, self.state), state_type=self.state_type,
-                              T=self.T, L=self.L, S=self.S)
+                              parameters=self.parameters)
 
     def __truediv__(self, num):
         """ Scalar multiplication
@@ -141,7 +141,7 @@ class OrbitKS:
         State-wise division is ill-defined because of division by 0.
         """
         return self.__class__(state=np.divide(self.state, num), state_type=self.state_type,
-                              T=self.T, L=self.L, S=self.S)
+                              parameters=self.parameters)
 
     def __floordiv__(self, num):
         """ Scalar multiplication
@@ -156,7 +156,7 @@ class OrbitKS:
         State-wise division is ill-defined because of division by 0.
         """
         return self.__class__(state=np.divide(self.state, num), state_type=self.state_type,
-                              T=self.T, L=self.L, S=self.S)
+                              parameters=self.parameters)
 
     def __pow__(self, power):
         """ Scalar multiplication
@@ -172,7 +172,7 @@ class OrbitKS:
         Current implementation makes it so no checks of the type of num need to be made.
         """
         return self.__class__(state=self.state**power, state_type=self.state_type,
-                              T=self.T, L=self.L, S=self.S)
+                              parameters=self.parameters)
 
     def __str__(self):
         return self.__class__.__name__ + "()"
@@ -236,14 +236,14 @@ class OrbitKS:
         if zero_check < 10**-10:
             code = 4
             return EquilibriumOrbitKS(state=np.zeros([self.N, self.M]), state_type='field',
-                                      T=self.T, L=self.L, S=self.S).convert(to=self.state_type), code
+                                      parameters=self.parameters).convert(to=self.state_type), code
         # Equilibrium is defined by having no temporal variation, i.e. time derivative is a uniformly zero.
         elif equilibrium_check < self.N*self.M*10**-10:
             # If there is sufficient evidence that solution is an equilibrium, change its class
             code = 3
             # store T just in case we want to refer to what the period was before conversion to EquilibriumOrbitKS
             return EquilibriumOrbitKS(state=equilibrium_check_orbit.state, state_type='modes',
-                                      T=self.T, L=self.L, S=self.S).convert(to=self.state_type), code
+                                      parameters=self.parameters).convert(to=self.state_type), code
 
         else:
             return self, 1
@@ -295,7 +295,7 @@ class OrbitKS:
             raise ValueError('Trying to convert to unrecognizable state type.')
 
     def copy(self):
-        return self.__class__(state=self.state, state_type=self.state_type, T=self.T, L=self.L, S=self.S)
+        return self.__class__(state=self.state, state_type=self.state_type, parameters=self.parameters)
 
     def dot(self, other):
         """ Return the L_2 inner product of two 2-tori
@@ -363,7 +363,7 @@ class OrbitKS:
         if return_array:
             return dtn_modes
         else:
-            orbit_dtn = self.__class__(state=dtn_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
+            orbit_dtn = self.__class__(state=dtn_modes, state_type='modes', parameters=self.parameters)
             return orbit_dtn.convert(to=self.state_type)
 
     def dx(self, power=1, return_array=False):
@@ -395,7 +395,7 @@ class OrbitKS:
         if return_array:
             return dxn_modes
         else:
-            orbit_dxn = self.__class__(state=dxn_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
+            orbit_dxn = self.__class__(state=dxn_modes, state_type='modes', parameters=self.parameters)
             return orbit_dxn.convert(to=self.state_type)
 
     @classmethod
@@ -735,7 +735,7 @@ class OrbitKS:
                 padded_modes = np.sqrt(size / modes.M) * np.concatenate((first_half, padding, second_half, padding), axis=1)
 
         return self.__class__(state=padded_modes, state_type='modes',
-                              T=self.T, L=self.L, S=self.S).convert(to=self.state_type)
+                              parameters=self.parameters).convert(to=self.state_type)
 
     def mode_truncation(self, size, dimension='space'):
         """ Decrease the size of the discretization via truncation
@@ -769,7 +769,7 @@ class OrbitKS:
                 first_half = self.state[:, :truncate_number]
                 second_half = self.state[:, -self.m:-self.m + truncate_number]
                 truncated_modes = np.sqrt(size / modes.M) * np.concatenate((first_half, second_half), axis=1)
-        return self.__class__(state=truncated_modes, state_type=self.state_type, T=self.T, L=self.L, S=self.S)
+        return self.__class__(state=truncated_modes, state_type=self.state_type, parameters=self.parameters)
 
     @property
     def parameters(self):
@@ -1191,7 +1191,7 @@ class OrbitKS:
             field = self.convert(to='field').state
             rescaled_state = (new_absolute_max * field) / np.max(np.abs(field.ravel()))
             return self.__class__(state=rescaled_state, state_type='field',
-                                  T=self.T, L=self.L, S=self.S).convert(to=self.state_type)
+                                  parameters=self.parameters).convert(to=self.state_type)
 
     def residual(self, apply_mapping=True):
         """ The value of the cost function
@@ -1317,7 +1317,7 @@ class OrbitKS:
             rotated_s_modes = np.concatenate((rotated_real, rotated_imag), axis=1)
 
             return self.__class__(state=rotated_s_modes, state_type='s_modes',
-                                  T=self.T, L=self.L, S=self.S).convert(to=self.state_type)
+                                  parameters=self.parameters).convert(to=self.state_type)
         else:
             orbit_to_rotate = self.convert(to='modes')
             # Refer to rotation matrix in 2-D for reference.
@@ -1333,7 +1333,7 @@ class OrbitKS:
                             + np.multiply(cosine_block, modes_timeimaginary))
             time_rotated_modes = np.concatenate((self.state[0, :].reshape(1, -1), rotated_real, rotated_imag), axis=0)
             return self.__class__(state=time_rotated_modes,
-                                  T=self.T, L=self.L, S=self.S).convert(to=self.state_type)
+                                  parameters=self.parameters).convert(to=self.state_type)
 
     def _random_initial_condition(self, **kwargs):
         """ Initial a set of random spatiotemporal Fourier modes
@@ -1361,7 +1361,8 @@ class OrbitKS:
         spectrum = kwargs.get('spectrum', 'random')
 
         # also accepts N and M as kwargs
-        self.N, self.M = _parameter_based_discretization(self.T, self.L, **kwargs)
+        temporary_param_dict = {'T':kwargs.get('T', 0.), 'L':kwargs.get('L', 0.)}
+        self.N, self.M = _parameter_based_discretization(temporary_param_dict, **kwargs)
         self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
 
         tscale = kwargs.get('tscale', 1)
@@ -1433,7 +1434,7 @@ class OrbitKS:
             half of the period. Because these are in different dimensions these operations commute.
         """
         shift_reflected_field = np.roll(-1.0*np.roll(np.fliplr(self.state), 1, axis=1), self.n, axis=0)
-        return self.__class__(state=shift_reflected_field, state_type='field', T=self.T, L=self.L, S=self.S)
+        return self.__class__(state=shift_reflected_field, state_type='field', parameters=self.parameters)
 
     @property
     def shape(self):
@@ -1462,7 +1463,7 @@ class OrbitKS:
             self.state = spatial_modes
             return self
         else:
-            return self.__class__(state=spatial_modes, state_type='s_modes', T=self.T, L=self.L, S=self.S)
+            return self.__class__(state=spatial_modes, state_type='s_modes', parameters=self.parameters)
 
     def _inv_space_transform(self, inplace=False):
         """ Spatial Fourier transform
@@ -1488,7 +1489,7 @@ class OrbitKS:
             self.state = field
             return self
         else:
-            return self.__class__(state=field, state_type='field', T=self.T, L=self.L, S=self.S)
+            return self.__class__(state=field, state_type='field', parameters=self.parameters)
 
     def _inv_space_transform_matrix(self):
         """ Inverse spatial Fourier transform operator
@@ -1628,7 +1629,7 @@ class OrbitKS:
                          + self.dx(power=4, return_array=True)
                          + orbit_field.nonlinear(orbit_field, return_array=True))
         # Put the result in an orbit instance.
-        return self.__class__(state=mapping_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
+        return self.__class__(state=mapping_modes, state_type='modes', parameters=self.parameters)
 
     def statemul(self, other):
         """ Elementwise multiplication of two Tori states
@@ -1647,7 +1648,7 @@ class OrbitKS:
             product = np.multiply(self.state, other)
         else:
             product = np.multiply(self.state, other.state)
-        return self.__class__(state=product, state_type=self.state_type, T=self.T, L=self.L, S=self.S)
+        return self.__class__(state=product, state_type=self.state_type, parameters=self.parameters)
 
     def _time_transform(self, inplace=False):
         """ Temporal Fourier transform
@@ -1674,7 +1675,7 @@ class OrbitKS:
             self.state = spacetime_modes
             return self
         else:
-            return self.__class__(state=spacetime_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
+            return self.__class__(state=spacetime_modes, state_type='modes', parameters=self.parameters)
 
     def _inv_time_transform(self, inplace=False):
         """ Temporal Fourier transform
@@ -1703,7 +1704,7 @@ class OrbitKS:
             self.state = space_modes
             return self
         else:
-            return self.__class__(state=space_modes, state_type='s_modes', T=self.T, L=self.L, S=self.S)
+            return self.__class__(state=space_modes, state_type='s_modes', parameters=self.parameters)
 
     def _time_transform_matrix(self):
         """ Inverse Time Fourier transform operator
@@ -1790,7 +1791,7 @@ class RelativeOrbitKS(OrbitKS):
         # For uniform save format
         super().__init__(state=state, state_type=state_type, T=T, L=L, S=S, frame=frame, **kwargs)
         # If the frame is comoving then the calculated shift will always be 0 by definition of comoving frame.
-        if self.S == 0. and self.frame == 'physical':
+        if self.S == 0. and (self.frame == 'physical' or kwargs.get('nonzero_parameters', False)):
             self.S = calculate_spatial_shift(self.convert(to='s_modes').state, self.L)
 
     def __repr__(self):
@@ -1864,7 +1865,7 @@ class RelativeOrbitKS(OrbitKS):
                                       + np.multiply(imag_modes, cosine_block))
         frame_rotated_s_modes = np.concatenate((frame_rotated_s_modes_real, frame_rotated_s_modes_imag), axis=1)
         return self.__class__(state=frame_rotated_s_modes, state_type='s_modes', frame=to,
-                              T=self.T, L=self.L, S=self.S).convert(to=self.state_type)
+                              parameters=self.parameters).convert(to=self.state_type)
 
     def dt(self, power=1, return_array=False):
         """ A time derivative of the current state.
@@ -2100,17 +2101,15 @@ class RelativeOrbitKS(OrbitKS):
         return np.array(parameter_multipliers)
 
     def _parse_parameters(self, T=0., L=0., S=0., **kwargs):
-
         self.constraints = kwargs.get('constraints', {'T': False, 'L': False, 'S': False})
+        self.frame = kwargs.get('frame', 'comoving')
 
         if kwargs.get('parameters', None) is not None:
             parameters = kwargs.get('parameters', None)
-            self.frame = parameters.get('frame', 'comoving')
             self.T = parameters.get('T', 0.)
             self.L = parameters.get('L', 0.)
             self.S = parameters.get('S', 0.)
         else:
-            self.frame = kwargs.get('frame', 'comoving')
             if T == 0. and kwargs.get('nonzero_parameters', False):
                 self.T = (kwargs.get('T_min', 20.)
                           + (kwargs.get('T_max', 180.) - kwargs.get('T_min', 20.))*np.random.rand())
@@ -2162,16 +2161,6 @@ class RelativeOrbitKS(OrbitKS):
         else:
             return rmatvec_orbit.increment(rmatvec_comoving)
 
-    def random_initial_condition(self, **kwargs):
-        """ Extension of parent modes to include spatial-shift initialization """
-        super().random_initial_condition(**kwargs)
-        # if args[0] == 0.0:
-        #     # Assign random proportion of L with random sign as the shift if none provided.
-        #     self.S = ([-1, 1][int(2*np.random.rand())])*np.random.rand()*self.L
-        # else:
-        #     self.S = args[0]
-        return self
-
     def spatiotemporal_mapping(self, **kwargs):
         """ Extension of OrbitKS method to include co-moving frame term. """
         return super().spatiotemporal_mapping() + self.comoving_mapping_component()
@@ -2196,12 +2185,12 @@ class RelativeOrbitKS(OrbitKS):
         if zero_check < self.N*self.M*10**-10:
             code = 4
             return RelativeEquilibriumOrbitKS(state=np.zeros([self.N, self.M]), state_type='field',
-                                              T=self.T, L=self.L, S=self.S), code
+                                              parameters=self.parameters), code
         # Equilibrium is defined by having no temporal variation, i.e. time derivative is a uniformly zero.
         elif equilibrium_check < self.N*self.M*10**-10:
             # If there is sufficient evidence that solution is an equilibrium, change its class
             code = 3
-            return RelativeEquilibriumOrbitKS(state=equilibrium_modes, T=self.T, L=self.L, S=self.S), code
+            return RelativeEquilibriumOrbitKS(state=equilibrium_modes, parameters=self.parameters), code
         else:
             orbit_with_inverted_shift = self.__class__(state=self.state, state_type=self.state_type,
                                                        T=self.T, L=self.L, S=-1.0*self.S)
@@ -2446,7 +2435,7 @@ class AntisymmetricOrbitKS(OrbitKS):
             self.state_type = 'modes'
             return self
         else:
-            return self.__class__(state=spacetime_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
+            return self.__class__(state=spacetime_modes, state_type='modes', parameters=self.parameters)
 
     def _inv_time_transform(self, inplace=False):
         """ Spatial Fourier transform
@@ -2476,7 +2465,7 @@ class AntisymmetricOrbitKS(OrbitKS):
             self.state_type = 's_modes'
             return self
         else:
-            return self.__class__(state=space_modes, state_type='s_modes', T=self.T, L=self.L, S=self.S)
+            return self.__class__(state=space_modes, state_type='s_modes', parameters=self.parameters)
 
     def to_fundamental_domain(self, inplace=False, **kwargs):
         """ Overwrite of parent method """
@@ -2679,7 +2668,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
             self.state_type = 'modes'
             return self
         else:
-            return self.__class__(state=spacetime_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
+            return self.__class__(state=spacetime_modes, state_type='modes', parameters=self.parameters)
 
     def _inv_time_transform(self, inplace=False):
         """ Spatial Fourier transform
@@ -2715,7 +2704,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
             self.state_type = 's_modes'
             return self
         else:
-            return self.__class__(state=space_modes, state_type='s_modes', T=self.T, L=self.L, S=self.S)
+            return self.__class__(state=space_modes, state_type='s_modes', parameters=self.parameters)
 
     def _time_transform_matrix(self):
         """
@@ -2992,7 +2981,8 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         spectrum = kwargs.get('spectrum', 'random')
 
         # also accepts N and M as kwargs
-        self.N, self.M = _parameter_based_discretization(self.T, self.L, **kwargs)
+        temporary_param_dict = {'T':kwargs.get('T', 0.), 'L':kwargs.get('L', 0.)}
+        self.N, self.M = _parameter_based_discretization(temporary_param_dict, **kwargs)
         self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
 
         tscale = kwargs.get('tscale', 1)
@@ -3191,7 +3181,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         if zero_check < self.N*self.M*10**-10:
             code = 4
             return self.__class__(state=np.zeros([self.N, self.M]), state_type='field',
-                                  T=self.T, L=self.L, S=self.S), code
+                                  parameters=self.parameters), code
         else:
             return self, 1
 
@@ -3285,7 +3275,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
                 return np.zeros(self.state.shape)
             else:
                 return self.__class__(state=np.zeros(self.state.shape), state_type=self.state_type,
-                                      T=self.T, L=self.L, S=self.S)
+                                      parameters=self.parameters)
         else:
             raise ValueError(
                 'Attempting to compute time derivative of ' + str(self) + ' in physical reference frame.'
@@ -3307,7 +3297,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         field_single_time_point = self.convert(to='field').state[-1, :].reshape(1, -1)
         # Keep whatever value of time period T was stored in the original orbit for transformation purposes.
         return self.__class__(state=field_single_time_point, state_type='field',
-                              T=self.T, L=self.L, S=self.S).convert(to=self.state_type)
+                              parameters=self.parameters).convert(to=self.state_type)
 
     def from_fundamental_domain(self):
         """ For compatibility purposes with plotting and other utilities """
@@ -3370,7 +3360,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             # because it is designed to only represent the zeroth modes.
             paddeds_s_modes = np.tile(s_modes.state[-1, :].reshape(1, -1), (size, 1))
             return self.__class__(state=paddeds_s_modes, state_type='s_modes',
-                                  T=self.T, L=self.L, S=self.S).convert(to=self.state_type)
+                                  parameters=self.parameters).convert(to=self.state_type)
         else:
             # Split into real and imaginary components, pad separately.
             first_half = s_modes.state[:, :-s_modes.m]
@@ -3380,7 +3370,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             padded_modes = np.sqrt(size / s_modes.M) * np.concatenate((first_half, padding,
                                                                        second_half, padding), axis=1)
             return self.__class__(state=padded_modes, state_type='s_modes',
-                                  T=self.T, L=self.L, S=self.S).convert(to=self.state_type)
+                                  parameters=self.parameters).convert(to=self.state_type)
 
     def mode_truncation(self, size, dimension='space'):
         """ Decrease the size of the discretization via truncation
@@ -3403,7 +3393,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         assert self.frame == 'comoving', 'Transform to comoving frame before truncating modes'
         if dimension == 'time':
             truncated_s_modes = self.convert(to='s_modes').state[-size:, :]
-            self.__class__(state=truncated_s_modes, state_type='s_modes', T=self.T, L=self.L, S=self.S
+            self.__class__(state=truncated_s_modes, state_type='s_modes', parameters=self.parameters
                            ).convert(to=self.state_type)
         else:
             truncate_number = int(size // 2) - 1
@@ -3413,7 +3403,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             second_half = s_modes.state[:, -s_modes.m:-s_modes.m + truncate_number]
             truncated_s_modes = np.sqrt(size / s_modes.M) * np.concatenate((first_half, second_half), axis=1)
         return self.__class__(state=truncated_s_modes, state_type=self.state_type,
-                              T=self.T, L=self.L, S=self.S).convert(to=self.state_type)
+                              parameters=self.parameters).convert(to=self.state_type)
 
     @property
     def parameters(self):
@@ -3488,7 +3478,8 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         spectrum = kwargs.get('spectrum', 'random')
 
         # also accepts N and M as kwargs
-        self.N, self.M = _parameter_based_discretization(self.T, self.L, **kwargs)
+        temporary_param_dict = {'T': kwargs.get('T', 0.), 'L': kwargs.get('L', 0.)}
+        self.N, self.M = _parameter_based_discretization(temporary_param_dict, **kwargs)
         self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
 
         tscale = kwargs.get('tscale', 1)
@@ -3563,7 +3554,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
                          + modes.dx(power=4, return_array=True)
                          + field.nonlinear(field, return_array=True)
                          + modes.comoving_mapping_component(return_array=True))
-        return self.__class__(state=mapping_modes, state_type='modes', T=self.T, L=self.L, S=self.S)
+        return self.__class__(state=mapping_modes, state_type='modes', parameters=self.parameters)
 
     def state_vector(self):
         """ Vector which completely describes the orbit."""
@@ -3585,7 +3576,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         if zero_check < self.N*self.M*10**-10:
             code = 4
             return RelativeEquilibriumOrbitKS(state=np.zeros([self.N, self.M]), state_type='field',
-                                              T=self.T, L=self.L, S=self.S), code
+                                              parameters=self.parameters), code
         else:
             orbit_with_inverted_shift = self.__class__(state=self.state, state_type=self.state_type,
                                                        T=self.T, L=self.L, S=-1.0*self.S)
@@ -3643,7 +3634,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             self.state_type = 'modes'
             return self
         else:
-            return self.__class__(state=spacetime_modes, state_type='modes', T=self.T, L=self.L, S=self.S, N=self.N)
+            return self.__class__(state=spacetime_modes, state_type='modes', parameters=self.parameters, N=self.N)
 
     def _inv_time_transform(self, inplace=False):
         """ Overwrite of parent method
@@ -3659,7 +3650,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             self.state_type = 's_modes'
             return self
         else:
-            return self.__class__(state=spatial_modes, state_type='s_modes', T=self.T, L=self.L, S=self.S)
+            return self.__class__(state=spatial_modes, state_type='s_modes', parameters=self.parameters)
 
     def to_fundamental_domain(self):
         return self.change_reference_frame(to='comoving')
