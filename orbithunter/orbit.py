@@ -817,10 +817,6 @@ class OrbitKS:
 
         return new_parameter_dict
 
-    @property
-    def mode_shape(self):
-        return max([self.N-1, 1]), self.m
-
     def parameter_dependent_filename(self, extension='.h5', decimals=3):
         Lsplit = str(self.L).split('.')
         Lint = str(Lsplit[0])
@@ -2365,10 +2361,6 @@ class AntisymmetricOrbitKS(OrbitKS):
                           'dt': (self.T, self.N, self.n, self.m)}
         return parameter_dict
 
-    @property
-    def mode_shape(self):
-        return  max([self.N-1, 1]), self.m
-
     def _parse_state(self, state, state_type, **kwargs):
         shp = state.shape
         self.state = state
@@ -2646,10 +2638,6 @@ class ShiftReflectionOrbitKS(OrbitKS):
                           'dx': (self.L, self.M, self.m, self.N, max([self.N-1, 1])),
                           'dt': (self.T, self.N, self.n, self.m)}
         return parameter_dict
-
-    @property
-    def mode_shape(self):
-        return  max([self.N-1, 1]), self.m
 
     def _parse_state(self, state, state_type, **kwargs):
         shp = state.shape
@@ -3088,10 +3076,6 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
                           'dt': (self.T, self.N, self.n, self.m)}
         return parameter_dict
 
-    @property
-    def mode_shape(self):
-        return  1, self.m
-
     def _parse_state(self, state, state_type, **kwargs):
         shp = state.shape
         self.state = state
@@ -3451,10 +3435,6 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
                           'dx': (self.L, self.M, self.m, 1),
                           'dt': (self.T, self.N, self.n, self.M-2)}
         return parameter_dict
-
-    @property
-    def mode_shape(self):
-        return 1, self.M-2
 
     def _parse_state(self, state, state_type, **kwargs):
         # This is the best way I've found for passing modes but also wanting N != 1. without specifying
