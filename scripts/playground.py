@@ -19,9 +19,14 @@ def main(*args, **kwargs):
     # s = converge(rediscretize(s, new_M=24), method='lstsq', verbose=True).orbit
     # testorbit = OrbitKS(T=45., L=45., seed=0)
     self = read_h5('RelativeOrbitKS_L27p526_T68p730.h5', directory='../data/test_data/', check=False)
-    self = self.change_reference_frame(to='physical')
-    self.plot()
-    self.plot(fundamental_domain=False)
+    # self = self.change_reference_frame(to='physical')
+    # if self.S > 0:
+    #     self.S = -1.0 * (self.L - self.S)
+    # else:
+    #     self.S = self.L + self.S
+    # rotated_self = self.change_reference_frame(to='comoving')
+    print('opposite shift res', self.residual())
+    self.plot(padding=False, fundamental_domain=False)
     shiftest = calculate_spatial_shift(self.convert(to='s_modes').state, self.L)
     self.plot()
     self.plot(fundamental_domain=False)

@@ -1864,8 +1864,11 @@ class RelativeOrbitKS(OrbitKS):
         frame_rotated_s_modes_imag = (np.multiply(real_modes, sine_block)
                                       + np.multiply(imag_modes, cosine_block))
         frame_rotated_s_modes = np.concatenate((frame_rotated_s_modes_real, frame_rotated_s_modes_imag), axis=1)
-        return self.__class__(state=frame_rotated_s_modes, state_type='s_modes', frame=to,
-                              parameters=self.parameters).convert(to=self.state_type)
+        param_dict_ = self.parameters
+        param_dict_['frame'] = to
+        rotated_orbit = self.__class__(state=frame_rotated_s_modes, state_type='s_modes', frame=to,
+                                       parameters=param_dict_).convert(to=self.state_type, inplace=True)
+        return rotated_orbit
 
     def dt(self, power=1, return_array=False):
         """ A time derivative of the current state.
@@ -2102,14 +2105,15 @@ class RelativeOrbitKS(OrbitKS):
 
     def _parse_parameters(self, T=0., L=0., S=0., **kwargs):
         self.constraints = kwargs.get('constraints', {'T': False, 'L': False, 'S': False})
-        self.frame = kwargs.get('frame', 'comoving')
 
         if kwargs.get('parameters', None) is not None:
             parameters = kwargs.get('parameters', None)
+            self.frame = parameters.get('frame', 'comoving')
             self.T = parameters.get('T', 0.)
             self.L = parameters.get('L', 0.)
             self.S = parameters.get('S', 0.)
         else:
+            self.frame = kwargs.get('frame', 'comoving')
             if T == 0. and kwargs.get('nonzero_parameters', False):
                 self.T = (kwargs.get('T_min', 20.)
                           + (kwargs.get('T_max', 180.) - kwargs.get('T_min', 20.))*np.random.rand())
