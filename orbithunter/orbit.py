@@ -1361,7 +1361,7 @@ class OrbitKS:
         spectrum = kwargs.get('spectrum', 'random')
 
         # also accepts N and M as kwargs
-        temporary_param_dict = {'T':kwargs.get('T', 0.), 'L':kwargs.get('L', 0.)}
+        temporary_param_dict = {'T': kwargs.get('T', 0.), 'L': kwargs.get('L', 0.)}
         self.N, self.M = _parameter_based_discretization(temporary_param_dict, **kwargs)
         self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
 
@@ -1376,7 +1376,7 @@ class OrbitKS:
                                                                             power=2))).astype(int)
         time_ = (self.T / (2*pi)) * np.abs(self.elementwise_dtn(self.parameters['dt']))
         np.random.seed(kwargs.get('seed', None))
-        random_modes = np.random.randn(*self.parameters[-2:])
+        random_modes = np.random.randn(*self.parameters['mode_shape'])
         # piece-wise constant + exponential
         # linear-component based. multiply by preconditioner?
         # random modes, no modulation.
@@ -1791,7 +1791,7 @@ class RelativeOrbitKS(OrbitKS):
         # For uniform save format
         super().__init__(state=state, state_type=state_type, T=T, L=L, S=S, frame=frame, **kwargs)
         # If the frame is comoving then the calculated shift will always be 0 by definition of comoving frame.
-        if self.S == 0. and (self.frame == 'physical' or kwargs.get('nonzero_parameters', False)):
+        if self.S == 0. and (self.frame == 'physical' or kwargs.get('nonzero_parameters', False) or state is None):
             self.S = calculate_spatial_shift(self.convert(to='s_modes').state, self.L)
 
     def __repr__(self):

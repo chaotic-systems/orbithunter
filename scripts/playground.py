@@ -14,58 +14,8 @@ def main(*args, **kwargs):
     # m = read_h5('merger_high_res.h5')
     # # w = read_h5('wiggle_high_res.h5')
     # # s = read_h5('streak_high_res.h5')
-    #
-    # m = converge(rediscretize(m, new_M=16,new_N=16), method='lgmres', verbose=True, options={'disp': True})
-    # s = converge(rediscretize(s, new_M=24), method='lstsq', verbose=True).orbit
-    # testorbit = OrbitKS(T=45., L=45., seed=0)
-    self = read_h5('RelativeOrbitKS_L27p526_T68p730.h5', directory='../data/test_data/', check=False)
-    # self = self.change_reference_frame(to='physical')
-    # if self.S > 0:
-    #     self.S = -1.0 * (self.L - self.S)
-    # else:
-    #     self.S = self.L + self.S
-    # rotated_self = self.change_reference_frame(to='comoving')
-    print('opposite shift res', self.residual())
-    self.plot(padding=False, fundamental_domain=False)
-    shiftest = calculate_spatial_shift(self.convert(to='s_modes').state, self.L)
-    self.plot()
-    self.plot(fundamental_domain=False)
-    self.S = shiftest
-    self.change_reference_frame(to='comoving').plot()
-    self.change_reference_frame(to='comoving').plot(fundamental_domain=False)
-    self = rediscretize(self, new_M=self.M+2)
-    # t0 = time.time()
-    # # print(orbit_name)
-    # r = converge(self,  orbit_tol=1e-12, verbose=True)
-    # t1 = time.time()
-    # print(orbit_name, t1-t0, r.orbit.residual())
-    # o = read_h5('AntisymmetricOrbitKS_L17p590_T17p146.h5', directory='orbithunter')
-    # for m in np.arange(o.N, 66, 2):
-    #     o = rediscretize(o, new_N=m)
-    #     print(o.residual(), m,m,m,m,m,m)
-    #     r = converge(o, method='lstsq', orbit_tol=10**-12, verbose=True)
-    #     o = r.orbit.copy()
-    #
-    # for m in np.arange(o.M, 66, 2):
-    #     o = rediscretize(o, new_M=m)
-    #     print(o.residual(), m,m,m,m,m,m)
-    #     r = converge(o, method='lstsq', orbit_tol=10**-12, verbose=True)
-    #     o = r.orbit.copy()
-    #
-    # wiggle = o.convert(to='field')
-    # wiggle.to_h5(directory='../data/tiles/')
 
-    #
-    # RelativeOrbitKS_L27p526_T68p730
-    # RelativeEquilibriumOrbitKS_L28p810_T21p142
-    # EquilibriumOrbitKS_L11p39
-    # AntisymmetricOrbitKS_L34p913_T51p540
-    # OrbitKS_L31p245_T46p754
-    #     self = read_h5('RelativeEquilibriumOrbitKS_L28p810_T21p142.h5', directory='../data/test_data/')
-    #     other = read_h5('RelativeEquilibriumOrbitKS_L28p810_T21p142.h5', directory='../data/test_data/', class_name='RelativeOrbitKS')
-    #     st = self.convert(to='s_modes').change_reference_frame(to='physical').state
-    #     calculate_spatial_shift(st, self.L, n_modes=5)
-
+    test = RelativeOrbitKS(T=44, L=44, constraints={'T': True, 'L': True, 'S': True})
     for orbit_name in ['RelativeEquilibriumOrbitKS_L28p810_T21p142.h5', 'EquilibriumOrbitKS_L11p39.h5',
                        'ShiftReflectionOrbitKS_L28p847_T97p242.h5', 'RelativeOrbitKS_L27p526_T68p730.h5',
                        'AntisymmetricOrbitKS_L34p913_T51p540.h5', 'OrbitKS_L31p245_T46p754.h5']:
