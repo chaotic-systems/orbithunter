@@ -28,7 +28,7 @@ def _dx_spatial_modes(orbit_, power=1):
 
     # If the order of the differentiation is odd, need to swap imaginary and real components.
     if np.mod(power, 2):
-        dxn_modes = swap_modes(dxn_modes, dimension='space')
+        dxn_modes = swap_modes(dxn_modes, axis=1)
 
     return orbit_.__class__(state=dxn_modes, state_type='s_modes', T=orbit_.T, L=orbit_.L, S=orbit_.S)
 

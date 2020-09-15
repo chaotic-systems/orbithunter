@@ -1,5 +1,6 @@
 from math import pi
 from .arrayops import *
+from .core import Orbit
 from .discretization import rediscretize, _parameter_based_discretization
 from scipy.fft import rfft, irfft
 from scipy.linalg import block_diag
@@ -18,7 +19,7 @@ __all__ = ['OrbitKS', 'RelativeOrbitKS', 'ShiftReflectionOrbitKS', 'Antisymmetri
            'RelativeEquilibriumOrbitKS', 'change_orbit_type']
 
 
-class OrbitKS:
+class OrbitKS(Orbit):
     """ Object that represents invariant 2-Orbit solution of the Kuramoto-Sivashinsky equation.
 
     Parameters
@@ -358,7 +359,7 @@ class OrbitKS:
 
         # If the order of the derivative is odd, then imaginary component and real components switch.
         if np.mod(power, 2):
-            dtn_modes = swap_modes(dtn_modes, dimension='time')
+            dtn_modes = swap_modes(dtn_modes, axis=0)
 
         if return_array:
             return dtn_modes
@@ -390,7 +391,7 @@ class OrbitKS:
 
         # If the order of the differentiation is odd, need to swap imaginary and real components.
         if np.mod(power, 2):
-            dxn_modes = swap_modes(dxn_modes, dimension='space')
+            dxn_modes = swap_modes(dxn_modes, axis=1)
 
         if return_array:
             return dxn_modes
@@ -694,7 +695,7 @@ class OrbitKS:
 
         return self.__class__(state=matvec_modes, state_type='modes', T=self.T, L=self.L)
 
-    def mode_padding(self, size, dimension='space'):
+    def mode_padding(self, size, axis=0):
         """ Increase the size of the discretization via zero-padding
 
         Parameters
@@ -719,7 +720,7 @@ class OrbitKS:
         if np.mod(size, 2):
             raise ValueError('New discretization size must be an even number, preferably a power of 2')
         else:
-            if dimension == 'time':
+            if axis == 0:
                 # Split into real and imaginary components, pad separately.
                 first_half = modes.state[:-modes.n, :]
                 second_half = modes.state[-modes.n:, :]
@@ -737,7 +738,7 @@ class OrbitKS:
         return self.__class__(state=padded_modes, state_type='modes',
                               parameters=self.parameters).convert(to=self.state_type)
 
-    def mode_truncation(self, size, dimension='space'):
+    def mode_truncation(self, size, axis=0):
         """ Decrease the size of the discretization via truncation
 
         Parameters
@@ -757,7 +758,7 @@ class OrbitKS:
         if np.mod(size, 2):
             raise ValueError('New discretization size must be an even number, preferably a power of 2')
         else:
-            if dimension == 'time':
+            if axis == 0:
                 truncate_number = int(size // 2) - 1
                 # Split into real and imaginary components, truncate separately.
                 first_half = modes.state[:truncate_number+1, :]
@@ -782,38 +783,54 @@ class OrbitKS:
         Notes
         -----
         This has its utility when initializing new instances (although not all parameters will be used)
+        This is essentially just bundling the different attributes of an orbit instance. The entire point is that this
+        allows for writing more general code for other equations.
         """
         parameter_dict = {'T': self.T, 'L': self.L, 'S': self.S, 'N': self.N, 'M': self.M,
                           'n': max([self.n, 1]), 'm': self.m, 'mode_shape': (max([self.N-1, 1]), self.M-2),
-                          'dx': (self.L, self.M, self.m, max([self.N-1, 1])), 'dt': (self.T, self.N, self.n, self.M-2)}
+                          'field_shape': (self.N, self.M), 's_mode_shape': (self.N, self.M - 2),
+                          'dx': (self.L, self.M, self.m, max([self.N-1, 1])),
+                          'dt': (self.T, self.N, self.n, self.M-2)}
         return parameter_dict
 
     @classmethod
-    def glue_parameters(cls, parameter_dict_with_zipped_values, axis=0):
+    def glue_parameters(cls, parameter_dict_with_bundled_values, glue_shape=(1, 1)):
         """ Class method for handling parameters in gluing
 
         Parameters
         ----------
-        parameter_dict_with_zipped_values
+        parameter_dict_with_bundled_values : dict
+        A dictionary whose values are a type which can be cast as a numpy.ndarray.
         axis
+
+        glue_shape : tuple of ints
+        The shape of the gluing being performed i.e. for a 2x2 orbit grid glue_shape would equal (2,2).
 
         Returns
         -------
 
         Notes
         -----
-
+        Shift is always set to 0 at this point because it is based upon the field state being constructed.
 
         """
-        if axis == 0:
-            T_array = np.array(parameter_dict_with_zipped_values['T'])
-            new_parameter_dict = {'T': np.sum(parameter_dict_with_zipped_values['T']),
-                                  'L': np.mean(parameter_dict_with_zipped_values['L']),
+        T_array = np.array(parameter_dict_with_bundled_values['T'])
+        L_array = np.array(parameter_dict_with_bundled_values['L'])
+
+        if glue_shape[0] > 1 and glue_shape[1] == 1:
+            new_parameter_dict = {'T': np.sum(T_array),
+                                  'L': np.mean(L_array[L_array > 0]),
+                                  'S': 0.}
+        elif glue_shape[0] == 1 and glue_shape[1] > 1:
+            new_parameter_dict = {'T': np.mean(T_array[T_array > 0]),
+                                  'L': np.sum(L_array['L']),
+                                  'S': 0.}
+        elif glue_shape[0] > 1 and glue_shape[1] > 1:
+            new_parameter_dict = {'T': glue_shape[0] * np.mean(T_array[T_array > 0]),
+                                  'L': glue_shape[1] * np.mean(L_array[L_array > 0]),
                                   'S': 0.}
         else:
-            new_parameter_dict = {'T': np.mean(parameter_dict_with_zipped_values['T']),
-                                  'L': np.sum(parameter_dict_with_zipped_values['L']),
-                                  'S': 0.}
+            new_parameter_dict = parameter_dict_with_bundled_values
 
         return new_parameter_dict
 
@@ -929,7 +946,7 @@ class OrbitKS:
 
         if padding:
             pad_n, pad_m = kwargs.get('new_N', 32*self.N), kwargs.get('new_M', 16*self.M)
-            plot_orbit = rediscretize(self, new_N=pad_n, new_M=pad_m)
+            plot_orbit = rediscretize(self, new_shape=(pad_n, pad_m))
         else:
             plot_orbit = self.copy()
 
@@ -2002,7 +2019,7 @@ class RelativeOrbitKS(OrbitKS):
         else:
             return matvec_orbit + matvec_comoving
 
-    def mode_padding(self, size, dimension='space'):
+    def mode_padding(self, size, axis=0):
         """ Increase the size of the discretization via zero-padding
 
         Parameters
@@ -2024,9 +2041,9 @@ class RelativeOrbitKS(OrbitKS):
 
         """
         assert self.frame == 'comoving', 'Transform to comoving frame before padding modes'
-        return super().mode_padding(size, dimension=dimension)
+        return super().mode_padding(size, axis=axis)
 
-    def mode_truncation(self, size, dimension='space'):
+    def mode_truncation(self, size, axis=0):
         """ Decrease the size of the discretization via truncation
 
         Parameters
@@ -2043,7 +2060,7 @@ class RelativeOrbitKS(OrbitKS):
             OrbitKS instance with larger discretization.
         """
         assert self.frame == 'comoving', 'Transform to comoving frame before truncating modes'
-        return super().mode_truncation(size, dimension=dimension)
+        return super().mode_truncation(size, axis=axis)
 
     @classmethod
     def glue_parameters(cls, parameter_dict_with_zipped_values, axis=0):
@@ -2089,6 +2106,7 @@ class RelativeOrbitKS(OrbitKS):
         """
         parameter_dict = {'T': self.T, 'L': self.L, 'S': self.S, 'N': self.N, 'M': self.M,
                           'n': max([self.n, 1]), 'm': self.m, 'mode_shape': (max([self.N-1, 1]), self.M-2),
+                          'field_shape': (self.N, self.M), 's_mode_shape': (self.N, self.M - 2),
                           'dx': (self.L, self.M, self.m, max([self.N-1, 1])), 'dt': (self.T, self.N, self.n, self.M-2),
                           'frame': self.frame}
         return parameter_dict
@@ -2220,7 +2238,7 @@ class AntisymmetricOrbitKS(OrbitKS):
         """ Overwrite of parent method """
         if np.mod(power, 2):
             dxn_s_modes = swap_modes(np.multiply(self.elementwise_dxn(self.parameters['dx'], power=power),
-                                                 self.convert(to='s_modes').state), dimension='space')
+                                                 self.convert(to='s_modes').state), axis=1)
             # Typically have to keep odd ordered spatial derivatives as spatial modes or field.
             if return_array:
                 return dxn_s_modes
@@ -2287,13 +2305,13 @@ class AntisymmetricOrbitKS(OrbitKS):
             full_field = np.concatenate((self.reflection().state, self.state), axis=1)
         return self.__class__(state=full_field, state_type='field', T=self.T, L=2.0*self.L)
 
-    def mode_padding(self, size, dimension='space'):
+    def mode_padding(self, size, axis=0):
         """ Overwrite of parent method """
         modes = self.convert(to='modes')
         if np.mod(size, 2):
             raise ValueError('New discretization size must be an even number, preferably a power of 2')
         else:
-            if dimension == 'time':
+            if axis == 0:
                 # Split into real and imaginary components, pad separately.
                 first_half = modes.state[:-modes.n, :]
                 second_half = modes.state[-modes.n:, :]
@@ -2307,13 +2325,13 @@ class AntisymmetricOrbitKS(OrbitKS):
         return self.__class__(state=padded_modes, state_type='modes',
                               T=self.T, L=self.L).convert(to=self.state_type)
 
-    def mode_truncation(self, size, dimension='space'):
+    def mode_truncation(self, size, axis=0):
         """ Overwrite of parent method """
         modes = self.convert(to='modes')
         if np.mod(size, 2):
             raise ValueError('New discretization size must be an even number, preferably a power of 2')
         else:
-            if dimension == 'time':
+            if axis == 0:
                 truncate_number = int(size // 2) - 1
                 first_half = modes.state[:truncate_number+1, :]
                 second_half = modes.state[-modes.n:-modes.n+truncate_number, :]
@@ -2350,6 +2368,7 @@ class AntisymmetricOrbitKS(OrbitKS):
         """
         parameter_dict = {'T': self.T, 'L': self.L, 'S': self.S, 'N': self.N, 'M': self.M,
                           'n': max([self.n, 1]), 'm': self.m, 'mode_shape': (max([self.N-1, 1]), self.m),
+                          'field_shape': (self.N, self.M), 's_mode_shape': (self.N, self.M - 2),
                           'dx': (self.L, self.M, self.m, self.N, max([self.N-1, 1])),
                           'dt': (self.T, self.N, self.n, self.m)}
         return parameter_dict
@@ -2510,7 +2529,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
         tmp  = 0
         if np.mod(power, 2):
             dxn_s_modes = swap_modes(np.multiply(self.elementwise_dxn(self.parameters['dx'], power=power),
-                                                 self.convert(to='s_modes').state), dimension='space')
+                                                 self.convert(to='s_modes').state), axis=1)
             # Typically have to keep odd ordered spatial derivatives as spatial modes or field.
             if return_array:
                 return dxn_s_modes
@@ -2574,13 +2593,13 @@ class ShiftReflectionOrbitKS(OrbitKS):
         field = np.concatenate((self.reflection().state, self.state), axis=0)
         return self.__class__(state=field, state_type='field', T=2*self.T, L=self.L)
 
-    def mode_padding(self, size, dimension='space'):
+    def mode_padding(self, size, axis=0):
         """ Overwrite of parent method """
         modes = self.convert(to='modes')
         if np.mod(size, 2):
             raise ValueError('New discretization size must be an even number, preferably a power of 2')
         else:
-            if dimension == 'time':
+            if axis == 0:
                 # Split into real and imaginary components, pad separately.
                 first_half = modes.state[:-modes.n, :]
                 second_half = modes.state[-modes.n:, :]
@@ -2595,13 +2614,13 @@ class ShiftReflectionOrbitKS(OrbitKS):
         return self.__class__(state=padded_modes, state_type='modes',
                               T=self.T, L=self.L).convert(to=self.state_type)
 
-    def mode_truncation(self, size, dimension='space'):
+    def mode_truncation(self, size, axis=0):
         """ Overwrite of parent method """
         modes = self.convert(to='modes')
         if np.mod(size, 2):
             raise ValueError('New discretization size must be an even number, preferably a power of 2')
         else:
-            if dimension == 'time':
+            if axis == 0:
                 truncate_number = int(size // 2) - 1
                 first_half = modes.state[:truncate_number+1, :]
                 second_half = modes.state[-modes.n:-modes.n+truncate_number, :]
@@ -2628,6 +2647,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
     def parameters(self):
         parameter_dict = {'T': self.T, 'L': self.L, 'S': self.S, 'N': self.N, 'M': self.M,
                           'n': max([self.n, 1]), 'm': self.m, 'mode_shape': (max([self.N-1, 1]), self.m),
+                          'field_shape': (self.N, self.M), 's_mode_shape': (self.N, self.M - 2),
                           'dx': (self.L, self.M, self.m, self.N, max([self.N-1, 1])),
                           'dt': (self.T, self.N, self.n, self.m)}
         return parameter_dict
@@ -2895,7 +2915,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         return jac_
 
-    def mode_padding(self, size, dimension='space'):
+    def mode_padding(self, size, axis=0):
         """ Overwrite of parent method
 
         Notes
@@ -2904,7 +2924,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         value of time dimensionality attribute 'N'.
         """
         s_modes = self.convert(to='s_modes')
-        if dimension == 'time':
+        if axis == 0:
             # Not technically zero-padding, just copying. Just can't be in temporal mode basis
             # because it is designed to only represent the zeroth modes.
             padded_s_modes = np.tile(s_modes.state[-1, :].reshape(1, -1), (size, 1))
@@ -2920,9 +2940,9 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
                                                                        complex_modes, padding), axis=1)
             return self.__class__(state=padded_modes, state_type='s_modes', L=self.L).convert(to=self.state_type)
 
-    def mode_truncation(self, size, dimension='space'):
+    def mode_truncation(self, size, axis=0):
         """ Overwrite of parent method """
-        if dimension == 'time':
+        if axis == 0:
             s_modes = self.convert(to='s_modes')
             truncated_s_modes = s_modes.state[-size:, :]
             return self.__class__(state=truncated_s_modes, state_type='s_modes', L=self.L).convert(to=self.state_type)
@@ -3054,7 +3074,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         Notes
         -----
-        Equivalent to calling mode_truncation with size=1, dimension='time'.
+        Equivalent to calling mode_truncation with size=1, axis=0.
         This method exists because when it is called it is much more explicit w.r.t. what is being done.
         """
         field_single_time_point = self.convert(to='field').state[0, :].reshape(1, -1)
@@ -3066,6 +3086,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
     def parameters(self):
         parameter_dict = {'T': self.T, 'L': self.L, 'S': self.S, 'N': self.N, 'M': self.M,
                           'n': max([self.n, 1]), 'm': self.m, 'mode_shape': (1, self.m),
+                          'field_shape': (self.N, self.M), 's_mode_shape': (self.N, self.M - 2),
                           'dx': (self.L, self.M, self.m, self.N, 1),
                           'dt': (self.T, self.N, self.n, self.m)}
         return parameter_dict
@@ -3295,10 +3316,10 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
         Notes
         -----
-        Equivalent to calling mode_truncation with size=1, dimension='time'.
+        Equivalent to calling mode_truncation with size=1, axis=0.
         This method exists because when it is called it is much more explicit w.r.t. what is being done.
         """
-        field_single_time_point = self.convert(to='field').state[, :].reshape(1, -1)
+        field_single_time_point = self.convert(to='field').state[0, :].reshape(1, -1)
         # Keep whatever value of time period T was stored in the original orbit for transformation purposes.
         return self.__class__(state=field_single_time_point, state_type='field',
                               parameters=self.parameters).convert(to=self.state_type)
@@ -3349,7 +3370,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
         return jac_
 
-    def mode_padding(self, size, dimension='space'):
+    def mode_padding(self, size, axis=0):
         """ Overwrite of parent method
 
         Notes
@@ -3359,7 +3380,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         """
         assert self.frame == 'comoving', 'Transform to comoving frame before padding modes'
         s_modes = self.convert(to='s_modes')
-        if dimension == 'time':
+        if axis == 0:
             # Not technically zero-padding, just copying. Just can't be in temporal mode basis
             # because it is designed to only represent the zeroth modes.
             paddeds_s_modes = np.tile(s_modes.state[-1, :].reshape(1, -1), (size, 1))
@@ -3376,7 +3397,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             return self.__class__(state=padded_modes, state_type='s_modes',
                                   parameters=self.parameters).convert(to=self.state_type)
 
-    def mode_truncation(self, size, dimension='space'):
+    def mode_truncation(self, size, axis=0):
         """ Decrease the size of the discretization via truncation
 
         Parameters
@@ -3395,7 +3416,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             E.g. transforming to 'field' from 'modes' takes more work than transforming to 's_modes'.
         """
         assert self.frame == 'comoving', 'Transform to comoving frame before truncating modes'
-        if dimension == 'time':
+        if axis == 0:
             truncated_s_modes = self.convert(to='s_modes').state[-size:, :]
             self.__class__(state=truncated_s_modes, state_type='s_modes', parameters=self.parameters
                            ).convert(to=self.state_type)
@@ -3426,6 +3447,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         """
         parameter_dict = {'T': self.T, 'L': self.L, 'S': self.S, 'N': self.N, 'M': self.M,
                           'n': max([self.n, 1]), 'm': self.m, 'mode_shape': (1, self.M-2),
+                          'field_shape': (self.N, self.M), 's_mode_shape': (self.N, self.M - 2),
                           'dx': (self.L, self.M, self.m, 1),
                           'dt': (self.T, self.N, self.n, self.M-2)}
         return parameter_dict

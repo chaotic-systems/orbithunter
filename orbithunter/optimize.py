@@ -73,8 +73,7 @@ class OrbitResult(dict):
 
 def converge(orbit_, method='hybrid', **kwargs):
     orbit_.convert(to='modes', inplace=True)
-
-    if not orbit_.residual() < np.min(kwargs.get('orbit_tol', orbit_.M * orbit_.N * 10**-6)):
+    if not orbit_.residual() < np.min(kwargs.get('orbit_tol', np.product(orbit_.shape) * 10**-6)):
         if method == 'hybrid':
             gradient_orbit, n_iter_a, _ = _gradient_descent(orbit_,  **kwargs)
             result_orbit, n_iter_gn, exit_code = _gauss_newton(gradient_orbit, **kwargs)
@@ -119,8 +118,8 @@ def _gradient_descent(orbit_, **kwargs):
 
     # Specific modifying exponent for changes in period, domain_size
     # Absolute tolerance for the descent method.
-    orbit_tol = kwargs.get('orbit_tol', orbit_.M * orbit_.N * 10**-6)
-    orbit_maxiter = kwargs.get('orbit_maxiter', np.min([32 * orbit_.N * orbit_.M, 100000]))
+    orbit_tol = kwargs.get('orbit_tol', np.product(orbit_.shape) * 10**-6)
+    orbit_maxiter = kwargs.get('orbit_maxiter', np.min([32 * np.product(orbit_.shape), 100000]))
     ftol = kwargs.get('ftol', 1e-10)
     verbose = kwargs.get('verbose', False)
     preconditioning=kwargs.get('preconditioning', True)
@@ -181,8 +180,8 @@ def _gradient_descent(orbit_, **kwargs):
 
 
 def _gauss_newton(orbit_, **kwargs):
-    orbit_tol = kwargs.get('orbit_tol', orbit_.N * orbit_.M * 10 ** -15)
-    orbit_maxiter = kwargs.get('orbit_maxiter', np.max([10, (orbit_.N * orbit_.M) // 4]))
+    orbit_tol = kwargs.get('orbit_tol',  np.product(orbit_.shape) * 10 ** -15)
+    orbit_maxiter = kwargs.get('orbit_maxiter', np.max([10, ( np.product(orbit_.shape)) // 4]))
     verbose = kwargs.get('verbose', False)
 
     max_damp_factor = 9
@@ -243,7 +242,7 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-03, btol=1e-03
     good_codes = [0, 1, 2, 4, 5]
     residual = orbit_.residual()
 
-    orbit_tol = kwargs.get('orbit_tol', orbit_.M * orbit_.N * 10**-6)
+    orbit_tol = kwargs.get('orbit_tol', np.product(orbit_.shape) * 10**-6)
     orbit_maxiter = kwargs.get('orbit_maxiter', 250)
     max_damp_factor = kwargs.get('orbit_damp_max', 8)
     preconditioning = kwargs.get('preconditioning', False)
@@ -254,8 +253,7 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-03, btol=1e-03
         # The operator depends on the current state; A=A(orbit)
         def rmv_func(v):
             # _process_newton_step turns state vector into class object.
-            v_orbit = orbit_.from_numpy_array(v, **kwargs)
-            v_orbit.T, v_orbit.L, v_orbit.S = orbit_.T, orbit_.L, orbit_.S
+            v_orbit = orbit_.from_numpy_array(v, parameters=orbit_.parameters)
             rmatvec_orbit = orbit_.rmatvec(v_orbit, **kwargs)
             if preconditioning:
                 return rmatvec_orbit.precondition(orbit_.parameters).state_vector().reshape(-1, 1)
@@ -264,8 +262,7 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-03, btol=1e-03
 
         def mv_func(v):
             # _state_vector_to_orbit turns state vector into class object.
-            v_orbit = orbit_.from_numpy_array(v, **kwargs)
-            v_orbit.T, v_orbit.L, v_orbit.S = orbit_.T, orbit_.L, orbit_.S
+            v_orbit = orbit_.from_numpy_array(v, parameters=orbit_.parameters)
             matvec_orbit = orbit_.matvec(v_orbit, **kwargs)
             if preconditioning:
                 return matvec_orbit.precondition(orbit_.parameters).state.reshape(-1, 1)
@@ -373,7 +370,7 @@ def _scipy_optimize_minimize_wrapper(orbit_, method=None, bounds=None,
 
     orbit_n_iter = 0
     success = True
-    while ((orbit_.residual() > kwargs.get('orbit_tol', orbit_.M * orbit_.N * 10**-6))
+    while ((orbit_.residual() > kwargs.get('orbit_tol', np.product(orbit_.shape) * 10**-6))
            and (orbit_n_iter < kwargs.get('orbit_maxiter', 20))
            and success):
         orbit_n_iter += 1
@@ -467,7 +464,7 @@ def _scipy_optimize_root_wrapper(orbit_, method=None, tol=None, callback=None, o
 
     orbit_n_iter = 0
     success = True
-    while ((orbit_.residual() > kwargs.get('orbit_tol', orbit_.M * orbit_.N * 10**-6))
+    while ((orbit_.residual() > kwargs.get('orbit_tol', np.product(orbit_.shape) * 10**-6))
            and (orbit_n_iter < kwargs.get('orbit_maxiter', 20))
            and success):
         orbit_n_iter += 1

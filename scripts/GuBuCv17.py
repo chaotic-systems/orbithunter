@@ -948,30 +948,30 @@ def continue_tiles(*args,**kwargs):
 
     dataname = os.path.abspath(os.path.join(parent_folder,"./data/MNG_defect_hookondefect_time.h5"))
     Orbit = Orbit_io.import_Orbit(dataname)
-    continuation.pseudoarclength_continuation(dataname,dimension=dimension,increase=1,decrease=0,symmetry='rpo',save=save,deltamodifier=deltamodifier)
-    continuation.pseudoarclength_continuation(dataname,dimension=dimension,increase=0,decrease=1,symmetry='rpo',save=save,deltamodifier=deltamodifier)
+    continuation.pseudoarclength_continuation(dataname,axis=axis,increase=1,decrease=0,symmetry='rpo',save=save,deltamodifier=deltamodifier)
+    continuation.pseudoarclength_continuation(dataname,axis=axis,increase=0,decrease=1,symmetry='rpo',save=save,deltamodifier=deltamodifier)
 
     dataname = os.path.abspath(os.path.join(parent_folder,"./data/MNG_hookf.h5"))
     # Orbit = Orbit_io.import_Orbit(dataname)
-    # continuation.pseudoarclength_continuation(dataname,dimension=dimension,increase=1,decrease=0,symmetry=symmetry,save=save,deltamodifier=2)
-    continuation.pseudoarclength_continuation(dataname,dimension=dimension,increase=0,decrease=1,symmetry=symmetry,save=save,deltamodifier=deltamodifier)
+    # continuation.pseudoarclength_continuation(dataname,axis=axis,increase=1,decrease=0,symmetry=symmetry,save=save,deltamodifier=2)
+    continuation.pseudoarclength_continuation(dataname,axis=axis,increase=0,decrease=1,symmetry=symmetry,save=save,deltamodifier=deltamodifier)
 
     dataname = os.path.abspath(os.path.join(parent_folder,"./data/MNG_hookondefect2f.h5"))
     # Orbit = Orbit_io.import_Orbit(dataname)
-    continuation.pseudoarclength_continuation(dataname,dimension=dimension,increase=0,decrease=decrease,symmetry=symmetry,save=save,deltamodifier=0.5)
+    continuation.pseudoarclength_continuation(dataname,axis=axis,increase=0,decrease=decrease,symmetry=symmetry,save=save,deltamodifier=0.5)
 
     dataname = os.path.abspath(os.path.join(parent_folder,"./data/MNG_defectf.h5"))
     # Orbit = Orbit_io.import_Orbit(dataname)
-    continuation.pseudoarclength_continuation(dataname,dimension=dimension,increase=increase,decrease=decrease,symmetry=symmetry,save=save,deltamodifier=deltamodifier)
+    continuation.pseudoarclength_continuation(dataname,axis=axis,increase=increase,decrease=decrease,symmetry=symmetry,save=save,deltamodifier=deltamodifier)
 
     dataname = os.path.abspath(os.path.join(parent_folder,"./data/MNG_gapf.h5"))
     Orbit = Orbit_io.import_Orbit(dataname)
-    continuation.pseudoarclength_continuation(dataname,dimension=dimension,increase=1,decrease=0,symmetry='anti',save=save,deltamodifier=deltamodifier)
-    continuation.pseudoarclength_continuation(dataname,dimension=dimension,increase=0,decrease=1,symmetry='anti',save=save,deltamodifier=deltamodifier)
+    continuation.pseudoarclength_continuation(dataname,axis=axis,increase=1,decrease=0,symmetry='anti',save=save,deltamodifier=deltamodifier)
+    continuation.pseudoarclength_continuation(dataname,axis=axis,increase=0,decrease=1,symmetry='anti',save=save,deltamodifier=deltamodifier)
 
     dataname = os.path.abspath(os.path.join(parent_folder,"./data/MNG_reallylong.h5"))
     # Orbit = Orbit_io.import_Orbit(dataname)
-    continuation.pseudoarclength_continuation(dataname,dimension=dimension,increase=increase,decrease=decrease,symmetry='anti',save=save,deltamodifier=deltamodifier)
+    continuation.pseudoarclength_continuation(dataname,axis=axis,increase=increase,decrease=decrease,symmetry='anti',save=save,deltamodifier=deltamodifier)
 
     return None
 

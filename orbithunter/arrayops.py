@@ -4,8 +4,8 @@ from math import pi
 __all__ = ['swap_modes', 'so2_generator', 'so2_coefficients', 'calculate_spatial_shift']
 
 
-def swap_modes(modes, dimension='space'):
-    if dimension == 'space':
+def swap_modes(modes, axis=1):
+    if axis == 1:
         m = modes.shape[1]//2
         # to account for RelativeEquilibriumKS and EquilibriumKS having axis dimensions [1, 2*m], need
         # to reshape or else there will not be two axes.

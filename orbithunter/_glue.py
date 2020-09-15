@@ -153,29 +153,83 @@ def tile(symbol_array, tile_dict=tile_dictionary_ks):
     return block_orbit
 
 
-def glue(orbit, other_orbit, axis=0, **kwargs):
+def glue(array_of_orbits, orbit_class=None, **kwargs):
     """ Function for combining spatiotemporal fields
 
     Parameters
     ----------
-    orbit
-    other_orbit
-    axis
+    array_of_orbits : ndarray of Orbit instances
+    A NumPy array wherein each element is an orbit. i.e. a grid of Orbit instances. The shape should be
+    representative to how the orbits are going to be glued. See notes for more details. The orbits must all
+    have the same discretization size if gluing is occuring along more than one axis.
+
+    axis : int
+    The axis along which to glue. Must be less than or equal to the number of axes of the orbit's field.
     kwargs
 
+    glue_shape : tuple of ints
+    The shape of the
     Returns
     -------
 
+    Notes
+    -----
+    Assumes that each orbit in the array has identical dimensions in all other axes other than the one specified.
+    Assumes no symmetries of the different orbits in the array. There are too many complications if handled otherwise.
+
+    Because of how the concatenation of fields works, wherein the discretization must match along the boundaries. It
+    is quite complicated to write a generalized code that glues all dimensions together at once, so instead this is
+    designed to iterate through the axes of the array_of_orbits.
+
+    To prevent confusion, there are many different "shapes" and discretizations that are possibly floating around.
+    There are three main array shapes or dimensions that are involved in this function. The first is the array
+    of orbits, which represents a spatiotemporal symbolic "dynamics" block. This array can have as many dimensions
+    as the solutions to the equation have. An array of orbits of shape (2,1,1,1) means that the fields have four
+    continuous dimensions; they need not be scalar fields either. The specific shape means that two such fields
+    are being concatenated in time (because the first axis should always be time).
+
+    Example for the spatiotemporal Navier-stokes equation. The spacetime is (1+3) dimensional. Let's assume we're gluing
+    two vector fields with the same discretization size, (N, X, Y, Z). We can think of this discretization as a collection
+    of 3D vector field snapshots in time. Therefore, there are actually (N, X, Y, Z, 3) degrees of freedom. Therefore
+    the actually tensor before the gluing will be of the shape (2, 1, 1, 1, N, X, Y, Z, 3). Because we are gluing the
+    orbits along the time axis, The final shape will be (1, 1, 1, 1, 2*N, X, Y, Z, 3), given that the original
+    X, Y, Z, are all the same size. Being forced to have everything the same size is what makes this difficult, because
+    this dramatically complicates things for a multi-dimensional symbol array.
+
+    It's so complicated that for gluing along more than one axis its only really viable to start with tiles with the
+    same shape.
+
+    For a symbol array of shape (a, b, c, d) and orbit field with shape (N, X, Y, Z, 3) the final dimensions
+    would be (a*N, b*X, c*Y, d*Z, 3). I believe that this can be achieved by repeated concatenation along the
+    axis corresponding to the last axis of the symbol array. i.e. for (a,b,c,d) this would be concatenation along
+    axis=3, 4 times in a row. I believe that this generalizes for all equations but it's hard to test
+
     """
-    new_field = np.concatenate((orbit.convert(to='field').state,
-                               other_orbit.convert(to='field').state), axis=axis)
 
-    zipped_parameter_dict = dict(zip(orbit.parameters.keys(),
-                                 zip(orbit.parameters.values(), other_orbit.parameters.values())))
+    representative_orbit_ = array_of_orbits.ravel()[0]
 
-    glued_parameters = orbit.glue_parameters(zipped_parameter_dict, axis=axis)
-    glued_orbit = orbit.__class__(state=new_field, state_type='field', parameters=glued_parameters,
-                                  nonzero_parameters=True, **kwargs)
+    glue_shape = array_of_orbits.shape
+
+    zipped_parameter_dict = dict(zip(representative_orbit_.parameters.keys(),
+                                 zip(*(o.parameters.values() for o in array_of_orbits.ravel()))))
+
+    glued_parameters = representative_orbit_.glue_parameters(zipped_parameter_dict, glue_shape=glue_shape)
+
+    # If only gluing in one dimension, we can better approximate by using the correct aspect ratios
+    # in the gluing dimension.
+    if glue_shape.count(1) == len(glue_shape)-1:
+        array_of_orbits = correct_aspect_ratios(array_of_orbits, axis=np.argmax(glue_shape))
+
+    #
+    glued_orbit_state = np.array([o.state for o in array_of_orbits.ravel()]).reshape(*array_of_orbits.shape,
+                                                                                     *representative_orbit_.shape)
+    concat_axis = len(glue_shape)-1
+    while len(glued_orbit_state.shape) > len(representative_orbit_.shape):
+        glued_orbit_state = np.concatenate(glued_orbit_state, axis=concat_axis)
+
+
+    glued_orbit = representative_orbit_.__class__(state=glued_orbit_state, state_type='field',
+                                                  parameters=glued_parameters, nonzero_parameters=True, **kwargs)
     glued_orbit = rediscretize(glued_orbit, parameter_based=True, **kwargs)
     return glued_orbit
 
