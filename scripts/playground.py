@@ -22,17 +22,13 @@ def main(*args, **kwargs):
                        'ShiftReflectionOrbitKS_L28p847_T97p242.h5', 'RelativeOrbitKS_L27p526_T68p730.h5',
                        'AntisymmetricOrbitKS_L34p913_T51p540.h5', 'OrbitKS_L31p245_T46p754.h5']:
         self = read_h5(orbit_name, directory='../data/test_data/')
-        self = rediscretize(self, new_M=self.M-2)
+        self = rediscretize(self, new_shape=(self.N, self.M+2))
         t0 = time.time()
-        print(orbit_name)
+        # print(orbit_name, self.residual())
         # self.plot(fundamental_domain=False)
+        print(orbit_name, self.residual())
         r = converge(self,  method='lstsq', orbit_tol=1e-12, verbose=True)
-        # r.orbit.plot(fundamental_domain=False)
-        t1 = time.time()
-        print(orbit_name, t1-t0, r.orbit.residual())
-
-
-
+        print(orbit_name, r.orbit.residual())
     return None
 
 

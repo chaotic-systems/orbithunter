@@ -1,4 +1,4 @@
-from orbithunter.orbit import OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS, \
+from orbithunter.orbit_ks import OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS, \
     AntisymmetricOrbitKS, EquilibriumOrbitKS, RelativeEquilibriumOrbitKS
 import warnings
 import os

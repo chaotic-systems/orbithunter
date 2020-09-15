@@ -74,7 +74,7 @@ class OrbitKS(Orbit):
     def __init__(self, state=None, state_type='modes', **kwargs):
         # Capital letters per Physics conventions for variables.
         # If no state is provided, randomly generate one.
-        super().__init(state=state, state_type=state_type, **kwargs)
+        super().__init__(state=state, state_type=state_type, **kwargs)
 
     def __add__(self, other):
         return self.__class__(state=(self.state + other.state), state_type=self.state_type,
@@ -2954,7 +2954,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             truncated_modes = modes.state[:, :truncate_number]
             return self.__class__(state=truncated_modes,  state_type='modes', L=self.L).convert(to=self.state_type)
 
-    def _parse_parameters(self, L=0., **kwargs):
+    def _parse_parameters(self, **kwargs):
         # New addition, keep track of constraints via attribute instead of passing them around everywhere.
         self.constraints = kwargs.get('constraints', {'L': False})
         # If parameter dictionary was passed, then unpack that.
