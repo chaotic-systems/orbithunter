@@ -227,7 +227,6 @@ def glue(array_of_orbits, orbit_class=None, **kwargs):
     while len(glued_orbit_state.shape) > len(representative_orbit_.shape):
         glued_orbit_state = np.concatenate(glued_orbit_state, axis=concat_axis)
 
-
     glued_orbit = representative_orbit_.__class__(state=glued_orbit_state, state_type='field',
                                                   parameters=glued_parameters, nonzero_parameters=True, **kwargs)
     glued_orbit = rediscretize(glued_orbit, parameter_based=True, **kwargs)

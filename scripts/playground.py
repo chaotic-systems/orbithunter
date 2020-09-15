@@ -31,46 +31,7 @@ def main(*args, **kwargs):
         t1 = time.time()
         print(orbit_name, t1-t0, r.orbit.residual())
 
-    #
-    # o = read_h5('RelativeOrbitKS_L13p026_T15p855.h5', directory='orbithunter')
-    # for m in np.arange(o.N, 66, 2):
-    #     o = rediscretize(o, new_N=m)
-    #     print(o.residual(), m,m,m,m,m,m)
-    #     r = converge(o, method='lstsq', orbit_tol=10**-12, verbose=True)
-    #     o = r.orbit.copy()
-    #
-    # for m in np.arange(o.M, 50, 2):
-    #     o = rediscretize(o, new_M=m)
-    #     print(o.residual(), m,m,m,m,m,m)
-    #     r = converge(o, method='lstsq', orbit_tol=10**-12, verbose=True)
-    #     o = r.orbit.copy()
-    #
-    # merger = o.convert(to='field')
-    # padded_merger = np.concatenate((np.zeros([merger.N, 8]), merger.state, np.zeros([merger.N, 8])), axis=1)
-    # pmerger = merger.__class__(state=padded_merger, state_type='field', parameters=merger.parameters)
-    # pmerger.to_h5(directory='../data/tiles')
-    #
-    # padded_merger = np.concatenate((np.zeros([merger.N, 8]),
-    #                                 merger.change_reference_frame(to='physical').state,
-    #                                 np.zeros([merger.N, 8])), axis=1)
-    # pmerger = merger.__class__(state=padded_merger, state_type='field', parameters=merger.parameters)
-    # pmerger.to_h5(filename='RelativeOrbitKS_L13p026_T15p856_fdomain.h5', directory='../data/tiles')
-    #
-    # o = read_h5('EquilibriumOrbitKS_L6p39.h5', directory='orbithunter')
-    # for m in np.arange(o.M-2, 22, -2):
-    #
-    #     o = rediscretize(o, new_M=m)
-    #
-    #     print(o.residual())
-    #     r = converge(o, method='lstsq', orbit_tol=10**-12, verbose=True)
-    #     print(r.orbit.residual())
-    #     o = r.orbit.copy()
-    #
-    # streak = o.convert(to='field')
-    #
-    # padded_streak = np.concatenate((np.zeros([streak.N, 20]), streak.state, np.zeros([streak.N, 20])), axis=1)
-    # pstreak = streak.__class__(state=padded_streak, state_type='field', parameters=streak.parameters)
-    # pstreak.to_h5(directory='../data/tiles/')
+
 
     return None
 
