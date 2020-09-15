@@ -362,7 +362,7 @@ class Orbit:
         # Preconditioner is the inverse of the absolute value of the linear spatial derivative operators.
         return np.eye(self.state_vector().size)
 
-    def rescale(self, new_absolute_max, inplace=False):
+    def rescale(self, magnitude, inplace=False):
         """ Scalar multiplication
 
         Parameters
@@ -373,7 +373,7 @@ class Orbit:
         Notes
         -----
         This rescales the physical field such that the absolute value of the max/min takes on a new value
-        of new_absolute_max
+        of magnitude
         """
         return self
 

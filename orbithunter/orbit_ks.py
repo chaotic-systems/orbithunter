@@ -1181,7 +1181,7 @@ class OrbitKS(Orbit):
         reflected_field = -1.0*np.roll(np.fliplr(self.convert(to='field').state), 1, axis=1)
         return self.__class__(state=reflected_field, state_type='field', T=self.T, L=self.L, S=-1.0*self.S)
 
-    def rescale(self, new_absolute_max, inplace=False):
+    def rescale(self, magnitude=4., inplace=False):
         """ Scalar multiplication
 
         Parameters
@@ -1197,12 +1197,12 @@ class OrbitKS(Orbit):
         if inplace:
             original_state_type = self.state_type
             field = self.convert(to='field', inplace=True).state
-            field = ((new_absolute_max * field) / np.max(np.abs(field.ravel())))
+            field = ((magnitude * field) / np.max(np.abs(field.ravel())))
             self.state = field
             return self.convert(to=original_state_type, inplace=True)
         else:
             field = self.convert(to='field').state
-            rescaled_state = (new_absolute_max * field) / np.max(np.abs(field.ravel()))
+            rescaled_state = (magnitude * field) / np.max(np.abs(field.ravel()))
             return self.__class__(state=rescaled_state, state_type='field',
                                   parameters=self.parameters).convert(to=self.state_type)
 
@@ -2059,12 +2059,12 @@ class RelativeOrbitKS(OrbitKS):
         return super().mode_truncation(size, axis=axis)
 
     @classmethod
-    def glue_parameters(cls, parameter_dict_with_zipped_values, axis=0):
+    def glue_parameters(cls, parameter_dict_with_bundled_values, glue_shape=(1, 1)):
         """ Class method for handling parameters in gluing
 
         Parameters
         ----------
-        parameter_dict_with_zipped_values
+        parameter_dict_with_bundled_values
         axis
 
         Returns
@@ -2076,16 +2076,27 @@ class RelativeOrbitKS(OrbitKS):
         dict kay value pair.
 
         """
-        if axis == 0:
-            new_parameter_dict = {'T': np.sum(parameter_dict_with_zipped_values['T']),
-                                  'L': np.mean(parameter_dict_with_zipped_values['L']),
+        T_array = np.array(parameter_dict_with_bundled_values['T'])
+        L_array = np.array(parameter_dict_with_bundled_values['L'])
+
+        if glue_shape[0] > 1 and glue_shape[1] == 1:
+            new_parameter_dict = {'T': np.sum(T_array),
+                                  'L': np.mean(L_array[L_array > 0]),
+                                  'S': 0.,
+                                  'frame': 'physical'}
+        elif glue_shape[0] == 1 and glue_shape[1] > 1:
+            new_parameter_dict = {'T': np.mean(T_array[T_array > 0]),
+                                  'L': np.sum(L_array['L']),
+                                  'S': 0.,
+                                  'frame': 'physical'}
+        elif glue_shape[0] > 1 and glue_shape[1] > 1:
+            new_parameter_dict = {'T': glue_shape[0] * np.mean(T_array[T_array > 0]),
+                                  'L': glue_shape[1] * np.mean(L_array[L_array > 0]),
                                   'S': 0.,
                                   'frame': 'physical'}
         else:
-            new_parameter_dict = {'T': np.mean(parameter_dict_with_zipped_values['T']),
-                                  'L': np.sum(parameter_dict_with_zipped_values['L']),
-                                  'S': 0.,
-                                  'frame': 'physical'}
+            new_parameter_dict = parameter_dict_with_bundled_values
+
         return new_parameter_dict
 
     @property

@@ -71,7 +71,7 @@ class OrbitResult(dict):
         return list(self.keys())
 
 
-def converge(orbit_, method='hybrid', **kwargs):
+def converge(orbit_, method='grad', **kwargs):
     orbit_.convert(to='modes', inplace=True)
     if not orbit_.residual() < np.min(kwargs.get('orbit_tol', np.product(orbit_.shape) * 10**-6)):
         if method == 'hybrid':

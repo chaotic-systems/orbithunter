@@ -3,6 +3,7 @@ from orbithunter.io import read_h5
 import numpy as np
 import os
 import itertools
+import pandas as pd
 
 __all__ = ['combine', 'glue']
 
@@ -153,7 +154,7 @@ def tile(symbol_array, tile_dict=tile_dictionary_ks):
     return block_orbit
 
 
-def glue(array_of_orbits, orbit_class=None, **kwargs):
+def glue(array_of_orbits, **kwargs):
     """ Function for combining spatiotemporal fields
 
     Parameters
@@ -161,7 +162,8 @@ def glue(array_of_orbits, orbit_class=None, **kwargs):
     array_of_orbits : ndarray of Orbit instances
     A NumPy array wherein each element is an orbit. i.e. a grid of Orbit instances. The shape should be
     representative to how the orbits are going to be glued. See notes for more details. The orbits must all
-    have the same discretization size if gluing is occuring along more than one axis.
+    have the same discretization size if gluing is occuring along more than one axis. The orbits should
+    all be in the physical field basis.
 
     axis : int
     The axis along which to glue. Must be less than or equal to the number of axes of the orbit's field.
@@ -207,7 +209,6 @@ def glue(array_of_orbits, orbit_class=None, **kwargs):
     """
 
     representative_orbit_ = array_of_orbits.ravel()[0]
-
     glue_shape = array_of_orbits.shape
 
     zipped_parameter_dict = dict(zip(representative_orbit_.parameters.keys(),
@@ -218,14 +219,18 @@ def glue(array_of_orbits, orbit_class=None, **kwargs):
     # If only gluing in one dimension, we can better approximate by using the correct aspect ratios
     # in the gluing dimension.
     if glue_shape.count(1) == len(glue_shape)-1:
-        array_of_orbits = correct_aspect_ratios(array_of_orbits, axis=np.argmax(glue_shape))
+        gluing_axis = np.argmax(glue_shape)
+        array_of_orbits = correct_aspect_ratios(array_of_orbits, axis=gluing_axis)
+        orbit_field_list = [o.convert(to='field').state for o in array_of_orbits.ravel()]
+        glued_orbit_state = np.concatenate(orbit_field_list, axis=gluing_axis)
+    else:
+        gluing_axis = len(glue_shape) - 1
+        orbit_field_list = [o.convert(to='field').state for o in array_of_orbits.ravel()]
+        glued_orbit_state = np.array(orbit_field_list).reshape(*array_of_orbits.shape,
+                                                               *representative_orbit_.convert(to='field').shape)
 
-    #
-    glued_orbit_state = np.array([o.state for o in array_of_orbits.ravel()]).reshape(*array_of_orbits.shape,
-                                                                                     *representative_orbit_.shape)
-    concat_axis = len(glue_shape)-1
-    while len(glued_orbit_state.shape) > len(representative_orbit_.shape):
-        glued_orbit_state = np.concatenate(glued_orbit_state, axis=concat_axis)
+        while len(glued_orbit_state.shape) > len(representative_orbit_.shape):
+            glued_orbit_state = np.concatenate(glued_orbit_state, axis=gluing_axis)
 
     glued_orbit = representative_orbit_.__class__(state=glued_orbit_state, state_type='field',
                                                   parameters=glued_parameters, nonzero_parameters=True, **kwargs)
@@ -233,7 +238,7 @@ def glue(array_of_orbits, orbit_class=None, **kwargs):
     return glued_orbit
 
 
-def symbolic_uniqueness(symbol_array):
+def query_symbolic_index(symbol_array, results_csv):
     """ Check to see if a combination has already been searched for locally.
 
     Returns
@@ -255,9 +260,9 @@ def symbolic_uniqueness(symbol_array):
     for rotation in all_rotations:
         equivariant_symbol_string_list.append(to_symbol_string(np.roll(symbol_array, rotation, axis=axes)))
 
-
-
-    return None
+    results_data_frame = pd.read_csv(results_csv, index_col=0)
+    n_permutations_in_results_log = results_data_frame.index.isin(equivariant_symbol_string_list).sum()
+    return n_permutations_in_results_log
 
 
 def to_symbol_string(symbol_array):
