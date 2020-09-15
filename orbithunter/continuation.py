@@ -42,5 +42,5 @@ def continuation(orbit_, target_extent, axis=1, step_size=0.1, save_directory='l
                                                                axis=axis):
         converge_result.orbit.to_h5(directory='../data/continuations/local')
         converge_result.orbit.plot(show=False, directory='../figs/continuations/local')
-    return None
+    return converge_result
 

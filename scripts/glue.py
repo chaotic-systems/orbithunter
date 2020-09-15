@@ -17,7 +17,7 @@ def str2bool(val):
 def main():
     parser = ArgumentParser('glue', formatter_class=ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument('--direction', default='space', help='"space" or "time", decides the gluing direction')
+    parser.add_argument('--axis', default=0, help='Integer value for axis (NumPy array) along which to glue.')
 
     example0 = os.path.abspath(os.path.join(sys.argv[0],'../../examples/glue_example0.h5'))
     example1 = os.path.abspath(os.path.join(sys.argv[0],'../../examples/glue_example1.h5'))

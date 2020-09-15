@@ -816,7 +816,7 @@ class OrbitKS(Orbit):
                                   'S': 0.}
         elif glue_shape[0] == 1 and glue_shape[1] > 1:
             new_parameter_dict = {'T': np.mean(T_array[T_array > 0]),
-                                  'L': np.sum(L_array['L']),
+                                  'L': np.sum(L_array),
                                   'S': 0.}
         elif glue_shape[0] > 1 and glue_shape[1] > 1:
             new_parameter_dict = {'T': glue_shape[0] * np.mean(T_array[T_array > 0]),
@@ -906,7 +906,7 @@ class OrbitKS(Orbit):
         self.S = 0.
         return None
 
-    def plot(self, show=True, save=False, padding=True, fundamental_domain=True, **kwargs):
+    def plot(self, show=True, save=False, fundamental_domain=True, **kwargs):
         """ Plot the velocity field as a 2-d density plot using matplotlib's imshow
 
         Parameters
@@ -936,13 +936,18 @@ class OrbitKS(Orbit):
         """
         verbose = kwargs.get('verbose', False)
         extension = kwargs.get('extension', '.png')
+        if np.product(self.parameters['field_shape']) >= 256**2:
+            padding = kwargs.get('padding', False)
+        else:
+            padding = kwargs.get('padding', True)
         plt.rc('text', usetex=True)
         plt.rc('font', family='serif')
         plt.rcParams['text.usetex'] = True
 
         if padding:
             pad_n, pad_m = kwargs.get('new_N', 32*self.N), kwargs.get('new_M', 16*self.M)
-            plot_orbit = rediscretize(self, new_shape=(pad_n, pad_m))
+            padding_shape = kwargs.get('padding_shape', (16*self.N, 16*self.M))
+            plot_orbit = rediscretize(self, new_shape=padding_shape)
         else:
             plot_orbit = self.copy()
 
@@ -1022,8 +1027,9 @@ class OrbitKS(Orbit):
             elif filename.endswith('.h5'):
                 filename = filename.split('.h5')[0] + extension
 
-            if fundamental_domain:
-                # Need to rename fundamental domain or else it will overwrite
+            if fundamental_domain and str(plot_orbit) != 'OrbitKS()':
+                # Need to rename fundamental domain or else it will overwrite, of course there
+                # is no such thing for solutions without any symmetries.
                 filename = filename.split('.')[0] + '_fdomain.' + filename.split('.')[1]
 
             # Create save directory if one doesn't exist.
@@ -1181,7 +1187,7 @@ class OrbitKS(Orbit):
         reflected_field = -1.0*np.roll(np.fliplr(self.convert(to='field').state), 1, axis=1)
         return self.__class__(state=reflected_field, state_type='field', T=self.T, L=self.L, S=-1.0*self.S)
 
-    def rescale(self, magnitude=4., inplace=False):
+    def rescale(self, magnitude=0.33, inplace=False, method='absolute'):
         """ Scalar multiplication
 
         Parameters
@@ -1194,17 +1200,34 @@ class OrbitKS(Orbit):
         This rescales the physical field such that the absolute value of the max/min takes on a new value
         of num
         """
+
         if inplace:
-            original_state_type = self.state_type
-            field = self.convert(to='field', inplace=True).state
-            field = ((magnitude * field) / np.max(np.abs(field.ravel())))
-            self.state = field
-            return self.convert(to=original_state_type, inplace=True)
+            if method is None:
+                return self
+            else:
+                original_state_type = self.state_type
+                field = self.convert(to='field', inplace=True).state
+                if method == 'absolute':
+                    rescaled_field = ((magnitude * field) / np.max(np.abs(field.ravel())))
+                elif method == 'power':
+                    rescaled_field = np.sign(field) * np.abs(field)**magnitude
+                else:
+                    raise ValueError('Unrecognizable method.')
+                self.state = rescaled_field
+                return self.convert(to=original_state_type, inplace=True)
         else:
-            field = self.convert(to='field').state
-            rescaled_state = (magnitude * field) / np.max(np.abs(field.ravel()))
-            return self.__class__(state=rescaled_state, state_type='field',
-                                  parameters=self.parameters).convert(to=self.state_type)
+            if method is None:
+                return self.copy()
+            else:
+                field = self.convert(to='field').state
+                if method == 'absolute':
+                    rescaled_field = ((magnitude * field) / np.max(np.abs(field.ravel())))
+                elif method == 'power':
+                    rescaled_field = np.sign(field) * np.abs(field)**magnitude
+                else:
+                    raise ValueError('Unrecognizable method.')
+                return self.__class__(state=rescaled_field, state_type='field',
+                                      parameters=self.parameters).convert(to=self.state_type)
 
     def residual(self, apply_mapping=True):
         """ The value of the cost function
@@ -1380,8 +1403,8 @@ class OrbitKS(Orbit):
 
         tscale = kwargs.get('tscale', 1)
         xscale = kwargs.get('xscale', int(self.L / (2*pi*np.sqrt(2))))
-        x_var = kwargs.get('xvar', xscale)
-        t_var = kwargs.get('tvar', tscale)
+        xvar = kwargs.get('xvar', np.sqrt(xscale))
+        tvar = kwargs.get('tvar', np.sqrt(tscale))
 
         # I think this is the easiest way to get symmetry-dependent Fourier mode arrays' shapes.
         # power = 2 b.c. odd powers not defined for spacetime modes for discrete symmetries.
@@ -1396,16 +1419,22 @@ class OrbitKS(Orbit):
 
         if spectrum == 'gaussian':
             # spacetime gaussian modulation
-            gaussian_modulator = np.exp(-((space_ - xscale)**2/(2*x_var)) - ((time_ - tscale)**2 / (2*t_var)))
-            modes = np.multiply(gaussian_modulator, random_modes)
+            gaussian_modulator = np.exp(-((space_ - xscale)**2/(2*xvar)) - ((time_ - tscale)**2 / (2*tvar)))
+            plt.matshow(np.log10(np.abs(gaussian_modulator)+1))
+            plt.show()
+            print(np.log10(np.abs(gaussian_modulator)+1).max())
 
+            modes = np.multiply(gaussian_modulator, random_modes)
+            plt.matshow(np.log10(np.abs(modes)+1))
+            plt.show()
+            print(np.log10(np.abs(modes)+1).max())
         elif spectrum == 'piecewise-exponential':
             # space scaling is constant up until certain wave number then exponential decrease
             # time scaling is static
             time_[time_ > tscale] = 0.
             time_[time_ != 0.] = 1.
             space_[space_ <= xscale] = xscale
-            exp_modulator = np.exp(-1.0 * np.abs(space_ - xscale) / x_var)
+            exp_modulator = np.exp(-1.0 * np.abs(space_ - xscale) / xvar)
             p_exp_modulator = np.multiply(time_, exp_modulator)
             modes = np.multiply(p_exp_modulator, random_modes)
 
@@ -1413,9 +1442,9 @@ class OrbitKS(Orbit):
             # exponential decrease away from selected spatial scale
             time_[time_ > tscale] = 0.
             time_[time_ != 0.] = 1.
-            exp_modulator = np.exp(-1.0 * np.abs(space_- xscale) / x_var)
-            p_exp_modulator = np.multiply(time_, exp_modulator)
-            modes = np.multiply(p_exp_modulator, random_modes)
+            exp_modulator = np.exp(-1.0 * np.abs(space_- xscale) / xvar)
+            exp_modulator = np.multiply(time_, exp_modulator)
+            modes = np.multiply(exp_modulator, random_modes)
 
         elif spectrum == 'linear':
             # Modulate the spectrum using the spatial linear operator; equivalent to preconditioning.
@@ -1431,7 +1460,8 @@ class OrbitKS(Orbit):
 
         self.state = modes
         self.state_type = 'modes'
-        return self.rescale(kwargs.get('magnitude', 4), inplace=True)
+        return self.rescale(kwargs.get('magnitude', 3), inplace=True,
+                            method=kwargs.get('rescale_method', None))
 
     def shift_reflection(self):
         """ Return a OrbitKS with shift-reflected velocity field
@@ -1794,7 +1824,6 @@ class OrbitKS(Orbit):
             f.create_dataset("space_discretization", data=self.M)
             f.create_dataset("time_discretization", data=self.N)
             f.create_dataset("spatial_shift", data=float(self.S))
-            f.create_dataset("residual", data=float(self.residual()))
         return None
 
 
@@ -2086,7 +2115,7 @@ class RelativeOrbitKS(OrbitKS):
                                   'frame': 'physical'}
         elif glue_shape[0] == 1 and glue_shape[1] > 1:
             new_parameter_dict = {'T': np.mean(T_array[T_array > 0]),
-                                  'L': np.sum(L_array['L']),
+                                  'L': np.sum(L_array),
                                   'S': 0.,
                                   'frame': 'physical'}
         elif glue_shape[0] > 1 and glue_shape[1] > 1:
@@ -2940,7 +2969,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         if axis == 0:
             # Not technically zero-padding, just copying. Just can't be in temporal mode basis
             # because it is designed to only represent the zeroth modes.
-            padded_s_modes = np.tile(s_modes.state[-1, :].reshape(1, -1), (size, 1))
+            padded_s_modes = np.tile(s_modes.state[0, :].reshape(1, -1), (size, 1))
             return self.__class__(state=padded_s_modes, state_type='s_modes',
                                   L=self.L, N=size).convert(to=self.state_type)
         else:
@@ -3025,8 +3054,8 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         tscale = kwargs.get('tscale', 1)
         xscale = kwargs.get('xscale', int(self.L / (2*pi*np.sqrt(2))))
-        x_var = kwargs.get('xvar', xscale)
-        t_var = kwargs.get('tvar', tscale)
+        xvar = kwargs.get('xvar', xscale)
+        tvar = kwargs.get('tvar', tscale)
 
         # I think this is the easiest way to get symmetry-dependent Fourier mode arrays' shapes.
         # power = 2 b.c. odd powers not defined for spacetime modes for discrete symmetries.
@@ -3041,7 +3070,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         if spectrum == 'gaussian':
             # spacetime gaussian modulation
-            gaussian_modulator = np.exp(-((space_ - xscale)**2/(2*x_var)) - ((time_ - tscale)**2 / (2*t_var)))
+            gaussian_modulator = np.exp(-((space_ - xscale)**2/(2*xvar)) - ((time_ - tscale)**2 / (2*tvar)))
             modes = np.multiply(gaussian_modulator, random_modes)
 
         elif spectrum == 'piecewise-exponential':
@@ -3050,7 +3079,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             time_[time_ > tscale] = 0.
             time_[time_ != 0.] = 1.
             space_[space_ <= xscale] = xscale
-            exp_modulator = np.exp(-1.0 * np.abs(space_ - xscale) / x_var)
+            exp_modulator = np.exp(-1.0 * np.abs(space_ - xscale) / xvar)
             p_exp_modulator = np.multiply(time_, exp_modulator)
             modes = np.multiply(p_exp_modulator, random_modes)
 
@@ -3058,7 +3087,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             # exponential decrease away from selected spatial scale
             time_[time_ > tscale] = 0.
             time_[time_ != 0.] = 1.
-            exp_modulator = np.exp(-1.0 * np.abs(space_- xscale) / x_var)
+            exp_modulator = np.exp(-1.0 * np.abs(space_- xscale) / xvar)
             p_exp_modulator = np.multiply(time_, exp_modulator)
             modes = np.multiply(p_exp_modulator, random_modes)
 
@@ -3076,7 +3105,8 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         self.state = modes
         self.state_type = 'modes'
-        return self.rescale(kwargs.get('magnitude', 4), inplace=True)
+        return self.rescale(kwargs.get('magnitude', 3), inplace=True,
+                            method=kwargs.get('rescale_method', 'absolute'))
 
     def flatten_time_dimension(self):
         """ Discard redundant field information.
@@ -3524,8 +3554,8 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
         tscale = kwargs.get('tscale', 1)
         xscale = kwargs.get('xscale', int(self.L / (2*pi*np.sqrt(2))))
-        x_var = kwargs.get('xvar', xscale)
-        t_var = kwargs.get('tvar', tscale)
+        xvar = kwargs.get('xvar', xscale)
+        tvar = kwargs.get('tvar', tscale)
 
         # I think this is the easiest way to get symmetry-dependent Fourier mode arrays' shapes.
         # power = 2 b.c. odd powers not defined for spacetime modes for discrete symmetries.
@@ -3540,7 +3570,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
         if spectrum == 'gaussian':
             # spacetime gaussian modulation
-            gaussian_modulator = np.exp(-((space_ - xscale)**2/(2*x_var)) - ((time_ - tscale)**2 / (2*t_var)))
+            gaussian_modulator = np.exp(-((space_ - xscale)**2/(2*xvar)) - ((time_ - tscale)**2 / (2*tvar)))
             modes = np.multiply(gaussian_modulator, random_modes)
 
         elif spectrum == 'piecewise-exponential':
@@ -3549,7 +3579,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             time_[time_ > tscale] = 0.
             time_[time_ != 0.] = 1.
             space_[space_ <= xscale] = xscale
-            exp_modulator = np.exp(-1.0 * np.abs(space_ - xscale) / x_var)
+            exp_modulator = np.exp(-1.0 * np.abs(space_ - xscale) / xvar)
             p_exp_modulator = np.multiply(time_, exp_modulator)
             modes = np.multiply(p_exp_modulator, random_modes)
 
@@ -3557,7 +3587,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             # exponential decrease away from selected spatial scale
             time_[time_ > tscale] = 0.
             time_[time_ != 0.] = 1.
-            exp_modulator = np.exp(-1.0 * np.abs(space_- xscale) / x_var)
+            exp_modulator = np.exp(-1.0 * np.abs(space_- xscale) / xvar)
             p_exp_modulator = np.multiply(time_, exp_modulator)
             modes = np.multiply(p_exp_modulator, random_modes)
 
@@ -3575,7 +3605,8 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
         self.state = modes
         self.state_type = 'modes'
-        return self.rescale(kwargs.get('magnitude', 4), inplace=True)
+        return self.rescale(kwargs.get('magnitude', 3), inplace=True,
+                            method=kwargs.get('rescale_method', 'absolute'))
 
     def spatiotemporal_mapping(self, **kwargs):
         """ The Kuramoto-Sivashinsky equation evaluated at the current state.

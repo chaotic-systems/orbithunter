@@ -17,11 +17,11 @@ def main(filename, *args,**kwargs):
     
     parse filename or directory name info. ''for x in 
     '''
-    if os.path.isfile(path_to_data) and path_to_data.endswith(".h5"):
+    # if os.path.isfile(path_to_data) and path_to_data.endswith(".h5"):
 
 
 
-    return Orbit
+    # return Orbit
 
 
 

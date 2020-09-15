@@ -1,7 +1,8 @@
 import gudhi as gh
 
 
-def orbit_persistence(orbit_instance, periodic_dimensions=[True, True], min_persistence=0.1):
+# noinspection PyUnresolvedReferences
+def orbit_persistence(orbit_instance, periodic_dimensions, min_persistence=0.1):
     """ Wrapper for Gudhi persistent homology package
 
     Parameters
@@ -13,6 +14,9 @@ def orbit_persistence(orbit_instance, periodic_dimensions=[True, True], min_pers
     Returns
     -------
 
+    Notes
+    -----
+    Doesn't support vector fields for now, I think each component would have its own cubical complex?
     """
     orbit_instance = orbit_instance.convert(to='field')
     cubical_complex = gh.PeriodicCubicalComplex(dimensions=orbit_instance.state.shape,

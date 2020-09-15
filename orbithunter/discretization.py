@@ -13,9 +13,10 @@ def correct_aspect_ratios(iterable_of_orbits, axis=0, **kwargs):
         total_number_of_discretization_points += o.parameters['field_shape'][axis]
 
     # Replace the # of points along axis with the rescaled values based upon the total extent of the axis dimension.
-    new_shapes = [(2*(int((total_number_of_discretization_points * (tuple(o.parameters.values())[axis]
-                  / total_dimension_extent))+1))//2) if i == axis else o.parameters['field_shape'][i]
-                  for o in iterable_of_orbits for i in range(len(o.shape))]
+    new_shapes = [tuple((2*(int((total_number_of_discretization_points * (tuple(o.parameters.values())[axis]
+                  / total_dimension_extent))+1))//2)
+                  if i == axis else o.parameters['field_shape'][i] for i in range(len(o.shape)))
+                  for o in iterable_of_orbits]
 
 
     iterable_of_reshaped_orbits = [rediscretize(o, new_shape=shp)

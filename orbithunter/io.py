@@ -30,12 +30,6 @@ def read_h5(filename, directory='local', data_format='orbithunter', equation='ks
                 T = float(f['time_period'][()])
                 S = float(f['spatial_shift'][()])
                 orbit = class_generator(state=field, state_type='field', T=T, L=L, S=S, **orbitkwargs)
-            elif data_format == 'orbithunter_old':
-                field = np.array(f['field'])
-                L = float(f['L'][()])
-                T = float(f['T'][()])
-                S = float(f['spatial_shift'][()])
-                orbit = class_generator(state=field, state_type='field', T=T, L=L, S=S, **orbitkwargs)
             else:
                 fieldtmp = f['/data/ufield']
                 L = float(f['/data/space'][0])
