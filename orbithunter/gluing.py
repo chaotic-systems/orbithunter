@@ -1,5 +1,5 @@
-from orbithunter.discretization import rediscretize, correct_aspect_ratios
-from orbithunter.io import read_h5
+from .discretization import rediscretize, correct_aspect_ratios
+from .io import read_h5
 import numpy as np
 import os
 import itertools

@@ -6,7 +6,6 @@ from orbithunter.orbit_ks import OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitK
     AntisymmetricOrbitKS, EquilibriumOrbitKS, RelativeEquilibriumOrbitKS, change_orbit_type
 from orbithunter.arrayops import swap_modes, so2_coefficients, so2_generator, calculate_spatial_shift
 from orbithunter.integration import integrate_kse
-from orbithunter.physics import dissipation, energy, energy_variation, power
 
 __all__ = orbit_ks.__all__
 __all__ += optimize.__all__

@@ -64,7 +64,7 @@ def main(*args, method='hybrid', **kwargs):
     # for T, L in domains:
     #     hunt(cls(T=T, L=L), verbose=verbose)
     with Parallel(n_jobs=n_jobs) as parallel:
-        parallel(delayed(hunt)(cls(T=T, L=L)) for (T, L) in domains)
+        parallel(delayed(hunt)(cls(T=T, L=L), verbose=verbose) for (T, L) in domains)
 
     print('{} trials took {} to complete with {} jobs'.format(n_trials, time.time()-t, n_jobs))
     return None

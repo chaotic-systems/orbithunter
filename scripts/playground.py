@@ -24,13 +24,7 @@ def main(*args, **kwargs):
 
     o2 = OrbitKS(state_type='modes', T=512, L=512, seed=0, spectrum='gaussian',
                  xscale=xscale, tscale=tscale, tvar=tvar, xvar=xvar)
-    print(np.log10(np.abs(o2.state+1)).max())
-    plt.matshow(np.log10(np.abs(o2.state+1)), cmap='jet')
-    plt.colorbar()
-    plt.show()
-    plt.matshow(np.log10(np.abs(o2.rescale(0.33, method='power').state+1)), cmap='jet')
-    plt.colorbar()
-    plt.show()
+
     o2 = o2.rescale(0.33, method='power')
     o2 = o2.rescale(2.5, method='absolute')
 

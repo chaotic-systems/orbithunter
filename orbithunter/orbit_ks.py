@@ -782,6 +782,7 @@ class OrbitKS(Orbit):
         parameter_dict = {'T': self.T, 'L': self.L, 'S': self.S, 'N': self.N, 'M': self.M,
                           'n': max([self.n, 1]), 'm': self.m, 'mode_shape': (max([self.N-1, 1]), self.M-2),
                           'field_shape': (self.N, self.M), 's_mode_shape': (self.N, self.M - 2),
+                          'field_dimensions': (self.T, self.L),
                           'dx': (self.L, self.M, self.m, max([self.N-1, 1])),
                           'dt': (self.T, self.N, self.n, self.M-2)}
         return parameter_dict

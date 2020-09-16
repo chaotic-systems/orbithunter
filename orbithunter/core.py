@@ -75,7 +75,7 @@ class Orbit:
     def __getattr__(self, attr):
         return None
 
-    def convert(self, inplace=False, to=None, **kwargs):
+    def convert(self, inplace=False, to=None):
         """ Method that handles all basis transformations.
 
         Parameters

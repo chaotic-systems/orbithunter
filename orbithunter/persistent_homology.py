@@ -1,7 +1,6 @@
 import gudhi as gh
 
 
-# noinspection PyUnresolvedReferences
 def orbit_persistence(orbit_instance, periodic_dimensions, min_persistence=0.1):
     """ Wrapper for Gudhi persistent homology package
 

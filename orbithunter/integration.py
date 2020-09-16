@@ -1,5 +1,5 @@
 from math import pi
-from orbithunter import *
+from .arrayops import swap_modes
 import numpy as np
 
 __all__ = ['integrate_kse']
@@ -103,7 +103,3 @@ def integrate_kse(orbit_, **kwargs):
 
     # By default do not assign spatial shift S.
     return orbit_.__class__(state=u.reshape(nmax+1, -1), state_type='field', T=step_size, L=orbit_.L)
-
-
-
-
