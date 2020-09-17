@@ -6,19 +6,17 @@ __all__ = ['correct_aspect_ratios', 'rediscretize', '_parameter_based_discretiza
 def correct_aspect_ratios(iterable_of_orbits, axis=0, **kwargs):
 
     # need to iterate over all orbits, find the total dimension and # of points, then create the new_shape tuples.
-    total_dimension_extent = 0
-    total_number_of_discretization_points = 0
+    dim_total = 0
+    disc_total = 0
     for o in iterable_of_orbits:
-        total_dimension_extent += tuple(o.parameters.values())[axis]
-        total_number_of_discretization_points += o.parameters['field_shape'][axis]
+        dim_total += o.parameters[o.dimensions()[axis]]
+        disc_total += o.parameters['field_shape'][axis]
 
     # Replace the # of points along axis with the rescaled values based upon the total extent of the axis dimension.
-    new_shapes = [tuple((2*(int((total_number_of_discretization_points * (tuple(o.parameters.values())[axis]
-                  / total_dimension_extent))+1))//2)
+    # Finds the correct discretization sizes given the proportions of each orbit along the specified axis
+    new_shapes = [tuple(max([2, int(2 * ((((disc_total * o.parameters[o.dimensions()[axis]]) / dim_total) + 1) // 2))])
                   if i == axis else o.parameters['field_shape'][i] for i in range(len(o.shape)))
                   for o in iterable_of_orbits]
-
-
     iterable_of_reshaped_orbits = [rediscretize(o, new_shape=shp)
                                    for o, shp in zip(iterable_of_orbits, new_shapes)]
     return iterable_of_reshaped_orbits
@@ -48,8 +46,8 @@ def _parameter_based_discretization(parameters, **kwargs):
     the appropriate attributes of the rediscretized orbit_.
     """
     resolution = kwargs.get('resolution', 'normal')
-    equation = kwargs.get('equation', 'KS')
-    if equation == 'KS':
+    equation = kwargs.get('equation', 'ks')
+    if equation == 'ks':
         T, L = parameters['T'], parameters['L']
         if kwargs.get('N', None) is None:
             if resolution == 'coarse':
@@ -83,8 +81,8 @@ def rediscretize(orbit_, parameter_based=False, **kwargs):
     placeholder_orbit = orbit_.__class__(state=orbit_.state, state_type=orbit_.state_type, parameters=orbit_.parameters
                                          ).convert(to='modes')
 
-    equation = kwargs.get('equation', 'KS')
-    if equation == 'KS':
+    equation = kwargs.get('equation', 'ks')
+    if equation == 'ks':
         if parameter_based:
             new_shape = _parameter_based_discretization(orbit_.parameters, **kwargs)
         else:

@@ -1,5 +1,5 @@
 from __future__ import print_function, division
-from .orbit import *
+from .core import *
 import numpy as np
 import pytest
 import unittest

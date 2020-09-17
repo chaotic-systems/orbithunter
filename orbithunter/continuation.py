@@ -5,7 +5,7 @@ import numpy as np
 __all__ = ['continuation', 'discretization_continuation']
 
 
-def extent_equals_target(orbit_, target_extent, axis=1):
+def _extent_equals_target(orbit_, target_extent, axis=1):
     # For the sake of floating point error, round to 13 decimals.
     return np.round(list(orbit_.parameters.values())[axis], 13) == np.round(target_extent, 13)
 
@@ -39,7 +39,7 @@ def continuation(orbit_, target_extent, axis=1, step_size=0.1, **kwargs):
     # check that we are starting from converged solution, first of all.
     converge_result = converge(orbit_)
     # As long as we keep converging to solutions, we keep stepping towards target value.
-    while converge_result.exit_code == 1 and not extent_equals_target(converge_result.orbit, target_extent,
+    while converge_result.exit_code == 1 and not _extent_equals_target(converge_result.orbit, target_extent,
                                                                       axis=axis):
         incremented_orbit = increment_dimension(converge_result.orbit, target_extent, step_size, axis=axis)
         converge_result = converge(incremented_orbit, **kwargs)
@@ -50,7 +50,7 @@ def continuation(orbit_, target_extent, axis=1, step_size=0.1, **kwargs):
     return converge_result
 
 
-def increment_discretization(orbit_, increment, axis=0):
+def _increment_discretization(orbit_, increment, axis=0):
     # increments the target dimension but checks to see if incrementing places us out of bounds.
     incremented_shape = tuple(d if i != axis else d + increment for i, d in enumerate(orbit_.parameters['field_shape']))
     return rediscretize(orbit_, new_shape=incremented_shape)
@@ -69,7 +69,7 @@ def discretization_continuation(orbit_, target_shape, step_size=2,  **kwargs):
         step_size = np.sign(target_shape[axis] - orbit_.parameters['field_shape'][axis]) * step_size
         while converge_result.exit_code == 1 and (not converge_result.orbit.parameters['field_shape'][axis]
                                                   == target_shape[axis]):
-            incremented_orbit = increment_discretization(converge_result.orbit, step_size, axis=axis)
+            incremented_orbit = _increment_discretization(converge_result.orbit, step_size, axis=axis)
             converge_result = converge(incremented_orbit, **kwargs)
             if kwargs.get('save', False):
                 converge_result.orbit.to_h5(**kwargs)

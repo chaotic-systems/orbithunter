@@ -1,7 +1,4 @@
-import warnings
-import numpy as np
-warnings.simplefilter(action='ignore', category=FutureWarning)
-warnings.resetwarnings()
+
 
 __all__ = ['Orbit']
 
@@ -260,10 +257,11 @@ class Orbit:
 
         Example
         -------
-        L_2 distance between two states
+        Norm of a state. Should be something like np.linalg.norm(self.state.ravel(), ord=order). The following would
+        return the L_2 distance between two Orbit instances, default of NumPy linalg norm is 2-norm.
         >>> (self - other).norm()
         """
-        return np.linalg.norm(self.state.ravel(), ord=order)
+        return None
 
     @property
     def parameters(self):
@@ -290,12 +288,12 @@ class Orbit:
         return parameter_dict
 
     @classmethod
-    def glue_parameters(cls, parameter_dict_with_zipped_values, axis=0):
+    def glue_parameters(cls, parameter_dict_with_bundled_values, axis=0):
         """ Class method for handling parameters in gluing
 
         Parameters
         ----------
-        parameter_dict_with_zipped_values
+        parameter_dict_with_bundled_values
         axis
 
         Returns
@@ -360,7 +358,7 @@ class Orbit:
         preconditioning is chosen).
         """
         # Preconditioner is the inverse of the absolute value of the linear spatial derivative operators.
-        return np.eye(self.state_vector().size)
+        return None
 
     def rescale(self, magnitude, inplace=False):
         """ Scalar multiplication

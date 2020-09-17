@@ -292,7 +292,7 @@ class OrbitKS(Orbit):
         return self.__class__(state=self.state, state_type=self.state_type, parameters=self.parameters)
 
     def dot(self, other):
-        """ Return the L_2 inner product of two 2-tori
+        """ Return the L_2 inner product of two orbits
 
         Returns
         -------
@@ -787,6 +787,10 @@ class OrbitKS(Orbit):
                           'dt': (self.T, self.N, self.n, self.M-2)}
         return parameter_dict
 
+    @staticmethod
+    def dimensions():
+        return ['T', 'L']
+
     @classmethod
     def glue_parameters(cls, parameter_dict_with_bundled_values, glue_shape=(1, 1)):
         """ Class method for handling parameters in gluing
@@ -824,7 +828,11 @@ class OrbitKS(Orbit):
                                   'L': glue_shape[1] * np.mean(L_array[L_array > 0]),
                                   'S': 0.}
         else:
-            new_parameter_dict = parameter_dict_with_bundled_values
+            # Gluing shouldn't really be used if there is literally no gluing occuring, i.e. glue_shape = (1,1),
+            # but just for the sake of completeness.
+            new_parameter_dict = {'T': float(T_array),
+                                  'L': float(L_array),
+                                  'S': 0.}
 
         return new_parameter_dict
 
@@ -847,8 +855,6 @@ class OrbitKS(Orbit):
         self.state = state
         self.state_type = state_type
         if state_type == 'modes':
-            # This separate behavior is for Antisymmetric and ShiftReflection Tori;
-            # This avoids having to define subclass method with repeated code.
             self.N, self.M = shp[0] + 1, shp[1] + 2
         elif state_type == 'field':
             self.N, self.M = shp
@@ -936,7 +942,6 @@ class OrbitKS(Orbit):
 
         """
         verbose = kwargs.get('verbose', False)
-        extension = kwargs.get('extension', '.png')
         if np.product(self.parameters['field_shape']) >= 256**2:
             padding = kwargs.get('padding', False)
         else:
@@ -946,7 +951,6 @@ class OrbitKS(Orbit):
         plt.rcParams['text.usetex'] = True
 
         if padding:
-            pad_n, pad_m = kwargs.get('new_N', 32*self.N), kwargs.get('new_M', 16*self.M)
             padding_shape = kwargs.get('padding_shape', (16*self.N, 16*self.M))
             plot_orbit = rediscretize(self, new_shape=padding_shape)
         else:
@@ -1018,10 +1022,10 @@ class OrbitKS(Orbit):
         cbar = plt.colorbar(image, cax=cax, ticks=cbarticks)
         cbar.ax.set_yticklabels(cbarticklabels, fontdict={'fontsize': scaled_font})
 
-        if save:
-            filename = kwargs.get('filename', None)
+        filename = kwargs.get('filename', None)
+        if save or (filename is not None):
+            extension = kwargs.get('extension', '.png')
             directory = kwargs.get('directory', 'local')
-
             # Create save name if one doesn't exist.
             if filename is None:
                 filename = self.parameter_dependent_filename(extension=extension)
@@ -1298,7 +1302,7 @@ class OrbitKS(Orbit):
 
         return self.__class__(state=rmatvec_modes, state_type='modes', T=rmatvec_T, L=rmatvec_L)
 
-    def rotate(self, distance=0, direction='space'):
+    def rotate(self, distance=0, axis=0):
         """ Rotate the velocity field in either space or time.
 
         Parameters
@@ -1329,33 +1333,11 @@ class OrbitKS(Orbit):
         Rotation breaks discrete symmetry and destroys the solution. Users encouraged to change to OrbitKS first.
 
         """
-        if direction == 'space':
-            thetak = distance*self.wave_vector(self.parameters['dx'])
-        else:
+        if axis == 0:
             thetak = distance*self.frequency_vector(self.parameters['dt'])
+            cosinek = np.cos(thetak)
+            sinek = np.sin(thetak)
 
-        cosinek = np.cos(thetak)
-        sinek = np.sin(thetak)
-
-        if direction == 'space':
-            orbit_to_rotate = self.convert(to='s_modes')
-            # Refer to rotation matrix in 2-D for reference.
-            cosine_block = np.tile(cosinek.reshape(1, -1), (orbit_to_rotate.N, 1))
-            sine_block = np.tile(sinek.reshape(1, -1), (orbit_to_rotate.N, 1))
-
-            # Rotation performed on spatial modes because otherwise rotation is ill-defined for Antisymmetric and
-            # Shift-reflection symmetric tori.
-            spatial_modes_real = orbit_to_rotate.state[:, :-orbit_to_rotate.m]
-            spatial_modes_imaginary = orbit_to_rotate.state[:, -orbit_to_rotate.m:]
-            rotated_real = (np.multiply(cosine_block, spatial_modes_real)
-                            + np.multiply(sine_block, spatial_modes_imaginary))
-            rotated_imag = (-np.multiply(sine_block, spatial_modes_real)
-                            + np.multiply(cosine_block, spatial_modes_imaginary))
-            rotated_s_modes = np.concatenate((rotated_real, rotated_imag), axis=1)
-
-            return self.__class__(state=rotated_s_modes, state_type='s_modes',
-                                  parameters=self.parameters).convert(to=self.state_type)
-        else:
             orbit_to_rotate = self.convert(to='modes')
             # Refer to rotation matrix in 2-D for reference.
             cosine_block = np.tile(cosinek.reshape(-1, 1), (1, orbit_to_rotate.parameters['mode_shape'][1]))
@@ -1370,6 +1352,28 @@ class OrbitKS(Orbit):
                             + np.multiply(cosine_block, modes_timeimaginary))
             time_rotated_modes = np.concatenate((self.state[0, :].reshape(1, -1), rotated_real, rotated_imag), axis=0)
             return self.__class__(state=time_rotated_modes,
+                                  parameters=self.parameters).convert(to=self.state_type)
+        else:
+            thetak = distance*self.wave_vector(self.parameters['dx'])
+            cosinek = np.cos(thetak)
+            sinek = np.sin(thetak)
+
+            orbit_to_rotate = self.convert(to='s_modes')
+            # Refer to rotation matrix in 2-D for reference.
+            cosine_block = np.tile(cosinek.reshape(1, -1), (orbit_to_rotate.N, 1))
+            sine_block = np.tile(sinek.reshape(1, -1), (orbit_to_rotate.N, 1))
+
+            # Rotation performed on spatial modes because otherwise rotation is ill-defined for Antisymmetric and
+            # Shift-reflection symmetric Orbits.
+            spatial_modes_real = orbit_to_rotate.state[:, :-orbit_to_rotate.m]
+            spatial_modes_imaginary = orbit_to_rotate.state[:, -orbit_to_rotate.m:]
+            rotated_real = (np.multiply(cosine_block, spatial_modes_real)
+                            + np.multiply(sine_block, spatial_modes_imaginary))
+            rotated_imag = (-np.multiply(sine_block, spatial_modes_real)
+                            + np.multiply(cosine_block, spatial_modes_imaginary))
+            rotated_s_modes = np.concatenate((rotated_real, rotated_imag), axis=1)
+
+            return self.__class__(state=rotated_s_modes, state_type='s_modes',
                                   parameters=self.parameters).convert(to=self.state_type)
 
     def _random_initial_condition(self, **kwargs):
@@ -1479,6 +1483,22 @@ class OrbitKS(Orbit):
         """
         shift_reflected_field = np.roll(-1.0*np.roll(np.fliplr(self.state), 1, axis=1), self.n, axis=0)
         return self.__class__(state=shift_reflected_field, state_type='field', parameters=self.parameters)
+
+    def cell_shift(self, n_cell=2, axis=0):
+        """ rotate half of a period in either axis.
+
+        Parameters
+        ----------
+        axis
+
+        Returns
+        -------
+
+        """
+        field = self.convert(to='field').state
+        shifted_field = np.roll(field, self.parameters['field_shape'][axis] // n_cell, axis)
+        shifted_orbit = self.__class__(state=shifted_field, state_type='field', parameters=self.parameters)
+        return shifted_orbit.convert(to=self.state_type)
 
     @property
     def shape(self):
@@ -1676,7 +1696,7 @@ class OrbitKS(Orbit):
         return self.__class__(state=mapping_modes, state_type='modes', parameters=self.parameters)
 
     def statemul(self, other):
-        """ Elementwise multiplication of two Tori states
+        """ Elementwise multiplication of two Orbits states
 
         Returns
         -------
@@ -1685,7 +1705,7 @@ class OrbitKS(Orbit):
 
         Notes
         -----
-        Only really makes sense when taking an elementwise product between Tori defined on spatiotemporal
+        Only really makes sense when taking an elementwise product between Orbits defined on spatiotemporal
         domains of the same size.
         """
         if isinstance(other, np.ndarray):
@@ -1834,6 +1854,7 @@ class RelativeOrbitKS(OrbitKS):
         # For uniform save format
         super().__init__(state=state, state_type=state_type, T=T, L=L, S=S, frame=frame, **kwargs)
         # If the frame is comoving then the calculated shift will always be 0 by definition of comoving frame.
+        # The cases where is makes sense to calculate the shift
         if self.S == 0. and (self.frame == 'physical' or kwargs.get('nonzero_parameters', False) or state is None):
             self.S = calculate_spatial_shift(self.convert(to='s_modes').state, self.L)
 
@@ -2125,7 +2146,12 @@ class RelativeOrbitKS(OrbitKS):
                                   'S': 0.,
                                   'frame': 'physical'}
         else:
-            new_parameter_dict = parameter_dict_with_bundled_values
+            # Gluing shouldn't really be used if there is literally no gluing occuring, i.e. glue_shape = (1,1),
+            # but just for the sake of completeness.
+            new_parameter_dict = {'T': float(T_array),
+                                  'L': float(L_array),
+                                  'S': 0.,
+                                  'frame': 'physical'}
 
         return new_parameter_dict
 
@@ -2144,8 +2170,8 @@ class RelativeOrbitKS(OrbitKS):
         parameter_dict = {'T': self.T, 'L': self.L, 'S': self.S, 'N': self.N, 'M': self.M,
                           'n': max([self.n, 1]), 'm': self.m, 'mode_shape': (max([self.N-1, 1]), self.M-2),
                           'field_shape': (self.N, self.M), 's_mode_shape': (self.N, self.M - 2),
-                          'dx': (self.L, self.M, self.m, max([self.N-1, 1])), 'dt': (self.T, self.N, self.n, self.M-2),
-                          'frame': self.frame}
+                          'field_dimensions': (self.T, self.L), 'dx': (self.L, self.M, self.m, max([self.N-1, 1])),
+                          'dt': (self.T, self.N, self.n, self.M-2), 'frame': self.frame}
         return parameter_dict
 
     def _parameter_preconditioning(self):
@@ -2412,6 +2438,7 @@ class AntisymmetricOrbitKS(OrbitKS):
         parameter_dict = {'T': self.T, 'L': self.L, 'S': self.S, 'N': self.N, 'M': self.M,
                           'n': max([self.n, 1]), 'm': self.m, 'mode_shape': (max([self.N-1, 1]), self.m),
                           'field_shape': (self.N, self.M), 's_mode_shape': (self.N, self.M - 2),
+                          'field_dimensions': (self.T, self.L),
                           'dx': (self.L, self.M, self.m, self.N, max([self.N-1, 1])),
                           'dt': (self.T, self.N, self.n, self.m)}
         return parameter_dict
@@ -2691,6 +2718,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
         parameter_dict = {'T': self.T, 'L': self.L, 'S': self.S, 'N': self.N, 'M': self.M,
                           'n': max([self.n, 1]), 'm': self.m, 'mode_shape': (max([self.N-1, 1]), self.m),
                           'field_shape': (self.N, self.M), 's_mode_shape': (self.N, self.M - 2),
+                          'field_dimensions': (self.T, self.L),
                           'dx': (self.L, self.M, self.m, self.N, max([self.N-1, 1])),
                           'dt': (self.T, self.N, self.n, self.m)}
         return parameter_dict
@@ -3132,9 +3160,45 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         parameter_dict = {'T': self.T, 'L': self.L, 'S': self.S, 'N': self.N, 'M': self.M,
                           'n': max([self.n, 1]), 'm': self.m, 'mode_shape': (1, self.m),
                           'field_shape': (self.N, self.M), 's_mode_shape': (self.N, self.M - 2),
+                          'field_dimensions': (0., self.L),
                           'dx': (self.L, self.M, self.m, self.N, 1),
                           'dt': (self.T, self.N, self.n, self.m)}
         return parameter_dict
+
+    @classmethod
+    def glue_parameters(cls, parameter_dict_with_bundled_values, glue_shape=(1, 1)):
+        """ Class method for handling parameters in gluing
+
+        Parameters
+        ----------
+        parameter_dict_with_bundled_values
+        axis
+
+        Returns
+        -------
+
+        Notes
+        -----
+        The shift will be calculated when the parameters are passed to the instance because of the 'frame':'physical'
+        dict kay value pair.
+
+        """
+        L_array = np.array(parameter_dict_with_bundled_values['L'])
+
+        if glue_shape[0] > 1:
+            raise ValueError('Trying to glue EquilibriumOrbitKS() in time is contradictory.')
+        elif glue_shape[0] == 1 and glue_shape[1] > 1:
+            new_parameter_dict = {'T': 0,
+                                  'L': np.sum(L_array),
+                                  'S': 0.}
+        else:
+            # Gluing shouldn't really be used if there is literally no gluing occuring, i.e. glue_shape = (1,1),
+            # but just for the sake of completeness.
+            new_parameter_dict = {'T': 0.,
+                                  'L': float(L_array),
+                                  'S': 0.}
+
+        return new_parameter_dict
 
     def _parse_state(self, state, state_type, **kwargs):
         shp = state.shape
@@ -3493,9 +3557,14 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         parameter_dict = {'T': self.T, 'L': self.L, 'S': self.S, 'N': self.N, 'M': self.M,
                           'n': max([self.n, 1]), 'm': self.m, 'mode_shape': (1, self.M-2),
                           'field_shape': (self.N, self.M), 's_mode_shape': (self.N, self.M - 2),
+                          'field_dimensions': (self.T, self.L),
                           'dx': (self.L, self.M, self.m, 1),
                           'dt': (self.T, self.N, self.n, self.M-2)}
         return parameter_dict
+
+    @property
+    def field_params(self):
+
 
     def _parse_state(self, state, state_type, **kwargs):
         # This is the best way I've found for passing modes but also wanting N != 1. without specifying
@@ -3755,6 +3824,7 @@ def change_orbit_type(orbit, new_type):
 
     # This avoids time-dimension issues with RelativeEquilibriumOrbitKS and EquilibriumOrbitKS
     tmp_orbit = orbit.convert(to='field')
+
     return class_generator(state=tmp_orbit.state, state_type=tmp_orbit.state_type,
                            T=tmp_orbit.T, L=tmp_orbit.L, S=tmp_orbit.S).convert(to=orbit.state_type)
 

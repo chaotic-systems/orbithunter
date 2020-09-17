@@ -72,16 +72,35 @@ class OrbitResult(dict):
 
 
 def converge(orbit_, method='hybrid', **kwargs):
+    """ Main optimization function for orbithunter
+
+    Parameters
+    ----------
+    orbit_
+    method
+    kwargs
+
+    Returns
+    -------
+
+    Notes
+    -----
+    Passing orbit_tol and orbit_maxiter in conjuction with method=='hybrid' will cause the _gradient_descent and
+    _lstsq to have the same tolerance and number of steps, which is not optimal. Therefore it is recommended to
+    either use the keyword arguments 'precision' and 'computation_time' to get default templates, or call converge twice,
+    once with method == 'gradient_descent' and once more with method == 'lstsq', passing unique
+    orbit_tol and orbit_maxiter to each call.
+    """
     orbit_.convert(to='modes', inplace=True)
-    if not orbit_.residual() < np.min(kwargs.get('orbit_tol', np.product(orbit_.shape) * 10**-6)):
+    if not orbit_.residual() < kwargs.get('orbit_tol', _default_orbit_tol(orbit_, method, **kwargs)):
         if method == 'hybrid':
             gradient_orbit, n_iter_a, _ = _gradient_descent(orbit_,  **kwargs)
-            result_orbit, n_iter_gn, exit_code = _gauss_newton(gradient_orbit, **kwargs)
+            result_orbit, n_iter_gn, exit_code = _lstsq(gradient_orbit, **kwargs)
             n_iter = (n_iter_a, n_iter_gn)
-        elif method in ['grad', 'gradient', 'gd', 'steepest']:
+        elif method == 'gradient_descent':
             result_orbit, n_iter, exit_code = _gradient_descent(orbit_, **kwargs)
         elif method == 'lstsq':
-            result_orbit, n_iter, exit_code = _gauss_newton(orbit_, **kwargs)
+            result_orbit, n_iter, exit_code = _lstsq(orbit_, **kwargs)
         elif method in ['lsqr', 'lsmr']:
             result_orbit, n_iter, exit_code = _scipy_sparse_linalg_solver_wrapper(orbit_, method=method, **kwargs)
         elif method in ['cg', 'newton-cg', 'l-bfgs-b', 'tnc']:
@@ -115,19 +134,18 @@ def _gradient_descent(orbit_, **kwargs):
     Preconditioning left out of **kwargs because of its special usage
 
     """
+    orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_, 'gradient_descent', **kwargs))
+    orbit_maxiter = kwargs.get('orbit_maxiter', _default_orbit_maxiter(orbit_, 'gradient_descent', **kwargs))
 
-    # Specific modifying exponent for changes in period, domain_size
-    # Absolute tolerance for the descent method.
-    orbit_tol = kwargs.get('orbit_tol', np.product(orbit_.shape) * 10**-6)
-    orbit_maxiter = kwargs.get('orbit_maxiter', np.min([32 * np.product(orbit_.shape), 100000]))
     ftol = kwargs.get('ftol', 1e-10)
     verbose = kwargs.get('verbose', False)
-    preconditioning=kwargs.get('preconditioning', True)
+    preconditioning = kwargs.get('preconditioning', True)
 
-    step_size = 1
     n_iter = 0
+    step_size = 1
     # By default assume failure
     exit_code = 0
+
     if verbose:
         print('Starting gradient descent. Initial residual={}, target={}'.format(orbit_.residual(), orbit_tol))
 
@@ -179,14 +197,17 @@ def _gradient_descent(orbit_, **kwargs):
     return orbit_, n_iter, exit_code
 
 
-def _gauss_newton(orbit_, **kwargs):
-    orbit_tol = kwargs.get('orbit_tol',  np.product(orbit_.shape) * 10 ** -15)
-    orbit_maxiter = kwargs.get('orbit_maxiter', np.max([10, ( np.product(orbit_.shape)) // 4]))
+def _lstsq(orbit_, **kwargs):
+    # This is to handle the case where method == 'hybrid' such that different defaults are used.
+
+    orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_, 'lstsq', **kwargs))
+    orbit_maxiter = kwargs.get('orbit_maxiter', _default_orbit_maxiter(orbit_, 'lstsq', **kwargs))
+    max_damp_factor = kwargs.get('orbit_damp_max', 8)
     verbose = kwargs.get('verbose', False)
 
-    max_damp_factor = 9
     n_iter = 0
     residual = orbit_.residual()
+
     if verbose:
         print('Starting lstsq. Initial residual={}, target={}'.format(orbit_.residual(), orbit_tol))
 
@@ -234,6 +255,11 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-03, btol=1e-03
                                         method='lsqr', maxiter=None, conlim=1e+08,
                                         show=False, calc_var=False, **kwargs):
 
+    orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_, method, **kwargs))
+    orbit_maxiter = kwargs.get('orbit_maxiter', _default_orbit_maxiter(orbit_, method, **kwargs))
+    max_damp_factor = kwargs.get('orbit_damp_max', 8)
+    preconditioning = kwargs.get('preconditioning', False)
+
     linear_operator_shape = (orbit_.state.size, orbit_.state_vector().size)
     istop = 1
     n_iter = 0
@@ -241,11 +267,6 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-03, btol=1e-03
     # Return codes that represent good results from the SciPy least-squares solvers.
     good_codes = [0, 1, 2, 4, 5]
     residual = orbit_.residual()
-
-    orbit_tol = kwargs.get('orbit_tol', np.product(orbit_.shape) * 10**-6)
-    orbit_maxiter = kwargs.get('orbit_maxiter', 250)
-    max_damp_factor = kwargs.get('orbit_damp_max', 8)
-    preconditioning = kwargs.get('preconditioning', False)
 
     while (residual > orbit_tol) and (istop in good_codes) and orbit_n_iter < orbit_maxiter:
         orbit_n_iter += 1
@@ -316,14 +337,18 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-03, btol=1e-03
 def _scipy_optimize_minimize_wrapper(orbit_, method=None, bounds=None,
                                      tol=None, callback=None, options=None, **kwargs):
 
+    orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_, method, **kwargs))
+    orbit_maxiter = kwargs.get('orbit_maxiter', _default_orbit_maxiter(orbit_, method, **kwargs))
+    verbose = kwargs.get('verbose', False)
+
     # The performance of the different methods depends on preconditioning differently/
     if method in ['newton-cg', 'tnc']:
         # This is a work-around to have different defaults for the different methods.
         preconditioning = kwargs.get('preconditioning', False)
-    elif method =='l-bfgs-b':
+    elif method == 'l-bfgs-b':
         # This is a work-around to have different defaults for the different methods.
         preconditioning = kwargs.get('preconditioning', True)
-    elif method =='cg':
+    elif method == 'cg':
         # This is a work-around to have different defaults for the different methods.
         preconditioning = kwargs.get('preconditioning', True)
         if options is None:
@@ -370,17 +395,16 @@ def _scipy_optimize_minimize_wrapper(orbit_, method=None, bounds=None,
 
     orbit_n_iter = 0
     success = True
-    while ((orbit_.residual() > kwargs.get('orbit_tol', np.product(orbit_.shape) * 10**-6))
-           and (orbit_n_iter < kwargs.get('orbit_maxiter', 20))
-           and success):
+
+    while (orbit_.residual() > orbit_tol) and (orbit_n_iter < orbit_maxiter) and success:
         orbit_n_iter += 1
         result = minimize(_cost_function_scipy_minimize, orbit_.state_vector(),
                           method=method, jac=_cost_function_jac_scipy_minimize, bounds=bounds, tol=tol,
                           callback=callback, options=options)
         orbit_ = orbit_.from_numpy_array(result.x)
         success = result.success
-        if kwargs.get('verbose', False):
-            if np.mod(orbit_n_iter, (kwargs.get('orbit_maxiter', 20) // 10)) == 0:
+        if verbose:
+            if np.mod(orbit_n_iter, orbit_maxiter // 10) == 0:
                 print('Residual={} after {} {} iterations'.format(orbit_.residual(), orbit_n_iter, method))
 
     return orbit_, orbit_n_iter, success
@@ -408,6 +432,10 @@ def _scipy_optimize_root_wrapper(orbit_, method=None, tol=None, callback=None, o
     """
     # define the functions using orbit instance within scope instead of passing orbit
     # instance as arg to scipy functions.
+
+    orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_, method, **kwargs))
+    orbit_maxiter = kwargs.get('orbit_maxiter', _default_orbit_maxiter(orbit_, method, **kwargs))
+    verbose = kwargs.get('verbose', False)
 
     def _cost_function_scipy_root(x):
         '''
@@ -464,16 +492,15 @@ def _scipy_optimize_root_wrapper(orbit_, method=None, tol=None, callback=None, o
 
     orbit_n_iter = 0
     success = True
-    while ((orbit_.residual() > kwargs.get('orbit_tol', np.product(orbit_.shape) * 10**-6))
-           and (orbit_n_iter < kwargs.get('orbit_maxiter', 20))
-           and success):
+
+    while (orbit_.residual() > orbit_tol) and (orbit_n_iter < orbit_maxiter) and success:
         orbit_n_iter += 1
         result = root(_cost_function_scipy_root, orbit_.state_vector(),
                       method=method, jac=jac_, tol=tol,
                       callback=callback, options=options)
         orbit_ = orbit_.from_numpy_array(result.x, **kwargs)
         success = result.success
-        if kwargs.get('verbose', False):
+        if verbose:
             if np.mod(orbit_n_iter, (kwargs.get('orbit_maxiter', 20) // 10)) == 0:
                 print('Residual={} after {} {} iterations'.format(orbit_.residual(), orbit_n_iter, method))
     return orbit_, orbit_n_iter, success
@@ -498,3 +525,89 @@ def _print_exit_messages(orbit, exit_code):
         print('\n Relative periodic orbit has lower residual when flipping sign of shift.'
               ' Look for a negative sign error')
     return None
+
+
+def _default_orbit_tol(orbit_, method, **kwargs):
+    """ Wrapper to allow str keyword argument to be used to choose orbit tolerance dependent on method
+
+    Parameters
+    ----------
+    orbit_
+    kwargs
+
+    Returns
+    -------
+
+    Notes
+    -----
+    The purposes of this function are to not have conflicting types for orbit_tol kwarg and improved convenience
+    in specifying the default tolerance per method.
+
+    """
+    precision_level = kwargs.get('precision', 'default')
+    # Introduction of ugly conditional statements for convenience
+    if precision_level == 'machine':
+        default_tol = np.product(orbit_.parameters['field_shape']) * 10**-15
+    elif precision_level == 'very_high':
+        default_tol = np.product(orbit_.parameters['field_shape']) * 10**-12
+    elif precision_level == 'high':
+        default_tol = np.product(orbit_.parameters['field_shape']) * 10**-9
+    elif precision_level == 'medium' or precision_level == 'default':
+        default_tol = np.product(orbit_.parameters['field_shape']) * 10**-6
+    elif precision_level == 'low':
+        default_tol = np.product(orbit_.parameters['field_shape']) * 10**-3
+    elif precision_level == 'minimal':
+        default_tol = np.product(orbit_.parameters['field_shape']) * 10**-1
+    else:
+        raise ValueError('If a custom tolerance is desired, use ''orbit_tol'' key word instead.')
+
+    if method in ['gradient_descent', 'cg', 'newton-cg', 'l-bfgs-b', 'tnc','lgmres', 'gmres', 'minres', 'krylov']:
+        default_tol = default_tol * 10**3
+
+    return default_tol
+
+
+def _default_orbit_maxiter(orbit_, method, **kwargs):
+    """ Wrapper to allow str keyword argument to be used to choose number of iterations dependent on method
+
+    Parameters
+    ----------
+    orbit_
+    kwargs
+
+    Returns
+    -------
+
+    Notes
+    -----
+    The purposes of this function are to not have conflicting types for orbit_tol kwarg and improved convenience
+    in specifying the default tolerance per method.
+
+    """
+    computation_time = kwargs.get('computation_time', 'default')
+    if method in ['gradient_descent', 'cg', 'newton-cg', 'l-bfgs-b', 'tnc', 'lgmres', 'gmres', 'minres', 'krylov']:
+        # Introduction of ugly conditional statements for convenience
+        if computation_time == 'long':
+            default_computation_time = 32 * np.product(orbit_.parameters['field_shape'])
+        elif computation_time == 'medium' or computation_time == 'default':
+            default_computation_time = 16 * np.product(orbit_.parameters['field_shape'])
+        elif computation_time == 'short':
+            default_computation_time = 4 * np.product(orbit_.parameters['field_shape'])
+        elif computation_time == 'minimal':
+            default_computation_time = np.product(orbit_.parameters['field_shape'])
+        else:
+            raise ValueError('If a custom number of iterations is desired, use ''orbit_maxiter'' key word instead.')
+    else:
+        # Introduction of ugly conditional statements for convenience
+        if computation_time == 'long':
+            default_computation_time = 500
+        elif computation_time == 'medium' or computation_time == 'default':
+            default_computation_time = 250
+        elif computation_time == 'short':
+            default_computation_time = 50
+        elif computation_time == 'minimal':
+            default_computation_time = 10
+        else:
+            raise ValueError('If a custom number of iterations is desired, use ''orbit_maxiter'' key word instead.')
+    return default_computation_time
+

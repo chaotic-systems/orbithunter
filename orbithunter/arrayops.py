@@ -1,6 +1,7 @@
 import numpy as np
 from functools import lru_cache
 from math import pi
+
 __all__ = ['swap_modes', 'so2_generator', 'so2_coefficients', 'calculate_spatial_shift']
 
 

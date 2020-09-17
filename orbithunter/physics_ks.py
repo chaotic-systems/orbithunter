@@ -1,5 +1,5 @@
 
-__all__ = ['dissipation', 'energy', 'energy_variation', 'power']
+__all__ = ['kse_dissipation', 'kse_energy', 'kse_energy_variation', 'kse_power']
 
 
 def _averaging_wrapper(instance_with_state_to_average, average=None):
@@ -28,7 +28,7 @@ def _averaging_wrapper(instance_with_state_to_average, average=None):
         return instance_with_state_to_average.state
 
 
-def dissipation(orbit_instance, average=None):
+def kse_dissipation(orbit_instance, average=None):
     """ Amount of energy dissipation
     Notes
     -----
@@ -43,7 +43,7 @@ def dissipation(orbit_instance, average=None):
                               average=average)
 
 
-def energy(orbit_instance, average=None):
+def kse_energy(orbit_instance, average=None):
     """ Amount of energy dissipation
     Notes
     -----
@@ -55,7 +55,7 @@ def energy(orbit_instance, average=None):
                               average=average)
 
 
-def energy_variation(orbit_instance, average=None):
+def kse_energy_variation(orbit_instance, average=None):
     """ The field u_t * u whose spatial average should equal power - dissipation.
 
     Returns
@@ -66,7 +66,7 @@ def energy_variation(orbit_instance, average=None):
                               average=average)
 
 
-def power(orbit_instance, average=None):
+def kse_power(orbit_instance, average=None):
     """ Amount of energy production
     Notes
     -----
