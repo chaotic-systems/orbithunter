@@ -31,13 +31,13 @@ class Orbit:
     Methods listed here are required to have everything work.
     """
 
-    def __init__(self, state=None, state_type='modes', **kwargs):
+    def __init__(self, state=None, state_type='modes', orbit_parameters=(None,), **kwargs):
         if state is not None:
-            self._parse_parameters(**kwargs)
+            self._parse_parameters(orbit_parameters, **kwargs)
             self._parse_state(state, state_type, **kwargs)
         else:
-            self._parse_parameters(nonzero_parameters=True, **kwargs)
-            self._random_initial_condition(**kwargs).convert(to=state_type, inplace=True)
+            self._parse_parameters(orbit_parameters, nonzero_parameters=True, **kwargs)
+            self._random_initial_condition(orbit_parameters, **kwargs).convert(to=state_type, inplace=True)
 
     def __radd__(self, other):
         return None
@@ -264,28 +264,16 @@ class Orbit:
         return None
 
     @property
-    def parameters(self):
-        """ Pass all parameters as one collection instead of individually.
+    def orbit_parameters(self):
+         return self.T, self.L, self.S
 
+    @property
+    def field_shape(self):
+        return self.N, self.M
 
-        Returns
-        -------
-        parameter_dict : dict
-        A dictionary which includes all parameters relevant to all other methods.
-
-        Notes
-        -----
-        The only thing that matters is that for a field with D dimensions, the first D values of the parameter
-        dict should correspond to the respective dimension. For example, the Kuramoto-sivashinsky equation
-        as (1+1) dimensional spacetime. These dimensions are labeled by T, L. Therefore the parameter dict's
-        first two entries should be {'T': T, 'L': L , ...}. Time is always assumed to be the first axis (axis=0 in
-        NumPy parlance).
-
-        This acts as a bundling of different orbit attributes. Helps with keeping code succinct, passing
-        values to functions with @lru_cache decorator, generalization of functions to multiple equations.
-        """
-        parameter_dict = {}
-        return parameter_dict
+    @property
+    def dimensions(self):
+        return self.T, self.L
 
     @classmethod
     def glue_parameters(cls, parameter_dict_with_bundled_values, axis=0):
@@ -375,7 +363,6 @@ class Orbit:
         """
         return self
 
-    @property
     def shape(self):
         """ Convenience to not have to type '.state.shape' all the time in notebooks"""
         return self.state.shape
@@ -432,12 +419,12 @@ class Orbit:
         self.state_type = state_type
         return None
 
-    def _parse_parameters(self, T=0., L=0., **kwargs):
+    def _parse_parameters(self, orbit_parameters, **kwargs):
         """ Determine the dimensionality and symmetry parameters.
         """
         return None
 
-    def _random_initial_condition(self, **kwargs):
+    def _random_initial_condition(self, orbit_parameters, **kwargs):
         """ Initial a set of random spatiotemporal Fourier modes
         Parameters
         ----------

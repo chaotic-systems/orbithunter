@@ -7,6 +7,7 @@ import numpy as np
 from math import pi
 
 def main(*args, **kwargs):
+    test = RelativeOrbitKS(orbit_parameters=(1., 1., 1.), frame='physical')
     comoving=False
     if comoving:
         # padded merger Orbit in comoving frame
@@ -22,7 +23,7 @@ def main(*args, **kwargs):
     wiggle = read_h5('OrbitKS_wiggle.h5', directory='../data/tiles/')
 
     td = {0 : streak, 1: merger, 2: wiggle}
-
+    test = OrbitKS()
     symbol_array = np.array([[0, 1, 2], [2, 2, 2], [1, 0, 0]])
 
     test = tile(symbol_array, td, OrbitKS)

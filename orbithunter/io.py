@@ -29,14 +29,14 @@ def read_h5(filename, directory='local', data_format='orbithunter', equation='ks
                 L = float(f['space_period'][()])
                 T = float(f['time_period'][()])
                 S = float(f['spatial_shift'][()])
-                orbit = class_generator(state=field, state_type='field', T=T, L=L, S=S, **orbitkwargs)
+                orbit = class_generator(state=field, state_type='field', orbit_parameters=(T, L, S), **orbitkwargs)
             else:
                 fieldtmp = f['/data/ufield']
                 L = float(f['/data/space'][0])
                 T = float(f['/data/time'][0])
                 field = fieldtmp[:]
                 S = float(f['/data/shift'][0])
-                orbit = class_generator(state=field, state_type='field', T=T, L=L, S=S, **orbitkwargs)
+                orbit = class_generator(state=field, state_type='field', orbit_parameters=(T, L, S), **orbitkwargs)
 
     # verify typically returns Orbit, code; just want the orbit instance here
     if check:

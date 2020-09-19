@@ -30,7 +30,7 @@ def orbit_persistence(orbit_instance, min_persistence=0.1, **kwargs):
     Doesn't support vector fields for now, I think each component would have its own cubical complex?
     """
     orbit_instance = orbit_instance.convert(to='field')
-    periodic_dimensions = kwargs.pop('periodic_dimensions', tuple(len(orbit_instance.parameters['field_shape'])*[True]))
+    periodic_dimensions = kwargs.pop('periodic_dimensions', tuple(len(orbit_instance.field_shape)*[True]))
     cubical_complex = gh.PeriodicCubicalComplex(dimensions=orbit_instance.state.shape,
                                                 top_dimensional_cells=orbit_instance.state.ravel(),
                                                 periodic_dimensions=periodic_dimensions)

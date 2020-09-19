@@ -32,10 +32,10 @@ def main():
     args = parser.parse_args()
     # try:
     first_Orbit_filename, second_Orbit_filename = args.input.split()
-    Orbit = read_h5(first_Orbit_filename, cls=ShiftReflectionOrbitKS()
-    other_Orbit = read_h5(second_Orbit_filename, cls=ShiftReflectionOrbitKS()
-    glued_Orbit = glue(Orbit, other_Orbit, direction=args.direction)
-    result = converge(glued_OrbitKS())
+    orbit_ = read_h5(first_Orbit_filename)
+    other_orbit_ = read_h5(second_Orbit_filename)
+    glued_orbit_ = glue(np.array([orbit_, other_orbit_]), axis=args.axis)
+    result = converge(glued_orbit_)
 
     if result.success:
         result.Orbit.to_h5(filename=args.output)

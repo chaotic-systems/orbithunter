@@ -49,49 +49,64 @@ __all__ = ['tile', 'glue']
 #     best_gluing = concat(high_resolution_orbit, highres_rotation_orbit, direction=direction)
 #     return best_gluing
 
-# def combine(orbit, other_orbit, axis=0):
-#     # Converts tori to best representatives for gluing by choosing from group orbit.
-#     continuous_classes = ['Orbit', 'RelativeOrbit']
-#     discrete_classes = ['ShiftReflectionOrbit', 'AntisymmetricOrbit']
-#     orbit_name = orbit.__class__.__name__
-#     other_name = other_orbit.__class__.__name__
-#     if (orbit_name in continuous_classes) and (other_name in continuous_classes):
-#         return best_rotation(orbit, other_orbit, direction=direction)
-#     elif (orbit_name in discrete_classes) and (other_name in discrete_classes):
-#         return best_combination(orbit, other_orbit, direction=direction)
-#     else:
-#         return concat(orbit, other_orbit, direction=direction)
+def pairwise_glue(orbit, other_orbit, axis=0):
+    """
+
+    Parameters
+    ----------
+    orbit
+    other_orbit
+    axis
+
+    Returns
+    -------
+
+    Notes
+    -----
+    This function gives the user a lot more control over the result of gluing when considering only the
+    combination of two orbits. This should be used when the optimal gluing is desired for a pair of orbits.
+    """
+    # Converts tori to best representatives for gluing by choosing from group orbit.
+
+    orbit_name = orbit.__class__.__name__
+    other_name = other_orbit.__class__.__name__
+    if (orbit_name in continuous_classes) and (other_name in continuous_classes):
+        return best_rotation(orbit, other_orbit, direction=direction)
+    elif (orbit_name in discrete_classes) and (other_name in discrete_classes):
+        return best_combination(orbit, other_orbit, direction=direction)
+    else:
+        return concat(orbit, other_orbit, direction=direction)
 
 
 def tile_dictionary_ks(padded=False, comoving=False):
     if padded:
-        directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/tiles/padded/')), '')
+        directory = '../data/tiles/padded/'
     else:
-        directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/tiles/')), '')
+        directory = '../data/tiles/'
 
     if comoving:
         # padded merger Orbit in comoving frame
-        merger = read_h5(os.path.abspath(os.path.join(directory, "./OrbitKS_merger.h5")))
+        merger = read_h5(os.path.abspath(os.path.join(directory, './OrbitKS_merger.h5')), state_type='field')
     else:
         # padded merger orbit in physical frame.
-        merger = read_h5(os.path.abspath(os.path.join(directory, "./OrbitKS_merger_fdomain.h5")))
+        merger = read_h5(os.path.abspath(os.path.join(directory, './OrbitKS_merger_fdomain.h5')), state_type='field')
 
     # padded streak orbit
-    streak = read_h5(os.path.abspath(os.path.join(directory, "./OrbitKS_streak.h5")))
+    streak = read_h5(os.path.abspath(os.path.join(directory, './OrbitKS_streak.h5')), state_type='field')
 
     # padded wiggle orbit
-    wiggle = read_h5(os.path.abspath(os.path.join(directory, "./OrbitKS_wiggle.h5")))
+    wiggle = read_h5(os.path.abspath(os.path.join(directory, './OrbitKS_wiggle.h5')), state_type='field')
 
     tile_dict = {0: streak, 1: merger, 2: wiggle}
     return tile_dict
 
 
-def glue(array_of_orbits, class_constructor, **kwargs):
+def glue(array_of_orbit_instances, class_constructor, stripwise=False, **kwargs):
     """ Function for combining spatiotemporal fields
 
     Parameters
     ----------
-    array_of_orbits : ndarray of Orbit instances
+    array_of_orbit_instances : ndarray of Orbit instances
         A NumPy array wherein each element is an orbit. i.e. a tensor of Orbit instances. The shape should be
         representative to how the orbits are going to be glued. See notes for more details. The orbits must all
         have the same discretization size if gluing is occuring along more than one axis. The orbits should
@@ -111,7 +126,7 @@ def glue(array_of_orbits, class_constructor, **kwargs):
 
     Because of how the concatenation of fields works, wherein the discretization must match along the boundaries. It
     is quite complicated to write a generalized code that glues all dimensions together at once, so instead this is
-    designed to iterate through the axes of the array_of_orbits.
+    designed to iterate through the axes of the array_of_orbit_instances.
 
     To prevent confusion, there are many different "shapes" and discretizations that are possibly floating around.
     There are three main array shapes or dimensions that are involved in this function. The first is the array
@@ -137,36 +152,68 @@ def glue(array_of_orbits, class_constructor, **kwargs):
     axis=3, 4 times in a row. I believe that this generalizes for all equations but it's hard to test
 
     """
-    glue_shape = array_of_orbits.shape
-    state_shape = array_of_orbits.ravel()[0].parameters['field_shape']
+    glue_shape = array_of_orbit_instances.shape
+    tiling_shape = array_of_orbit_instances.ravel()[0].field_shape
+    gluing_order = kwargs.get('gluing_order', np.argsort(glue_shape))
     # This joins the dictionary of all orbits' dimensions by zipping the values together. i.e.
     # {'T': T_1, 'L': L_1}, {'T': T_2, 'L': L_2}, .....  transforms into  {'T': (T_1, T_2, ...) , 'L': (L_1, L_2, ...)}
-    zipped_parameter_dict = dict(zip(class_constructor.dimensions(),
-                                     zip(*(tuple(o.parameters[dim] for dim in class_constructor.dimensions())
-                                           for o in array_of_orbits.ravel())
-                                         )
-                                     ))
-    zipped_parameter_dict2 = dict(zip(class_constructor.dimensions(),
-                                     zip(*(o.field_dimensions() for o in array_of_orbits.ravel()))
-                                     ))
-    glued_parameters = class_constructor.glue_parameters(zipped_parameter_dict, glue_shape=glue_shape)
-    # If only gluing in one dimension, we can better approximate by using the correct aspect ratios
-    # in the gluing dimension.
-    if glue_shape.count(1) == len(glue_shape)-1:
-        gluing_axis = np.argmax(glue_shape)
-        array_of_orbits = correct_aspect_ratios(array_of_orbits.ravel(), axis=gluing_axis)
-        orbit_field_list = [o.convert(to='field').state for o in array_of_orbits]
-        glued_orbit_state = np.concatenate(orbit_field_list, axis=gluing_axis)
-    else:
-        gluing_axis = len(glue_shape) - 1
-        orbit_field_list = [o.convert(to='field').state for o in array_of_orbits.ravel()]
-        glued_orbit_state = np.array(orbit_field_list).reshape(*array_of_orbits.shape, *state_shape)
 
-        while len(glued_orbit_state.shape) > len(state_shape):
+    if stripwise:
+        for gluing_axis in gluing_order:
+            # Produce the slices that will select the strips of orbits so we can iterate and work with strips.
+            gluing_slices = list(itertools.product(*(range(g) if i != gluing_axis else [slice(None)]
+                                                     for i, g in enumerate(glue_shape))))
+            # Each strip will have a resulting glued orbit, collect these via appending to list.
+            glued_orbit_strips = []
+            for gs in gluing_slices:
+
+                # The strip shape is 1-d but need a d-dimensional tuple filled with 1's to keep track of axes.
+                strip_shape = tuple(len(array_of_orbit_instances[gs]) if n == gluing_axis else 1
+                                    for n in range(len(array_of_orbit_instances.shape)))
+
+                # For each strip, need to know how to combine the dimensions of the orbits. Bundle, then combine.
+                zipped_dimensions = tuple(zip(*(o.dimensions for o in array_of_orbit_instances[gs].ravel())))
+                glued_parameters = class_constructor.glue_parameters(zipped_dimensions, glue_shape=strip_shape)
+                # Slice the orbit array to get the strip, reshape to maintain its d-dimensional form.
+                strip_of_orbits = array_of_orbit_instances[gs].reshape(strip_shape)
+
+                # Correct the proportions of the dimensions along the current gluing axis.
+                array_of_orbit_instances_corrected = correct_aspect_ratios(strip_of_orbits, gluing_axis=gluing_axis)
+                # Concatenate the states with corrected proportions.
+                glued_strip_state = np.concatenate(tuple(x.state for x in array_of_orbit_instances_corrected),
+                                                   axis=gluing_axis)
+                # Put the glued strip's state back into a class instance.
+                glued_strip_orbit = class_constructor(state=glued_strip_state, state_type='field',
+                                                      orbit_parameters=glued_parameters)
+                # Take the result and store it for futher gluings.
+                glued_orbit_strips.append(glued_strip_orbit)
+            # We combined along the gluing axis meaning that that axis has a new shape of 1. For symbol arrays
+            # with more dimensions, we need to repeat the gluing along each axis, update with the newly glued strips.
+            glue_shape = tuple(glue_shape[i] if i != gluing_axis else 1 for i in range(len(glue_shape)))
+            array_of_orbit_instances = np.array(glued_orbit_strips).reshape(glue_shape)
+            if array_of_orbit_instances.size == 1:
+                glued_orbit = array_of_orbit_instances.ravel()[0]
+    else:
+        # If we want a much simpler method of gluing, we can do "arraywise" which simply concatenates everything at
+        # once. I would say this is the better option if all orbits in the tile dictionary are approximately equal
+        # in size.
+        # the "gluing axis" in this case is always the same, we are just iterating through the gluing shape one
+        # axis at a time.
+        gluing_axis = len(glue_shape) - 1
+        # Bundle all of the parameters at once, instead of "stripwise"
+        zipped_dimensions = tuple(zip(*(o.dimensions for o in array_of_orbit_instances.ravel())))
+        glued_parameters = class_constructor.glue_parameters(zipped_dimensions, glue_shape=glue_shape)
+
+        # arrange the orbit states into an array of the same shape as the symbol array.
+        orbit_field_list = [o.convert(to='field').state for o in array_of_orbit_instances.ravel()]
+        glued_orbit_state = np.array(orbit_field_list).reshape(*array_of_orbit_instances.shape, *tiling_shape)
+        # iterate through and combine all of the axes.
+        while len(glued_orbit_state.shape) > len(tiling_shape):
             glued_orbit_state = np.concatenate(glued_orbit_state, axis=gluing_axis)
 
-    glued_orbit = class_constructor(state=glued_orbit_state, state_type='field',
-                                    parameters=glued_parameters, **kwargs)
+        glued_orbit = class_constructor(state=glued_orbit_state, state_type='field',
+                                        orbit_parameters=glued_parameters)
+
     return glued_orbit
 
 
@@ -187,11 +234,16 @@ def tile(symbol_array, tiling_dictionary, class_constructor, tile_shape=(64, 64)
     Returns
     -------
 
+    Notes
+    -----
+    This is simply a wrapper for gluing that allows the user to submit symbol arrays and dictionaries instead
+    of orbit arrays. It also reshapes all orbits in the dictionary to a uniform size.
+
     """
     symbol_array_shape = symbol_array.shape
-    array_of_orbits = np.array([rediscretize(tiling_dictionary[symbol], new_shape=tile_shape)
-                                for symbol in symbol_array.ravel()]).reshape(*symbol_array_shape)
-    glued_orbit = glue(array_of_orbits, class_constructor, **kwargs)
+    array_of_orbit_instances = np.array([rediscretize(tiling_dictionary[symbol], new_shape=tile_shape)
+                                         for symbol in symbol_array.ravel()]).reshape(*symbol_array_shape)
+    glued_orbit = glue(array_of_orbit_instances, class_constructor, **kwargs)
     return glued_orbit
 
 

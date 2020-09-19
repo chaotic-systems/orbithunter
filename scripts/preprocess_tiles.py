@@ -26,10 +26,10 @@ def main(*args, **kwargs):
                                                 s_rescaled.convert(to='field').state,
                                                 np.zeros([s.N, 20])), axis=1), (64, 1))
 
-        padded_s_orbit = OrbitKS(state=padded_s_state, state_type='field', parameters=s.parameters)
-        padded_s_orbit_shifted = OrbitKS(state=padded_s_state_shifted, state_type='field', parameters=s.parameters)
+        padded_s_orbit = OrbitKS(state=padded_s_state, state_type='field', orbit_parameters=s.orbit_parameters)
+        padded_s_orbit_shifted = OrbitKS(state=padded_s_state_shifted, state_type='field', orbit_parameters=s.orbit_parameters)
 
-        s_orbit = change_orbit_type(rediscretize(s_rescaled, new_shape=(64, 64)).convert(to='field'), OrbitKS)
+        s_orbit = class_convert(rediscretize(s_rescaled, new_shape=(64, 64)).convert(to='field'), OrbitKS)
 
         padded_s_orbit.to_h5('OrbitKS_streak.h5', directory='../data/tiles/padded/', verbose=True)
         padded_s_orbit.plot(filename='OrbitKS_streak.png', directory='../figs/tiles/padded/',
@@ -38,7 +38,7 @@ def main(*args, **kwargs):
         s_orbit.to_h5('OrbitKS_streak.h5', directory='../data/tiles/')
         s_orbit.plot(filename='OrbitKS_streak.png', directory='../figs/tiles/')
 
-        s_orbit_shifted = change_orbit_type(rediscretize(s_shifted, new_shape=(64, 64)).convert(to='field'), OrbitKS)
+        s_orbit_shifted = class_convert(rediscretize(s_shifted, new_shape=(64, 64)).convert(to='field'), OrbitKS)
         padded_s_orbit_shifted.to_h5('OrbitKS_streak_shifted.h5', directory='../data/tiles/padded/', verbose=True)
         padded_s_orbit_shifted.plot(filename='OrbitKS_streak_shifted.png', directory='../figs/tiles/padded/',
                             verbose=True)
@@ -55,7 +55,7 @@ def main(*args, **kwargs):
         # Note padded version does not exist because wiggle doesn't need it due to its size; other orbits padding
         # is based upon relative sizes.
 
-        w_orbit = change_orbit_type(w_rescaled.convert(to='field'), OrbitKS)
+        w_orbit = class_convert(w_rescaled.convert(to='field'), OrbitKS)
         w_orbit.to_h5('OrbitKS_wiggle.h5', directory='../data/tiles/', verbose=True)
         w_orbit.plot(filename='OrbitKS_wiggle.png', directory='../figs/tiles/', verbose=True)
         w_orbit.to_h5('OrbitKS_wiggle.h5', directory='../data/tiles/padded/', verbose=True)
@@ -89,22 +89,22 @@ def main(*args, **kwargs):
                                          m_rescaled.cell_shift(axis=1).convert(to='field').change_reference_frame(to='physical').state,
                                          np.zeros([m.N, 8])), axis=1)
 
-        padded_m = OrbitKS(state=padded_m_state, state_type='field', parameters=m.parameters)
+        padded_m = OrbitKS(state=padded_m_state, state_type='field', orbit_parameters=m.orbit_parameters)
         padded_m.to_h5('OrbitKS_merger_fdomain.h5', directory='../data/tiles/padded/', verbose=True)
         padded_m.plot(filename='OrbitKS_merger_fdomain.png',
                           directory='../figs/tiles/padded/', verbose=True)
 
-        padded_mf = OrbitKS(state=padded_rel_m_state, state_type='field', parameters=m.parameters)
+        padded_mf = OrbitKS(state=padded_rel_m_state, state_type='field', orbit_parameters=m.orbit_parameters)
         padded_mf.to_h5('OrbitKS_merger.h5', directory='../data/tiles/padded/', verbose=True)
         padded_mf.plot(filename='OrbitKS_merger.png',
                        directory='../figs/tiles/padded/', verbose=True, padding=False)
 
-        padded_m_shifted = OrbitKS(state=padded_m_state_shifted, state_type='field', parameters=m.parameters)
+        padded_m_shifted = OrbitKS(state=padded_m_state_shifted, state_type='field', orbit_parameters=m.orbit_parameters)
         padded_m_shifted.to_h5('OrbitKS_merger_shifted_fdomain.h5', directory='../data/tiles/padded/', verbose=True)
         padded_m_shifted.plot(filename='OrbitKS_merger_shifted_fdomain.png',
                           directory='../figs/tiles/padded/', verbose=True)
 
-        padded_mf_shifted = OrbitKS(state=padded_rel_m_state_shifted, state_type='field', parameters=m.parameters)
+        padded_mf_shifted = OrbitKS(state=padded_rel_m_state_shifted, state_type='field', orbit_parameters=m.orbit_parameters)
         padded_mf_shifted .to_h5('OrbitKS_merger_shifted.h5', directory='../data/tiles/padded/', verbose=True)
         padded_mf_shifted .plot(filename='OrbitKS_merger_shifted.png',
                       directory='../figs/tiles/padded/', verbose=True, padding=False)
@@ -114,8 +114,8 @@ def main(*args, **kwargs):
         m_rescaled = rediscretize(m_rescaled, new_shape=(64, 64))
         m_shifted = m_rescaled.cell_shift(axis=1)
 
-        m_orbit_shifted = change_orbit_type(m_shifted.convert(to='field'), OrbitKS)
-        m_orbitf_shifted = change_orbit_type(m_shifted.convert(to='field').change_reference_frame(to='physical'), OrbitKS)
+        m_orbit_shifted = class_convert(m_shifted.convert(to='field'), OrbitKS)
+        m_orbitf_shifted = class_convert(m_shifted.convert(to='field').change_reference_frame(to='physical'), OrbitKS)
 
         m_orbit_shifted.to_h5('OrbitKS_merger_shifted.h5', directory='../data/tiles/', verbose=True)
         m_orbit_shifted.plot(filename='OrbitKS_merger_shifted.png', directory='../figs/tiles/', verbose=True)
@@ -123,8 +123,8 @@ def main(*args, **kwargs):
         m_orbitf_shifted.to_h5('OrbitKS_merger_shifted_fdomain.h5', directory='../data/tiles/', verbose=True)
         m_orbitf_shifted.plot(filename='OrbitKS_merger_shifted_fdomain.png', directory='../figs/tiles/', verbose=True)
 
-        m_orbit = change_orbit_type(m_rescaled.convert(to='field'), OrbitKS)
-        m_orbitf = change_orbit_type(m_rescaled.convert(to='field').change_reference_frame(to='physical'), OrbitKS)
+        m_orbit = class_convert(m_rescaled.convert(to='field'), OrbitKS)
+        m_orbitf = class_convert(m_rescaled.convert(to='field').change_reference_frame(to='physical'), OrbitKS)
 
         m_orbit.to_h5('OrbitKS_merger.h5', directory='../data/tiles/', verbose=True)
         m_orbit.plot(filename='OrbitKS_merger.png', directory='../figs/tiles/', verbose=True)
@@ -151,8 +151,8 @@ def main(*args, **kwargs):
                                                             s_rescaled.convert(to='field').state,
                                                             np.zeros([s.N, 20])), axis=1), (64, 1))
 
-                    padded_s = EquilibriumOrbitKS(state=padded_s_state, state_type='field', parameters=s.parameters)
-                    padded_s_orbit = OrbitKS(state=padded_s_state, state_type='field', parameters=s.parameters)
+                    padded_s = EquilibriumOrbitKS(state=padded_s_state, state_type='field', orbit_parameters=s.orbit_parameters)
+                    padded_s_orbit = OrbitKS(state=padded_s_state, state_type='field', orbit_parameters=s.orbit_parameters)
 
                     padded_s.to_h5('EquilibriumOrbitKS_streak.h5', directory='../data/tiles/padded/', verbose=True)
                     padded_s.plot(filename='EquilibriumOrbitKS_streak.png', directory='../figs/tiles/padded/',
@@ -174,8 +174,8 @@ def main(*args, **kwargs):
         else:
             s_rescaled = s
 
-        change_orbit_type(s_rescaled.convert(to='field'), OrbitKS).to_h5('OrbitKS_streak.h5', directory='../data/tiles/')
-        change_orbit_type(s_rescaled.convert(to='field'), OrbitKS).to_h5('OrbitKS_streak.png', directory='../figs/tiles/')
+        class_convert(s_rescaled.convert(to='field'), OrbitKS).to_h5('OrbitKS_streak.h5', directory='../data/tiles/')
+        class_convert(s_rescaled.convert(to='field'), OrbitKS).to_h5('OrbitKS_streak.png', directory='../figs/tiles/')
 
         for new_M in range(w.M, 66, 2):
             new_shape = (w.N, new_M)
@@ -198,7 +198,7 @@ def main(*args, **kwargs):
         else:
             w_rescaled = w
 
-        w_orbit = change_orbit_type(w_rescaled.convert(to='field'), OrbitKS)
+        w_orbit = class_convert(w_rescaled.convert(to='field'), OrbitKS)
         w_orbit.convert(to='field').to_h5('OrbitKS_wiggle.h5', directory='../data/tiles/', verbose=True)
         w_orbit.convert(to='field').plot(filename='OrbitKS_wiggle.png', directory='../figs/tiles/', verbose=True)
 
@@ -232,13 +232,13 @@ def main(*args, **kwargs):
                                                      m_rescaled.convert(to='field').change_reference_frame(to='physical').state,
                                                      np.zeros([m.N, 8])), axis=1)
 
-                    padded_rel_m = RelativeOrbitKS(state=padded_rel_m_state, state_type='field', parameters=m.parameters)
-                    padded_m = OrbitKS(state=padded_m_state, state_type='field', parameters=m.parameters)
+                    padded_rel_m = RelativeOrbitKS(state=padded_rel_m_state, state_type='field', orbit_parameters=m.orbit_parameters)
+                    padded_m = OrbitKS(state=padded_m_state, state_type='field', orbit_parameters=m.orbit_parameters)
                     padded_rel_m.to_h5('RelativeOrbitKS_merger.h5', directory='../data/tiles/padded/', verbose=True)
                     padded_rel_m.plot(filename='RelativeOrbitKS_merger.png',
                                       directory='../figs/tiles/padded/', verbose=True)
 
-                    padded_rel_m = OrbitKS(state=padded_rel_m_state, state_type='field', parameters=m.parameters)
+                    padded_rel_m = OrbitKS(state=padded_rel_m_state, state_type='field', orbit_parameters=m.orbit_parameters)
                     padded_rel_m.to_h5('OrbitKS_merger_fdomain.h5', directory='../data/tiles/padded/', verbose=True)
                     padded_rel_m.plot(filename='OrbitKS_merger_fdomain.png',
                                       directory='../figs/tiles/padded/', verbose=True)
@@ -254,11 +254,11 @@ def main(*args, **kwargs):
 
         rel_m = m_rescaled.copy()
 
-        m = change_orbit_type(m.convert(to='field').change_reference_frame(to='physical'), OrbitKS)
+        m = class_convert(m.convert(to='field').change_reference_frame(to='physical'), OrbitKS)
         m.to_h5('OrbitKS_merger.h5', directory='../data/tiles/', verbose=True)
         m.plot(filename='OrbitKS_merger.png', directory='../figs/tiles/', verbose=True)
 
-        print(s.parameters['field_shape'], w.parameters['field_shape'], m.parameters['field_shape'])
+        print(s.field_shape, w.field_shape, m.field_shape)
         print(s.residual(), w.residual(), rel_m.residual(), m.residual())
     return None
 

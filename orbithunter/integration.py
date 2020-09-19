@@ -24,7 +24,7 @@ def _dx_spatial_modes(orbit_, power=1):
 
     modes = orbit_.convert(to='s_modes').state
     # Elementwise multiplication of modes with frequencies, this is the derivative.
-    dxn_modes = np.multiply(orbit_.elementwise_dxn(orbit_.parameters, power=power), modes)
+    dxn_modes = np.multiply(orbit_.elementwise_dxn(orbit_.orbit_parameters, power=power), modes)
 
     # If the order of the differentiation is odd, need to swap imaginary and real components.
     if np.mod(power, 2):
@@ -62,8 +62,8 @@ def integrate_kse(orbit_, **kwargs):
     step_size = kwargs.get('step_size', 0.01)
 
     # Because N = 1, this is just the spatial matrices, negative sign b.c. other side of equation.
-    lin_diag = -1.0*(orbit_t_equals_0.elementwise_dxn(orbit_t_equals_0.parameters, power=2)
-                     + orbit_t_equals_0.elementwise_dxn(orbit_t_equals_0.parameters, power=4)).reshape(-1, 1)
+    lin_diag = -1.0*(orbit_t_equals_0.elementwise_dxn(orbit_t_equals_0.orbit_parameters, power=2)
+                     + orbit_t_equals_0.elementwise_dxn(orbit_t_equals_0.orbit_parameters, power=4)).reshape(-1, 1)
 
     E = np.exp(step_size*lin_diag)
     E2 = np.exp(step_size*lin_diag/2.0)

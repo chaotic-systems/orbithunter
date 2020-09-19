@@ -147,14 +147,16 @@ def _gradient_descent(orbit_, **kwargs):
     exit_code = 0
 
     if verbose:
-        print('Starting gradient descent. Initial residual={}, target={}'.format(orbit_.residual(), orbit_tol))
+        print('Starting gradient descent. Initial residual={}, target={}, max_iter={}'.format(orbit_.residual(),
+                                                                                              orbit_tol,
+                                                                                              orbit_maxiter))
 
     mapping = orbit_.spatiotemporal_mapping(**kwargs)
     residual = mapping.residual(apply_mapping=False)
     while residual > orbit_tol and n_iter < orbit_maxiter:
         # Calculate the step
         if preconditioning:
-            dx = orbit_.rmatvec(mapping, **kwargs).precondition(orbit_.parameters, **kwargs)
+            dx = orbit_.rmatvec(mapping, **kwargs).precondition(orbit_.preconditioning_parameters, **kwargs)
         else:
             dx = orbit_.rmatvec(mapping, **kwargs)
 
@@ -274,19 +276,19 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-03, btol=1e-03
         # The operator depends on the current state; A=A(orbit)
         def rmv_func(v):
             # _process_newton_step turns state vector into class object.
-            v_orbit = orbit_.from_numpy_array(v, parameters=orbit_.parameters)
+            v_orbit = orbit_.from_numpy_array(v, orbit_parameters=orbit_.orbit_parameters)
             rmatvec_orbit = orbit_.rmatvec(v_orbit, **kwargs)
             if preconditioning:
-                return rmatvec_orbit.precondition(orbit_.parameters).state_vector().reshape(-1, 1)
+                return rmatvec_orbit.precondition(orbit_.preconditioning_parameters).state_vector().reshape(-1, 1)
             else:
                 return rmatvec_orbit.state_vector().reshape(-1, 1)
 
         def mv_func(v):
             # _state_vector_to_orbit turns state vector into class object.
-            v_orbit = orbit_.from_numpy_array(v, parameters=orbit_.parameters)
+            v_orbit = orbit_.from_numpy_array(v, orbit_parameters=orbit_.orbit_parameters)
             matvec_orbit = orbit_.matvec(v_orbit, **kwargs)
             if preconditioning:
-                return matvec_orbit.precondition(orbit_.parameters).state.reshape(-1, 1)
+                return matvec_orbit.precondition(orbit_.preconditioning_parameters).state.reshape(-1, 1)
             else:
                 return matvec_orbit.state.reshape(-1, 1)
 
@@ -389,7 +391,7 @@ def _scipy_optimize_minimize_wrapper(orbit_, method=None, bounds=None,
         x_orbit = orbit_.from_numpy_array(x)
         if preconditioning:
             return (x_orbit.rmatvec(x_orbit.spatiotemporal_mapping(), **kwargs)
-                    ).precondition(x_orbit.parameters).state_vector().ravel()
+                    ).precondition(x_orbit.preconditioning_parameters).state_vector().ravel()
         else:
             return x_orbit.rmatvec(x_orbit.spatiotemporal_mapping(), **kwargs).state_vector().ravel()
 
@@ -547,17 +549,17 @@ def _default_orbit_tol(orbit_, method, **kwargs):
     precision_level = kwargs.get('precision', 'default')
     # Introduction of ugly conditional statements for convenience
     if precision_level == 'machine':
-        default_tol = np.product(orbit_.parameters['field_shape']) * 10**-15
+        default_tol = np.product(orbit_.field_shape) * 10**-15
     elif precision_level == 'very_high':
-        default_tol = np.product(orbit_.parameters['field_shape']) * 10**-12
+        default_tol = np.product(orbit_.field_shape) * 10**-12
     elif precision_level == 'high':
-        default_tol = np.product(orbit_.parameters['field_shape']) * 10**-9
+        default_tol = np.product(orbit_.field_shape) * 10**-9
     elif precision_level == 'medium' or precision_level == 'default':
-        default_tol = np.product(orbit_.parameters['field_shape']) * 10**-6
+        default_tol = np.product(orbit_.field_shape) * 10**-6
     elif precision_level == 'low':
-        default_tol = np.product(orbit_.parameters['field_shape']) * 10**-3
+        default_tol = np.product(orbit_.field_shape) * 10**-3
     elif precision_level == 'minimal':
-        default_tol = np.product(orbit_.parameters['field_shape']) * 10**-1
+        default_tol = np.product(orbit_.field_shape) * 10**-1
     else:
         raise ValueError('If a custom tolerance is desired, use ''orbit_tol'' key word instead.')
 
@@ -588,13 +590,13 @@ def _default_orbit_maxiter(orbit_, method, **kwargs):
     if method in ['gradient_descent', 'cg', 'newton-cg', 'l-bfgs-b', 'tnc', 'lgmres', 'gmres', 'minres', 'krylov']:
         # Introduction of ugly conditional statements for convenience
         if computation_time == 'long':
-            default_computation_time = 32 * np.product(orbit_.parameters['field_shape'])
+            default_computation_time = 32 * np.product(orbit_.field_shape)
         elif computation_time == 'medium' or computation_time == 'default':
-            default_computation_time = 16 * np.product(orbit_.parameters['field_shape'])
+            default_computation_time = 16 * np.product(orbit_.field_shape)
         elif computation_time == 'short':
-            default_computation_time = 4 * np.product(orbit_.parameters['field_shape'])
+            default_computation_time = 4 * np.product(orbit_.field_shape)
         elif computation_time == 'minimal':
-            default_computation_time = np.product(orbit_.parameters['field_shape'])
+            default_computation_time = np.product(orbit_.field_shape)
         else:
             raise ValueError('If a custom number of iterations is desired, use ''orbit_maxiter'' key word instead.')
     else:

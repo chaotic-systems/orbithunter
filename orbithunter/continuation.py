@@ -7,12 +7,12 @@ __all__ = ['continuation', 'discretization_continuation']
 
 def _extent_equals_target(orbit_, target_extent, axis=1):
     # For the sake of floating point error, round to 13 decimals.
-    return np.round(list(orbit_.parameters.values())[axis], 13) == np.round(target_extent, 13)
+    return np.round(list(orbit_.orbit_parameters.values())[axis], 13) == np.round(target_extent, 13)
 
 
 def increment_dimension(orbit_, target_extent, increment, axis=0):
     # increments the target dimension but checks to see if incrementing places us out of bounds.
-    params = orbit_.parameters
+    params = orbit_.orbit_parameters
     param_key, param_val = list(params.items())[axis]
 
     # The affirmative occurs when overshooting the target value of the param.
@@ -34,7 +34,7 @@ def continuation(orbit_, target_extent, axis=1, step_size=0.1, **kwargs):
     assert list(orbit_.constraints.values())[axis]
 
     # We need to be incrementing in the correct direction. i.e. to get smaller we need to have a negative increment.
-    assert np.sign(target_extent - list(orbit_.parameters.values())[axis]) == np.sign(step_size)
+    assert np.sign(target_extent - list(orbit_.orbit_parameters.values())[axis]) == np.sign(step_size)
 
     # check that we are starting from converged solution, first of all.
     converge_result = converge(orbit_)
@@ -52,7 +52,7 @@ def continuation(orbit_, target_extent, axis=1, step_size=0.1, **kwargs):
 
 def _increment_discretization(orbit_, increment, axis=0):
     # increments the target dimension but checks to see if incrementing places us out of bounds.
-    incremented_shape = tuple(d if i != axis else d + increment for i, d in enumerate(orbit_.parameters['field_shape']))
+    incremented_shape = tuple(d if i != axis else d + increment for i, d in enumerate(orbit_.orbit_parameters['field_shape']))
     return rediscretize(orbit_, new_shape=incremented_shape)
 
 
@@ -66,13 +66,12 @@ def discretization_continuation(orbit_, target_shape, step_size=2,  **kwargs):
 
     # As long as we keep converging to solutions, we keep stepping towards target value.
     for axis in order_of_axes_to_increment:
-        step_size = np.sign(target_shape[axis] - orbit_.parameters['field_shape'][axis]) * step_size
-        while converge_result.exit_code == 1 and (not converge_result.orbit.parameters['field_shape'][axis]
+        step_size = np.sign(target_shape[axis] - orbit_.orbit_parameters['field_shape'][axis]) * step_size
+        while converge_result.exit_code == 1 and (not converge_result.orbit.orbit_parameters['field_shape'][axis]
                                                   == target_shape[axis]):
             incremented_orbit = _increment_discretization(converge_result.orbit, step_size, axis=axis)
             converge_result = converge(incremented_orbit, **kwargs)
             if kwargs.get('save', False):
                 converge_result.orbit.to_h5(**kwargs)
                 converge_result.orbit.plot(show=kwargs.pop('show', False), **kwargs)
-
     return converge_result

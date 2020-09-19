@@ -1,7 +1,7 @@
 Minor changes
 -------------
 1. Replaced the ubiquitous usage of individual parameter kwargs "T=self.T, L=self.L, S=self.S" to
-'parameters=self.parameters'. l.
+'orbit_parameters=self.orbit_parameters'. l.
 
 Bug fixes
 ---------

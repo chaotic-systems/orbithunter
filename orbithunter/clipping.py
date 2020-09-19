@@ -7,38 +7,38 @@ import numpy as np
 __all__ = ['clip', 'mask_orbit']
 
 
-def _slices_from_window(orbit_, window_dimensions):
-    field_shape = orbit_.parameters['field_shape']
-    field_dimensions = orbit_.parameters['field_dimensions']
+def _slices_from_window(orbit_, window_dimensions, time_ordering='decreasing'):
+    field_shape = orbit_.field_shape
+    dimensions = orbit_.dimensions
 
-    slices = []
-    dimensions = []
+    clipping_slices = []
+    clipping_dimensions = []
     for i, (d_min, d_max) in enumerate(window_dimensions):
         # the division and multiplication by 2's keeps the sizes even.
-        if d_min is not None:
-            slice_start = int(2*((field_shape[i] * d_min / field_dimensions[i]+1)//2))
+        if (d_min is not None) or (d_min not in [0, 0.]):
+            slice_start = int(2*((field_shape[i] * d_min / dimensions[i]+1)//2))
             # Time is always taken as "up" so T=0 is actually the LAST row of the first axis.
-            if i == 0:
+            if i == 0 and time_ordering == 'decreasing':
                 slice_start *= -1
         else:
             slice_start = None
             d_min = 0
 
-        if d_max is not None:
-            slice_end = int(2*((field_shape[i] * d_max / field_dimensions[i]+1)//2))
-            if i == 0:
+        if d_max is not None or d_max != dimensions[i]:
+            slice_end = int(2*((field_shape[i] * d_max / dimensions[i]+1)//2))
+            if i == 0 and time_ordering == 'decreasing':
                 slice_end *= -1
         else:
             slice_end = None
-            d_max = orbit_.parameters[orbit_.dimensions()[i]]
+            d_max = dimensions[i]
 
         if i == 0:
             slice_start, slice_end = slice_end, slice_start
 
-        slices.append(slice(slice_start, slice_end))
-        dimensions.append(d_max - d_min)
+        clipping_slices.append(slice(slice_start, slice_end))
+        clipping_dimensions.append(d_max - d_min)
 
-    return tuple(slices), tuple(dimensions)
+    return tuple(clipping_slices), tuple(clipping_dimensions)
 
 
 def clip(orbit_, window_dimensions, **kwargs):
@@ -65,9 +65,9 @@ def clip(orbit_, window_dimensions, **kwargs):
     """
 
     slices, dimensions = _slices_from_window(orbit_, window_dimensions)
-    params = dict(zip(orbit_.dimensions(), dimensions))
+    params = dict(zip(orbit_.dimensions, dimensions))
     clipped_orbit = orbit_.__class__(state=orbit_.convert(to='field').state[slices],
-                                     state_type='field', parameters=params, **kwargs).convert(to=orbit_.state_type)
+                                     state_type='field', orbit_parameters=params, **kwargs).convert(to=orbit_.state_type)
     return clipped_orbit
 
 
@@ -78,4 +78,4 @@ def mask_orbit(orbit_, window_dimensions):
     if mask == 'exterior':
         mask = np.invert(mask)
     masked_field = np.ma.masked_array(orbit_.convert(to='field').state, mask)
-    return orbit_.__class__(state=masked_field, state_type='field', parameters=orbit_.paramaters)
+    return orbit_.__class__(state=masked_field, state_type='field', orbit_parameters=orbit_.paramaters)
