@@ -196,7 +196,7 @@ class Orbit:
         """
         return None
 
-    def mode_padding(self, size, axis=0):
+    def _pad(self, size, axis=0):
         """ Increase the size of the discretization via zero-padding collocation basis.
 
         Parameters
@@ -220,7 +220,7 @@ class Orbit:
 
         return self
 
-    def mode_truncation(self, size, axis=0):
+    def _truncate(self, size, axis=0):
         """ Decrease the size of the discretization via truncation
 
         Parameters

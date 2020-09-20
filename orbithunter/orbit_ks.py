@@ -16,7 +16,7 @@ import h5py
 warnings.resetwarnings()
 
 __all__ = ['OrbitKS', 'RelativeOrbitKS', 'ShiftReflectionOrbitKS', 'AntisymmetricOrbitKS', 'EquilibriumOrbitKS',
-           'RelativeEquilibriumOrbitKS', 'class_convert']
+           'RelativeEquilibriumOrbitKS', 'convert_class']
 
 
 class OrbitKS(Orbit):
@@ -518,9 +518,17 @@ class OrbitKS(Orbit):
         dtn_multipliers = np.tile(np.concatenate(([[0]], c1*w, c2*w), axis=0), (1, dt_parameters[-1]))
         return dtn_multipliers
 
-    def _from_fundamental_domain(self):
+    def from_fundamental_domain(self):
         """ This is a placeholder for the subclasses """
         return self
+
+    def gradient(self, preconditioning=False, **kwargs):
+        if preconditioning:
+            gradient = self.rmatvec(self.spatiotemporal_mapping(),
+                                    **kwargs).precondition(self.preconditioning_parameters, **kwargs)
+        else:
+            gradient = self.rmatvec(self.spatiotemporal_mapping(), **kwargs)
+        return gradient
 
     def increment(self, other, step_size=1):
         """ Add optimization correction  to current state
@@ -691,7 +699,7 @@ class OrbitKS(Orbit):
 
         return self.__class__(state=matvec_modes, state_type='modes', orbit_parameters=self.orbit_parameters)
 
-    def mode_padding(self, size, axis=0):
+    def _pad(self, size, axis=0):
         """ Increase the size of the discretization via zero-padding
 
         Parameters
@@ -734,7 +742,7 @@ class OrbitKS(Orbit):
         return self.__class__(state=padded_modes, state_type='modes',
                               orbit_parameters=self.orbit_parameters).convert(to=self.state_type)
 
-    def mode_truncation(self, size, axis=0):
+    def _truncate(self, size, axis=0):
         """ Decrease the size of the discretization via truncation
 
         Parameters
@@ -953,7 +961,7 @@ class OrbitKS(Orbit):
             plot_orbit = self.copy()
 
         if fundamental_domain:
-            plot_orbit = plot_orbit._to_fundamental_domain().convert(to='field', inplace=True)
+            plot_orbit = plot_orbit.to_fundamental_domain().convert(to='field', inplace=True)
         else:
             plot_orbit = plot_orbit.convert(to='field', inplace=True)
 
@@ -1333,7 +1341,7 @@ class OrbitKS(Orbit):
 
         """
         if axis == 0:
-            thetak = distance*self.frequency_vector(self.dt_parameters)
+            thetak = (self.T * distance / (2*pi))*self.frequency_vector(self.dt_parameters)
             cosinek = np.cos(thetak)
             sinek = np.sin(thetak)
 
@@ -1353,7 +1361,7 @@ class OrbitKS(Orbit):
             return self.__class__(state=time_rotated_modes,
                                   orbit_parameters=self.orbit_parameters).convert(to=self.state_type)
         else:
-            thetak = distance*self.wave_vector(self.dx_parameters)
+            thetak = (self.L * distance / (2*pi))*self.wave_vector(self.dx_parameters)
             cosinek = np.cos(thetak)
             sinek = np.sin(thetak)
 
@@ -1492,10 +1500,12 @@ class OrbitKS(Orbit):
         -------
 
         """
+        return self.roll(self.field_shape[axis] // n_cell, axis=axis)
+
+    def roll(self, shift, axis=0):
         field = self.convert(to='field').state
-        shifted_field = np.roll(field, self.field_shape[axis] // n_cell, axis)
-        shifted_orbit = self.__class__(state=shifted_field, state_type='field', orbit_parameters=self.orbit_parameters)
-        return shifted_orbit.convert(to=self.state_type)
+        return self.__class__(state=np.roll(field, shift, axis=axis), state_type='field',
+                              orbit_parameters=self.orbit_parameters).convert(to=self.state_type)
 
     @property
     def shape(self):
@@ -1807,7 +1817,7 @@ class OrbitKS(Orbit):
                                         idft_mat_imag[:, 1:-1]), axis=1)
         return np.kron(time_idft_mat, np.eye(self.M-2))
 
-    def _to_fundamental_domain(self, **kwargs):
+    def to_fundamental_domain(self, **kwargs):
         """ Placeholder for subclassees, included for compatibility"""
         return self
 
@@ -1960,7 +1970,7 @@ class RelativeOrbitKS(OrbitKS):
             raise ValueError(
                 'Attempting to compute time derivative of '+str(self)+'in physical reference frame.')
 
-    def _from_fundamental_domain(self):
+    def from_fundamental_domain(self):
         return self.change_reference_frame(to='comoving')
 
     def from_numpy_array(self, state_array, **kwargs):
@@ -2072,7 +2082,7 @@ class RelativeOrbitKS(OrbitKS):
         else:
             return matvec_orbit + matvec_comoving
 
-    def mode_padding(self, size, axis=0):
+    def _pad(self, size, axis=0):
         """ Increase the size of the discretization via zero-padding
 
         Parameters
@@ -2094,9 +2104,9 @@ class RelativeOrbitKS(OrbitKS):
 
         """
         assert self.frame == 'comoving', 'Transform to comoving frame before padding modes'
-        return super().mode_padding(size, axis=axis)
+        return super()._pad(size, axis=axis)
 
-    def mode_truncation(self, size, axis=0):
+    def _truncate(self, size, axis=0):
         """ Decrease the size of the discretization via truncation
 
         Parameters
@@ -2113,7 +2123,7 @@ class RelativeOrbitKS(OrbitKS):
             OrbitKS instance with larger discretization.
         """
         assert self.frame == 'comoving', 'Transform to comoving frame before truncating modes'
-        return super().mode_truncation(size, axis=axis)
+        return super()._truncate(size, axis=axis)
 
     @classmethod
     def glue_parameters(cls, parameter_dict_with_bundled_values, glue_shape=(1, 1)):
@@ -2288,7 +2298,7 @@ class RelativeOrbitKS(OrbitKS):
                 code = 1
                 return self, code
 
-    def _to_fundamental_domain(self):
+    def to_fundamental_domain(self):
         return self.change_reference_frame(to='physical')
 
 
@@ -2359,16 +2369,12 @@ class AntisymmetricOrbitKS(OrbitKS):
             dx_matrix_complete = np.kron(np.eye(self.N), dx_n_matrix)
         return dx_matrix_complete
 
-    def _from_fundamental_domain(self, inplace=False, **kwargs):
+    def from_fundamental_domain(self, inplace=False, **kwargs):
         """ Overwrite of parent method """
-        half = kwargs.get('half', 'left')
-        if half == 'left':
-            full_field = np.concatenate((self.state, self.reflection().state), axis=1)
-        else:
-            full_field = np.concatenate((self.reflection().state, self.state), axis=1)
-        return self.__class__(state=full_field, state_type='field', orbit_parameters=(self.T, 2*self.L, 0.))
+        return self.__class__(state=np.concatenate((self.reflection().state, self.state), axis=1),
+                              state_type='field', orbit_parameters=(self.T, 2*self.L, 0.))
 
-    def mode_padding(self, size, axis=0):
+    def _pad(self, size, axis=0):
         """ Overwrite of parent method """
         modes = self.convert(to='modes')
         if np.mod(size, 2):
@@ -2388,7 +2394,7 @@ class AntisymmetricOrbitKS(OrbitKS):
         return self.__class__(state=padded_modes, state_type='modes',
                               orbit_parameters=self.orbit_parameters).convert(to=self.state_type)
 
-    def mode_truncation(self, size, axis=0):
+    def _truncate(self, size, axis=0):
         """ Overwrite of parent method """
         modes = self.convert(to='modes')
         if np.mod(size, 2):
@@ -2550,16 +2556,14 @@ class AntisymmetricOrbitKS(OrbitKS):
         else:
             return self.__class__(state=space_modes, state_type='s_modes', orbit_parameters=self.orbit_parameters)
 
-    def _to_fundamental_domain(self, inplace=False, **kwargs):
+    def to_fundamental_domain(self, half=0, **kwargs):
         """ Overwrite of parent method """
-        half = kwargs.get('half', 'left')
-        if half == 'left':
-            fundamental_domain = self.__class__(state=self.convert(to='field').state[:, :-int(self.M//2)],
-                                                state_type='field', orbit_parameters=(self.T, self.L / 2.0, 0.))
+        if half == 0:
+            f_domain = self.convert(to='field').state[:, :-int(self.M//2)]
         else:
-            fundamental_domain = self.__class__(state=self.convert(to='field').state[:, -int(self.M//2):],
-                                                state_type='field', orbit_parameters=(self.T, self.L / 2.0, 0.))
-        return fundamental_domain
+            f_domain = self.convert(to='field').state[:, -int(self.M//2):]
+
+        return self.__class__(state=f_domain, state_type='field', orbit_parameters=(self.T, self.L / 2.0, 0.))
 
 
 class ShiftReflectionOrbitKS(OrbitKS):
@@ -2648,12 +2652,12 @@ class ShiftReflectionOrbitKS(OrbitKS):
 
         return dx_matrix_complete
 
-    def _from_fundamental_domain(self):
+    def from_fundamental_domain(self):
         """ Reconstruct full field from discrete fundamental domain """
         field = np.concatenate((self.reflection().state, self.state), axis=0)
         return self.__class__(state=field, state_type='field', orbit_parameters=(2*self.T, self.L, 0.))
 
-    def mode_padding(self, size, axis=0):
+    def _pad(self, size, axis=0):
         """ Overwrite of parent method """
         modes = self.convert(to='modes')
         if np.mod(size, 2):
@@ -2674,7 +2678,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
         return self.__class__(state=padded_modes, state_type='modes',
                               orbit_parameters=self.orbit_parameters).convert(to=self.state_type)
 
-    def mode_truncation(self, size, axis=0):
+    def _truncate(self, size, axis=0):
         """ Overwrite of parent method """
         modes = self.convert(to='modes')
         if np.mod(size, 2):
@@ -2850,14 +2854,14 @@ class ShiftReflectionOrbitKS(OrbitKS):
                                                  np.eye(self.mode_shape[1]))
         return full_inv_time_transform_matrix
 
-    def _to_fundamental_domain(self, half='bottom'):
+    def to_fundamental_domain(self, half=0):
         """ Overwrite of parent method """
         field = self.convert(to='field').state
-        if half == 'bottom':
-            domain = field[-int(self.N // 2):, :]
+        if half == 0:
+            f_domain = field[:-int(self.N // 2), :]
         else:
-            domain = field[:-int(self.N // 2), :]
-        return self.__class__(state=domain, state_type='field', orbit_parameters=(self.T / 2.0, self.L, 0.))
+            f_domain = field[-int(self.N // 2):, :]
+        return self.__class__(state=f_domain, state_type='field', orbit_parameters=(self.T / 2.0, self.L, 0.))
 
 
 class EquilibriumOrbitKS(AntisymmetricOrbitKS):
@@ -2894,16 +2898,16 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
                 #dx
         #elementwise_dxn
         #dx_matrix
-        # _from_fundamental_domain
-        # mode_padding
-        # mode_truncation
+        # from_fundamental_domain
+        # _pad
+        # _truncate
         # nonlinear
         # random_initial_condition
         # time_transform_matrix
         # inv_time_transform_matrix
         # time_transform
         # inv_time_transform
-        # _to_fundamental_domain
+        # to_fundamental_domain
 
         """
         super().__init__(state=state, state_type=state_type, orbit_parameters=orbit_parameters, **kwargs)
@@ -2923,14 +2927,10 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         return np.concatenate((self.state.reshape(-1, 1),
                                np.array([[float(self.L)]])), axis=0)
 
-    def _from_fundamental_domain(self, inplace=False, **kwargs):
+    def from_fundamental_domain(self, inplace=False, **kwargs):
         """ Overwrite of parent method """
-        half = kwargs.get('half', 'left')
-        if half == 'left':
-            full_field = np.concatenate((self.state, self.reflection().state), axis=1)
-        else:
-            full_field = np.concatenate((self.reflection().state, self.state), axis=1)
-        return self.__class__(state=full_field, state_type='field', orbit_parameters=(0., 2.0*self.L, 0.))
+        return self.__class__(state=np.concatenate((self.reflection().state, self.state), axis=1),
+                              state_type='field', orbit_parameters=(0., 2.0*self.L, 0.))
 
     def from_numpy_array(self, state_array, **kwargs):
         """ Utility to convert from numpy array to orbithunter format for scipy wrappers.
@@ -2982,7 +2982,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         return jac_
 
-    def mode_padding(self, size, axis=0):
+    def _pad(self, size, axis=0):
         """ Overwrite of parent method
 
         Notes
@@ -3008,7 +3008,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             return self.__class__(state=padded_modes, state_type='s_modes',
                                   orbit_parameters=self.orbit_parameters).convert(to=self.state_type)
 
-    def mode_truncation(self, size, axis=0):
+    def _truncate(self, size, axis=0):
         """ Overwrite of parent method """
         if axis == 0:
             s_modes = self.convert(to='s_modes')
@@ -3142,7 +3142,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         Notes
         -----
-        Equivalent to calling mode_truncation with size=1, axis=0.
+        Equivalent to calling _truncate with size=1, axis=0.
         This method exists because when it is called it is much more explicit w.r.t. what is being done.
         """
         field_single_time_point = self.convert(to='field').state[0, :].reshape(1, -1)
@@ -3385,14 +3385,13 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             return self.__class__(state=spatial_modes, state_type='s_modes',
                                   orbit_parameters=self.orbit_parameters, N=self.N)
 
-    def _to_fundamental_domain(self, half='left', **kwargs):
+    def to_fundamental_domain(self, half=0, **kwargs):
         """ Overwrite of parent method """
-        if half == 'left':
-            return EquilibriumOrbitKS(state=self.convert(to='field').state[:, :-int(self.M//2)],
-                                      state_type='field', orbit_parameters=(0., self.L / 2.0, 0.))
+        if half == 0:
+            f_domain = self.convert(to='field').state[:, :-int(self.M//2)]
         else:
-            return EquilibriumOrbitKS(state=self.convert(to='field').state[:, -int(self.M//2):],
-                                      state_type='field', orbit_parameters=(0., self.L / 2.0, 0.))
+            f_domain = self.convert(to='field').state[:, -int(self.M//2):]
+        return self.__class__(state=f_domain, state_type='field', orbit_parameters=(0., self.L / 2.0, 0.))
 
 
 class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
@@ -3435,7 +3434,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
         Notes
         -----
-        Equivalent to calling mode_truncation with size=1, axis=0.
+        Equivalent to calling _truncate with size=1, axis=0.
         This method exists because when it is called it is much more explicit w.r.t. what is being done.
         """
         field_single_time_point = self.convert(to='field').state[0, :].reshape(1, -1)
@@ -3443,7 +3442,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         return self.__class__(state=field_single_time_point, state_type='field',
                               orbit_parameters=self.orbit_parameters).convert(to=self.state_type)
 
-    def _from_fundamental_domain(self):
+    def from_fundamental_domain(self):
         """ For compatibility purposes with plotting and other utilities """
         return self.change_reference_frame(to='physical')
 
@@ -3489,7 +3488,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
         return jac_
 
-    def mode_padding(self, size, axis=0):
+    def _pad(self, size, axis=0):
         """ Overwrite of parent method
 
         Notes
@@ -3516,7 +3515,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             return self.__class__(state=padded_modes, state_type='s_modes',
                                   orbit_parameters=self.orbit_parameters).convert(to=self.state_type)
 
-    def mode_truncation(self, size, axis=0):
+    def _truncate(self, size, axis=0):
         """ Decrease the size of the discretization via truncation
 
         Parameters
@@ -3792,11 +3791,11 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         else:
             return self.__class__(state=spatial_modes, state_type='s_modes', orbit_parameters=self.orbit_parameters)
 
-    def _to_fundamental_domain(self):
-        return self.change_reference_frame(to='comoving')
+    def to_fundamental_domain(self):
+        return self.change_reference_frame(to='physical')
 
 
-def class_convert(orbit, new_type):
+def convert_class(orbit, new_type):
     """ Utility for converting between different classes.
 
     Parameters

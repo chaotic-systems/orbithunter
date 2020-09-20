@@ -1,5 +1,6 @@
 from .discretization import rediscretize, correct_aspect_ratios
 from .io import read_h5
+from scipy.optimize import fsolve
 import numpy as np
 import os
 import itertools
@@ -7,49 +8,50 @@ import itertools
 __all__ = ['tile', 'glue']
 
 
-# def best_combination(orbit, other_orbit, fundamental_domain_combinations, axis=0):
-#     half_combinations = list(itertools.product(half_list,repeat=2))
-#     residual_list = []
-#     glued_list = []
-#     for halves in half_combinations:
-#         orbit_domain = orbit._to_fundamental_domain(half=halves[0])
-#         other_orbit_domain = other_orbit._to_fundamental_domain(half=halves[1])
-#         glued = concat(orbit_domain, other_orbit_domain, direction=direction)
-#         glued_orbit = glued._from_fundamental_domain()
-#         glued_list.extend([glued_orbit])
-#         residual_list.extend([glued_orbit.residual])
-#     best_combi = np.array(glued_list)[np.argmin(residual_list)]
-#     return best_combi
-#
-#
-# def best_rotation(orbit, other_orbit, axis=0):
-#     field_orbit, field_other_orbit = correct_aspect_ratios(orbit, other_orbit, axis=axis)
-#
-#     resmat = np.zeros([field_other_orbit.N, field_other_orbit.M])
-#     # The orbit only remains a converged solution if the rotations occur in
-#     # increments of the discretization, i.e. multiples of L / M and T / N.
-#     # The reason for this is because those are the only values that do not
-#     # actually change the field via interpolation. In other words,
-#     # The rotations must coincide with the collocation points.
-#     # for n in range(0, field_other_orbit.N):
-#     #     for m in range(0, field_other_orbit.M):
-#     #         rotated_state = np.roll(np.roll(field_other_orbit.state, m, axis=1), n, axis=0)
-#     #         rotated_orbit = other_orbit.__class__(state=rotated_state, state_type=field_other_orbit.state_type, T=other_orbit.T,
-#     #                                               L=other_orbit.L, S=other_orbit.S)
-#     #         resmat[n,m] = concat(field_orbit, rotated_orbit, direction=direction).residual
-#
-#
-#     bestn, bestm = np.unravel_index(np.argmin(resmat), resmat.shape)
-#     high_resolution_orbit = rediscretize(field_orbit, new_N=16*field_orbit.N, new_M=16*field_orbit.M)
-#     high_resolution_other_orbit = rediscretize(field_other_orbit, new_N=16*field_other_orbit.N, new_M=16*field_other_orbit.M)
-#
-#     best_rotation_state = np.roll(np.roll(high_resolution_other_orbit.state, 16*bestm, axis=1), 16*bestn, axis=0)
-#     highres_rotation_orbit = other_orbit.__class__(state=best_rotation_state, state_type='field',
-#                                                    T=other_orbit.T, L=other_orbit.L, S=other_orbit.S)
-#     best_gluing = concat(high_resolution_orbit, highres_rotation_orbit, direction=direction)
-#     return best_gluing
+def best_combination(orbit, other_orbit, fundamental_domain_combinations, axis=0):
+    half_combinations = list(itertools.product(half_list,repeat=2))
+    residual_list = []
+    glued_list = []
+    for halves in half_combinations:
+        orbit_domain = orbit._to_fundamental_domain(half=halves[0])
+        other_orbit_domain = other_orbit._to_fundamental_domain(half=halves[1])
+        glued = concat(orbit_domain, other_orbit_domain, direction=direction)
+        glued_orbit = glued._from_fundamental_domain()
+        glued_list.extend([glued_orbit])
+        residual_list.extend([glued_orbit.residual])
+    best_combi = np.array(glued_list)[np.argmin(residual_list)]
+    return best_combi
 
-def pairwise_glue(orbit, other_orbit, axis=0):
+
+
+def best_rotation(orbit, other_orbit, axis=0):
+    field_orbit, field_other_orbit = correct_aspect_ratios(orbit, other_orbit, axis=axis)
+
+    resmat = np.zeros([field_other_orbit.N, field_other_orbit.M])
+    # The orbit only remains a converged solution if the rotations occur in
+    # increments of the discretization, i.e. multiples of L / M and T / N.
+    # The reason for this is because those are the only values that do not
+    # actually change the field via interpolation. In other words,
+    # The rotations must coincide with the collocation points.
+    # for n in range(0, field_other_orbit.N):
+    #     for m in range(0, field_other_orbit.M):
+    #         rotated_state = np.roll(np.roll(field_other_orbit.state, m, axis=1), n, axis=0)
+    #         rotated_orbit = other_orbit.__class__(state=rotated_state, state_type=field_other_orbit.state_type, T=other_orbit.T,
+    #                                               L=other_orbit.L, S=other_orbit.S)
+    #         resmat[n,m] = concat(field_orbit, rotated_orbit, direction=direction).residual
+
+
+    bestn, bestm = np.unravel_index(np.argmin(resmat), resmat.shape)
+    high_resolution_orbit = rediscretize(field_orbit, new_N=16*field_orbit.N, new_M=16*field_orbit.M)
+    high_resolution_other_orbit = rediscretize(field_other_orbit, new_N=16*field_other_orbit.N, new_M=16*field_other_orbit.M)
+
+    best_rotation_state = np.roll(np.roll(high_resolution_other_orbit.state, 16*bestm, axis=1), 16*bestn, axis=0)
+    highres_rotation_orbit = other_orbit.__class__(state=best_rotation_state, state_type='field',
+                                                   T=other_orbit.T, L=other_orbit.L, S=other_orbit.S)
+    best_gluing = concat(high_resolution_orbit, highres_rotation_orbit, direction=direction)
+    return best_gluing
+
+def pairwise_glue(pair_of_orbits_array, class_constructor, gluing_axis=0):
     """
 
     Parameters
@@ -67,15 +69,26 @@ def pairwise_glue(orbit, other_orbit, axis=0):
     combination of two orbits. This should be used when the optimal gluing is desired for a pair of orbits.
     """
     # Converts tori to best representatives for gluing by choosing from group orbit.
+    # If we want a much simpler method of gluing, we can do "arraywise" which simply concatenates everything at
+    # once. I would say this is the better option if all orbits in the tile dictionary are approximately equal
+    # in size.
+    # the "gluing axis" in this case is always the same, we are just iterating through the gluing shape one
+    # axis at a time.
+    glue_shape = tuple(2 if i == gluing_axis else 1 for i in range(2))
+    corrected_pair_of_orbits = correct_aspect_ratios(pair_of_orbits_array, gluing_axis=0)
+    # Bundle all of the parameters at once, instead of "stripwise"
+    zipped_dimensions = tuple(zip(*(o.dimensions for o in pair_of_orbits_array.ravel())))
+    glued_parameters = class_constructor.glue_parameters(zipped_dimensions, glue_shape=glue_shape)
 
-    orbit_name = orbit.__class__.__name__
-    other_name = other_orbit.__class__.__name__
-    if (orbit_name in continuous_classes) and (other_name in continuous_classes):
-        return best_rotation(orbit, other_orbit, direction=direction)
-    elif (orbit_name in discrete_classes) and (other_name in discrete_classes):
-        return best_combination(orbit, other_orbit, direction=direction)
-    else:
-        return concat(orbit, other_orbit, direction=direction)
+    # arrange the orbit states into an array of the same shape as the symbol array.
+    orbit_field_list = [o.convert(to='field').state for o in pair_of_orbits_array.ravel()]
+    glued_orbit_state = np.array(orbit_field_list).reshape(*pair_of_orbits_array.shape, *tiling_shape)
+    # iterate through and combine all of the axes.
+    while len(glued_orbit_state.shape) > len(tiling_shape):
+        glued_orbit_state = np.concatenate(glued_orbit_state, axis=gluing_axis)
+
+    glued_orbit = class_constructor(state=glued_orbit_state, state_type='field',
+                                    orbit_parameters=glued_parameters)
 
 
 def tile_dictionary_ks(padded=False, comoving=False):
