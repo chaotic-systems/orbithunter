@@ -46,7 +46,7 @@ arrayops.py
    Also, bug fixes so that it is now working as intended. 
    
 discretization.py
-1. _parameter_based_discretization changed to accept new parameters format. 
+1. parameter_based_discretization changed to accept new parameters format. 
 
 generate.py
 1. Everything removed to be replaced. 

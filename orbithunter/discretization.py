@@ -1,6 +1,7 @@
 import numpy as np
 
-__all__ = ['correct_aspect_ratios', 'rediscretize', '_parameter_based_discretization']
+__all__ = ['correct_aspect_ratios', 'rediscretize',
+           'parameter_based_discretization', 'rediscretize_tiling_dictionary']
 
 
 def correct_aspect_ratios(array_of_orbits, axis=0):
@@ -75,7 +76,7 @@ def correct_aspect_ratios(array_of_orbits, axis=0):
     return np.array([rediscretize(o, new_shape=shp) for o, shp in zip(array_of_orbits.ravel(), new_shapes)])
 
 
-def _parameter_based_discretization(parameters, **kwargs):
+def parameter_based_discretization(parameters, **kwargs):
     """ Follow orbithunter conventions for discretization size.
 
 
@@ -135,7 +136,7 @@ def rediscretize(orbit_, parameter_based=False, **kwargs):
     equation = kwargs.get('equation', 'ks')
     if equation == 'ks':
         if parameter_based:
-            new_shape = _parameter_based_discretization(orbit_.orbit_parameters, **kwargs)
+            new_shape = parameter_based_discretization(orbit_.orbit_parameters, **kwargs)
         else:
             new_shape = kwargs.get('new_shape', orbit_.field_shape)
 
@@ -160,7 +161,7 @@ def rediscretize_tiling_dictionary(tiling_dictionary, parameter_based=True, **kw
     if kwargs.get('new_shape', None) is None:
         if parameter_based:
             average_dimensions = [np.mean(x) for x in tuple(zip(*(o.dimensions for o in orbits)))]
-            new_shape = _parameter_based_discretization(average_dimensions, **kwargs)
+            new_shape = parameter_based_discretization(average_dimensions, **kwargs)
         else:
             new_shape = tuple(2*(np.mean([o.field_shape[i] for o in orbits]).astype(int)//2)
                               for i in range(n_dimensions))

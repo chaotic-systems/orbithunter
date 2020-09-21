@@ -1,7 +1,7 @@
 from math import pi
 from .arrayops import *
 from .core import Orbit
-from .discretization import rediscretize, _parameter_based_discretization
+from .discretization import rediscretize, parameter_based_discretization
 from scipy.fft import rfft, irfft
 from scipy.linalg import block_diag
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -11,6 +11,7 @@ import os
 import warnings
 import numpy as np
 import matplotlib.pyplot as plt
+
 warnings.simplefilter(action='ignore', category=FutureWarning)
 import h5py
 warnings.resetwarnings()
@@ -346,7 +347,6 @@ class OrbitKS(Orbit):
             the spatiotemporal mode basis.
         """
         modes = self.convert(to='modes').state
-
         # Elementwise multiplication of modes with frequencies, this is the derivative.
         dtn_modes = np.multiply(self.elementwise_dtn(self.dt_parameters, power=power), modes)
 
@@ -804,6 +804,10 @@ class OrbitKS(Orbit):
         return self.T, self.L
 
     @property
+    def plotting_dimensions(self):
+        return (0., self.T), (0., self.L / (2 * pi * np.sqrt(2)))
+
+    @property
     def preconditioning_parameters(self):
         return self.dt_parameters, self.dx_parameters
 
@@ -900,12 +904,14 @@ class OrbitKS(Orbit):
         T, L = orbit_parameters[:2]
 
         if T == 0. and kwargs.get('nonzero_parameters', False):
+            np.random.seed(kwargs.get('seed', None))
             self.T = (kwargs.get('T_min', 20.)
                       + (kwargs.get('T_max', 180.) - kwargs.get('T_min', 20.))*np.random.rand())
         else:
             self.T = float(T)
 
         if L == 0. and kwargs.get('nonzero_parameters', False):
+            np.random.seed(kwargs.get('seed', None)+1)
             self.L = (kwargs.get('L_min', 22.)
                       + (kwargs.get('L_max', 42.) - kwargs.get('L_min', 22.))*np.random.rand())
         else:
@@ -930,10 +936,8 @@ class OrbitKS(Orbit):
         fundamental_domain : bool
             Whether to plot only the fundamental domain or not.
         **kwargs :
-            new_N : int
-                Even integer for the new discretization size in time
-            new_M : int
-                Even integer for the new discretization size in space.
+            new_shape : (int, int)
+                The field discretization to plot, will be used instead of default padding if padding is enabled.
             filename : str
                 The (custom) save name of the figure, if save==True. Save name will be generated otherwise.
             directory : str
@@ -954,7 +958,7 @@ class OrbitKS(Orbit):
         plt.rcParams['text.usetex'] = True
 
         if padding:
-            padding_shape = kwargs.get('padding_shape', (16*self.N, 16*self.M))
+            padding_shape = kwargs.get('new_shape', (16*self.N, 16*self.M))
             plot_orbit = rediscretize(self, new_shape=padding_shape)
         else:
             plot_orbit = self.copy()
@@ -1289,6 +1293,7 @@ class OrbitKS(Orbit):
         rmatvec_modes = (-1.0 * other.dt(return_array=True) + other.dx(power=2, return_array=True)
                          + other.dx(power=4, return_array=True)
                          + self_field.rnonlinear(other, return_array=True))
+
         rmatvec_params = self.rmatvec_parameters(other, self_field)
 
         return self.__class__(state=rmatvec_modes, state_type='modes', orbit_parameters=rmatvec_params)
@@ -1344,7 +1349,7 @@ class OrbitKS(Orbit):
 
         """
         if axis == 0:
-            thetak = (self.T * distance / (2*pi))*self.frequency_vector(self.dt_parameters)
+            thetak = distance*self.frequency_vector(self.dt_parameters)
             cosinek = np.cos(thetak)
             sinek = np.sin(thetak)
 
@@ -1364,7 +1369,7 @@ class OrbitKS(Orbit):
             return self.__class__(state=time_rotated_modes,
                                   orbit_parameters=self.orbit_parameters).convert(to=self.state_type)
         else:
-            thetak = (self.L * distance / (2*pi))*self.wave_vector(self.dx_parameters)
+            thetak = distance*self.wave_vector(self.dx_parameters)
             cosinek = np.cos(thetak)
             sinek = np.sin(thetak)
 
@@ -1414,7 +1419,7 @@ class OrbitKS(Orbit):
         is so this function generalizes to subclasses.
         """
 
-        spectrum = kwargs.get('spectrum', 'random')
+        spectrum = kwargs.get('spectrum', 'default')
         tscale = kwargs.get('tscale', 1)
         xscale = kwargs.get('xscale', int(self.L / (2*pi*np.sqrt(2))))
         xvar = kwargs.get('xvar', np.sqrt(xscale))
@@ -1422,7 +1427,7 @@ class OrbitKS(Orbit):
         np.random.seed(kwargs.get('seed', None))
 
         # also accepts N and M as kwargs
-        self.N, self.M = _parameter_based_discretization(orbit_parameters, **kwargs)
+        self.N, self.M = parameter_based_discretization(orbit_parameters, **kwargs)
         self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
 
         # I think this is the easiest way to get symmetry-dependent Fourier mode arrays' shapes.
@@ -1468,6 +1473,8 @@ class OrbitKS(Orbit):
                                       + self.elementwise_dxn(self.dx_parameters, power=4))
             modulated_modes = np.divide(random_modes, space_modulator)
             modes = np.multiply(time_, modulated_modes)
+        elif spectrum == 'random':
+            modes = random_modes
         else:
             modes = random_modes
 
@@ -2178,19 +2185,15 @@ class RelativeOrbitKS(OrbitKS):
 
         return new_parameter_dict
 
-    @property
     def dt_parameters(self):
         return self.T, self.N, self.n, self.M-2
 
-    @property
     def orbit_parameters(self):
         return self.T, self.L, self.S
 
-    @property
     def mode_shape(self):
         return max([self.N-1, 1]), self.M-2
 
-    @property
     def dimensions(self):
         return self.T, self.L
 
@@ -2435,19 +2438,15 @@ class AntisymmetricOrbitKS(OrbitKS):
         else:
             return 0.5 * self.statemul(other).dx(return_array=False).convert(to='modes')
 
-    @property
     def dt_parameters(self):
         return self.T, self.N, self.n, self.m
 
-    @property
     def dx_parameters(self):
         return self.L, self.M, self.m, self.N, max([self.N-1, 1])
 
-    @property
     def mode_shape(self):
         return max([self.N-1, 1]), self.m
 
-    @property
     def dimensions(self):
         return self.T, self.L
 
@@ -2719,19 +2718,15 @@ class ShiftReflectionOrbitKS(OrbitKS):
         else:
             return 0.5 * self.statemul(other).dx(return_array=False).convert(to='modes')
 
-    @property
     def dt_parameters(self):
         return self.T, self.N, self.n, self.m
 
-    @property
     def dx_parameters(self):
         return self.L, self.M, self.m,  self.N, max([self.N-1, 1]),
 
-    @property
     def mode_shape(self):
         return max([self.N-1, 1]), self.m
 
-    @property
     def dimensions(self):
         return self.T, self.L
 
@@ -3098,7 +3093,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         # also accepts N and M as kwargs
         temporary_param_dict = {'T': kwargs.get('T', 0.), 'L': kwargs.get('L', 0.)}
-        self.N, self.M = _parameter_based_discretization(temporary_param_dict, **kwargs)
+        self.N, self.M = parameter_based_discretization(temporary_param_dict, **kwargs)
         self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
 
         tscale = kwargs.get('tscale', 1)
@@ -3175,11 +3170,9 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         return self.__class__(state=field_single_time_point, state_type='field',
                               orbit_parameters=self.orbit_parameters).convert(to=self.state_type)
 
-    @property
     def dx_parameters(self):
         return self.L, self.M, self.m, self.N, 1
 
-    @property
     def orbit_parameters(self):
         """
 
@@ -3189,11 +3182,9 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         """
         return 0., self.L, 0.
 
-    @property
     def mode_shape(self):
         return 1, self.m
 
-    @property
     def dimensions(self):
         return 0., self.L
 
@@ -3568,19 +3559,15 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         return self.__class__(state=truncated_s_modes, state_type=self.state_type,
                               orbit_parameters=self.orbit_parameters).convert(to=self.state_type)
 
-    @property
     def dt_parameters(self):
         return self.T, self.N, self.n, self.M-2
 
-    @property
     def dx_parameters(self):
         return self.L, self.M, self.m, 1
 
-    @property
     def mode_shape(self):
         return 1, self.M-2
 
-    @property
     def dimensions(self):
         return self.T, self.L
 
@@ -3637,7 +3624,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
         # also accepts N and M as kwargs
         temporary_param_dict = {'T': kwargs.get('T', 0.), 'L': kwargs.get('L', 0.)}
-        self.N, self.M = _parameter_based_discretization(temporary_param_dict, **kwargs)
+        self.N, self.M = parameter_based_discretization(temporary_param_dict, **kwargs)
         self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
 
         tscale = kwargs.get('tscale', 1)

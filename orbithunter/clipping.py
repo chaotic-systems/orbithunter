@@ -9,34 +9,57 @@ __all__ = ['clip', 'mask_orbit']
 
 def _slices_from_window(orbit_, window_dimensions, time_ordering='decreasing'):
     field_shape = orbit_.field_shape
-    dimensions = orbit_.dimensions
+    # Returns the dimensions which would be shown on a plot (easier to eye-ball clipping then), including units.
+    # Should be a tuple of tuples (d_min, d_max), one for each dimension.
+    plot_dimensions = orbit_.plotting_dimensions
+    # Returns a tuple of the "length" > 0 of each axis.
+    actual_dimensions = orbit_.dimensions
 
     clipping_slices = []
     clipping_dimensions = []
     for i, (d_min, d_max) in enumerate(window_dimensions):
+
+
         # the division and multiplication by 2's keeps the sizes even.
-        if (d_min is not None) or (d_min not in [0, 0.]):
-            slice_start = int(2*((field_shape[i] * d_min / dimensions[i]+1)//2))
+        if d_min is None:
+            slice_start = None
+            d_min = plot_dimensions[i][0]
+        else:
+            # Clipping out of bounds does not make sense.
+            assert d_min >= plot_dimensions[i][0], 'Trying to clip out of bounds. Please revise clipping domain.'
+            # Some coordinate axis range from, for example, -1 to 1. Account for this by rescaling the interval.
+            # An example clipping in this case could be from -1 to -0.5. To handle this, rescale the plotting dimensions
+            # to [0, plotting_dimension_max - plotting_dimension_min], by subtracting the minimum.
+            slice_start = int(2*((field_shape[i] * ((d_min - plot_dimensions[i][0])
+                                                    / (plot_dimensions[i][1] - plot_dimensions[i][0])) + 1)//2))
             # Time is always taken as "up" so T=0 is actually the LAST row of the first axis.
             if i == 0 and time_ordering == 'decreasing':
-                slice_start *= -1
+                if slice_start != 0:
+                    slice_start *= -1
+                else:
+                    slice_start = -1
+        if d_max is None:
+            slice_end = None
+            d_max = plot_dimensions[i][1]
         else:
-            slice_start = None
-            d_min = 0
-
-        if d_max is not None or d_max != dimensions[i]:
-            slice_end = int(2*((field_shape[i] * d_max / dimensions[i]+1)//2))
+            # Again,
+            assert d_max <= plot_dimensions[i][1], 'Trying to clip out of bounds. Please revise clipping domain.'
+            slice_end = int(2*((field_shape[i] * ((d_max - plot_dimensions[i][0])
+                                                  / (plot_dimensions[i][1] - plot_dimensions[i][0])) + 1)//2))
             if i == 0 and time_ordering == 'decreasing':
                 slice_end *= -1
-        else:
-            slice_end = None
-            d_max = dimensions[i]
-
+                if np.mod(np.abs(slice_end - slice_start), 2):
+                    slice_end -= 1
+        # Find the correct fraction of the length>0 then subtract the minimum to rescale back to original plot units.
+        actual_max_dimension = (-1.0 * plot_dimensions[i][0]) + (actual_dimensions[i] * (d_max - plot_dimensions[i][0])
+                                / (plot_dimensions[i][1] - plot_dimensions[i][0]))
+        actual_min_dimension = (-1.0 * plot_dimensions[i][0]) + (actual_dimensions[i] * (d_min - plot_dimensions[i][0])
+                                / (plot_dimensions[i][1] - plot_dimensions[i][0]))
         if i == 0:
             slice_start, slice_end = slice_end, slice_start
 
         clipping_slices.append(slice(slice_start, slice_end))
-        clipping_dimensions.append(d_max - d_min)
+        clipping_dimensions.append(actual_max_dimension - actual_min_dimension)
 
     return tuple(clipping_slices), tuple(clipping_dimensions)
 
@@ -66,9 +89,9 @@ def clip(orbit_, window_dimensions, **kwargs):
     """
 
     slices, dimensions = _slices_from_window(orbit_, window_dimensions)
-    params = dict(zip(orbit_.dimensions, dimensions))
-    clipped_orbit = orbit_.__class__(state=orbit_.convert(to='field').state[slices],
-                                     state_type='field', orbit_parameters=params, **kwargs).convert(to=orbit_.state_type)
+    orbit_parameters = tuple(dimensions[i] if i < len(dimensions) else p for i, p in enumerate(orbit_.orbit_parameters))
+    clipped_orbit = orbit_.__class__(state=orbit_.convert(to='field').state[slices], state_type='field',
+                                     orbit_parameters=orbit_parameters, **kwargs).convert(to=orbit_.state_type)
     return clipped_orbit
 
 

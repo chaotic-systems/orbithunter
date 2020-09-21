@@ -36,8 +36,10 @@ class Orbit:
             self._parse_parameters(orbit_parameters, **kwargs)
             self._parse_state(state, state_type, **kwargs)
         else:
+            # This generates non-zero parameters if zeroes were passed
             self._parse_parameters(orbit_parameters, nonzero_parameters=True, **kwargs)
-            self._random_initial_condition(orbit_parameters, **kwargs).convert(to=state_type, inplace=True)
+            # Pass the newly generated parameter values, there are the originals if they were not 0's.
+            self._random_initial_condition(self.orbit_parameters, **kwargs).convert(to=state_type, inplace=True)
 
     def __radd__(self, other):
         return None
@@ -263,15 +265,12 @@ class Orbit:
         """
         return None
 
-    @property
     def orbit_parameters(self):
          return self.T, self.L, self.S
 
-    @property
     def field_shape(self):
         return self.N, self.M
 
-    @property
     def dimensions(self):
         return self.T, self.L
 

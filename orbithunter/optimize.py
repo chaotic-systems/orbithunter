@@ -159,14 +159,12 @@ def _gradient_descent(orbit_, **kwargs):
             dx = orbit_.rmatvec(mapping, **kwargs).precondition(orbit_.preconditioning_parameters, **kwargs)
         else:
             dx = orbit_.rmatvec(mapping, **kwargs)
-
         # Apply the step
         next_orbit = orbit_.increment(dx, step_size=-1.0 * step_size)
         # Calculate the mapping and store; need it for next step and to compute residual.
         next_mapping = next_orbit.spatiotemporal_mapping(**kwargs)
         # Compute residual to see if step succeeded
         next_residual = next_mapping.residual(apply_mapping=False)
-
         while next_residual >= residual:
             # reduce the step size until minimum is reached or residual decreases.
             step_size = 0.5 * step_size
@@ -184,7 +182,6 @@ def _gradient_descent(orbit_, **kwargs):
             # Update and restart loop if residual successfully decreases.
             orbit_, mapping, residual = next_orbit, next_mapping, next_residual
             n_iter += 1
-
             if verbose:
                 if np.mod(n_iter, (orbit_maxiter // 4)) == 0:
                     print(' Residual={} after {} {} iterations'.format(orbit_.residual(), n_iter, 'gradient descent'))
@@ -240,7 +237,7 @@ def _lstsq(orbit_, **kwargs):
                 print(damp_factor, end='')
 
                 if np.mod(n_iter, max([1, (orbit_maxiter // 10)])) == 0:
-                    print('Residual={} after {} {} iterations'.format(orbit_.residual(), n_iter, 'lstsq'))
+                    print(' Residual={} after {} {} iterations'.format(orbit_.residual(), n_iter, 'lstsq'))
                 sys.stdout.flush()
 
     if orbit_.residual() <= orbit_tol:
