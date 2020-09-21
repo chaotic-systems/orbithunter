@@ -904,14 +904,16 @@ class OrbitKS(Orbit):
         T, L = orbit_parameters[:2]
 
         if T == 0. and kwargs.get('nonzero_parameters', False):
-            np.random.seed(kwargs.get('seed', None))
+            if kwargs.get('seed', None) is not None:
+                np.random.seed(kwargs.get('seed', None))
             self.T = (kwargs.get('T_min', 20.)
                       + (kwargs.get('T_max', 180.) - kwargs.get('T_min', 20.))*np.random.rand())
         else:
             self.T = float(T)
 
         if L == 0. and kwargs.get('nonzero_parameters', False):
-            np.random.seed(kwargs.get('seed', None)+1)
+            if kwargs.get('seed', None) is not None:
+                np.random.seed(kwargs.get('seed', None)+1)
             self.L = (kwargs.get('L_min', 22.)
                       + (kwargs.get('L_max', 42.) - kwargs.get('L_min', 22.))*np.random.rand())
         else:
@@ -2214,12 +2216,16 @@ class RelativeOrbitKS(OrbitKS):
         self.frame = kwargs.get('frame', 'comoving')
 
         if T == 0. and kwargs.get('nonzero_parameters', False):
+            if kwargs.get('seed', None) is not None:
+                np.random.seed(kwargs.get('seed', None))
             self.T = (kwargs.get('T_min', 20.)
                       + (kwargs.get('T_max', 180.) - kwargs.get('T_min', 20.))*np.random.rand())
         else:
             self.T = float(T)
 
         if L == 0. and kwargs.get('nonzero_parameters', False):
+            if kwargs.get('seed', None) is not None:
+                np.random.seed(kwargs.get('seed', None)+1)
             self.L = (kwargs.get('L_min', 22.)
                       + (kwargs.get('L_max', 42.) - kwargs.get('L_min', 22.))*np.random.rand())
         else:
@@ -3051,6 +3057,8 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         # The default value of nonzero_parameters is False. If its true, assign random value to L
         if L == 0. and kwargs.get('nonzero_parameters', False):
+            if kwargs.get('seed', None) is not None:
+                np.random.seed(kwargs.get('seed', None)+1)
             self.L = (kwargs.get('L_min', 22.)
                       + (kwargs.get('L_max', 42.) - kwargs.get('L_min', 22.))*np.random.rand())
         else:
