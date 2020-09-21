@@ -1,6 +1,5 @@
 from .discretization import rediscretize, correct_aspect_ratios
 from .io import read_h5
-from scipy.optimize import fsolve
 import numpy as np
 import os
 import itertools
@@ -21,7 +20,6 @@ def best_combination(orbit, other_orbit, fundamental_domain_combinations, axis=0
         residual_list.extend([glued_orbit.residual])
     best_combi = np.array(glued_list)[np.argmin(residual_list)]
     return best_combi
-
 
 
 def best_rotation(orbit, other_orbit, axis=0):
@@ -50,6 +48,7 @@ def best_rotation(orbit, other_orbit, axis=0):
                                                    T=other_orbit.T, L=other_orbit.L, S=other_orbit.S)
     best_gluing = concat(high_resolution_orbit, highres_rotation_orbit, direction=direction)
     return best_gluing
+
 
 def pairwise_glue(pair_of_orbits_array, class_constructor, gluing_axis=0):
     """
@@ -99,16 +98,16 @@ def tile_dictionary_ks(padded=False, comoving=False):
 
     if comoving:
         # padded merger Orbit in comoving frame
-        merger = read_h5(os.path.abspath(os.path.join(directory, './OrbitKS_merger.h5')), state_type='field')
+        merger = read_h5('./OrbitKS_merger.h5', directory=directory, state_type='field')
     else:
         # padded merger orbit in physical frame.
-        merger = read_h5(os.path.abspath(os.path.join(directory, './OrbitKS_merger_fdomain.h5')), state_type='field')
+        merger = read_h5('./OrbitKS_merger_fdomain.h5', directory=directory, state_type='field')
 
     # padded streak orbit
-    streak = read_h5(os.path.abspath(os.path.join(directory, './OrbitKS_streak.h5')), state_type='field')
+    streak = read_h5('./OrbitKS_streak.h5',directory=directory, state_type='field')
 
     # padded wiggle orbit
-    wiggle = read_h5(os.path.abspath(os.path.join(directory, './OrbitKS_wiggle.h5')), state_type='field')
+    wiggle = read_h5('./OrbitKS_wiggle.h5', directory=directory, state_type='field')
 
     tile_dict = {0: streak, 1: merger, 2: wiggle}
     return tile_dict
@@ -230,7 +229,7 @@ def glue(array_of_orbit_instances, class_constructor, stripwise=False, **kwargs)
     return glued_orbit
 
 
-def tile(symbol_array, tiling_dictionary, class_constructor, tile_shape=(64, 64), **kwargs):
+def tile(symbol_array, tiling_dictionary, class_constructor,  **kwargs):
     """
     Parameters
     ----------
@@ -254,10 +253,31 @@ def tile(symbol_array, tiling_dictionary, class_constructor, tile_shape=(64, 64)
 
     """
     symbol_array_shape = symbol_array.shape
-    array_of_orbit_instances = np.array([rediscretize(tiling_dictionary[symbol], new_shape=tile_shape)
-                                         for symbol in symbol_array.ravel()]).reshape(*symbol_array_shape)
+    array_of_orbit_instances = np.array([tiling_dictionary[symbol] for symbol in symbol_array.ravel()]
+                                        ).reshape(*symbol_array_shape)
     glued_orbit = glue(array_of_orbit_instances, class_constructor, **kwargs)
     return glued_orbit
+
+
+def generate_symbol_arrays(tile_dictionary, glue_shape, unique=True):
+    symbol_array_generator = itertools.product(list(tile_dictionary.keys()), repeat=np.product(glue_shape))
+    if unique:
+        axes = tuple(range(len(glue_shape)))
+        cumulative_equivariants = []
+        unique_symbol_arrays = []
+        for symbol_combination in symbol_array_generator:
+            for rotation in itertools.product(*(list(range(a)) for a in glue_shape)):
+                equivariant_combination = to_symbol_string(np.roll(np.reshape(symbol_combination, glue_shape),
+                                                                   rotation, axis=axes))
+                if equivariant_combination in cumulative_equivariants:
+                    break
+                else:
+                    cumulative_equivariants.append(equivariant_combination)
+            else:
+                unique_symbol_arrays.append(np.reshape(symbol_combination, glue_shape))
+        return unique_symbol_arrays
+    else:
+        return [np.reshape(x, glue_shape) for x in symbol_array_generator]
 
 
 def query_symbolic_index(symbol_array, results_csv):

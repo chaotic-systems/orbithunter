@@ -60,7 +60,8 @@ def clip(orbit_, window_dimensions, **kwargs):
     Notes
     -----
     For Kuramoto-Sivashinsky, the window_dimensions would be of the form ((T_min, T_max,), (X_min, X_max)).
-
+    Originally contemplated allowing window_dimensions to be iterable of windows but if this is desired then
+    just iterate outside the function. I think that is more reasonable and cleaner.
 
     """
 

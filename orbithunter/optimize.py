@@ -186,9 +186,9 @@ def _gradient_descent(orbit_, **kwargs):
             n_iter += 1
 
             if verbose:
-                if np.mod(n_iter, (orbit_maxiter // 10)) == 0:
+                if np.mod(n_iter, (orbit_maxiter // 4)) == 0:
                     print(' Residual={} after {} {} iterations'.format(orbit_.residual(), n_iter, 'gradient descent'))
-                elif np.mod(n_iter, (orbit_maxiter // 100)) == 0:
+                elif np.mod(n_iter, (orbit_maxiter // 50)) == 0:
                     print('#', end='')
 
     if orbit_.residual() <= orbit_tol:
@@ -197,8 +197,6 @@ def _gradient_descent(orbit_, **kwargs):
         exit_code = 2
 
     return orbit_, n_iter, exit_code
-
-
 
 
 def _lstsq(orbit_, **kwargs):
@@ -240,7 +238,7 @@ def _lstsq(orbit_, **kwargs):
 
             if kwargs.get('verbose', False):
                 print(damp_factor, end='')
-                test = np.mod(n_iter, max([1, (orbit_maxiter // 10)]))
+
                 if np.mod(n_iter, max([1, (orbit_maxiter // 10)])) == 0:
                     print('Residual={} after {} {} iterations'.format(orbit_.residual(), n_iter, 'lstsq'))
                 sys.stdout.flush()
@@ -551,22 +549,19 @@ def _default_orbit_tol(orbit_, method, **kwargs):
     precision_level = kwargs.get('precision', 'default')
     # Introduction of ugly conditional statements for convenience
     if precision_level == 'machine':
-        default_tol = np.product(orbit_.field_shape) * 10**-15
+        default_tol = 10**-15
     elif precision_level == 'very_high':
-        default_tol = np.product(orbit_.field_shape) * 10**-12
+        default_tol = np.product(orbit_.field_shape) * 10**-15
     elif precision_level == 'high':
-        default_tol = np.product(orbit_.field_shape) * 10**-9
+        default_tol = np.product(orbit_.field_shape) * 10**-12
     elif precision_level == 'medium' or precision_level == 'default':
-        default_tol = np.product(orbit_.field_shape) * 10**-6
+        default_tol = np.product(orbit_.field_shape) * 10**-9
     elif precision_level == 'low':
-        default_tol = np.product(orbit_.field_shape) * 10**-3
+        default_tol = np.product(orbit_.field_shape) * 10**-6
     elif precision_level == 'minimal':
-        default_tol = np.product(orbit_.field_shape) * 10**-1
+        default_tol = np.product(orbit_.field_shape) * 10**-3
     else:
         raise ValueError('If a custom tolerance is desired, use ''orbit_tol'' key word instead.')
-
-    if method in ['gradient_descent', 'cg', 'newton-cg', 'l-bfgs-b', 'tnc','lgmres', 'gmres', 'minres', 'krylov']:
-        default_tol = default_tol * 10**3
 
     return default_tol
 

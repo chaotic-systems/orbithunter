@@ -3,6 +3,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Flatten, Conv2D, AveragePooling2D, Activation
 from sklearn.model_selection import train_test_split
 
+__all__ = ['orbit_cnn']
 
 def orbit_cnn(X, y):
     """
@@ -34,32 +35,29 @@ def orbit_cnn(X, y):
     """
 
     # rescale to [0, 1)
-    X = (X - X.min()) / (X.max() - X.min())
+    # X = (X - X.min()) / (X.max() - X.min())
+    X = (X - X.mean()) / X.std()
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     sample_shape = X[0].shape
     sample_size = X[0].size
 
     cnn = Sequential()
-    cnn.add(Conv2D(filters=32, kernel_size=8, padding='valid', input_shape=sample_shape,
-                   kernel_initializer=RandomNormal()
+    cnn.add(Conv2D(filters=32, kernel_size=8, padding='valid', input_shape=sample_shape
                    ))
     cnn.add(AveragePooling2D(pool_size=2))
     cnn.add(Activation('relu'))
 
     cnn.add(Conv2D(filters=8, kernel_size=8,
-                   padding='valid',
-                   kernel_initializer=RandomNormal()
+                   padding='valid'
                    ))
     cnn.add(AveragePooling2D(pool_size=2))
     cnn.add(Activation('relu'))
-
     cnn.add(Flatten())
-    cnn.add(Dense(int(sample_size)), kernel_initializer=RandomNormal())
+    cnn.add(Dense(int(sample_size)))
     cnn.add(Dense(y.shape[1], activation='relu'))
     cnn.compile(loss='mse')
     history = cnn.fit(X_train, y_train, validation_data=(X_test, y_test))
-
-    return cnn, history
+    return cnn, history, (X_train, X_test, y_train, y_test)
 
 
 

@@ -3,8 +3,9 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(sys.argv[0], '../..')))
 from orbithunter import *
+import glob
 
-def main(filename, *args,**kwargs):
+def main(*args,**kwargs):
 
 
     '''
@@ -17,11 +18,25 @@ def main(filename, *args,**kwargs):
     
     parse filename or directory name info. ''for x in 
     '''
-    # if os.path.isfile(path_to_data) and path_to_data.endswith(".h5"):
 
 
+    search_directory = '../data/test_data/*.h5'
+    for orbit_h5 in glob.glob(search_directory, recursive=True):
+        orbit_ = read_h5(orbit_h5, directory='')
+        # orbit_.constraints = {'T': True, 'L': False}
+        # converge_result = dimension_continuation(orbit_, (orbit_.T+0.001, orbit_.L - 0.0001), precision='low', verbose=True)
+        # print(converge_result.orbit.orbit_parameters,  (orbit_.T+0.001, orbit_.L - 0.0001), converge_result.orbit.residual())
+        disc_converge_result = discretization_continuation(orbit_, (orbit_.N - 3, orbit_.M + 2), step_sizes=(4, -4), verbose=True)
+        print(disc_converge_result.orbit.field_shape, disc_converge_result.orbit.residual())
 
-    # return Orbit
+
+        # new_orbit_ = rediscretize(orbit_, new_shape=(orbit_.N, orbit_.M + 2))
+        # converge_result = converge(new_orbit_,  method='gradient_descent', orbit_tol=10**-15, verbose=True)
+        # print(converge_result.orbit_.residual(), converge_result.exit_code)
+        break
+
+
+    return None
 
 
 

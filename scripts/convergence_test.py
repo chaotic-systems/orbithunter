@@ -9,7 +9,7 @@ def main(*args, **kwargs):
     for orbit_h5 in glob.glob(search_directory, recursive=True):
         orbit_ = read_h5(orbit_h5, directory='')
         new_orbit_ = rediscretize(orbit_, new_shape=(orbit_.N, orbit_.M + 2))
-        converge_result = converge(new_orbit_,  method='accelerated_gradient_descent', orbit_tol=10**-15, verbose=True)
+        converge_result = converge(new_orbit_,  method='gradient_descent', orbit_tol=10**-15, verbose=True)
         print(converge_result.orbit.residual(), converge_result.exit_code)
 
     return None
