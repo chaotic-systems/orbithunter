@@ -1828,7 +1828,7 @@ class OrbitKS(Orbit):
         """ Placeholder for subclassees, included for compatibility"""
         return self
 
-    def to_h5(self, filename=None, directory='local', verbose=False):
+    def to_h5(self, filename=None, directory='local', verbose=False, **kwargs):
         """ Export current state information to HDF5 file
 
         Parameters

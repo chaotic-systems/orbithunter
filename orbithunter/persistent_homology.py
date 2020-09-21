@@ -1,10 +1,10 @@
 import gudhi as gh
 import matplotlib.pyplot as plt
 
-__all__ = ['orbit_persistence', 'gudhi_plot']
+__all__ = ['orbit_periodic_cubical_complex', 'gudhi_plot', 'gudhi_distance']
 
 
-def orbit_persistence(orbit_instance, min_persistence=0.1, **kwargs):
+def orbit_periodic_cubical_complex(orbit_instance,  **kwargs):
     """ Wrapper for Gudhi persistent homology package
 
     Parameters
@@ -34,12 +34,10 @@ def orbit_persistence(orbit_instance, min_persistence=0.1, **kwargs):
     cubical_complex = gh.PeriodicCubicalComplex(dimensions=orbit_instance.state.shape,
                                                 top_dimensional_cells=orbit_instance.state.ravel(),
                                                 periodic_dimensions=periodic_dimensions)
-
-    persistence_ = cubical_complex.persistence(min_persistence=min_persistence)
-    return cubical_complex, persistence_
+    return cubical_complex
 
 
-def gudhi_plot(persistence_, method='barcode', **gudhi_kwargs):
+def gudhi_plot(persistence_, method='diagram', **gudhi_kwargs):
     """
     Parameters
     ----------
@@ -65,3 +63,17 @@ def gudhi_plot(persistence_, method='barcode', **gudhi_kwargs):
         raise ValueError('Gudhi plotting method not recognized.')
     plt.show()
     return None
+
+
+def gudhi_distance(orbit1, orbit2, metric='bottleneck_distance', **kwargs):
+    persistence1 = orbit_periodic_cubical_complex(orbit1, **kwargs).persistence()
+    persistence2 = orbit_periodic_cubical_complex(orbit2, **kwargs).persistence()
+    diagram1 = [p[-1] for p in persistence1]
+    diagram2 = [p[-1] for p in persistence2]
+    if metric == 'bottleneck_distance':
+        distance_func = gh.bottleneck.bottleneck_distance
+    elif metric == 'hera_bottleneck_distance':
+        distance_func = gh.hera.bottleneck_distance
+    else:
+        distance_func = gh.hera.wasserstein_distance
+    return distance_func(*(diagram1, diagram2))

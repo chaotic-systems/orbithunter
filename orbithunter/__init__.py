@@ -7,7 +7,7 @@ from orbithunter.orbit_ks import OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitK
 from orbithunter.arrayops import swap_modes, so2_coefficients, so2_generator, calculate_spatial_shift
 from orbithunter.integration import integrate_kse
 from orbithunter.clipping import clip, mask_orbit
-from orbithunter.persistent_homology import orbit_persistence, gudhi_plot
+from orbithunter.persistent_homology import orbit_periodic_cubical_complex, gudhi_plot, gudhi_distance
 from orbithunter.continuation import dimension_continuation, discretization_continuation
 
 __all__ = orbit_ks.__all__

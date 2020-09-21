@@ -37,7 +37,7 @@ def _increment_dimension(orbit_, target_extent, increment, axis=0):
                             orbit_parameters=orbit_parameters, constraints=orbit_.constraints)
 
 
-def dimension_continuation(orbit_, target_dimensions, **kwargs):
+def dimension_continuation(orbit_, target_extent, axis=0, step_size=0.01, **kwargs):
     """
 
     Parameters
@@ -49,40 +49,29 @@ def dimension_continuation(orbit_, target_dimensions, **kwargs):
     Returns
     -------
 
+
     """
     # As long as we keep converging to solutions, we keep stepping towards target value.
     # We need to be incrementing in the correct direction. i.e. to get smaller we need to have a negative increment.
-
-    order_of_axes_to_increment = kwargs.get('axis_order', np.argsort(tuple(np.abs(target_dimensions[i]
-                                                                                  - orbit_.orbit_parameters[i])
-                                                                           for i in range(len(target_dimensions)))))
     # Use list to get the correct count, then convert to tuple as expected.
-    step_sizes = kwargs.get('step_sizes', tuple(len(order_of_axes_to_increment) * [0.01]))
 
     # Check that the orbit_ is converged prior to any constraints
     converge_result = converge(orbit_, **kwargs)
-
-    for axis in order_of_axes_to_increment:
-        # check that the orbit_ instance is converged when having constraints, otherwise performance takes a big hit.
-        # The constraints are applied but orbit_ can also be passed with the correct constrains.
-        # This choice is described in the Notes section.
-        orbit_.constrain(axis=axis)
-        # Ensure that we are stepping in correct direction.
-        step_size = (np.sign(target_dimensions[axis] - converge_result.orbit.orbit_parameters[axis])
-                     * np.abs(step_sizes[axis]))
-        # We need to be incrementing in the correct direction. i.e. to get smaller we need to have a negative increment.
-        while converge_result.exit_code == 1 and not _extent_equals_target(converge_result.orbit,
-                                                                           target_dimensions[axis],
-                                                                           axis=axis):
-
-            incremented_orbit = _increment_dimension(converge_result.orbit, target_dimensions[axis],
-                                                     step_size, axis=axis)
-            converge_result = converge(incremented_orbit, **kwargs)
-            # If we want to save all states in the family else save the returned orbit from converge_result
-            # outside the function
-            if kwargs.get('save', False):
-                converge_result.orbit.to_h5(**kwargs)
-                converge_result.orbit.plot(show=kwargs.pop('show', False), **kwargs)
+    # check that the orbit_ instance is converged when having constraints, otherwise performance takes a big hit.
+    # The constraints are applied but orbit_ can also be passed with the correct constrains.
+    # This choice is described in the Notes section.
+    orbit_.constrain(axis=axis)
+    # Ensure that we are stepping in correct direction.
+    step_size = (np.sign(target_extent - converge_result.orbit.orbit_parameters[axis]) * np.abs(step_size))
+    # We need to be incrementing in the correct direction. i.e. to get smaller we need to have a negative increment.
+    while converge_result.exit_code == 1 and not _extent_equals_target(converge_result.orbit, target_extent, axis=axis):
+        incremented_orbit = _increment_dimension(converge_result.orbit, target_extent, step_size, axis=axis)
+        converge_result = converge(incremented_orbit, **kwargs)
+        # If we want to save all states in the family else save the returned orbit from converge_result
+        # outside the function
+        if kwargs.get('save', False):
+            converge_result.orbit.to_h5(**kwargs)
+            converge_result.orbit.plot(show=kwargs.pop('show', False), **kwargs)
 
     return converge_result
 
