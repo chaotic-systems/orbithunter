@@ -105,21 +105,21 @@ def parameter_based_discretization(parameters, **kwargs):
         T, L = parameters[:2]
         if kwargs.get('N', None) is None:
             if resolution == 'coarse':
-                N = np.max([2**(int(np.log2(T+1)-2)), 32])
+                N = np.max([2*(2**(np.log2(T+1)-2))//2, 16])
             elif resolution == 'fine':
-                N = np.max([2**(int(np.log2(T+1)+4)), 32])
+                N = np.max([2*(2**(int(np.log2(T+1)+4)))//2, 32])
             else:
-                N = np.max([2**(int(np.log2(T+1))), 32])
+                N = np.max([2*(2**(int(np.log2(T+1))))//2, 16])
         else:
-            N = kwargs.get('M', None)
+            N = kwargs.get('N', None)
 
         if kwargs.get('M', None) is None:
             if resolution == 'coarse':
-                M = np.max([2**(int(np.log2(L+1)-1)), 32])
+                M = np.max([2*(2**(int(np.log2(L+1)-1)))//2, 16])
             elif resolution == 'fine':
-                M = np.max([2**(int(np.log2(L+1))+2), 32])
+                M = np.max([2*(2**(int(np.log2(L+1))+2))//2, 32])
             else:
-                M = np.max([2**(int(np.log2(L+1)) + 1), 32])
+                M = np.max([2*(2**(int(np.log2(L+1)) + 1))//2, 16])
         else:
             M = kwargs.get('M', None)
 

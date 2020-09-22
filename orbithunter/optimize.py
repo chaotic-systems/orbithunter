@@ -92,7 +92,7 @@ def converge(orbit_, method='hybrid', **kwargs):
     orbit_tol and orbit_maxiter to each call.
     """
     orbit_.convert(to='modes', inplace=True)
-    if not orbit_.residual() < kwargs.get('orbit_tol', _default_orbit_tol(orbit_, method, **kwargs)):
+    if not orbit_.residual() < kwargs.get('orbit_tol', _default_orbit_tol(orbit_, **kwargs)):
         if method == 'hybrid':
             gradient_orbit, n_iter_a, _ = _gradient_descent(orbit_,  **kwargs)
             result_orbit, n_iter_gn, exit_code = _lstsq(gradient_orbit, **kwargs)
@@ -134,10 +134,10 @@ def _gradient_descent(orbit_, **kwargs):
     Preconditioning left out of **kwargs because of its special usage
 
     """
-    orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_, 'gradient_descent', **kwargs))
+    orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_, **kwargs))
     orbit_maxiter = kwargs.get('orbit_maxiter', _default_orbit_maxiter(orbit_, 'gradient_descent', **kwargs))
 
-    ftol = kwargs.get('ftol', 1e-10)
+    ftol = kwargs.get('ftol', 1e-9)
     verbose = kwargs.get('verbose', False)
     preconditioning = kwargs.get('preconditioning', True)
 
@@ -199,7 +199,7 @@ def _gradient_descent(orbit_, **kwargs):
 def _lstsq(orbit_, **kwargs):
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
 
-    orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_, 'lstsq', **kwargs))
+    orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_, **kwargs))
     orbit_maxiter = kwargs.get('orbit_maxiter', _default_orbit_maxiter(orbit_, 'lstsq', **kwargs))
     max_damp_factor = kwargs.get('orbit_damp_max', 8)
     verbose = kwargs.get('verbose', False)
@@ -215,7 +215,11 @@ def _lstsq(orbit_, **kwargs):
         n_iter += 1
         A = orbit_.jacobian(**kwargs)
         b = -1.0 * orbit_.spatiotemporal_mapping(**kwargs).state.ravel()
-        dorbit = orbit_.from_numpy_array(lstsq(A, b.reshape(-1, 1))[0], **kwargs)
+        if kwargs.get('preconditioning', None) is not None:
+            P = orbit_.preconditioner(orbit_.preconditioning_parameters, side='right')
+            dorbit = orbit_.from_numpy_array(np.dot(P, lstsq(np.dot(A, P), b.reshape(-1, 1))[0]), **kwargs)
+        else:
+            dorbit = orbit_.from_numpy_array(lstsq(A, b.reshape(-1, 1))[0], **kwargs)
 
         # To avoid redundant function calls, store optimization variables using
         # clunky notation.
@@ -235,13 +239,12 @@ def _lstsq(orbit_, **kwargs):
 
             if kwargs.get('verbose', False):
                 print(damp_factor, end='')
-
                 if np.mod(n_iter, max([1, (orbit_maxiter // 10)])) == 0:
                     print(' Residual={} after {} {} iterations'.format(orbit_.residual(), n_iter, 'lstsq'))
                 sys.stdout.flush()
 
     if orbit_.residual() <= orbit_tol:
-        orbit, exit_code = orbit_.verify_integrity()
+        orbit_, exit_code = orbit_.verify_integrity()
     elif n_iter == orbit_maxiter:
         exit_code = 2
     else:
@@ -250,14 +253,14 @@ def _lstsq(orbit_, **kwargs):
     return orbit_, n_iter, exit_code
 
 
-def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-03, btol=1e-03,
+def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-6, btol=1e-6,
                                         method='lsqr', maxiter=None, conlim=1e+08,
                                         show=False, calc_var=False, **kwargs):
 
-    orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_, method, **kwargs))
+    orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_, **kwargs))
     orbit_maxiter = kwargs.get('orbit_maxiter', _default_orbit_maxiter(orbit_, method, **kwargs))
     max_damp_factor = kwargs.get('orbit_damp_max', 8)
-    preconditioning = kwargs.get('preconditioning', False)
+    preconditioning = kwargs.get('preconditioning', True)
 
     linear_operator_shape = (orbit_.state.size, orbit_.state_vector().size)
     istop = 1
@@ -274,20 +277,23 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-03, btol=1e-03
         def rmv_func(v):
             # _process_newton_step turns state vector into class object.
             v_orbit = orbit_.from_numpy_array(v, orbit_parameters=orbit_.orbit_parameters)
-            rmatvec_orbit = orbit_.rmatvec(v_orbit, **kwargs)
             if preconditioning:
-                return rmatvec_orbit.precondition(orbit_.preconditioning_parameters).state_vector().reshape(-1, 1)
+                # To be consistent, if left preconditioning in matvec, need to right precondition rmatvec
+                # This means that only the modes should be preconditioned; the work around for this is to constrain
+                # the parameters, as v_orbit is just a placeholder anyway.
+                v_orbit.constraints = {k: True for k in orbit_.constraints.keys()}
+                return orbit_.rmatvec(v_orbit.precondition(orbit_.preconditioning_parameters),
+                                      **kwargs).state_vector().reshape(-1, 1)
             else:
-                return rmatvec_orbit.state_vector().reshape(-1, 1)
+                return orbit_.rmatvec(v_orbit, **kwargs).state_vector().reshape(-1, 1)
 
         def mv_func(v):
             # _state_vector_to_orbit turns state vector into class object.
-            v_orbit = orbit_.from_numpy_array(v, orbit_parameters=orbit_.orbit_parameters)
-            matvec_orbit = orbit_.matvec(v_orbit, **kwargs)
+            v_orbit = orbit_.from_numpy_array(v)
             if preconditioning:
-                return matvec_orbit.precondition(orbit_.preconditioning_parameters).state.reshape(-1, 1)
+                return orbit_.matvec(v_orbit, **kwargs).precondition(orbit_.preconditioning_parameters).state.reshape(-1, 1)
             else:
-                return matvec_orbit.state.reshape(-1, 1)
+                return orbit_.matvec(v_orbit, **kwargs).state.reshape(-1, 1)
 
         orbit_linear_operator = LinearOperator(linear_operator_shape, mv_func, rmatvec=rmv_func, dtype=float)
         b = -1.0 * orbit_.spatiotemporal_mapping(**kwargs).state.reshape(-1, 1)
@@ -317,9 +323,11 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-03, btol=1e-03
             if damp_factor > max_damp_factor:
                 return orbit_, n_iter, 0
         else:
+            print(next_residual)
             orbit_ = next_orbit
             residual = next_residual
             if kwargs.get('verbose', False):
+                # print(damp_factor, end='')
                 if np.mod(orbit_n_iter, (orbit_maxiter // 10)) == 0:
                     print('Residual={} after {} {} iterations'.format(orbit_.residual(), orbit_n_iter, method))
 
@@ -336,7 +344,7 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-03, btol=1e-03
 def _scipy_optimize_minimize_wrapper(orbit_, method=None, bounds=None,
                                      tol=None, callback=None, options=None, **kwargs):
 
-    orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_, method, **kwargs))
+    orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_, **kwargs))
     orbit_maxiter = kwargs.get('orbit_maxiter', _default_orbit_maxiter(orbit_, method, **kwargs))
     verbose = kwargs.get('verbose', False)
 
@@ -432,7 +440,7 @@ def _scipy_optimize_root_wrapper(orbit_, method=None, tol=None, callback=None, o
     # define the functions using orbit instance within scope instead of passing orbit
     # instance as arg to scipy functions.
 
-    orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_, method, **kwargs))
+    orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_,  **kwargs))
     orbit_maxiter = kwargs.get('orbit_maxiter', _default_orbit_maxiter(orbit_, method, **kwargs))
     verbose = kwargs.get('verbose', False)
 
@@ -526,7 +534,7 @@ def _print_exit_messages(orbit, exit_code):
     return None
 
 
-def _default_orbit_tol(orbit_, method, **kwargs):
+def _default_orbit_tol(orbit_, **kwargs):
     """ Wrapper to allow str keyword argument to be used to choose orbit tolerance dependent on method
 
     Parameters

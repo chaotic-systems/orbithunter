@@ -4,7 +4,7 @@ import numpy as np
 import os
 import itertools
 
-__all__ = ['tile', 'glue']
+__all__ = ['tile', 'glue', 'generate_symbol_arrays']
 
 
 def best_combination(orbit, other_orbit, fundamental_domain_combinations, axis=0):
@@ -50,7 +50,7 @@ def best_rotation(orbit, other_orbit, axis=0):
     return best_gluing
 
 
-def pairwise_glue(pair_of_orbits_array, class_constructor, gluing_axis=0):
+def expensive_glue(pair_of_orbits_array, class_constructor, gluing_axis=0):
     """
 
     Parameters

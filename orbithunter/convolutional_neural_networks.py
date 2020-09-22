@@ -57,7 +57,7 @@ def orbit_cnn(X, y):
     cnn.add(Dense(y.shape[1], activation='relu'))
     cnn.compile(loss='mse')
     history = cnn.fit(X_train, y_train, validation_data=(X_test, y_test))
-    return cnn, history, (X_train, X_test, y_train, y_test)
+    return cnn, history, ((X_train, y_train), (X_test,  y_test))
 
 
 

@@ -2,7 +2,7 @@ from math import pi
 from .arrayops import swap_modes
 import numpy as np
 
-__all__ = ['integrate_kse']
+__all__ = ['kse_integrate']
 
 
 def _dx_spatial_modes(orbit_, power=1):
@@ -24,16 +24,16 @@ def _dx_spatial_modes(orbit_, power=1):
 
     modes = orbit_.convert(to='s_modes').state
     # Elementwise multiplication of modes with frequencies, this is the derivative.
-    dxn_modes = np.multiply(orbit_.elementwise_dxn(orbit_.orbit_parameters, power=power), modes)
+    dxn_modes = np.multiply(orbit_.elementwise_dxn(orbit_.dx_parameters, power=power), modes)
 
     # If the order of the differentiation is odd, need to swap imaginary and real components.
     if np.mod(power, 2):
         dxn_modes = swap_modes(dxn_modes, axis=1)
 
-    return orbit_.__class__(state=dxn_modes, state_type='s_modes', T=orbit_.T, L=orbit_.L, S=orbit_.S)
+    return orbit_.__class__(state=dxn_modes, state_type='s_modes', orbit_parameters=orbit_.orbit_parameters)
 
 
-def integrate_kse(orbit_, **kwargs):
+def kse_integrate(orbit_, **kwargs):
     """ Exponential time-differencing Runge-Kutta 4th order integration scheme.
 
 
@@ -54,16 +54,18 @@ def integrate_kse(orbit_, **kwargs):
     integrated trajectory. This will lead to plotting issues so unless desired, you should convert to the
     base orbit type first.
     """
+    verbose = kwargs.get('verbose', False)
+    orbit_ = orbit_.convert(to='s_modes')
     integration_time = kwargs.get('integration_time', orbit_.T)
     # Take the last row (T=0) so this works for relative periodic solutions as well. i
-    orbit_t_equals_0 = orbit_.__class__(state=orbit_.state[-1, :].reshape(1,-1), state_type=orbit_.state_type,
-                                        T=orbit_.T, L=orbit_.L, S=orbit_.S).convert(to='s_modes')
+    orbit_t_equals_0 = orbit_.__class__(state=orbit_.state[-1, :].reshape(1, -1), state_type=orbit_.state_type,
+                                        orbit_parameters=orbit_.orbit_parameters).convert(to='s_modes')
     # stepsize
     step_size = kwargs.get('step_size', 0.01)
 
     # Because N = 1, this is just the spatial matrices, negative sign b.c. other side of equation.
-    lin_diag = -1.0*(orbit_t_equals_0.elementwise_dxn(orbit_t_equals_0.orbit_parameters, power=2)
-                     + orbit_t_equals_0.elementwise_dxn(orbit_t_equals_0.orbit_parameters, power=4)).reshape(-1, 1)
+    lin_diag = -1.0*(orbit_t_equals_0.elementwise_dxn(orbit_t_equals_0.dx_parameters, power=2)
+                     + orbit_t_equals_0.elementwise_dxn(orbit_t_equals_0.dx_parameters, power=4)).reshape(-1, 1)
 
     E = np.exp(step_size*lin_diag)
     E2 = np.exp(step_size*lin_diag/2.0)
@@ -88,7 +90,8 @@ def integrate_kse(orbit_, **kwargs):
     u = orbit_t_equals_0.convert(to='field').state
     v = orbit_t_equals_0.convert(to='s_modes')
     nmax = int(integration_time / step_size)
-
+    if verbose:
+        print('Integration progress [', end='')
     for step in range(0, nmax):
         Nv = -0.5*_dx_spatial_modes(v.convert(to='field')**2, power=1)
         a = v.statemul(E2) + Nv.statemul(Q)
@@ -100,6 +103,9 @@ def integrate_kse(orbit_, **kwargs):
         v = (v.statemul(E) + Nv.statemul(f1)
              + (2.0 * (Na + Nb)).statemul(f2) + Nc.statemul(f3))
         u = np.append(v.convert(to='field').state, u)
-
+        if not np.mod(step, nmax // 25) and verbose:
+            print('#', end='')
+    if verbose:
+        print(']', end='')
     # By default do not assign spatial shift S.
-    return orbit_.__class__(state=u.reshape(nmax+1, -1), state_type='field', T=step_size, L=orbit_.L)
+    return orbit_.__class__(state=u.reshape(nmax+1, -1), state_type='field', orbit_parameters=orbit_.orbit_parameters)

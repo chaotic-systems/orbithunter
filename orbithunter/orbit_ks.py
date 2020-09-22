@@ -211,13 +211,21 @@ class OrbitKS(Orbit):
         Notes
         -----
         Written as a general method that covers all subclasses instead of writing individual methods.
+
+        Important: If orbit_parameters are passed as a keyword argument, they are appended to the numpy array,
+        'state_array', via concatenation. The purpose of this is for rmatvec products wherein the
         """
+        # If there are orbit_parameters_passed, then they are meant to be added to the state_array (i.e. we're taking
+        # values from another orbit instance.
         mode_shape, mode_size = self.mode_shape, self.state.size
         modes = state_array.ravel()[:mode_size]
-        params_list = state_array.ravel()[mode_size:].tolist()
-        T, L = tuple(params_list.pop(0) if not p else 0 for p in self.constraints.values())
+        # We slice off the modes and the rest of the list pertains to parameters; note if the state_array had
+        # parameters, and orbit_parameters were added by
+
+        params_list = list(kwargs.pop('orbit_parameters', state_array.ravel()[mode_size:].tolist()))
+        orbit_parameters = tuple(params_list.pop(0) if not p and params_list else 0 for p in self.constraints.values())
         return self.__class__(state=np.reshape(modes, mode_shape), state_type='modes',
-                              orbit_parameters=(T, L, 0.), **kwargs)
+                              orbit_parameters=orbit_parameters, **kwargs)
 
     def verify_integrity(self):
         """ Check whether the orbit converged to an equilibrium or close-to-zero solution """
@@ -228,12 +236,12 @@ class OrbitKS(Orbit):
         equilibrium_check = field_orbit.dt().convert(to='field').norm()
 
         # See if the L_2 norm is beneath a threshold value, if so, replace with zeros.
-        if zero_check < 10**-4:
+        if zero_check < 10**-2:
             code = 4
             return EquilibriumOrbitKS(state=np.zeros([self.N, self.M]), state_type='field',
                                       orbit_parameters=self.orbit_parameters).convert(to=self.state_type), code
         # Equilibrium is defined by having no temporal variation, i.e. time derivative is a uniformly zero.
-        elif equilibrium_check < 10**-4:
+        elif equilibrium_check < 10**-2:
             # If there is sufficient evidence that solution is an equilibrium, change its class
             code = 3
             # store T just in case we want to refer to what the period was before conversion to EquilibriumOrbitKS
@@ -565,15 +573,11 @@ class OrbitKS(Orbit):
         self.convert(to='modes', inplace=True)
 
         # The Jacobian components for the spatiotemporal Fourier modes
-        preconditioning = kwargs.get('preconditioning', False)
 
         jac_ = self.jac_lin() + self.jac_nonlin()
         jac_ = self.jacobian_parameter_derivatives_concat(jac_)
 
-        if preconditioning:
-            return np.dot(self.preconditioner(self.preconditioning_parameters), jac_)
-        else:
-            return jac_
+        return jac_
 
     def jacobian_parameter_derivatives_concat(self, jac_):
         """ Concatenate parameter partial derivatives to Jacobian matrix
@@ -675,10 +679,11 @@ class OrbitKS(Orbit):
 
         """
 
-
         assert (self.state_type == 'modes') and (other.state_type == 'modes')
         self_field = self.convert(to='field')
         other_field = other.convert(to='field')
+        matvec_params = other_field.orbit_parameters
+
         matvec_modes = (other.dt(return_array=True) + other.dx(power=2, return_array=True)
                         + other.dx(power=4, return_array=True)
                         + self_field.nonlinear(other_field, return_array=True))
@@ -686,7 +691,7 @@ class OrbitKS(Orbit):
         if not self.constraints['T']:
             # Compute the product of the partial derivative with respect to T with the vector's value of T.
             # This is typically an incremental value dT.
-            matvec_modes += other.T * (-1.0 / self.T) * self.dt(return_array=True)
+            matvec_modes += matvec_params[0] * (-1.0 / self.T) * self.dt(return_array=True)
 
         if not self.constraints['L']:
             # Compute the product of the partial derivative with respect to L with the vector's value of L.
@@ -694,9 +699,40 @@ class OrbitKS(Orbit):
             dfdl = ((-2.0/self.L)*self.dx(power=2, return_array=True)
                     + (-4.0/self.L)*self.dx(power=4, return_array=True)
                     + (-1.0/self.L) * self_field.nonlinear(self_field, return_array=True))
-            matvec_modes += other.L * dfdl
+            matvec_modes += matvec_params[1] * dfdl
 
         return self.__class__(state=matvec_modes, state_type='modes', orbit_parameters=self.orbit_parameters)
+
+
+    def matvec_parameters(self, self_field, other):
+        other_modes = other.state.ravel()
+        self_dx_modes = self.dx(return_array=True)
+
+        if not self.constraints['T']:
+            # Derivative with respect to T term equal to DF/DT * v
+            rmatvec_T = (-1.0 / self.T) * (self.dt(return_array=True)
+                                           + (-1.0* self.S / self.T) * self_dx_modes).ravel().dot(other_modes)
+        else:
+            rmatvec_T = 0
+
+        if not self.constraints['L']:
+            # change in L, dL, equal to DF/DL * v
+            rmatvec_L = ((-2.0 / self.L) * self.dx(power=2, return_array=True)
+                         + (-4.0 / self.L) * self.dx(power=4, return_array=True)
+                         + (-1.0 / self.L) * (self_field.nonlinear(self_field, return_array=True)
+                                              + (-1.0 * self.S / self.T) * self_dx_modes)
+                        ).ravel().dot(other_modes)
+
+        else:
+            rmatvec_L = 0
+
+        if not self.constraints['S']:
+            rmatvec_S = (-1.0 / self.T) * self_dx_modes.ravel().dot(other_modes)
+        else:
+            rmatvec_S = 0.
+
+        return rmatvec_T, rmatvec_L, rmatvec_S
+
 
     def _pad(self, size, axis=0):
         """ Increase the size of the discretization via zero-padding
@@ -998,7 +1034,8 @@ class OrbitKS(Orbit):
             xticks = np.array([0, plot_orbit.L])
             xlabels = np.array(['0', str(scaled_L)])
 
-        default_figsize = (max([0.35, (plot_orbit.L**0.5)//2]), max([0.25, (plot_orbit.T**0.5)//2]))
+        default_figsize = (max([0.25, 0.1*plot_orbit.L**0.7]), max([0.25, 0.1*plot_orbit.T**0.7]))
+
         figsize = kwargs.get('figsize', default_figsize)
         extentL, extentT = figsize[0], figsize[1]
         scaled_font = np.max([int(np.mean(figsize)), 10])
@@ -1095,8 +1132,7 @@ class OrbitKS(Orbit):
                                + self.elementwise_dxn(dx_params, power=4))
         self.state = np.multiply(self.state, p_multipliers)
 
-        # Precondition the change in T and L so that they do not dominate; S accounts for subclasses;
-        # doesn't affect others.
+        # Precondition the change in T and L so that they do not dominate;
         if not self.constraints['T']:
             self.T = self.T * (dt_params[0]**-1)
 
@@ -1204,7 +1240,7 @@ class OrbitKS(Orbit):
         reflected_field = -1.0*np.roll(np.fliplr(self.convert(to='field').state), 1, axis=1)
         return self.__class__(state=reflected_field, state_type='field', orbit_parameters=(self.T, self.L, -1.0*self.S))
 
-    def rescale(self, magnitude=0.33, inplace=False, method='absolute'):
+    def rescale(self, magnitude=3., inplace=False, method='absolute'):
         """ Scalar multiplication
 
         Parameters
@@ -1296,11 +1332,12 @@ class OrbitKS(Orbit):
                          + other.dx(power=4, return_array=True)
                          + self_field.rnonlinear(other, return_array=True))
 
-        rmatvec_params = self.rmatvec_parameters(other, self_field)
+        # parameters are derived by multiplying partial derivatives w.r.t. parameters with the other orbit.
+        rmatvec_params = self.rmatvec_parameters(self_field, other)
 
         return self.__class__(state=rmatvec_modes, state_type='modes', orbit_parameters=rmatvec_params)
 
-    def rmatvec_parameters(self, other, self_field):
+    def rmatvec_parameters(self, self_field, other):
         other_modes_in_vector_form = other.state.ravel()
         if not self.constraints['T']:
             # Derivative with respect to T term equal to DF/DT * v
@@ -1319,7 +1356,7 @@ class OrbitKS(Orbit):
 
         return rmatvec_T, rmatvec_L, 0.
 
-    def rotate(self, distance=0, axis=0):
+    def rotate(self, distance=0, axis=0, units='wavelength'):
         """ Rotate the velocity field in either space or time.
 
         Parameters
@@ -1371,7 +1408,9 @@ class OrbitKS(Orbit):
             return self.__class__(state=time_rotated_modes,
                                   orbit_parameters=self.orbit_parameters).convert(to=self.state_type)
         else:
-            thetak = distance*self.wave_vector(self.dx_parameters)
+            if units == 'wavelength':
+                distance = distance * 2*pi*np.sqrt(2)
+            thetak = distance * self.wave_vector(self.dx_parameters)
             cosinek = np.cos(thetak)
             sinek = np.sin(thetak)
 
@@ -1478,7 +1517,9 @@ class OrbitKS(Orbit):
         elif spectrum == 'random':
             modes = random_modes
         else:
-            modes = random_modes
+            time_[time_ > tscale] = 0.
+            time_[time_ != 0.] = 1.
+            modes = np.multiply(time_, random_modes)
 
         self.state = modes
         self.state_type = 'modes'
@@ -2003,7 +2044,7 @@ class RelativeOrbitKS(OrbitKS):
         mode_shape, mode_size = self.mode_shape, self.state.size
         modes = state_array.ravel()[:mode_size]
         params_list = state_array.ravel()[mode_size:].tolist()
-        params = tuple(params_list.pop(0) if not p else 0 for p in self.constraints.values())
+        params = tuple(params_list.pop(0) if not p and params_list else 0 for p in self.constraints.values())
         return self.__class__(state=np.reshape(modes, mode_shape), state_type='modes',
                               orbit_parameters=params,  **kwargs)
 
@@ -2187,15 +2228,19 @@ class RelativeOrbitKS(OrbitKS):
 
         return new_parameter_dict
 
+    @property
     def dt_parameters(self):
         return self.T, self.N, self.n, self.M-2
 
+    @property
     def orbit_parameters(self):
         return self.T, self.L, self.S
 
+    @property
     def mode_shape(self):
         return max([self.N-1, 1]), self.M-2
 
+    @property
     def dimensions(self):
         return self.T, self.L
 
@@ -2248,7 +2293,7 @@ class RelativeOrbitKS(OrbitKS):
         # of arbitrary derivatives we can optimize the calculation by being specific.
         return super().rmatvec(other, **kwargs) - 1.0 * other.comoving_mapping_component()
 
-    def rmatvec_parameters(self, other, self_field):
+    def rmatvec_parameters(self, self_field, other):
         other_modes = other.state.ravel()
         self_dx_modes = self.dx(return_array=True)
 
@@ -2297,12 +2342,12 @@ class RelativeOrbitKS(OrbitKS):
         equilibrium_check = field_orbit.dt().convert(to='field').norm()
 
         # See if the L_2 norm is beneath a threshold value, if so, replace with zeros.
-        if zero_check < 10**-4:
+        if zero_check < 10**-2:
             code = 4
             return RelativeEquilibriumOrbitKS(state=np.zeros([self.N, self.M]), state_type='field',
                                               orbit_parameters=self.orbit_parameters), code
         # Equilibrium is defined by having no temporal variation, i.e. time derivative is a uniformly zero.
-        elif equilibrium_check < 10**-4:
+        elif equilibrium_check < 10**-2:
             # If there is sufficient evidence that solution is an equilibrium, change its class
             code = 3
             return RelativeEquilibriumOrbitKS(state=self.convert(to='modes').state,
@@ -2444,15 +2489,19 @@ class AntisymmetricOrbitKS(OrbitKS):
         else:
             return 0.5 * self.statemul(other).dx(return_array=False).convert(to='modes')
 
+    @property
     def dt_parameters(self):
         return self.T, self.N, self.n, self.m
 
+    @property
     def dx_parameters(self):
         return self.L, self.M, self.m, self.N, max([self.N-1, 1])
 
+    @property
     def mode_shape(self):
         return max([self.N-1, 1]), self.m
 
+    @property
     def dimensions(self):
         return self.T, self.L
 
@@ -2724,15 +2773,19 @@ class ShiftReflectionOrbitKS(OrbitKS):
         else:
             return 0.5 * self.statemul(other).dx(return_array=False).convert(to='modes')
 
+    @property
     def dt_parameters(self):
         return self.T, self.N, self.n, self.m
 
+    @property
     def dx_parameters(self):
         return self.L, self.M, self.m,  self.N, max([self.N-1, 1]),
 
+    @property
     def mode_shape(self):
         return max([self.N-1, 1]), self.m
 
+    @property
     def dimensions(self):
         return self.T, self.L
 
@@ -2959,7 +3012,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         mode_shape, mode_size = self.state.shape, self.state.size
         modes = state_array.ravel()[:mode_size]
         params_list = state_array.ravel()[mode_size:].tolist()
-        L = float(tuple(params_list.pop(0) if not p else 0 for p in self.constraints.values())[0])
+        L = float(tuple(params_list.pop(0) if not p and params_list else 0 for p in self.constraints.values())[0])
         return self.__class__(state=np.reshape(modes, mode_shape), state_type='modes', orbit_parameters=(0., L, 0.))
 
     def jac_lin(self):
@@ -3035,7 +3088,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             return self.__class__(state=truncated_modes,  state_type='modes',
                                   orbit_parameters=self.orbit_parameters, N=self.N).convert(to=self.state_type)
 
-    def rmatvec_parameters(self, other, self_field):
+    def rmatvec_parameters(self, self_field, other):
         other_modes_in_vector_form = other.state.ravel()
         if not self.constraints['L']:
             # change in L, dL, equal to DF/DL * v
@@ -3074,7 +3127,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             parameter_multipliers.append(dx_params[0]**-4)
         return np.array(parameter_multipliers)
 
-    def _random_initial_condition(self, **kwargs):
+    def _random_initial_condition(self, orbit_parameters, **kwargs):
         """ Initial a set of random spatiotemporal Fourier modes
         Parameters
         ----------
@@ -3100,9 +3153,8 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         spectrum = kwargs.get('spectrum', 'random')
 
         # also accepts N and M as kwargs
-        temporary_param_dict = {'T': kwargs.get('T', 0.), 'L': kwargs.get('L', 0.)}
-        self.N, self.M = parameter_based_discretization(temporary_param_dict, **kwargs)
-        self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
+        self.N, self.M = parameter_based_discretization(orbit_parameters, N=1)
+        self.n, self.m = 1, int(self.M // 2) - 1
 
         tscale = kwargs.get('tscale', 1)
         xscale = kwargs.get('xscale', int(self.L / (2*pi*np.sqrt(2))))
@@ -3113,7 +3165,6 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         # power = 2 b.c. odd powers not defined for spacetime modes for discrete symmetries.
         space_ = np.sqrt((self.L / (2*pi))**2 * np.abs(self.elementwise_dxn(self.dx_parameters,
                                                                             power=2))).astype(int)
-        time_ = (self.T / (2*pi)) * np.abs(self.elementwise_dtn(self.dt_parameters))
         np.random.seed(kwargs.get('seed', None))
         random_modes = np.random.randn(*self.mode_shape)
         # piece-wise constant + exponential
@@ -3122,36 +3173,26 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         if spectrum == 'gaussian':
             # spacetime gaussian modulation
-            gaussian_modulator = np.exp(-((space_ - xscale)**2/(2*xvar)) - ((time_ - tscale)**2 / (2*tvar)))
+            gaussian_modulator = np.exp(-(space_ - xscale)**2/(2*xvar))
             modes = np.multiply(gaussian_modulator, random_modes)
 
         elif spectrum == 'piecewise-exponential':
             # space scaling is constant up until certain wave number then exponential decrease
             # time scaling is static
-            time_[time_ > tscale] = 0.
-            time_[time_ != 0.] = 1.
             space_[space_ <= xscale] = xscale
-            exp_modulator = np.exp(-1.0 * np.abs(space_ - xscale) / xvar)
-            p_exp_modulator = np.multiply(time_, exp_modulator)
+            p_exp_modulator = np.exp(-1.0 * np.abs(space_ - xscale) / xvar)
             modes = np.multiply(p_exp_modulator, random_modes)
 
         elif spectrum == 'exponential':
             # exponential decrease away from selected spatial scale
-            time_[time_ > tscale] = 0.
-            time_[time_ != 0.] = 1.
             exp_modulator = np.exp(-1.0 * np.abs(space_- xscale) / xvar)
-            p_exp_modulator = np.multiply(time_, exp_modulator)
-            modes = np.multiply(p_exp_modulator, random_modes)
+            modes = np.multiply(exp_modulator, random_modes)
 
         elif spectrum == 'linear':
-            # Modulate the spectrum using the spatial linear operator; equivalent to preconditioning.
-            time_[time_ <= tscale] = 1.
-            time_[time_ != 1.] = 0.
             # so we get qk^2 - qk^4
             space_modulator = -1.0 * (self.elementwise_dxn(self.dx_parameters, power=2)
                                       + self.elementwise_dxn(self.dx_parameters, power=4))
-            modulated_modes = np.divide(random_modes, space_modulator)
-            modes = np.multiply(time_, modulated_modes)
+            modes = np.divide(random_modes, space_modulator)
         else:
             modes = random_modes
 
@@ -3178,9 +3219,11 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         return self.__class__(state=field_single_time_point, state_type='field',
                               orbit_parameters=self.orbit_parameters).convert(to=self.state_type)
 
+    @property
     def dx_parameters(self):
         return self.L, self.M, self.m, self.N, 1
 
+    @property
     def orbit_parameters(self):
         """
 
@@ -3190,9 +3233,11 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         """
         return 0., self.L, 0.
 
+    @property
     def mode_shape(self):
         return 1, self.m
 
+    @property
     def dimensions(self):
         return 0., self.L
 
@@ -3294,6 +3339,36 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         return self
 
+    def preconditioner(self, preconditioning_parameters, **kwargs):
+        """ Preconditioning matrix
+
+        Parameters
+        ----------
+        parameter_constraints : (bool, bool)
+            Whether or not period T or spatial period L are fixed.
+        side : str
+            Takes values 'left' or 'right'. This is an accomodation for
+            the typically rectangular Jacobian matrix.
+
+        Returns
+        -------
+        matrix :
+            Preconditioning matrix
+
+        """
+        # Preconditioner is the inverse of the absolute value of the linear spatial derivative operators.
+        side = kwargs.get('side', 'left')
+        dt_params, dx_params = preconditioning_parameters
+        p_multipliers = (1.0 / (+ np.abs(self.elementwise_dxn(dx_params, power=2))
+                                + self.elementwise_dxn(dx_params, power=4))).ravel()
+
+        # If including parameters, need an extra diagonal matrix to account for this (right-side preconditioning)
+        if side == 'right':
+            return np.diag(np.concatenate((p_multipliers,
+                                           self._parameter_preconditioning(dt_params, dx_params)), axis=0))
+        else:
+            return np.diag(p_multipliers)
+
     def rmatvec(self, other, **kwargs):
         """ Overwrite of parent method """
         assert (self.state_type == 'modes') and (other.state_type == 'modes')
@@ -3339,7 +3414,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         zero_check = field_orbit.norm()
 
         # See if the L_2 norm is beneath a threshold value, if so, replace with zeros.
-        if zero_check < 10**-4:
+        if zero_check < 10**-2:
             code = 4
             return self.__class__(state=np.zeros([self.N, self.M]), state_type='field',
                                   orbit_parameters=self.orbit_parameters), code
@@ -3567,15 +3642,19 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         return self.__class__(state=truncated_s_modes, state_type=self.state_type,
                               orbit_parameters=self.orbit_parameters).convert(to=self.state_type)
 
+    @property
     def dt_parameters(self):
         return self.T, self.N, self.n, self.M-2
 
+    @property
     def dx_parameters(self):
         return self.L, self.M, self.m, 1
 
+    @property
     def mode_shape(self):
         return 1, self.M-2
 
+    @property
     def dimensions(self):
         return self.T, self.L
 
@@ -3605,7 +3684,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         self.n, self.m = 1, int(self.M // 2) - 1
         return self
 
-    def _random_initial_condition(self, **kwargs):
+    def _random_initial_condition(self, orbit_parameters, **kwargs):
         """ Initial a set of random spatiotemporal Fourier modes
         Parameters
         ----------
@@ -3631,9 +3710,8 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         spectrum = kwargs.get('spectrum', 'random')
 
         # also accepts N and M as kwargs
-        temporary_param_dict = {'T': kwargs.get('T', 0.), 'L': kwargs.get('L', 0.)}
-        self.N, self.M = parameter_based_discretization(temporary_param_dict, **kwargs)
-        self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
+        self.N, self.M = parameter_based_discretization(orbit_parameters, N=1)
+        self.n, self.m = 1, int(self.M // 2) - 1
 
         tscale = kwargs.get('tscale', 1)
         xscale = kwargs.get('xscale', int(self.L / (2*pi*np.sqrt(2))))
@@ -3710,7 +3788,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
                          + modes.comoving_mapping_component(return_array=True))
         return self.__class__(state=mapping_modes, state_type='modes', orbit_parameters=self.orbit_parameters)
 
-    def rmatvec_parameters(self, other, self_field):
+    def rmatvec_parameters(self, self_field, other):
         other_modes = other.state.ravel()
         self_dx_modes = self.dx(return_array=True)
 
@@ -3752,7 +3830,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         zero_check = field_orbit.norm()
 
         # See if the L_2 norm is beneath a threshold value, if so, replace with zeros.
-        if zero_check < 10**-4:
+        if zero_check < 10**-2:
             code = 4
             return RelativeEquilibriumOrbitKS(state=np.zeros([self.N, self.M]), state_type='field',
                                               orbit_parameters=self.orbit_parameters), code
