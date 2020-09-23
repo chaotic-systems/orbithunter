@@ -1,9 +1,9 @@
-from tensorflow.keras.initializers import RandomNormal
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Flatten, Conv2D, AveragePooling2D, Activation
 from sklearn.model_selection import train_test_split
 
 __all__ = ['orbit_cnn']
+
 
 def orbit_cnn(X, y):
     """
@@ -33,9 +33,6 @@ def orbit_cnn(X, y):
   . Getting the correct for of X is as simple as:
     >>> [orbit_.state for orbit_ in iterable_of_orbits]
     """
-
-    # rescale to [0, 1)
-    # X = (X - X.min()) / (X.max() - X.min())
     X = (X - X.mean()) / X.std()
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     sample_shape = X[0].shape

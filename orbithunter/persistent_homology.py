@@ -65,7 +65,7 @@ def gudhi_plot(persistence_, method='diagram', **gudhi_kwargs):
     return None
 
 
-def gudhi_distance(orbit1, orbit2, metric='bottleneck_distance', **kwargs):
+def gudhi_distance(orbit1, orbit2, metric='gudhi_distance', **kwargs):
     persistence1 = orbit_periodic_cubical_complex(orbit1, **kwargs).persistence()
     persistence2 = orbit_periodic_cubical_complex(orbit2, **kwargs).persistence()
     diagram1 = [p[-1] for p in persistence1]

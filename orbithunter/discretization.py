@@ -1,7 +1,6 @@
 import numpy as np
 
-__all__ = ['correct_aspect_ratios', 'rediscretize',
-           'parameter_based_discretization', 'rediscretize_tiling_dictionary']
+__all__ = ['rediscretize', 'rediscretize_tiling_dictionary']
 
 
 def correct_aspect_ratios(array_of_orbits, axis=0):
@@ -105,21 +104,21 @@ def parameter_based_discretization(parameters, **kwargs):
         T, L = parameters[:2]
         if kwargs.get('N', None) is None:
             if resolution == 'coarse':
-                N = np.max([2*(2**(np.log2(T+1)-2))//2, 16])
+                N = np.max([2*(int(2**(np.log2(T+1)-2))//2), 16])
             elif resolution == 'fine':
-                N = np.max([2*(2**(int(np.log2(T+1)+4)))//2, 32])
+                N = np.max([2*(int(2**(np.log2(T+1)+4))//2), 32])
             else:
-                N = np.max([2*(2**(int(np.log2(T+1))))//2, 16])
+                N = np.max([2*(int(2**(np.log2(T+1)))//2), 16])
         else:
             N = kwargs.get('N', None)
 
         if kwargs.get('M', None) is None:
             if resolution == 'coarse':
-                M = np.max([2*(2**(int(np.log2(L+1)-1)))//2, 16])
+                M = np.max([2*(int(2**(np.log2(L+1)-1))//2), 16])
             elif resolution == 'fine':
-                M = np.max([2*(2**(int(np.log2(L+1))+2))//2, 32])
+                M = np.max([2*(int(2**(np.log2(L+1))+2)//2), 32])
             else:
-                M = np.max([2*(2**(int(np.log2(L+1)) + 1))//2, 16])
+                M = np.max([2*(int(2**(np.log2(L+1)) + 1)//2), 16])
         else:
             M = kwargs.get('M', None)
 
@@ -128,19 +127,19 @@ def parameter_based_discretization(parameters, **kwargs):
         return None
 
 
-def rediscretize(orbit_, parameter_based=False, **kwargs):
+def rediscretize(orbit_, **kwargs):
     # Return class object with new discretization size. Not performed in place
     # because it is used in other functions; don't want user to be caught unawares
     # Copy state information to new orbit; don't perform operations inplace, only create new orbit
     placeholder_orbit = orbit_.copy().convert(to='modes', inplace=True)
     equation = kwargs.get('equation', 'ks')
     if equation == 'ks':
-        if parameter_based:
+        if kwargs.get('new_shape', None) is None:
             new_shape = parameter_based_discretization(orbit_.orbit_parameters, **kwargs)
         else:
-            new_shape = kwargs.get('new_shape', orbit_.field_shape)
+            new_shape = kwargs.get('new_shape')
 
-        if orbit_.shape == new_shape:
+        if orbit_.field_shape == new_shape:
             return orbit_
         else:
             for i, d in enumerate(new_shape):

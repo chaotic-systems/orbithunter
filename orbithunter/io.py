@@ -12,10 +12,9 @@ __all__ = ['read_h5', 'parse_class']
 
 def read_h5(filename, directory='local', data_format='orbithunter', equation='ks',
             state_type='modes', class_name=None, check=False, **orbitkwargs):
+
     if directory == 'local':
-        directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/local/')), '')
-    elif directory == 'orbithunter':
-        directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/')), '')
+        directory = os.path.abspath(os.path.join(__file__, '../../data/local/'))
 
     if class_name is None:
         class_generator = parse_class(filename, equation=equation)
@@ -25,6 +24,10 @@ def read_h5(filename, directory='local', data_format='orbithunter', equation='ks
     with h5py.File(os.path.abspath(os.path.join(directory, filename)), 'r') as f:
         if equation == 'ks':
             if data_format == 'orbithunter':
+                field = np.array(f['field'])
+                params = tuple(f['parameters'])
+                orbit = class_generator(state=field, state_type='field', orbit_parameters=params, **orbitkwargs)
+            elif data_format == 'orbithunter_old':
                 field = np.array(f['field'])
                 L = float(f['space_period'][()])
                 T = float(f['time_period'][()])

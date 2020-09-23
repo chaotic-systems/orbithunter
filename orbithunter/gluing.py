@@ -91,6 +91,25 @@ def expensive_glue(pair_of_orbits_array, class_constructor, gluing_axis=0):
 
 
 def tile_dictionary_ks(padded=False, comoving=False):
+    """ Template tiles for Kuramoto-Sivashinsky equation.
+
+
+    Parameters
+    ----------
+    padded : bool
+    Whether to use the zero-padded versions of the tiles
+    comoving : bool
+    Whether to use the merger tile in the physical or comoving frame.
+
+    Returns
+    -------
+    tile_dict : dict
+    Dictionary which contains merger, streak, wiggle tiles for use in tiling and gluing.
+
+    Notes
+    -----
+    The dictionary is setup as follows : {0: streak, 1: merger, 2: wiggle}
+    """
     if padded:
         directory = '../data/tiles/padded/'
     else:
@@ -190,7 +209,7 @@ def glue(array_of_orbit_instances, class_constructor, stripwise=False, **kwargs)
                 strip_of_orbits = array_of_orbit_instances[gs].reshape(strip_shape)
 
                 # Correct the proportions of the dimensions along the current gluing axis.
-                array_of_orbit_instances_corrected = correct_aspect_ratios(strip_of_orbits, gluing_axis=gluing_axis)
+                array_of_orbit_instances_corrected = correct_aspect_ratios(strip_of_orbits, axis=gluing_axis)
                 # Concatenate the states with corrected proportions.
                 glued_strip_state = np.concatenate(tuple(x.state for x in array_of_orbit_instances_corrected),
                                                    axis=gluing_axis)

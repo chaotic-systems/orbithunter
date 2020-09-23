@@ -1,5 +1,4 @@
 
-
 __all__ = ['Orbit']
 
 """
@@ -31,7 +30,7 @@ class Orbit:
     Methods listed here are required to have everything work.
     """
 
-    def __init__(self, state=None, state_type='modes', orbit_parameters=(None,), **kwargs):
+    def __init__(self, state=None, state_type='field', orbit_parameters=(0.,), **kwargs):
         if state is not None:
             self._parse_parameters(orbit_parameters, **kwargs)
             self._parse_state(state, state_type, **kwargs)
@@ -82,9 +81,7 @@ class Orbit:
         inplace : bool
         Whether or not to return a new Orbit instance, or overwrite self.
         to : str
-        The basis to transform into. i.e. 'field', 's_modes', 'modes', typically.
-        kwargs :
-        Included to allow identical signatures in subclasses.
+        The basis to transform into.
 
         Returns
         -------
@@ -93,18 +90,11 @@ class Orbit:
         return None
 
     def spatiotemporal_mapping(self, *args, **kwargs):
-        """ The Kuramoto-Sivashinsky equation evaluated at the current state.
-
-        kwargs :
-        preconditioning : bool
-        Apply custom preconditioner, only used in numerical methods.
+        """ The governing equations evaluated using the current state.
 
         Returns
         -------
-        OrbitKS :
-            OrbitKS whose state is the spatiotamporal fourier modes resulting from the calculation of the K-S equation:
-            OrbitKS.state = u_t + u_xx + u_xxxx + 1/2 (u^2)_x
-        :return:
+        Orbit
         """
         return None
 
@@ -130,14 +120,12 @@ class Orbit:
         return None
 
     def rmatvec(self, other, **kwargs):
-        """ Matrix-vector product with the adjoint of the Jacobian with a state
+        """ Matrix-vector product of a vector with the adjoint of the Jacobian of the current state.
 
         Parameters
         ----------
-        other : OrbitKS
-            OrbitKS whose state represents the vector in the matrix-vector product.
-        parameter_constraints : (bool, bool)
-            Whether or not period T or spatial period L are fixed.
+        other : Orbit
+            Orbit whose state represents the vector in the matrix-vector product.
         preconditioning : bool
             Whether or not to apply (left) preconditioning to the adjoint matrix vector product.
 
@@ -148,27 +136,17 @@ class Orbit:
 
         Notes
         -----
-        The adjoint vector product in this case is defined as J^T * v,  where J is the jacobian matrix. Equivalent to
-        evaluation of -v_t + v_xx + v_xxxx  - (u .* v_x). In regards to preconditioning (which is very useful
-        for certain numerical methods, right preconditioning and left preconditioning switch meanings when the
-        jacobian is transposed. i.e. Right preconditioning of the Jacobian can include preconditioning of the state
-        parameters (which in this case are usually incremental corrections dT, dL, dS);
-        this corresponds to LEFT preconditioning of the adjoint.
-
+        The adjoint vector product in this case is defined as J^T * v,  where J is the jacobian matrix.
         """
 
         return None
 
     def state_vector(self):
-        """ Vector representation of orbit. Includes state + parameters. """
+        """ Vector representation of orbit"""
         return None
 
     def from_numpy_array(self, state_array, **kwargs):
         """ Utility to convert from numpy array to orbithunter format for scipy wrappers.
-        :param orbit:
-        :param state_array:
-        :param parameter_constraints:
-        :return:
 
         Notes
         -----
@@ -199,15 +177,15 @@ class Orbit:
         return None
 
     def _pad(self, size, axis=0):
-        """ Increase the size of the discretization via zero-padding collocation basis.
+        """ Increase the size of the discretization along an axis.
 
         Parameters
         ----------
         size : int
             The new size of the discretization, must be an even integer
             larger than the current size of the discretization.
-        dimension : str
-            Takes values 'space' or 'time'. The dimension that will be padded.
+        axis : int
+            Axis to pad along per numpy conventions.
 
         Returns
         -------
@@ -223,15 +201,15 @@ class Orbit:
         return self
 
     def _truncate(self, size, axis=0):
-        """ Decrease the size of the discretization via truncation
+        """ Decrease the size of the discretization along an axis
 
         Parameters
         -----------
         size : int
             The new size of the discretization, must be an even integer
             smaller than the current size of the discretization.
-        dimension : str
-            Takes values 'space' or 'time'. The dimension that will be truncated.
+        axis : str
+            Axis to truncate along per numpy conventions.
 
         Returns
         -------
@@ -244,13 +222,11 @@ class Orbit:
         """ Jacobian matrix evaluated at the current state.
         Parameters
         ----------
-        parameter_constraints : tuple
-            Determines whether to include period and spatial period
-            as variables.
+
         Returns
         -------
-        jac_ : matrix ((N-1)*(M-2), (N-1)*(M-2) + n_params)
-            Jacobian matrix of the KSe where n_params = 2 - sum(parameter_constraints)
+        jac_ : matrix
+        2-d numpy array equalling the Jacobian matrix of the governing equations evaluated at current state.
         """
         return None
 
@@ -265,14 +241,21 @@ class Orbit:
         """
         return None
 
+    @property
     def orbit_parameters(self):
-         return self.T, self.L, self.S
+        return 0.,
 
+    @property
     def field_shape(self):
-        return self.N, self.M
+        return 0,
 
+    @property
     def dimensions(self):
-        return self.T, self.L
+        return 0.,
+
+    @property
+    def dimension_labels(self):
+        return 'temporal_period',
 
     @classmethod
     def glue_parameters(cls, parameter_dict_with_bundled_values, axis=0):
@@ -302,12 +285,12 @@ class Orbit:
         """
         return None
 
-    def precondition(self, parameters, **kwargs):
+    def precondition(self, preconditioning_parameters, **kwargs):
         """
 
         Parameters
         ----------
-        parameters : dict
+        preconditioning_parameters : dict
         Dictionary containing all relevant orbit parameters.
         kwargs
 
@@ -320,18 +303,16 @@ class Orbit:
         self as is written here.
 
         """
-        return self
+        return None
 
-    def preconditioner(self, parameters, **kwargs):
+    def preconditioner(self, preconditioning_parameters, **kwargs):
         """ Preconditioning matrix
 
         Parameters
         ----------
-        parameter_constraints : (bool, bool)
-            Whether or not period T or spatial period L are fixed.
-        side : str
-            Takes values 'left' or 'right'. This is an accomodation for
-            the typically rectangular Jacobian matrix.
+        Parameters
+        preconditioning_parameters : tuple
+        Tuple containing parameters required to define the preconditioner
 
         Returns
         -------
@@ -344,7 +325,6 @@ class Orbit:
         (Could also need another identity that excludes parameter dimension, depending on whether right or left
         preconditioning is chosen).
         """
-        # Preconditioner is the inverse of the absolute value of the linear spatial derivative operators.
         return None
 
     def rescale(self, magnitude, inplace=False):
@@ -360,13 +340,9 @@ class Orbit:
         This rescales the physical field such that the absolute value of the max/min takes on a new value
         of magnitude
         """
-        return self
+        return None
 
-    def shape(self):
-        """ Convenience to not have to type '.state.shape' all the time in notebooks"""
-        return self.state.shape
-
-    def to_h5(self, filename=None, directory='local', verbose=False):
+    def to_h5(self, filename=None, directory='local', verbose=False, **kwargs):
         """ Export current state information to HDF5 file
 
         Parameters
@@ -377,23 +353,36 @@ class Orbit:
             Location to save at
         verbose : If true, prints save messages to std out
         """
+        if filename is None:
+            filename = self.parameter_dependent_filename()
+
+        if directory == 'local':
+            directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/local/')), '')
+        elif not os.path.isdir(directory):
+            raise OSError('Trying to write to directory that does not exist.')
+
+        save_path = os.path.join(directory, filename)
+
+        if verbose:
+            print('Saving data to {}'.format(save_path))
+
+        # Undefined (scalar) parameters will be accounted for by __getattr__
+        with h5py.File(save_path, 'w') as f:
+            # The velocity field.
+            f.create_dataset("field", data=self.convert(to='field').state)
+            # The parameters required to exactly specify an orbit.
+            f.create_dataset('parameters', data=tuple(float(p) for p in self.orbit_parameters))
+            # This isn't ever actually used, just saved in case the file is to be inspected.
+            f.create_dataset("discretization", data=self.field_shape)
         return None
 
     def parameter_dependent_filename(self, extension='.h5', decimals=3):
-        """
-
-        Parameters
-        ----------
-        extension : str
-        The data format used in whichever saving method is being applied.
-        decimals : int
-        How many decimals to write in the filename
-        Returns
-        -------
-
-        """
-        save_filename = 'default'+extension
-        return save_filename
+        if self.dimensions is not None:
+            dimensional_string = ''.join(['_'+''.join([str(d).split('.')[0], 'p', str(d).split('.')[1][:decimals]])
+                                          for d in self.dimensions])
+        else:
+            dimensional_string = ''
+        return ''.join([self.__class__.__name__, dimensional_string, extension])
 
     def verify_integrity(self):
         """ Check the status of a solution, whether or not it converged to the correct orbit type. """
@@ -427,23 +416,12 @@ class Orbit:
         """ Initial a set of random spatiotemporal Fourier modes
         Parameters
         ----------
-        T : float
-            Time period
-        L : float
-            Space period
-        **kwargs
-            time_scale : int
-                The number of temporal frequencies to keep after truncation.
-            space_scale : int
-                The number of spatial frequencies to get after truncation.
+
         Returns
         -------
-        self :
-            OrbitKS whose state has been modified to be a set of random Fourier modes.
-        Notes
+        Orbit :
         -----
-        These are the initial condition generators that I find the most useful. If a different method is
-        desired, simply pass the array as 'state' variable to __init__.
+
         """
         return None
 
@@ -452,13 +430,10 @@ class Orbit:
 
         Returns
         -------
-        OrbitKS :
-            The OrbitKS representing the product.
+        Orbit :
 
         Notes
         -----
-        Only really makes sense when taking an elementwise product between Tori defined on spatiotemporal
-        domains of the same size.
         """
         return None
 
@@ -467,6 +442,6 @@ class Orbit:
 
         Returns
         -------
-
+        Orbit :
         """
         return None

@@ -155,12 +155,9 @@ def _gradient_descent(orbit_, **kwargs):
     residual = mapping.residual(apply_mapping=False)
     while residual > orbit_tol and n_iter < orbit_maxiter:
         # Calculate the step
-        if preconditioning:
-            dx = orbit_.rmatvec(mapping, **kwargs).precondition(orbit_.preconditioning_parameters, **kwargs)
-        else:
-            dx = orbit_.rmatvec(mapping, **kwargs)
+        gradient = orbit_.cost_functional_gradient(preconditioning=preconditioning, **kwargs)
         # Apply the step
-        next_orbit = orbit_.increment(dx, step_size=-1.0 * step_size)
+        next_orbit = orbit_.increment(gradient, step_size=-1.0 * step_size)
         # Calculate the mapping and store; need it for next step and to compute residual.
         next_mapping = next_orbit.spatiotemporal_mapping(**kwargs)
         # Compute residual to see if step succeeded
@@ -168,7 +165,7 @@ def _gradient_descent(orbit_, **kwargs):
         while next_residual >= residual:
             # reduce the step size until minimum is reached or residual decreases.
             step_size = 0.5 * step_size
-            next_orbit = orbit_.increment(dx, step_size=-1.0 * step_size)
+            next_orbit = orbit_.increment(gradient, step_size=-1.0 * step_size)
             next_mapping = next_orbit.spatiotemporal_mapping(**kwargs)
             next_residual = next_mapping.residual(apply_mapping=False)
             if step_size <= 10 ** -8:
@@ -215,11 +212,8 @@ def _lstsq(orbit_, **kwargs):
         n_iter += 1
         A = orbit_.jacobian(**kwargs)
         b = -1.0 * orbit_.spatiotemporal_mapping(**kwargs).state.ravel()
-        if kwargs.get('preconditioning', None) is not None:
-            P = orbit_.preconditioner(orbit_.preconditioning_parameters, side='right')
-            dorbit = orbit_.from_numpy_array(np.dot(P, lstsq(np.dot(A, P), b.reshape(-1, 1))[0]), **kwargs)
-        else:
-            dorbit = orbit_.from_numpy_array(lstsq(A, b.reshape(-1, 1))[0], **kwargs)
+        dorbit = orbit_.from_numpy_array(np.dot(P, lstsq(np.dot(A, P), b.reshape(-1, 1))[0]), **kwargs)
+        dorbit = orbit_.from_numpy_array(lstsq(A, b.reshape(-1, 1))[0], **kwargs)
 
         # To avoid redundant function calls, store optimization variables using
         # clunky notation.

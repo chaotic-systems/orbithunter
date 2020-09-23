@@ -1,7 +1,7 @@
 from orbithunter.optimize import converge
 from orbithunter.io import read_h5, parse_class
 from orbithunter.gluing import glue, tile, generate_symbol_arrays
-from orbithunter.discretization import rediscretize
+from orbithunter.discretization import rediscretize, rediscretize_tiling_dictionary
 from orbithunter.orbit_ks import OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS, \
     AntisymmetricOrbitKS, EquilibriumOrbitKS, RelativeEquilibriumOrbitKS, convert_class
 from orbithunter.arrayops import swap_modes, so2_coefficients, so2_generator, calculate_spatial_shift
@@ -14,7 +14,7 @@ __all__ = orbit_ks.__all__
 __all__ += optimize.__all__
 __all__ += io.__all__
 __all__ += gluing.__all__
-__all__ += ['rediscretize']
+__all__ += discretization.__all__
 __all__ += arrayops.__all__
 __all__ += integration.__all__
 __all__ += clipping.__all__

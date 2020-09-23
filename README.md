@@ -8,21 +8,16 @@ This package enables the layman to solve nonlinear chaotic partial differential 
 by finding unstable periodic orbits by solving the spatiotemporal boundary value problem using
 spatiotemporal Fourier modes (for KSE). 
 
-
-PEP 8 and Refactoring
----------------------
-
-
 To-do
 -----
-Neural networks for spatiotemporal symbolic dynamics classification
-Create base "Orbit" class which can be subclassed for different equations other than the Kuramoto-Sivashinsky equation,
-potentially. 
-Create testing suite using a package i.e. unit testing.
+- Installation and setup documentation 
+- Listing the package on pypi or conda. 
+- Create docker or another similar container
+- Update documentation
 
 
 Known Bugs and issues
 ---------------------
-
+- matvec, LSQR, LSMR
 
 
