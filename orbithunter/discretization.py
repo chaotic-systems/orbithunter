@@ -1,6 +1,6 @@
 import numpy as np
 
-__all__ = ['rediscretize', 'rediscretize_tiling_dictionary']
+__all__ = ['rediscretize', 'rediscretize_tiling_dictionary', 'parameter_based_discretization']
 
 
 def correct_aspect_ratios(array_of_orbits, axis=0):
@@ -131,9 +131,9 @@ def rediscretize(orbit_, **kwargs):
     # Return class object with new discretization size. Not performed in place
     # because it is used in other functions; don't want user to be caught unawares
     # Copy state information to new orbit; don't perform operations inplace, only create new orbit
-    placeholder_orbit = orbit_.copy().convert(to='modes', inplace=True)
     equation = kwargs.get('equation', 'ks')
     if equation == 'ks':
+        placeholder_orbit = orbit_.convert(to='field').copy().convert(to='modes', inplace=True)
         if kwargs.get('new_shape', None) is None:
             new_shape = parameter_based_discretization(orbit_.orbit_parameters, **kwargs)
         else:
@@ -154,17 +154,12 @@ def rediscretize(orbit_, **kwargs):
         return orbit_
 
 
-def rediscretize_tiling_dictionary(tiling_dictionary, parameter_based=True, **kwargs):
+def rediscretize_tiling_dictionary(tiling_dictionary, **kwargs):
     orbits = list(tiling_dictionary.values())
-    n_dimensions = len(orbits[0].dimensions)
-    if kwargs.get('new_shape', None) is None:
-        if parameter_based:
-            average_dimensions = [np.mean(x) for x in tuple(zip(*(o.dimensions for o in orbits)))]
-            new_shape = parameter_based_discretization(average_dimensions, **kwargs)
-        else:
-            new_shape = tuple(2*(np.mean([o.field_shape[i] for o in orbits]).astype(int)//2)
-                              for i in range(n_dimensions))
-    else:
-        new_shape = kwargs.get('new_shape', None)
+    new_shape = kwargs.get('new_shape', None)
+
+    if new_shape is None:
+        average_dimensions = [np.mean(x) for x in tuple(zip(*(o.dimensions for o in orbits)))]
+        new_shape = parameter_based_discretization(average_dimensions, **kwargs)
 
     return {td_key: rediscretize(td_val, new_shape=new_shape) for td_key, td_val in tiling_dictionary.items()}

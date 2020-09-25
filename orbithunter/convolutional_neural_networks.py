@@ -1,11 +1,13 @@
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Flatten, Conv2D, AveragePooling2D, Activation
+from tensorflow.keras.layers import Dense, Flatten, Conv1D, Conv2D, Conv3D,  Activation
+from tensorflow.keras.layers import AveragePooling1D, AveragePooling2D, AveragePooling3D
 from sklearn.model_selection import train_test_split
+import numpy as np
 
 __all__ = ['orbit_cnn']
 
 
-def orbit_cnn(X, y):
+def orbit_cnn(X, y, dimension=2, **kwargs):
     """
     Parameters
     ----------
@@ -33,28 +35,44 @@ def orbit_cnn(X, y):
   . Getting the correct for of X is as simple as:
     >>> [orbit_.state for orbit_ in iterable_of_orbits]
     """
-    X = (X - X.mean()) / X.std()
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    sample_shape = X[0].shape
-    sample_size = X[0].size
+    # In order for this to be an option, pool_size has to be an integer i.e. N-dimensional cube.
+    if dimension == 3:
+        conv_layer = Conv3D
+        pool_layer = AveragePooling3D
+    elif dimension == 2:
+        conv_layer = Conv2D
+        pool_layer = AveragePooling2D
+    elif dimension == 1:
+        conv_layer = Conv1D
+        pool_layer = AveragePooling1D
+    else:
+        raise ValueError('Dimension not recognized.')
 
+    X = np.array(X)
+    X = (X - X.mean()) / X.std()
+    X = np.reshape(X, (*X.shape, 1))
+    y = np.array(y).reshape(X.shape[0], -1)
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    sample_size = X.shape[0]
+
+    # Initialization of the keras Sequential model, to which the neural net layers will be added.
     cnn = Sequential()
-    cnn.add(Conv2D(filters=32, kernel_size=8, padding='valid', input_shape=sample_shape
+    cnn.add(conv_layer(filters=32, kernel_size=8, padding='valid', input_shape=X.shape[1:]
                    ))
-    cnn.add(AveragePooling2D(pool_size=2))
+    cnn.add(pool_layer(pool_size=2))
     cnn.add(Activation('relu'))
 
-    cnn.add(Conv2D(filters=8, kernel_size=8,
+    cnn.add(conv_layer(filters=8, kernel_size=8,
                    padding='valid'
                    ))
-    cnn.add(AveragePooling2D(pool_size=2))
+    cnn.add(pool_layer(pool_size=2))
     cnn.add(Activation('relu'))
     cnn.add(Flatten())
     cnn.add(Dense(int(sample_size)))
     cnn.add(Dense(y.shape[1], activation='relu'))
-    cnn.compile(loss='mse')
-    history = cnn.fit(X_train, y_train, validation_data=(X_test, y_test))
+    cnn.compile(loss='mse', optimizer='adam')
+    history = cnn.fit(X_train, y_train, validation_data=(X_test, y_test), verbose=kwargs.get('verbose', 0),
+                      epochs=kwargs.get('epochs'))
+
     return cnn, history, ((X_train, y_train), (X_test,  y_test))
-
-
-

@@ -1,11 +1,9 @@
 from orbithunter.orbit_ks import OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS, \
     AntisymmetricOrbitKS, EquilibriumOrbitKS, RelativeEquilibriumOrbitKS
-import warnings
 import os
 import numpy as np
-warnings.simplefilter(action='ignore', category=FutureWarning)
 import h5py
-warnings.resetwarnings()
+
 
 __all__ = ['read_h5', 'parse_class']
 
@@ -18,8 +16,10 @@ def read_h5(filename, directory='local', data_format='orbithunter', equation='ks
 
     if class_name is None:
         class_generator = parse_class(filename, equation=equation)
-    else:
+    elif isinstance(class_name, str):
         class_generator = parse_class(class_name, equation=equation)
+    else:
+        class_generator = class_name
 
     with h5py.File(os.path.abspath(os.path.join(directory, filename)), 'r') as f:
         if equation == 'ks':

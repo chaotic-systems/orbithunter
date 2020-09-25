@@ -6,14 +6,10 @@ from scipy.fft import rfft, irfft
 from scipy.linalg import block_diag
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from functools import lru_cache
-from json import dumps
 import os
-import warnings
 import numpy as np
 import matplotlib.pyplot as plt
-warnings.simplefilter(action='ignore', category=FutureWarning)
-import h5py
-warnings.resetwarnings()
+
 
 __all__ = ['OrbitKS', 'RelativeOrbitKS', 'ShiftReflectionOrbitKS', 'AntisymmetricOrbitKS', 'EquilibriumOrbitKS',
            'RelativeEquilibriumOrbitKS', 'convert_class']
@@ -76,111 +72,6 @@ class OrbitKS(Orbit):
         # If no state is provided, randomly generate one.
         super().__init__(state=state, state_type=state_type, orbit_parameters=orbit_parameters, **kwargs)
 
-    def __add__(self, other):
-        return self.__class__(state=(self.state + other.state), state_type=self.state_type,
-                              orbit_parameters=self.orbit_parameters)
-
-    def __radd__(self, other):
-        return self.__class__(state=(self.state + other.state),
-                              orbit_parameters=self.orbit_parameters, state_type=self.state_type)
-
-    def __sub__(self, other):
-        return self.__class__(state=(self.state-other.state),  orbit_parameters=self.orbit_parameters, state_type=self.state_type)
-
-    def __rsub__(self, other):
-        return self.__class__(state=(other.state - self.state), orbit_parameters=self.orbit_parameters, state_type=self.state_type)
-
-    def __mul__(self, num):
-        """ Scalar multiplication
-
-        Parameters
-        ----------
-        num : float
-            Scalar value to multiply by.
-
-        Notes
-        -----
-        This is not state-wise multiplication because that it more complicated and depends on symmetry type.
-        Current implementation makes it so no checks of the type of num need to be made.
-        """
-        return self.__class__(state=np.multiply(num, self.state), state_type=self.state_type,
-                              orbit_parameters=self.orbit_parameters)
-
-    def __rmul__(self, num):
-        """ Scalar multiplication
-
-        Parameters
-        ----------
-        num : float
-            Scalar value to multiply by.
-
-        Notes
-        -----
-        This is not state-wise multiplication because that it more complicated and depends on symmetry type.
-        Current implementation makes it so no checks of the type of num need to be made.
-        """
-        return self.__class__(state=np.multiply(num, self.state), state_type=self.state_type,
-                              orbit_parameters=self.orbit_parameters)
-
-    def __truediv__(self, num):
-        """ Scalar multiplication
-
-        Parameters
-        ----------
-        num : float
-            Scalar value to division by.
-
-        Notes
-        -----
-        State-wise division is ill-defined because of division by 0.
-        """
-        return self.__class__(state=np.divide(self.state, num), state_type=self.state_type,
-                              orbit_parameters=self.orbit_parameters)
-
-    def __floordiv__(self, num):
-        """ Scalar multiplication
-
-        Parameters
-        ----------
-        num : float
-            Scalar value to division by.
-
-        Notes
-        -----
-        State-wise division is ill-defined because of division by 0.
-        """
-        return self.__class__(state=np.divide(self.state, num), state_type=self.state_type,
-                              orbit_parameters=self.orbit_parameters)
-
-    def __pow__(self, power):
-        """ Scalar multiplication
-
-        Parameters
-        ----------
-        num : float
-            Scalar value to multiply by.
-
-        Notes
-        -----
-        This is not state-wise multiplication because that it more complicated and depends on symmetry type.
-        Current implementation makes it so no checks of the type of num need to be made.
-        """
-        return self.__class__(state=self.state**power, state_type=self.state_type,
-                              orbit_parameters=self.orbit_parameters)
-
-    def __str__(self):
-        return self.__class__.__name__ + "()"
-
-    def __repr__(self):
-        # alias to save space
-        dict_ = {'state_type': self.state_type,
-                 'T': np.format_float_scientific(self.T, 2),
-                 'L': np.format_float_scientific(self.L, 2),
-                 'N': str(self.N), 'M': str(self.M)}
-        # convert the dictionary to a string via json.dumps
-        dictstr = dumps(dict_)
-        return self.__class__.__name__ + '(' + dictstr + ')'
-
     def __getattr__(self, attr):
         # Only called if self.attr is not found.
         try:
@@ -230,23 +121,19 @@ class OrbitKS(Orbit):
         """ Check whether the orbit converged to an equilibrium or close-to-zero solution """
         # Take the L_2 norm of the field, if uniformly close to zero, the magnitude will be very small.
         field_orbit = self.convert(to='field')
-        zero_check = field_orbit.norm()
-        # Calculate the time derivative
-        equilibrium_check = field_orbit.dt().convert(to='field').norm()
 
         # See if the L_2 norm is beneath a threshold value, if so, replace with zeros.
-        if zero_check < 10**-2:
+        if field_orbit.norm() < 10**-2 or self.T in [0., 0]:
             code = 4
             return EquilibriumOrbitKS(state=np.zeros([self.N, self.M]), state_type='field',
                                       orbit_parameters=self.orbit_parameters).convert(to=self.state_type), code
         # Equilibrium is defined by having no temporal variation, i.e. time derivative is a uniformly zero.
-        elif equilibrium_check < 10**-2:
+        elif field_orbit.dt().convert(to='field').norm() < 10**-2:
             # If there is sufficient evidence that solution is an equilibrium, change its class
             code = 3
             # store T just in case we want to refer to what the period was before conversion to EquilibriumOrbitKS
             return EquilibriumOrbitKS(state=field_orbit.state, state_type='field',
                                       orbit_parameters=self.orbit_parameters).convert(to=self.state_type), code
-
         else:
             return self, 1
 
@@ -425,7 +312,12 @@ class OrbitKS(Orbit):
         """ This is a placeholder for the subclasses """
         return self
 
-    def cost_functional_gradient(self, preconditioning=False, **kwargs):
+    def cost_function_gradient(self, **kwargs):
+        if kwargs.get('method','gradient_descent') in ['gradient_descent', 'hybrid', 'l-bfgs-b', 'cg']:
+            preconditioning = kwargs.get('preconditioning', True)
+        else:
+            preconditioning = kwargs.get('preconditioning', False)
+
         if preconditioning:
             gradient = self.rmatvec(self.spatiotemporal_mapping(),
                                     **kwargs).precondition(self.preconditioning_parameters, **kwargs)
@@ -654,8 +546,8 @@ class OrbitKS(Orbit):
         return self.T, self.L, 0
 
     @staticmethod
-    def parameter_labels():
-        return 'temporal_period', 'spatial_period', 'spatial_shift'
+    def dimension_labels():
+        return 'T', 'L'
 
     @property
     def field_shape(self):
@@ -720,20 +612,6 @@ class OrbitKS(Orbit):
 
         return glued_orbit_parameters
 
-    # def parameter_dependent_filename(self, extension='.h5', decimals=3):
-    #     Lsplit = str(self.L).split('.')
-    #     Lint = str(Lsplit[0])
-    #     Ldec = str(Lsplit[1])
-    #     Lname = ''.join([Lint, 'p', Ldec[:decimals]])
-    #
-    #     Tsplit = str(self.T).split('.')
-    #     Tint = str(int(Tsplit[0]))
-    #     Tdec = str(int(Tsplit[1]))
-    #     Tname = ''.join([Tint, 'p', Tdec[:decimals]])
-    #
-    #     save_filename = ''.join([self.__class__.__name__, '_L', Lname, '_T', Tname, extension])
-    #     return save_filename
-
     def plot(self, show=True, save=False, fundamental_domain=True, **kwargs):
         """ Plot the velocity field as a 2-d density plot using matplotlib's imshow
 
@@ -770,7 +648,7 @@ class OrbitKS(Orbit):
         plt.rcParams['text.usetex'] = True
 
         if padding:
-            padding_shape = kwargs.get('new_shape', (16*self.N, 16*self.M))
+            padding_shape = kwargs.get('padding_shape', (16*self.N, 16*self.M))
             plot_orbit = rediscretize(self, new_shape=padding_shape)
         else:
             plot_orbit = self.copy()
@@ -860,11 +738,9 @@ class OrbitKS(Orbit):
             # Create save directory if one doesn't exist.
             if isinstance(directory, str):
                 if directory == 'local':
-                    directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../figs/local')), '')
-                elif directory == 'orbithunter':
-                    directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../figs/')), '')
+                    directory = os.path.abspath(os.path.join(__file__, '../../figs/local/'))
 
-            filename = os.path.join(directory, filename)
+            filename = os.path.abspath(os.path.join(directory, filename))
 
             if verbose:
                 print('Saving figure to {}'.format(filename))
@@ -877,15 +753,11 @@ class OrbitKS(Orbit):
         return None
 
     def precondition(self, preconditioning_parameters, **kwargs):
-        """ Precondition a vector with the inverse (aboslute value) of linear spatial terms
+        """ Precondition a vector with the inverse (absolute value) of linear spatial terms
 
         Parameters
         ----------
-
-        target : OrbitKS
-            OrbitKS to precondition
-        parameter_constraints : (bool, bool)
-            Whether or not period T or spatial period L are fixed.
+        preconditioning_parameters : tuple
 
         Returns
         -------
@@ -1035,6 +907,8 @@ class OrbitKS(Orbit):
                 rescaled_field = ((magnitude * field) / np.max(np.abs(field.ravel())))
             elif method == 'power':
                 rescaled_field = np.sign(field) * np.abs(field)**magnitude
+            elif method is None:
+                return self
             else:
                 raise ValueError('Unrecognizable method.')
             self.state = rescaled_field
@@ -1045,6 +919,8 @@ class OrbitKS(Orbit):
                 rescaled_field = ((magnitude * field) / np.max(np.abs(field.ravel())))
             elif method == 'power':
                 rescaled_field = np.sign(field) * np.abs(field)**magnitude
+            elif method is None:
+                return self
             else:
                 raise ValueError('Unrecognizable method.')
             return self.__class__(state=rescaled_field, state_type='field',
@@ -1248,7 +1124,7 @@ class OrbitKS(Orbit):
         self.constraints = {key: (val if i != axis else True) for i, (key, val) in enumerate(self.constraints.items())}
         return None
 
-    def spatiotemporal_mapping(self, *args, **kwargs):
+    def spatiotemporal_mapping(self, **kwargs):
         """ The Kuramoto-Sivashinsky equation evaluated at the current state.
 
         kwargs :
@@ -1297,75 +1173,6 @@ class OrbitKS(Orbit):
     def to_fundamental_domain(self, **kwargs):
         """ Placeholder for subclassees, included for compatibility"""
         return self
-
-    # def to_h5(self, filename=None, directory='local', verbose=False, **kwargs):
-    #     """ Export current state information to HDF5 file
-    #
-    #     Parameters
-    #     ----------
-    #     filename : str
-    #         Name for the save file
-    #     directory :
-    #         Location to save at
-    #     verbose : If true, prints save messages to stspacd out
-    #     """
-    #     if filename is None:
-    #         filename = self.parameter_dependent_filename()
-
-    #
-    #     if directory == 'local':
-    #         directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/local/')), '')
-    #     elif not os.path.isdir(directory):
-    #         raise OSError('Trying to write to directory that does not exist.')
-    #
-    #     save_path = os.path.join(directory, filename)
-    #
-    #     if verbose:
-    #         print('Saving data to {}'.format(save_path))
-    #
-    #     # Undefined (scalar) parameters will be accounted for by __getattr__
-    #     with h5py.File(save_path, 'w') as f:
-    #         f.create_dataset("field", data=self.convert(to='field').state)
-    #         f.create_dataset("space_period", data=float(self.L))
-    #         f.create_dataset("time_period", data=float(self.T))
-    #         f.create_dataset("space_discretization", data=self.M)
-    #         f.create_dataset("time_discretization", data=self.N)
-    #         f.create_dataset("spatial_shift", data=float(self.S))
-    #     return None
-
-    def to_h5(self, filename=None, directory='local', verbose=False, **kwargs):
-        """ Export current state information to HDF5 file
-
-        Parameters
-        ----------
-        filename : str
-            Name for the save file
-        directory :
-            Location to save at
-        verbose : If true, prints save messages to stspacd out
-        """
-        if filename is None:
-            filename = self.parameter_dependent_filename()
-
-        if directory == 'local':
-            directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/local/')), '')
-        elif not os.path.isdir(directory):
-            raise OSError('Trying to write to directory that does not exist.')
-
-        save_path = os.path.join(directory, filename)
-
-        if verbose:
-            print('Saving data to {}'.format(save_path))
-
-        # Undefined (scalar) parameters will be accounted for by __getattr__
-        with h5py.File(save_path, 'w') as f:
-            # The velocity field.
-            f.create_dataset("field", data=self.convert(to='field').state)
-            # The parameters required to exactly specify an orbit.
-            f.create_dataset('parameters', data=tuple(float(p) for p in self.orbit_parameters))
-            # This isn't ever actually used, just saved in case the file is to be inspected.
-            f.create_dataset("discretization", data=self.field_shape)
-        return None
 
     def _random_initial_condition(self, orbit_parameters, **kwargs):
         """ Initial a set of random spatiotemporal Fourier modes
@@ -1957,20 +1764,8 @@ class RelativeOrbitKS(OrbitKS):
 
         # What is an instance where I wouldn't want some shift? Even if converting from another orbit type it will
         # still just return (close) to 0.
-        if self.S == 0.:
+        if self.S == 0. and not kwargs.get('zero_shift', False):
             self.S = calculate_spatial_shift(self.convert(to='s_modes').state, self.L)
-
-    def __repr__(self):
-        # alias to save space
-        dict_ = {'state_type': self.state_type, 'frame': self.frame,
-                 'T': np.format_float_scientific(self.T, 2),
-                 'L': np.format_float_scientific(self.L, 2),
-                 'S': np.format_float_scientific(self.S, 2),
-                 'N': str(self.N), 'M': str(self.M)}
-
-        # convert the dictionary to a string via json.dumps
-        dictstr = dumps(dict_)
-        return self.__class__.__name__ + '(' + dictstr + ')'
 
     def comoving_mapping_component(self, return_array=False):
         """ Co-moving frame component of spatiotemporal mapping """
@@ -2363,34 +2158,31 @@ class RelativeOrbitKS(OrbitKS):
 
     def verify_integrity(self):
         """ Check whether the orbit converged to an equilibrium or close-to-zero solution """
+        orbit_with_inverted_shift = self.copy()
+        orbit_with_inverted_shift.S = -self.S
+        residual_imported_S = self.residual()
+        residual_negated_S = orbit_with_inverted_shift.residual()
+        if residual_imported_S > residual_negated_S:
+            orbit_ = orbit_with_inverted_shift
+        else:
+            orbit_ = self.copy()
         # Take the L_2 norm of the field, if uniformly close to zero, the magnitude will be very small.
-        field_orbit = self.convert(to='field')
-        zero_check = field_orbit.norm()
-        # Calculate the time derivative
-        equilibrium_check = field_orbit.dt().convert(to='field').norm()
+        field_orbit = orbit_.convert(to='field')
 
         # See if the L_2 norm is beneath a threshold value, if so, replace with zeros.
-        if zero_check < 10**-2:
+        if field_orbit.norm() < 10**-2 or self.T in [0, 0.]:
             code = 4
             return RelativeEquilibriumOrbitKS(state=np.zeros([self.N, self.M]), state_type='field',
-                                              orbit_parameters=self.orbit_parameters), code
+                                              orbit_parameters=self.orbit_parameters).convert(to=self.state_type), code
         # Equilibrium is defined by having no temporal variation, i.e. time derivative is a uniformly zero.
-        elif equilibrium_check < 10**-2:
+        elif  field_orbit.dt().convert(to='field').norm() < 10**-2:
             # If there is sufficient evidence that solution is an equilibrium, change its class
             code = 3
-            return RelativeEquilibriumOrbitKS(state=self.convert(to='modes').state,
-                                              orbit_parameters=self.orbit_parameters), code
+            return RelativeEquilibriumOrbitKS(state=self.convert(to='modes').state, state_type='modes',
+                                              orbit_parameters=self.orbit_parameters).convert(to=self.state_type), code
         else:
-            orbit_with_inverted_shift = self.__class__(state=self.state, state_type=self.state_type,
-                                                       orbit_parameters=(self.T, self.L, -1.0*self.S))
-            residual_imported_S = self.residual()
-            residual_negated_S = orbit_with_inverted_shift.residual()
-            if residual_imported_S > residual_negated_S:
-                code = 6
-                return orbit_with_inverted_shift, code
-            else:
-                code = 1
-                return self, code
+            code = 1
+            return orbit_, code
 
     def to_fundamental_domain(self):
         return self.change_reference_frame(to='physical')
@@ -3006,16 +2798,6 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         """
         super().__init__(state=state, state_type=state_type, orbit_parameters=orbit_parameters, **kwargs)
 
-    def __repr__(self):
-        # alias to save space
-        dict_ = {'state_type': self.state_type,
-                 'L': np.format_float_scientific(self.L, 2),
-                 'N': str(self.N), 'M': str(self.M)}
-
-        # convert the dictionary to a string via json.dumps
-        dictstr = dumps(dict_)
-        return self.__class__.__name__ + '(' + dictstr + ')'
-
     def state_vector(self):
         """ Overwrite of parent method """
         return np.concatenate((self.state.reshape(-1, 1),
@@ -3439,13 +3221,12 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         """ Check whether the orbit converged to an equilibrium or close-to-zero solution """
         # Take the L_2 norm of the field, if uniformly close to zero, the magnitude will be very small.
         field_orbit = self.convert(to='field')
-        zero_check = field_orbit.norm()
 
         # See if the L_2 norm is beneath a threshold value, if so, replace with zeros.
-        if zero_check < 10**-2:
+        if field_orbit.norm() < 10**-2 or self.T in [0., 0]:
             code = 4
             return self.__class__(state=np.zeros([self.N, self.M]), state_type='field',
-                                  orbit_parameters=self.orbit_parameters), code
+                                  orbit_parameters=self.orbit_parameters).convert(to=self.state_type), code
         else:
             return self, 1
 
@@ -3854,25 +3635,25 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
     def verify_integrity(self):
         """ Check whether the orbit converged to an equilibrium or close-to-zero solution """
         # Take the L_2 norm of the field, if uniformly close to zero, the magnitude will be very small.
-        field_orbit = self.convert(to='field')
-        zero_check = field_orbit.norm()
+        orbit_with_inverted_shift = self.copy()
+        orbit_with_inverted_shift.S = -self.S
+        residual_imported_S = self.residual()
+        residual_negated_S = orbit_with_inverted_shift.residual()
+        if residual_imported_S > residual_negated_S:
+            orbit_ = orbit_with_inverted_shift
+        else:
+            orbit_ = self.copy()
 
-        # See if the L_2 norm is beneath a threshold value, if so, replace with zeros.
+        # Take the L_2 norm of the field, if uniformly close to zero, the magnitude will be very small.
+        field_orbit = orbit_.convert(to='field')
+        zero_check = field_orbit.norm()
         if zero_check < 10**-2:
             code = 4
-            return RelativeEquilibriumOrbitKS(state=np.zeros([self.N, self.M]), state_type='field',
-                                              orbit_parameters=self.orbit_parameters), code
+            return RelativeEquilibriumOrbitKS(state=np.zeros(self.field_shape), state_type='field',
+                                              orbit_parameters=self.orbit_parameters).convert(to=self.state_type), code
         else:
-            orbit_with_inverted_shift = self.__class__(state=self.state, state_type=self.state_type,
-                                                       orbit_parameters=(self.T, self.L, -1.0*self.S))
-            residual_imported_S = self.residual()
-            residual_negated_S = orbit_with_inverted_shift.residual()
-            if residual_imported_S > residual_negated_S:
-                code = 6
-                return orbit_with_inverted_shift, code
-            else:
-                code = 1
-                return self, code
+            code = 1
+            return orbit_, code
 
     def _inv_time_transform_matrix(self):
         """ Overwrite of parent method

@@ -71,7 +71,7 @@ class OrbitResult(dict):
         return list(self.keys())
 
 
-def converge(orbit_, method='hybrid', **kwargs):
+def converge(orbit_, **kwargs):
     """ Main optimization function for orbithunter
 
     Parameters
@@ -92,10 +92,17 @@ def converge(orbit_, method='hybrid', **kwargs):
     orbit_tol and orbit_maxiter to each call.
     """
     orbit_.convert(to='modes', inplace=True)
+    method = kwargs.get('method', 'gradient_descent')
     if not orbit_.residual() < kwargs.get('orbit_tol', _default_orbit_tol(orbit_, **kwargs)):
         if method == 'hybrid':
-            gradient_orbit, n_iter_a, _ = _gradient_descent(orbit_,  **kwargs)
-            result_orbit, n_iter_gn, exit_code = _lstsq(gradient_orbit, **kwargs)
+            descent_tol, lstsq_tol = kwargs.get('hybrid_tol', (_default_orbit_tol(orbit_, **kwargs),
+                                                               _default_orbit_tol(orbit_, **kwargs)))
+            descent_iter, lstsq_iter = kwargs.get('hybrid_maxiter', (_default_orbit_maxiter(orbit_, 'gradient_descent'),
+                                                                     _default_orbit_maxiter(orbit_, 'lstsq')))
+            gradient_orbit, n_iter_a, _ = _gradient_descent(orbit_,  orbit_tol=descent_tol,
+                                                            orbit_maxiter=descent_iter, **kwargs)
+            result_orbit, n_iter_gn, exit_code = _lstsq(gradient_orbit,  orbit_tol=lstsq_tol,
+                                                        orbit_maxiter=lstsq_iter, **kwargs)
             n_iter = (n_iter_a, n_iter_gn)
         elif method == 'gradient_descent':
             result_orbit, n_iter, exit_code = _gradient_descent(orbit_, **kwargs)
@@ -135,11 +142,9 @@ def _gradient_descent(orbit_, **kwargs):
 
     """
     orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_, **kwargs))
-    orbit_maxiter = kwargs.get('orbit_maxiter', _default_orbit_maxiter(orbit_, 'gradient_descent', **kwargs))
-
+    orbit_maxiter = kwargs.get('orbit_maxiter', _default_orbit_maxiter(orbit_, 'gradient_descent'))
     ftol = kwargs.get('ftol', 1e-9)
     verbose = kwargs.get('verbose', False)
-    preconditioning = kwargs.get('preconditioning', True)
 
     n_iter = 0
     step_size = 1
@@ -150,12 +155,11 @@ def _gradient_descent(orbit_, **kwargs):
         print('Starting gradient descent. Initial residual={}, target={}, max_iter={}'.format(orbit_.residual(),
                                                                                               orbit_tol,
                                                                                               orbit_maxiter))
-
     mapping = orbit_.spatiotemporal_mapping(**kwargs)
     residual = mapping.residual(apply_mapping=False)
     while residual > orbit_tol and n_iter < orbit_maxiter:
         # Calculate the step
-        gradient = orbit_.cost_functional_gradient(preconditioning=preconditioning, **kwargs)
+        gradient = orbit_.cost_function_gradient(**kwargs)
         # Apply the step
         next_orbit = orbit_.increment(gradient, step_size=-1.0 * step_size)
         # Calculate the mapping and store; need it for next step and to compute residual.
@@ -180,9 +184,10 @@ def _gradient_descent(orbit_, **kwargs):
             orbit_, mapping, residual = next_orbit, next_mapping, next_residual
             n_iter += 1
             if verbose:
-                if np.mod(n_iter, (orbit_maxiter // 4)) == 0:
-                    print(' Residual={} after {} {} iterations'.format(orbit_.residual(), n_iter, 'gradient descent'))
-                elif np.mod(n_iter, (orbit_maxiter // 50)) == 0:
+                if np.mod(n_iter, 5000) == 0:
+                    print('\n Residual={} after {} {} iterations. Current parameter values:{}'.format(
+                        orbit_.residual(), n_iter, 'gradient descent', orbit_.orbit_parameters))
+                elif np.mod(n_iter, 100) == 0:
                     print('#', end='')
 
     if orbit_.residual() <= orbit_tol:
@@ -197,7 +202,7 @@ def _lstsq(orbit_, **kwargs):
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
 
     orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_, **kwargs))
-    orbit_maxiter = kwargs.get('orbit_maxiter', _default_orbit_maxiter(orbit_, 'lstsq', **kwargs))
+    orbit_maxiter = kwargs.get('orbit_maxiter', _default_orbit_maxiter(orbit_, **kwargs))
     max_damp_factor = kwargs.get('orbit_damp_max', 8)
     verbose = kwargs.get('verbose', False)
 
@@ -212,9 +217,7 @@ def _lstsq(orbit_, **kwargs):
         n_iter += 1
         A = orbit_.jacobian(**kwargs)
         b = -1.0 * orbit_.spatiotemporal_mapping(**kwargs).state.ravel()
-        dorbit = orbit_.from_numpy_array(np.dot(P, lstsq(np.dot(A, P), b.reshape(-1, 1))[0]), **kwargs)
         dorbit = orbit_.from_numpy_array(lstsq(A, b.reshape(-1, 1))[0], **kwargs)
-
         # To avoid redundant function calls, store optimization variables using
         # clunky notation.
         next_orbit = orbit_.increment(dorbit, step_size=2 ** -damp_factor)

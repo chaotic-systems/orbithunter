@@ -111,9 +111,9 @@ def tile_dictionary_ks(padded=False, comoving=False):
     The dictionary is setup as follows : {0: streak, 1: merger, 2: wiggle}
     """
     if padded:
-        directory = '../data/tiles/padded/'
+        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/padded_space_unpadded_time/'))
     else:
-        directory = '../data/tiles/'
+        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/'))
 
     if comoving:
         # padded merger Orbit in comoving frame
@@ -257,7 +257,7 @@ def tile(symbol_array, tiling_dictionary, class_constructor,  **kwargs):
     tiling_dictionary : dict
         A dictionary whose values are Orbit instances.
     class_constructor : Orbit generator
-        i.e. Orbit w/o parenthesis.
+        i.e. 'Orbit' w/o parenthesis.
     tile_shape : tuple
         Tuple containing the field discretization to be used in tiling
     kwargs :

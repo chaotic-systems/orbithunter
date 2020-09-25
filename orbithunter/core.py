@@ -1,3 +1,7 @@
+from json import dumps
+import os
+import h5py
+import numpy as np
 
 __all__ = ['Orbit']
 
@@ -40,38 +44,146 @@ class Orbit:
             # Pass the newly generated parameter values, there are the originals if they were not 0's.
             self._random_initial_condition(self.orbit_parameters, **kwargs).convert(to=state_type, inplace=True)
 
+    def __add__(self, other):
+        """ Addition of Orbit states
+
+        Parameters
+        ----------
+        other : Orbit
+        Should have same class as self. Should be in same basis as self.
+        Notes
+        -----
+        Adding two spatiotemporal velocity fields u(t, x) + v(t, x)
+        """
+        return self.__class__(state=(self.state + other.state), state_type=self.state_type,
+                              orbit_parameters=self.orbit_parameters)
+
     def __radd__(self, other):
-        return None
+        """ Addition of Orbit states
+
+        Parameters
+        ----------
+        other : Orbit
+        Should have same class as self. Should be in same basis as self.
+        Notes
+        -----
+        Adding two spatiotemporal velocity fields u(t, x) + v(t, x)
+
+        Notes
+        -----
+        This is the same as __add__ by Python makes the distinction between where the operator is, i.e. x + vs. + x.
+        """
+        return self.__class__(state=(self.state + other.state), state_type=self.state_type,
+                              orbit_parameters=self.orbit_parameters)
 
     def __sub__(self, other):
-        return None
+        """ Subtraction of orbit states
+
+        Parameters
+        ----------
+        other : Orbit
+        Should have same class as self. Should be in same basis as self.
+        Notes
+        -----
+        Subtraction of two spatiotemporal states self - other
+        """
+        return self.__class__(state=(self.state-other.state), state_type=self.state_type,
+                              orbit_parameters=self.orbit_parameters)
 
     def __rsub__(self, other):
-        return None
+        """ Subtraction of orbit states
+
+        Parameters
+        ----------
+        other : Orbit
+        Should have same class as self. Should be in same basis as self.
+        Notes
+        -----
+        Subtraction of two spatiotemporal states other - self
+        """
+        return self.__class__(state=(other.state - self.state), state_type=self.state_type,
+                              orbit_parameters=self.orbit_parameters)
 
     def __mul__(self, num):
-        return None
+        """ Scalar multiplication of state values
+
+        Parameters
+        ----------
+        num : float
+            Scalar value to multiply by.
+
+        """
+        return self.__class__(state=np.multiply(num, self.state), state_type=self.state_type,
+                              orbit_parameters=self.orbit_parameters)
 
     def __rmul__(self, num):
-        return None
+        """ Scalar multiplication of state values
+
+        Parameters
+        ----------
+        num : float
+            Scalar value to multiply by.
+
+        """
+        return self.__class__(state=np.multiply(num, self.state), state_type=self.state_type,
+                              orbit_parameters=self.orbit_parameters)
 
     def __truediv__(self, num):
-        return None
+        """ Scalar division of state values
+
+        Parameters
+        ----------
+        num : float
+            Scalar value to divide by
+        """
+        return self.__class__(state=np.divide(self.state, num), state_type=self.state_type,
+                              orbit_parameters=self.orbit_parameters)
 
     def __floordiv__(self, num):
-        return None
+        """ Scalar multiplication
+
+        Parameters
+        ----------
+        num : float
+            Scalar value to division by.
+
+        Notes
+        -----
+        Returns largest integer smaller or equal to the division of the inputs, of the state. This isn't useful
+        but I'm including it because it's a fairly common binary operation and might be useful in some circumstances.
+
+        """
+        return self.__class__(state=np.floor_divide(self.state, num), state_type=self.state_type,
+                              orbit_parameters=self.orbit_parameters)
 
     def __pow__(self, power):
-        return None
+        """ Exponentiate a state
+
+        Parameters
+        ----------
+        power : float
+            Exponent
+        """
+        return self.__class__(state=self.state**power, state_type=self.state_type,
+                              orbit_parameters=self.orbit_parameters)
 
     def __str__(self):
+        """ String name
+        Returns
+        -------
+        str :
+            Of the form 'Orbit()'
+        """
         return self.__class__.__name__ + "()"
 
     def __repr__(self):
-        return None
-
-    def __getattr__(self, attr):
-        return None
+        # alias to save space
+        dict_ = {'state_type': self.state_type,
+                 'parameters': tuple(np.format_float_scientific(p, 3) for p in self.orbit_parameters),
+                 'field_shape': tuple(str(d) for d in self.field_shape)}
+        # convert the dictionary to a string via json.dumps
+        dictstr = dumps(dict_)
+        return self.__class__.__name__ + '(' + dictstr + ')'
 
     def convert(self, inplace=False, to=None):
         """ Method that handles all basis transformations.
@@ -126,9 +238,6 @@ class Orbit:
         ----------
         other : Orbit
             Orbit whose state represents the vector in the matrix-vector product.
-        preconditioning : bool
-            Whether or not to apply (left) preconditioning to the adjoint matrix vector product.
-
         Returns
         -------
         orbit_rmatvec :
@@ -143,7 +252,7 @@ class Orbit:
 
     def state_vector(self):
         """ Vector representation of orbit"""
-        return None
+        return np.concatenate((self.state.ravel(), self.orbit_parameters), axis=0)
 
     def from_numpy_array(self, state_array, **kwargs):
         """ Utility to convert from numpy array to orbithunter format for scipy wrappers.
@@ -154,7 +263,7 @@ class Orbit:
         """
         return None
 
-    def increment(self, other, step_size=1):
+    def increment(self, other, step_size=1, **kwargs):
         """ Incrementally add Orbit instances together
 
         Parameters
@@ -239,23 +348,43 @@ class Orbit:
         return the L_2 distance between two Orbit instances, default of NumPy linalg norm is 2-norm.
         >>> (self - other).norm()
         """
-        return None
+        return np.linalg.norm(self.state.ravel(), ord=order)
 
     @property
     def orbit_parameters(self):
+        """ Parameters required to specify a solution
+
+        Returns
+        -------
+
+        """
         return 0.,
 
     @property
     def field_shape(self):
+        """ Shape of field
+
+        Returns
+        -------
+
+        """
         return 0,
 
     @property
     def dimensions(self):
+        """ Continuous dimension extents.
+
+        Returns
+        -------
+
+        """
         return 0.,
 
-    @property
+    @staticmethod
     def dimension_labels(self):
-        return 'temporal_period',
+        """ Strings to use to label dimensions/periods
+        """
+        return 'T',
 
     @classmethod
     def glue_parameters(cls, parameter_dict_with_bundled_values, axis=0):
@@ -357,11 +486,13 @@ class Orbit:
             filename = self.parameter_dependent_filename()
 
         if directory == 'local':
-            directory = os.path.join(os.path.abspath(os.path.join(os.getcwd(), '../data/local/')), '')
+            directory = os.path.join(os.path.abspath(os.path.join(__file__, '../../data/local/')), '')
+        elif directory == '':
+            pass
         elif not os.path.isdir(directory):
             raise OSError('Trying to write to directory that does not exist.')
 
-        save_path = os.path.join(directory, filename)
+        save_path = os.path.abspath(os.path.join(directory, filename))
 
         if verbose:
             print('Saving data to {}'.format(save_path))
@@ -372,14 +503,15 @@ class Orbit:
             f.create_dataset("field", data=self.convert(to='field').state)
             # The parameters required to exactly specify an orbit.
             f.create_dataset('parameters', data=tuple(float(p) for p in self.orbit_parameters))
-            # This isn't ever actually used, just saved in case the file is to be inspected.
+            # This isn't ever actually used for KSE, just saved in case the file is to be inspected.
             f.create_dataset("discretization", data=self.field_shape)
         return None
 
     def parameter_dependent_filename(self, extension='.h5', decimals=3):
         if self.dimensions is not None:
-            dimensional_string = ''.join(['_'+''.join([str(d).split('.')[0], 'p', str(d).split('.')[1][:decimals]])
-                                          for d in self.dimensions])
+            dimensional_string = ''.join(['_'+''.join([self.dimension_labels()[i], str(d).split('.')[0],
+                                                       'p', str(d).split('.')[1][:decimals]])
+                                          for i, d in enumerate(self.dimensions)])
         else:
             dimensional_string = ''
         return ''.join([self.__class__.__name__, dimensional_string, extension])
