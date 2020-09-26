@@ -3,7 +3,7 @@ from orbithunter.orbit_ks import OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitK
 import os
 import numpy as np
 import h5py
-
+import pandas as pd
 
 __all__ = ['read_h5', 'parse_class']
 
@@ -11,15 +11,15 @@ __all__ = ['read_h5', 'parse_class']
 def read_h5(filename, directory='local', data_format='orbithunter', equation='ks',
             state_type='modes', class_name=None, check=False, **orbitkwargs):
 
-    if directory == 'local':
-        directory = os.path.abspath(os.path.join(__file__, '../../data/local/'))
-
     if class_name is None:
         class_generator = parse_class(filename, equation=equation)
     elif isinstance(class_name, str):
         class_generator = parse_class(class_name, equation=equation)
     else:
         class_generator = class_name
+
+    if directory == 'local':
+        directory = os.path.abspath(os.path.join(__file__, '../../data/local/'))
 
     with h5py.File(os.path.abspath(os.path.join(directory, filename)), 'r') as f:
         if equation == 'ks':
@@ -52,28 +52,29 @@ def read_h5(filename, directory='local', data_format='orbithunter', equation='ks
 
 def parse_class(filename, equation='ks'):
     name_string = os.path.basename(filename).split('_')[0]
+    if equation == 'ks':
+        old_names = ['none', 'full', 'rpo', 'reqva', 'ppo', 'eqva', 'anti']
+        new_names = ['OrbitKS', 'RelativeOrbitKS', 'RelativeEquilibriumOrbitKS', 'ShiftReflectionOrbitKS',
+                     'AntisymmetricOrbitKS', 'EquilibriumOrbitKS']
 
-    old_names = ['none', 'full', 'rpo', 'reqva', 'ppo', 'eqva', 'anti']
-    new_names = ['OrbitKS', 'RelativeOrbitKS', 'RelativeEquilibriumOrbitKS', 'ShiftReflectionOrbitKS',
-                 'AntisymmetricOrbitKS', 'EquilibriumOrbitKS']
+        all_names = np.array(old_names + new_names)
+        if name_string in all_names:
+            class_name = name_string
+        else:
+            name_index = np.array([filename.find(class_name) for class_name in all_names], dtype=float)
+            name_index[name_index < 0] = np.inf
+            class_name = np.array(all_names)[np.argmin(name_index)]
 
-    all_names = np.array(old_names + new_names)
-    if name_string in all_names:
-        class_name = name_string
+        class_dict = {'none': OrbitKS, 'full': OrbitKS, 'OrbitKS': OrbitKS,
+                      'anti': AntisymmetricOrbitKS, 'AntisymmetricOrbitKS': AntisymmetricOrbitKS,
+                      'ppo': ShiftReflectionOrbitKS, 'ShiftReflectionOrbitKS': ShiftReflectionOrbitKS,
+                      'rpo': RelativeOrbitKS, 'RelativeOrbitKS': RelativeOrbitKS,
+                      'eqva': EquilibriumOrbitKS, 'EquilibriumOrbitKS': EquilibriumOrbitKS,
+                      'reqva': RelativeEquilibriumOrbitKS, 'RelativeEquilibriumOrbitKS': RelativeEquilibriumOrbitKS}
+        class_generator = class_dict.get(class_name, OrbitKS)
+        return class_generator
     else:
-        name_index = np.array([filename.find(class_name) for class_name in all_names], dtype=float)
-        name_index[name_index < 0] = np.inf
-        class_name = np.array(all_names)[np.argmin(name_index)]
-
-    class_dict = {'none': OrbitKS, 'full': OrbitKS, 'OrbitKS': OrbitKS,
-                  'anti': AntisymmetricOrbitKS, 'AntisymmetricOrbitKS': AntisymmetricOrbitKS,
-                  'ppo': ShiftReflectionOrbitKS, 'ShiftReflectionOrbitKS': ShiftReflectionOrbitKS,
-                  'rpo': RelativeOrbitKS, 'RelativeOrbitKS': RelativeOrbitKS,
-                  'eqva': EquilibriumOrbitKS, 'EquilibriumOrbitKS': EquilibriumOrbitKS,
-                  'reqva': RelativeEquilibriumOrbitKS, 'RelativeEquilibriumOrbitKS': RelativeEquilibriumOrbitKS}
-
-    class_generator = class_dict.get(class_name, OrbitKS)
-    return class_generator
+        return None
 
 
 def _make_proper_pathname(pathname_tuple,folder=False):
@@ -82,3 +83,28 @@ def _make_proper_pathname(pathname_tuple,folder=False):
     else:
         return os.path.abspath(os.path.join(*pathname_tuple))
 
+
+def orbit_convergence_log(initial_orbit, converge_result, log_path, spectrum='random', method='hybrid'):
+    initial_condition_log_ = pd.read_csv(log_path, index_col=0)
+    # To store all relevant info as a row in a Pandas DataFrame, put into a 1-D array first.
+    dataframe_row = [[initial_orbit.orbit_parameters, initial_orbit.field_shape,
+                     np.abs(initial_orbit.convert(to='field').state).max(), converge_result.orbit.residual(),
+                     converge_result.exit_code, spectrum, method]]
+    labels = ['parameters', 'field_shape', 'field_magnitude', 'residual', 'exit_code', 'spectrum', 'numerical_method']
+    new_row = pd.DataFrame(dataframe_row, columns=labels)
+    initial_condition_log_ = pd.concat((initial_condition_log_, new_row), axis=0)
+    initial_condition_log_.reset_index(drop=True).drop_duplicates().to_csv(log_path)
+    return initial_condition_log_
+
+
+def orbit_refurbish_log(orbit_, filename, log_filename, overwrite=False, **kwargs):
+    if not os.path.isfile(log_filename):
+        refurbish_log_ = pd.Series(filename).to_frame(name='filename')
+    else:
+        refurbish_log_ = pd.read_csv(log_filename, index_col=0)
+
+    if not overwrite and filename in np.array(refurbish_log_.values).tolist():
+        orbit_.to_h5(filename, **kwargs)
+        orbit_.plot(filename=filename, **kwargs)
+        refurbish_log_ = pd.concat((refurbish_log_, pd.Series(filename).to_frame(name='filename')), axis=0)
+        refurbish_log_.reset_index(drop=True).drop_duplicates().to_csv(log_filename)

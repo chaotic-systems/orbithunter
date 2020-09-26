@@ -11,7 +11,7 @@ def main(*args, **kwargs):
     for orbit_h5 in glob.glob(search_directory, recursive=True):
         orbit_ = read_h5(orbit_h5, directory='')
         # orbit_.plot(fundamental_domain=False)
-        OrbitKS(orbit_parameters=(512,512,0)).plot(fundamental_domain=False)
+        OrbitKS(orbit_parameters=(512, 512, 0)).plot(fundamental_domain=False)
 
         new_orbit_ = rediscretize(orbit_, new_shape=(orbit_.N, orbit_.M + 2))
         t0 = time.time()

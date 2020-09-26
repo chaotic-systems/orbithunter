@@ -313,7 +313,7 @@ class OrbitKS(Orbit):
         return self
 
     def cost_function_gradient(self, **kwargs):
-        if kwargs.get('method','gradient_descent') in ['gradient_descent', 'hybrid', 'l-bfgs-b', 'cg']:
+        if kwargs.get('method', 'gradient_descent') in ['gradient_descent', 'hybrid', 'l-bfgs-b', 'cg']:
             preconditioning = kwargs.get('preconditioning', True)
         else:
             preconditioning = kwargs.get('preconditioning', False)
@@ -325,7 +325,7 @@ class OrbitKS(Orbit):
             gradient = self.rmatvec(self.spatiotemporal_mapping(), **kwargs)
         return gradient
 
-    def increment(self, other, step_size=1):
+    def increment(self, other, step_size=1, **kwargs):
         """ Add optimization correction  to current state
 
         Parameters
@@ -344,7 +344,7 @@ class OrbitKS(Orbit):
                              in zip(self.orbit_parameters, other.orbit_parameters))
         return self.__class__(state=self.state+step_size*other.state, state_type=self.state_type,
                               orbit_parameters=orbit_params,
-                              constraints=self.constraints)
+                              constraints=self.constraints, **kwargs)
 
     def jacobian(self, **kwargs):
         """ Jacobian matrix evaluated at the current state.
@@ -548,6 +548,10 @@ class OrbitKS(Orbit):
     @staticmethod
     def dimension_labels():
         return 'T', 'L'
+
+    @staticmethod
+    def parameter_labels():
+        return 'T', 'L', 'S'
 
     @property
     def field_shape(self):
@@ -1306,7 +1310,6 @@ class OrbitKS(Orbit):
         """
         self.constraints = kwargs.get('constraints', {'T': False, 'L': False})
         T, L = orbit_parameters[:2]
-
         if T == 0. and kwargs.get('nonzero_parameters', False):
             if kwargs.get('seed', None) is not None:
                 np.random.seed(kwargs.get('seed', None))
@@ -2066,6 +2069,8 @@ class RelativeOrbitKS(OrbitKS):
     @property
     def dimensions(self):
         return self.T, self.L
+
+
 
     def _parameter_preconditioning(self, dt_params, dx_params):
         parameter_multipliers = []

@@ -172,9 +172,9 @@ class Orbit:
         Returns
         -------
         str :
-            Of the form 'Orbit()'
+            Of the form 'Orbit'
         """
-        return self.__class__.__name__ + "()"
+        return self.__class__.__name__
 
     def __repr__(self):
         # alias to save space
@@ -283,7 +283,10 @@ class Orbit:
         This is used primarily in optimization methods, e.g. adding a gradient descent step using class instances
         instead of simply arrays.
         """
-        return None
+        orbit_params = tuple(self_param + step_size * other_param for self_param, other_param
+                             in zip(self.orbit_parameters, other.orbit_parameters))
+        return self.__class__(state=self.state+step_size*other.state, state_type=self.state_type,
+                              orbit_parameters=orbit_params, **kwargs)
 
     def _pad(self, size, axis=0):
         """ Increase the size of the discretization along an axis.
@@ -381,10 +384,17 @@ class Orbit:
         return 0.,
 
     @staticmethod
-    def dimension_labels(self):
+    def parameter_labels():
         """ Strings to use to label dimensions/periods
         """
         return 'T',
+
+    @staticmethod
+    def dimension_labels():
+        """ Strings to use to label dimensions/periods
+        """
+        return 'T',
+
 
     @classmethod
     def glue_parameters(cls, parameter_dict_with_bundled_values, axis=0):
@@ -542,6 +552,9 @@ class Orbit:
     def _parse_parameters(self, orbit_parameters, **kwargs):
         """ Determine the dimensionality and symmetry parameters.
         """
+        # default is not to be constrained in any dimension;
+        self.constraints = kwargs.get('constraints', {dim_key: False for dim_key, dim_val
+                                                      in zip(self.dimension_labels(), self.dimensions)})
         return None
 
     def _random_initial_condition(self, orbit_parameters, **kwargs):

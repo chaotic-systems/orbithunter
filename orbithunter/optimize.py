@@ -205,7 +205,7 @@ def _lstsq(orbit_, **kwargs):
     orbit_maxiter = kwargs.get('orbit_maxiter', _default_orbit_maxiter(orbit_, **kwargs))
     max_damp_factor = kwargs.get('orbit_damp_max', 8)
     verbose = kwargs.get('verbose', False)
-
+    ftol = kwargs.get('ftol', 1e-10)
     n_iter = 0
     residual = orbit_.residual()
 
@@ -230,9 +230,17 @@ def _lstsq(orbit_, **kwargs):
             if damp_factor > max_damp_factor:
                 return orbit_, n_iter, 0
         else:
+            fval = (residual - next_residual) / max([residual, next_residual, 1])
+            if next_residual <= orbit_tol:
+                return next_orbit, n_iter, 1
             # Executed when step decreases residual and is not too short
-            orbit_ = next_orbit
-            residual = next_residual
+            elif fval < ftol:
+                if verbose:
+                    print('Lstsq has stalled; exiting. Decrease ftol to avoid this behavior.')
+                return orbit_, n_iter, 0
+            else:
+                orbit_ = next_orbit
+                residual = next_residual
 
             if kwargs.get('verbose', False):
                 print(damp_factor, end='')
