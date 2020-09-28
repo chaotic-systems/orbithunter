@@ -4,7 +4,7 @@ Major Changes
 exactly what parameters do, except bundling them in a single dict. Nonsensical in the context of classes.
 2. Redid continuation.py to account for Orbits of Equilibrium type, in addition it now works on more than one dimension
 at a time. 
-3. 'rmatvec_parameters' method added to account for differences in default orbit_parameters for rmatvec matrix-vector
+3. 'rmatvec_parameters' method added to account for differences in default parameters for rmatvec matrix-vector
 product calculations, mainly because of RelativeOrbit type spatial shifts not being initialized properly. 
 
 Minor Changes

@@ -1,6 +1,6 @@
 import numpy as np
 
-__all__ = ['rediscretize', 'rediscretize_tiling_dictionary', 'parameter_based_discretization']
+__all__ = ['rediscretize', 'rediscretize_tiling_dictionary', 'correct_aspect_ratios', 'parameter_based_discretization']
 
 
 def correct_aspect_ratios(array_of_orbits, axis=0):
@@ -107,8 +107,10 @@ def parameter_based_discretization(parameters, **kwargs):
                 N = np.max([2*(int(2**(np.log2(T+1)-2))//2), 16])
             elif resolution == 'fine':
                 N = np.max([2*(int(2**(np.log2(T+1)+4))//2), 32])
-            else:
+            elif resolution == 'old_default':
                 N = np.max([2*(int(2**(np.log2(T+1)))//2), 16])
+            else:
+                N = np.max([4*int(T**(1./2.)), 16])
         else:
             N = kwargs.get('N', None)
 
@@ -117,11 +119,12 @@ def parameter_based_discretization(parameters, **kwargs):
                 M = np.max([2*(int(2**(np.log2(L+1)-1))//2), 16])
             elif resolution == 'fine':
                 M = np.max([2*(int(2**(np.log2(L+1))+2)//2), 32])
+            elif resolution == 'old_default':
+                N = np.max([2*(int(2**(np.log2(L+1)))//2), 16])
             else:
-                M = np.max([2*(int(2**(np.log2(L+1)) + 1)//2), 16])
+                M = np.max([6*int(L**(1./2.)), 16])
         else:
             M = kwargs.get('M', None)
-
         return N, M
     else:
         return None
@@ -135,7 +138,7 @@ def rediscretize(orbit_, **kwargs):
     if equation == 'ks':
         placeholder_orbit = orbit_.convert(to='field').copy().convert(to='modes', inplace=True)
         if kwargs.get('new_shape', None) is None:
-            new_shape = parameter_based_discretization(orbit_.orbit_parameters, **kwargs)
+            new_shape = parameter_based_discretization(orbit_.parameters, **kwargs)
         else:
             new_shape = kwargs.get('new_shape')
 

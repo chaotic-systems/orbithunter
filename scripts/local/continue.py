@@ -26,7 +26,7 @@ def main(*args,**kwargs):
         orbit_ = read_h5(orbit_h5, directory='')
         # orbit_.constraints = {'T': True, 'L': False}
         # converge_result = dimension_continuation(orbit_, (orbit_.T+0.001, orbit_.L - 0.0001), precision='low', verbose=True)
-        # print(converge_result.orbit.orbit_parameters,  (orbit_.T+0.001, orbit_.L - 0.0001), converge_result.orbit.residual())
+        # print(converge_result.orbit.parameters,  (orbit_.T+0.001, orbit_.L - 0.0001), converge_result.orbit.residual())
         disc_converge_result = discretization_continuation(orbit_, (orbit_.N - 3, orbit_.M + 2), step_sizes=(4, -4), verbose=True)
         print(disc_converge_result.orbit.field_shape, disc_converge_result.orbit.residual())
 

@@ -1,11 +1,13 @@
-from orbithunter.orbit_ks import OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS, \
+from .orbit_ks import OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS, \
     AntisymmetricOrbitKS, EquilibriumOrbitKS, RelativeEquilibriumOrbitKS
 import os
 import numpy as np
 import h5py
 import pandas as pd
+import itertools
 
-__all__ = ['read_h5', 'parse_class']
+__all__ = ['read_h5', 'parse_class', 'convergence_log', 'refurbish_log', 'symbolic_convergence_log',
+           'check_symbolic_log', 'to_symbol_string']
 
 
 def read_h5(filename, directory='local', data_format='orbithunter', equation='ks',
@@ -26,20 +28,20 @@ def read_h5(filename, directory='local', data_format='orbithunter', equation='ks
             if data_format == 'orbithunter':
                 field = np.array(f['field'])
                 params = tuple(f['parameters'])
-                orbit = class_generator(state=field, state_type='field', orbit_parameters=params, **orbitkwargs)
+                orbit = class_generator(state=field, state_type='field', parameters=params, **orbitkwargs)
             elif data_format == 'orbithunter_old':
                 field = np.array(f['field'])
                 L = float(f['space_period'][()])
                 T = float(f['time_period'][()])
                 S = float(f['spatial_shift'][()])
-                orbit = class_generator(state=field, state_type='field', orbit_parameters=(T, L, S), **orbitkwargs)
+                orbit = class_generator(state=field, state_type='field', parameters=(T, L, S), **orbitkwargs)
             else:
                 fieldtmp = f['/data/ufield']
                 L = float(f['/data/space'][0])
                 T = float(f['/data/time'][0])
                 field = fieldtmp[:]
                 S = float(f['/data/shift'][0])
-                orbit = class_generator(state=field, state_type='field', orbit_parameters=(T, L, S), **orbitkwargs)
+                orbit = class_generator(state=field, state_type='field', parameters=(T, L, S), **orbitkwargs)
 
     # verify typically returns Orbit, code; just want the orbit instance here
     if check:
@@ -77,17 +79,10 @@ def parse_class(filename, equation='ks'):
         return None
 
 
-def _make_proper_pathname(pathname_tuple,folder=False):
-    if folder:
-        return os.path.join(os.path.abspath(os.path.join(*pathname_tuple)), '')
-    else:
-        return os.path.abspath(os.path.join(*pathname_tuple))
-
-
-def orbit_convergence_log(initial_orbit, converge_result, log_path, spectrum='random', method='hybrid'):
+def convergence_log(initial_orbit, converge_result, log_path, spectrum='random', method='hybrid'):
     initial_condition_log_ = pd.read_csv(log_path, index_col=0)
     # To store all relevant info as a row in a Pandas DataFrame, put into a 1-D array first.
-    dataframe_row = [[initial_orbit.orbit_parameters, initial_orbit.field_shape,
+    dataframe_row = [[initial_orbit.parameters, initial_orbit.field_shape,
                      np.abs(initial_orbit.convert(to='field').state).max(), converge_result.orbit.residual(),
                      converge_result.exit_code, spectrum, method]]
     labels = ['parameters', 'field_shape', 'field_magnitude', 'residual', 'exit_code', 'spectrum', 'numerical_method']
@@ -97,7 +92,7 @@ def orbit_convergence_log(initial_orbit, converge_result, log_path, spectrum='ra
     return initial_condition_log_
 
 
-def orbit_refurbish_log(orbit_, filename, log_filename, overwrite=False, **kwargs):
+def refurbish_log(orbit_, filename, log_filename, overwrite=False, **kwargs):
     if not os.path.isfile(log_filename):
         refurbish_log_ = pd.Series(filename).to_frame(name='filename')
     else:
@@ -108,3 +103,76 @@ def orbit_refurbish_log(orbit_, filename, log_filename, overwrite=False, **kwarg
         orbit_.plot(filename=filename, **kwargs)
         refurbish_log_ = pd.concat((refurbish_log_, pd.Series(filename).to_frame(name='filename')), axis=0)
         refurbish_log_.reset_index(drop=True).drop_duplicates().to_csv(log_filename)
+
+
+def symbolic_convergence_log(symbol_array, converge_result, log_filename, padded=False,
+                             comoving=False, tile_dimension=32):
+    symbol_string = to_symbol_string(symbol_array)
+    dataframe_row_values = [[symbol_string, converge_result.orbit.parameters, converge_result.orbit.field_shape,
+                             converge_result.orbit.residual(),
+                             converge_result.exit_code, padded, comoving, tile_dimension]]
+    labels = ['symbol_string', 'parameters', 'field_shape', 'residual', 'exit_code', 'padded',
+              'comoving', 'tile_dimension']
+
+    dataframe_row = pd.DataFrame(dataframe_row_values, columns=labels).astype(object)
+    log_path = os.path.abspath(os.path.join(__file__, '../../data/logs/', log_filename))
+
+    if not os.path.isfile(log_path):
+        symbolic_log = dataframe_row.copy()
+    else:
+        symbolic_log = pd.read_csv(log_path, dtype=object, index_col=0)
+        symbolic_log = pd.concat((symbolic_log, dataframe_row), axis=0)
+
+    # To store all relevant info as a row in a Pandas DataFrame, put into a 1-D array first.
+    symbolic_log.reset_index(drop=True).drop_duplicates().to_csv(log_path)
+    return symbolic_log
+
+
+def check_symbolic_log(symbol_array, log_filename, overwrite=False, retry=False):
+    """ Check to see if a combination has already been searched for locally.
+
+    Returns
+    -------
+
+    Notes
+    -----
+    Computes the equivariant equivalents of the symbolic array being searched for.
+    Strings can become arbitrarily long but I think this is unavoidable unless symbolic dynamics are redefined
+    to get full shift.
+
+    This checks the records/logs as to whether an orbit or one of its equivariant arrangements converged with
+    a particular method.
+    """
+    all_rotations = itertools.product(*(list(range(a)) for a in symbol_array.shape))
+    axes = tuple(range(len(symbol_array.shape)))
+    equivariant_str = []
+    for rotation in all_rotations:
+        equivariant_str.append(to_symbol_string(np.roll(symbol_array, rotation, axis=axes)))
+
+    log_path = os.path.abspath(os.path.join(__file__, '../../data/logs/', log_filename))
+    if not os.path.isfile(log_path):
+        return False
+    else:
+        symbolic_df = pd.read_csv(log_path, dtype=object, index_col=0)
+        symbolic_intersection = symbolic_df[(symbolic_df['symbolic_string'].isin(equivariant_str))]
+        if len(symbolic_intersection) == 0:
+            return False
+        elif symbolic_intersection['exit_code'] == '1' and overwrite:
+            return False
+        elif symbolic_intersection['exit_code'] != '1' and retry:
+            return False
+        else:
+            return True
+
+
+def to_symbol_string(symbol_array):
+    symbolic_string = symbol_array.astype(str).copy()
+    shape_of_axes_to_contract = symbol_array.shape[1:]
+    for i, shp in enumerate(shape_of_axes_to_contract):
+        symbolic_string = [(i*'_').join(list_) for list_ in np.array(symbolic_string).reshape(-1, shp).tolist()]
+    symbolic_string = ((len(shape_of_axes_to_contract))*'_').join(symbolic_string)
+    return symbolic_string
+
+
+def to_symbol_array(symbol_string, symbol_array_shape):
+    return np.array([char for char in symbol_string.replace('_', '')]).astype(int).reshape(symbol_array_shape)

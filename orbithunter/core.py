@@ -3,7 +3,7 @@ import os
 import h5py
 import numpy as np
 
-__all__ = ['Orbit']
+__all__ = ['Orbit', 'convert_class']
 
 """
 The core class for all orbithunter calculations. The methods listed are the ones used in the other modules. If
@@ -34,15 +34,15 @@ class Orbit:
     Methods listed here are required to have everything work.
     """
 
-    def __init__(self, state=None, state_type='field', orbit_parameters=(0.,), **kwargs):
+    def __init__(self, state=None, state_type='field', parameters=(0.,), **kwargs):
         if state is not None:
-            self._parse_parameters(orbit_parameters, **kwargs)
+            self._parse_parameters(parameters, **kwargs)
             self._parse_state(state, state_type, **kwargs)
         else:
             # This generates non-zero parameters if zeroes were passed
-            self._parse_parameters(orbit_parameters, nonzero_parameters=True, **kwargs)
+            self._parse_parameters(parameters, nonzero_parameters=True, **kwargs)
             # Pass the newly generated parameter values, there are the originals if they were not 0's.
-            self._random_initial_condition(self.orbit_parameters, **kwargs).convert(to=state_type, inplace=True)
+            self._random_initial_condition(self.parameters, **kwargs).convert(to=state_type, inplace=True)
 
     def __add__(self, other):
         """ Addition of Orbit states
@@ -56,7 +56,7 @@ class Orbit:
         Adding two spatiotemporal velocity fields u(t, x) + v(t, x)
         """
         return self.__class__(state=(self.state + other.state), state_type=self.state_type,
-                              orbit_parameters=self.orbit_parameters)
+                              parameters=self.parameters)
 
     def __radd__(self, other):
         """ Addition of Orbit states
@@ -74,7 +74,7 @@ class Orbit:
         This is the same as __add__ by Python makes the distinction between where the operator is, i.e. x + vs. + x.
         """
         return self.__class__(state=(self.state + other.state), state_type=self.state_type,
-                              orbit_parameters=self.orbit_parameters)
+                              parameters=self.parameters)
 
     def __sub__(self, other):
         """ Subtraction of orbit states
@@ -88,7 +88,7 @@ class Orbit:
         Subtraction of two spatiotemporal states self - other
         """
         return self.__class__(state=(self.state-other.state), state_type=self.state_type,
-                              orbit_parameters=self.orbit_parameters)
+                              parameters=self.parameters)
 
     def __rsub__(self, other):
         """ Subtraction of orbit states
@@ -102,7 +102,7 @@ class Orbit:
         Subtraction of two spatiotemporal states other - self
         """
         return self.__class__(state=(other.state - self.state), state_type=self.state_type,
-                              orbit_parameters=self.orbit_parameters)
+                              parameters=self.parameters)
 
     def __mul__(self, num):
         """ Scalar multiplication of state values
@@ -114,7 +114,7 @@ class Orbit:
 
         """
         return self.__class__(state=np.multiply(num, self.state), state_type=self.state_type,
-                              orbit_parameters=self.orbit_parameters)
+                              parameters=self.parameters)
 
     def __rmul__(self, num):
         """ Scalar multiplication of state values
@@ -126,7 +126,7 @@ class Orbit:
 
         """
         return self.__class__(state=np.multiply(num, self.state), state_type=self.state_type,
-                              orbit_parameters=self.orbit_parameters)
+                              parameters=self.parameters)
 
     def __truediv__(self, num):
         """ Scalar division of state values
@@ -137,7 +137,7 @@ class Orbit:
             Scalar value to divide by
         """
         return self.__class__(state=np.divide(self.state, num), state_type=self.state_type,
-                              orbit_parameters=self.orbit_parameters)
+                              parameters=self.parameters)
 
     def __floordiv__(self, num):
         """ Scalar multiplication
@@ -154,7 +154,7 @@ class Orbit:
 
         """
         return self.__class__(state=np.floor_divide(self.state, num), state_type=self.state_type,
-                              orbit_parameters=self.orbit_parameters)
+                              parameters=self.parameters)
 
     def __pow__(self, power):
         """ Exponentiate a state
@@ -165,7 +165,7 @@ class Orbit:
             Exponent
         """
         return self.__class__(state=self.state**power, state_type=self.state_type,
-                              orbit_parameters=self.orbit_parameters)
+                              parameters=self.parameters)
 
     def __str__(self):
         """ String name
@@ -179,7 +179,7 @@ class Orbit:
     def __repr__(self):
         # alias to save space
         dict_ = {'state_type': self.state_type,
-                 'parameters': tuple(np.format_float_scientific(p, 3) for p in self.orbit_parameters),
+                 'parameters': tuple(np.format_float_scientific(p, 3) for p in self.parameters),
                  'field_shape': tuple(str(d) for d in self.field_shape)}
         # convert the dictionary to a string via json.dumps
         dictstr = dumps(dict_)
@@ -252,7 +252,7 @@ class Orbit:
 
     def state_vector(self):
         """ Vector representation of orbit"""
-        return np.concatenate((self.state.ravel(), self.orbit_parameters), axis=0)
+        return np.concatenate((self.state.ravel(), self.parameters), axis=0)
 
     def from_numpy_array(self, state_array, **kwargs):
         """ Utility to convert from numpy array to orbithunter format for scipy wrappers.
@@ -284,9 +284,9 @@ class Orbit:
         instead of simply arrays.
         """
         orbit_params = tuple(self_param + step_size * other_param for self_param, other_param
-                             in zip(self.orbit_parameters, other.orbit_parameters))
+                             in zip(self.parameters, other.parameters))
         return self.__class__(state=self.state+step_size*other.state, state_type=self.state_type,
-                              orbit_parameters=orbit_params, **kwargs)
+                              parameters=orbit_params, **kwargs)
 
     def _pad(self, size, axis=0):
         """ Increase the size of the discretization along an axis.
@@ -354,7 +354,7 @@ class Orbit:
         return np.linalg.norm(self.state.ravel(), ord=order)
 
     @property
-    def orbit_parameters(self):
+    def parameters(self):
         """ Parameters required to specify a solution
 
         Returns
@@ -512,7 +512,7 @@ class Orbit:
             # The velocity field.
             f.create_dataset("field", data=self.convert(to='field').state)
             # The parameters required to exactly specify an orbit.
-            f.create_dataset('parameters', data=tuple(float(p) for p in self.orbit_parameters))
+            f.create_dataset('parameters', data=tuple(float(p) for p in self.parameters))
             # This isn't ever actually used for KSE, just saved in case the file is to be inspected.
             f.create_dataset("discretization", data=self.field_shape)
         return None
@@ -521,7 +521,7 @@ class Orbit:
         if self.dimensions is not None:
             dimensional_string = ''.join(['_'+''.join([self.dimension_labels()[i], str(d).split('.')[0],
                                                        'p', str(d).split('.')[1][:decimals]])
-                                          for i, d in enumerate(self.dimensions)])
+                                          for i, d in enumerate(self.dimensions) if d not in [0., 0]])
         else:
             dimensional_string = ''
         return ''.join([self.__class__.__name__, dimensional_string, extension])
@@ -549,7 +549,7 @@ class Orbit:
         self.state_type = state_type
         return None
 
-    def _parse_parameters(self, orbit_parameters, **kwargs):
+    def _parse_parameters(self, parameters, **kwargs):
         """ Determine the dimensionality and symmetry parameters.
         """
         # default is not to be constrained in any dimension;
@@ -557,7 +557,7 @@ class Orbit:
                                                       in zip(self.dimension_labels(), self.dimensions)})
         return None
 
-    def _random_initial_condition(self, orbit_parameters, **kwargs):
+    def _random_initial_condition(self, parameters, **kwargs):
         """ Initial a set of random spatiotemporal Fourier modes
         Parameters
         ----------
@@ -590,3 +590,37 @@ class Orbit:
         Orbit :
         """
         return None
+
+
+def convert_class(orbit, new_type):
+    """ Utility for converting between different classes.
+
+    Parameters
+    ----------
+    orbit : Instance of OrbitKS or any of the derived classes.
+        The orbit instance to be converted
+    new_type : str or class object (not an instance).
+        The target class that orbit will be converted to.
+
+    Returns
+    -------
+
+    """
+    from .orbit_ks import (OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS,
+                           AntisymmetricOrbitKS, EquilibriumOrbitKS, RelativeEquilibriumOrbitKS)
+    if isinstance(new_type, str):
+        class_dict = {'OrbitKS': OrbitKS,
+                      'AntisymmetricOrbitKS': AntisymmetricOrbitKS,
+                      'ShiftReflectionOrbitKS': ShiftReflectionOrbitKS,
+                      'RelativeOrbitKS': RelativeOrbitKS,
+                      'EquilibriumOrbitKS': EquilibriumOrbitKS,
+                      'RelativeEquilibriumOrbitKS': RelativeEquilibriumOrbitKS}
+        class_generator = class_dict[new_type]
+    else:
+        class_generator = new_type
+
+    # This avoids time-dimension issues with RelativeEquilibriumOrbitKS and EquilibriumOrbitKS
+    tmp_orbit = orbit.convert(to='field')
+
+    return class_generator(state=tmp_orbit.state, state_type=tmp_orbit.state_type,
+                           parameters=tmp_orbit.parameters).convert(to=orbit.state_type)

@@ -186,7 +186,7 @@ def _gradient_descent(orbit_, **kwargs):
             if verbose:
                 if np.mod(n_iter, 5000) == 0:
                     print('\n Residual={} after {} {} iterations. Current parameter values:{}'.format(
-                        orbit_.residual(), n_iter, 'gradient descent', orbit_.orbit_parameters))
+                        orbit_.residual(), n_iter, 'gradient descent', orbit_.parameters))
                 elif np.mod(n_iter, 100) == 0:
                     print('#', end='')
 
@@ -281,7 +281,7 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-6, btol=1e-6,
         # The operator depends on the current state; A=A(orbit)
         def rmv_func(v):
             # _process_newton_step turns state vector into class object.
-            v_orbit = orbit_.from_numpy_array(v, orbit_parameters=orbit_.orbit_parameters)
+            v_orbit = orbit_.from_numpy_array(v, parameters=orbit_.parameters)
             if preconditioning:
                 # To be consistent, if left preconditioning in matvec, need to right precondition rmatvec
                 # This means that only the modes should be preconditioned; the work around for this is to constrain

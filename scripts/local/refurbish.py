@@ -45,11 +45,11 @@ def main(*args, **kwargs):
                     orbit_.to_h5(directory=directory, verbose=True)
                     orbit_.plot(show=False, save=True, directory=directory, verbose=True)
                 else:
+
                     if entry and not os.path.isfile(log_path):
                         refurbish_log_ = pd.Series(orbit_h5).to_frame(name='filename')
                     elif entry:
                         refurbish_log_ = pd.read_csv(log_path, index_col=0)
-
                     if not overwrite and orbit_h5 in np.array(refurbish_log_.values).tolist():
                         continue
                     else:

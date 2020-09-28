@@ -1,5 +1,5 @@
 from .discretization import rediscretize, correct_aspect_ratios
-from .io import read_h5
+from .io import read_h5, to_symbol_string
 import numpy as np
 import os
 import itertools
@@ -87,7 +87,7 @@ def expensive_glue(pair_of_orbits_array, class_constructor, gluing_axis=0):
         glued_orbit_state = np.concatenate(glued_orbit_state, axis=gluing_axis)
 
     glued_orbit = class_constructor(state=glued_orbit_state, state_type='field',
-                                    orbit_parameters=glued_parameters)
+                                    parameters=glued_parameters)
 
 
 def tile_dictionary_ks(padded=False, comoving=False):
@@ -215,7 +215,7 @@ def glue(array_of_orbit_instances, class_constructor, stripwise=False, **kwargs)
                                                    axis=gluing_axis)
                 # Put the glued strip's state back into a class instance.
                 glued_strip_orbit = class_constructor(state=glued_strip_state, state_type='field',
-                                                      orbit_parameters=glued_parameters)
+                                                      parameters=glued_parameters)
                 # Take the result and store it for futher gluings.
                 glued_orbit_strips.append(glued_strip_orbit)
             # We combined along the gluing axis meaning that that axis has a new shape of 1. For symbol arrays
@@ -243,7 +243,7 @@ def glue(array_of_orbit_instances, class_constructor, stripwise=False, **kwargs)
             glued_orbit_state = np.concatenate(glued_orbit_state, axis=gluing_axis)
 
         glued_orbit = class_constructor(state=glued_orbit_state, state_type='field',
-                                        orbit_parameters=glued_parameters)
+                                        parameters=glued_parameters)
 
     return glued_orbit
 
@@ -299,44 +299,5 @@ def generate_symbol_arrays(tile_dictionary, glue_shape, unique=True):
         return [np.reshape(x, glue_shape) for x in symbol_array_generator]
 
 
-def query_symbolic_index(symbol_array, results_csv):
-    """ Check to see if a combination has already been searched for locally.
-
-    Returns
-    -------
-
-    Notes
-    -----
-    Computes the equivariant equivalents of the symbolic array being searched for.
-    Strings can become arbitrarily long but I think this is unavoidable unless symbolic dynamics are redefined
-    to get full shift.
-
-    This checks the records/logs as to whether an orbit or one of its equivariant arrangements converged with
-    a particular method.
-    """
-    from pandas import read_csv
-
-    all_rotations = itertools.product(*(list(range(a)) for a in symbol_array.shape))
-    axes = tuple(range(len(symbol_array.shape)))
-    equivariant_symbol_string_list = []
-    for rotation in all_rotations:
-        equivariant_symbol_string_list.append(to_symbol_string(np.roll(symbol_array, rotation, axis=axes)))
-
-    results_data_frame = read_csv(results_csv, index_col=0)
-    n_permutations_in_results_log = results_data_frame.index.isin(equivariant_symbol_string_list).sum()
-    return n_permutations_in_results_log
-
-
-def to_symbol_string(symbol_array):
-    symbolic_string = symbol_array.astype(str).copy()
-    shape_of_axes_to_contract = symbol_array.shape[1:]
-    for i, shp in enumerate(shape_of_axes_to_contract):
-        symbolic_string = [(i*'_').join(list_) for list_ in np.array(symbolic_string).reshape(-1, shp).tolist()]
-    symbolic_string = ((len(shape_of_axes_to_contract))*'_').join(symbolic_string)
-    return symbolic_string
-
-
-def to_symbol_array(symbol_string, symbol_array_shape):
-    return np.array([char for char in symbol_string.replace('_', '')]).astype(int).reshape(symbol_array_shape)
 
 

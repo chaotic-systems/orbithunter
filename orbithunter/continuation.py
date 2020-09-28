@@ -7,7 +7,7 @@ __all__ = ['dimension_continuation', 'discretization_continuation']
 
 def _extent_equals_target(orbit_, target_extent, axis=0):
     # For the sake of floating point error, round to 13 decimals.
-    return np.round(list(orbit_.orbit_parameters)[axis], 13) == np.round(target_extent, 13)
+    return np.round(list(orbit_.parameters)[axis], 13) == np.round(target_extent, 13)
 
 
 def _increment_dimension(orbit_, target_extent, increment, axis=0):
@@ -25,16 +25,16 @@ def _increment_dimension(orbit_, target_extent, increment, axis=0):
 
     """
     # increments the target dimension but checks to see if incrementing places us out of bounds.
-    current_extent = orbit_.orbit_parameters[axis]
+    current_extent = orbit_.parameters[axis]
     # The affirmative occurs when overshooting the target value of the param.
     if np.sign(target_extent - current_extent) != np.sign(increment):
         next_extent = target_extent
     else:
         next_extent = current_extent + increment
-    orbit_parameters = tuple(next_extent if i == axis else orbit_.orbit_parameters[i]
-                             for i in range(len(orbit_.orbit_parameters)))
+    parameters = tuple(next_extent if i == axis else orbit_.parameters[i]
+                             for i in range(len(orbit_.parameters)))
     return orbit_.__class__(state=orbit_.state, state_type=orbit_.state_type,
-                            orbit_parameters=orbit_parameters, constraints=orbit_.constraints)
+                            parameters=parameters, constraints=orbit_.constraints)
 
 
 def dimension_continuation(orbit_, axis=0, step_size=0.01, **kwargs):
@@ -51,7 +51,7 @@ def dimension_continuation(orbit_, axis=0, step_size=0.01, **kwargs):
 
 
     """
-    new_size = kwargs.get('new_size', orbit_.orbit_parameters[axis])
+    new_size = kwargs.get('new_size', orbit_.parameters[axis])
     # As long as we keep converging to solutions, we keep stepping towards target value.
     # We need to be incrementing in the correct direction. i.e. to get smaller we need to have a negative increment.
     # Use list to get the correct count, then convert to tuple as expected.
@@ -63,7 +63,7 @@ def dimension_continuation(orbit_, axis=0, step_size=0.01, **kwargs):
     # This choice is described in the Notes section.
     orbit_.constrain(axis=axis)
     # Ensure that we are stepping in correct direction.
-    step_size = (np.sign(new_size - converge_result.orbit.orbit_parameters[axis]) * np.abs(step_size))
+    step_size = (np.sign(new_size - converge_result.orbit.parameters[axis]) * np.abs(step_size))
     # We need to be incrementing in the correct direction. i.e. to get smaller we need to have a negative increment.
     while converge_result.exit_code == 1 and not _extent_equals_target(converge_result.orbit, new_size, axis=axis):
         incremented_orbit = _increment_dimension(converge_result.orbit, new_size, step_size, axis=axis)
