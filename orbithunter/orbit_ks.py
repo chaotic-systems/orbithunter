@@ -1093,7 +1093,7 @@ class OrbitKS(Orbit):
             Shift reflection in this case is a composition of spatial reflection and temporal translation by
             half of the period. Because these are in different dimensions these operations commute.
         """
-        shift_reflected_field = np.roll(-1.0*np.roll(np.fliplr(self.state), 1, axis=1), self.n, axis=0)
+        shift_reflected_field = np.roll(-1.0*np.roll(np.fliplr(self.state), 1, axis=1), self.N // 2, axis=0)
         return self.__class__(state=shift_reflected_field, state_type='field', parameters=self.parameters)
 
     def cell_shift(self, n_cell=2, axis=0):
@@ -2256,7 +2256,7 @@ class AntisymmetricOrbitKS(OrbitKS):
             _dx_matrix_complete = np.kron(np.eye(self.mode_shape[0]), dx_n_matrix)
         else:
             dx_n_matrix = np.kron(so2_generator(power=power), np.diag(self._wave_vector(self.dx_parameters,
-                                                                                       power=power).ravel()))
+                                                                                        power=power).ravel()))
             _dx_matrix_complete = np.kron(np.eye(self.N), dx_n_matrix)
         return _dx_matrix_complete
 
