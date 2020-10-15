@@ -30,7 +30,7 @@ def _dx_spatial_modes(orbit_, power=1):
     if np.mod(power, 2):
         dxn_modes = swap_modes(dxn_modes, axis=1)
 
-    return orbit_.__class__(state=dxn_modes, state_type='s_modes', parameters=orbit_.parameters)
+    return orbit_.__class__(state=dxn_modes, basis='s_modes', parameters=orbit_.parameters)
 
 
 def kse_integrate(orbit_, **kwargs):
@@ -58,7 +58,7 @@ def kse_integrate(orbit_, **kwargs):
     orbit_ = orbit_.convert(to='s_modes')
     integration_time = kwargs.get('integration_time', orbit_.T)
     # Take the last row (T=0) so this works for relative periodic solutions as well. i
-    orbit_t_equals_0 = orbit_.__class__(state=orbit_.state[-1, :].reshape(1, -1), state_type=orbit_.state_type,
+    orbit_t_equals_0 = orbit_.__class__(state=orbit_.state[-1, :].reshape(1, -1), basis=orbit_.basis,
                                         parameters=orbit_.parameters).convert(to='s_modes')
     # stepsize
     step_size = kwargs.get('step_size', 0.01)
@@ -108,4 +108,4 @@ def kse_integrate(orbit_, **kwargs):
     if verbose:
         print(']', end='')
     # By default do not assign spatial shift S.
-    return orbit_.__class__(state=u.reshape(nmax+1, -1), state_type='field', parameters=orbit_.parameters)
+    return orbit_.__class__(state=u.reshape(nmax+1, -1), basis='field', parameters=orbit_.parameters)

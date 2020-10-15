@@ -34,7 +34,7 @@ def best_rotation(orbit, other_orbit, axis=0):
     # for n in range(0, field_other_orbit.N):
     #     for m in range(0, field_other_orbit.M):
     #         rotated_state = np.roll(np.roll(field_other_orbit.state, m, axis=1), n, axis=0)
-    #         rotated_orbit = other_orbit.__class__(state=rotated_state, state_type=field_other_orbit.state_type, T=other_orbit.T,
+    #         rotated_orbit = other_orbit.__class__(state=rotated_state, basis=field_other_orbit.basis, T=other_orbit.T,
     #                                               L=other_orbit.L, S=other_orbit.S)
     #         resmat[n,m] = concat(field_orbit, rotated_orbit, direction=direction).residual
 
@@ -44,7 +44,7 @@ def best_rotation(orbit, other_orbit, axis=0):
     high_resolution_other_orbit = rediscretize(field_other_orbit, new_N=16*field_other_orbit.N, new_M=16*field_other_orbit.M)
 
     best_rotation_state = np.roll(np.roll(high_resolution_other_orbit.state, 16*bestm, axis=1), 16*bestn, axis=0)
-    highres_rotation_orbit = other_orbit.__class__(state=best_rotation_state, state_type='field',
+    highres_rotation_orbit = other_orbit.__class__(state=best_rotation_state, basis='field',
                                                    T=other_orbit.T, L=other_orbit.L, S=other_orbit.S)
     best_gluing = concat(high_resolution_orbit, highres_rotation_orbit, direction=direction)
     return best_gluing
@@ -86,7 +86,7 @@ def expensive_glue(pair_of_orbits_array, class_constructor, gluing_axis=0):
     while len(glued_orbit_state.shape) > len(tiling_shape):
         glued_orbit_state = np.concatenate(glued_orbit_state, axis=gluing_axis)
 
-    glued_orbit = class_constructor(state=glued_orbit_state, state_type='field',
+    glued_orbit = class_constructor(state=glued_orbit_state, basis='field',
                                     parameters=glued_parameters)
 
 
@@ -117,16 +117,16 @@ def tile_dictionary_ks(padded=False, comoving=False):
 
     if comoving:
         # padded merger Orbit in comoving frame
-        merger = read_h5('./OrbitKS_merger.h5', directory=directory, state_type='field')
+        merger = read_h5('./OrbitKS_merger.h5', directory=directory, basis='field')
     else:
         # padded merger orbit in physical frame.
-        merger = read_h5('./OrbitKS_merger_fdomain.h5', directory=directory, state_type='field')
+        merger = read_h5('./OrbitKS_merger_fdomain.h5', directory=directory, basis='field')
 
     # padded streak orbit
-    streak = read_h5('./OrbitKS_streak.h5',directory=directory, state_type='field')
+    streak = read_h5('./OrbitKS_streak.h5',directory=directory, basis='field')
 
     # padded wiggle orbit
-    wiggle = read_h5('./OrbitKS_wiggle.h5', directory=directory, state_type='field')
+    wiggle = read_h5('./OrbitKS_wiggle.h5', directory=directory, basis='field')
 
     tile_dict = {0: streak, 1: merger, 2: wiggle}
     return tile_dict
@@ -214,7 +214,7 @@ def glue(array_of_orbit_instances, class_constructor, stripwise=False, **kwargs)
                 glued_strip_state = np.concatenate(tuple(x.state for x in array_of_orbit_instances_corrected),
                                                    axis=gluing_axis)
                 # Put the glued strip's state back into a class instance.
-                glued_strip_orbit = class_constructor(state=glued_strip_state, state_type='field',
+                glued_strip_orbit = class_constructor(state=glued_strip_state, basis='field',
                                                       parameters=glued_parameters)
                 # Take the result and store it for futher gluings.
                 glued_orbit_strips.append(glued_strip_orbit)
@@ -242,7 +242,7 @@ def glue(array_of_orbit_instances, class_constructor, stripwise=False, **kwargs)
         while len(glued_orbit_state.shape) > len(tiling_shape):
             glued_orbit_state = np.concatenate(glued_orbit_state, axis=gluing_axis)
 
-        glued_orbit = class_constructor(state=glued_orbit_state, state_type='field',
+        glued_orbit = class_constructor(state=glued_orbit_state, basis='field',
                                         parameters=glued_parameters)
 
     return glued_orbit

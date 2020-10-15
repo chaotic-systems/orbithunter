@@ -33,7 +33,7 @@ def _increment_dimension(orbit_, target_extent, increment, axis=0):
         next_extent = current_extent + increment
     parameters = tuple(next_extent if i == axis else orbit_.parameters[i]
                              for i in range(len(orbit_.parameters)))
-    return orbit_.__class__(state=orbit_.state, state_type=orbit_.state_type,
+    return orbit_.__class__(state=orbit_.state, basis=orbit_.basis,
                             parameters=parameters, constraints=orbit_.constraints)
 
 

@@ -34,15 +34,15 @@ class Orbit:
     Methods listed here are required to have everything work.
     """
 
-    def __init__(self, state=None, state_type='field', parameters=(0.,), **kwargs):
+    def __init__(self, state=None, basis='field', parameters=(0.,), **kwargs):
         if state is not None:
             self._parse_parameters(parameters, **kwargs)
-            self._parse_state(state, state_type, **kwargs)
+            self._parse_state(state, basis, **kwargs)
         else:
             # This generates non-zero parameters if zeroes were passed
             self._parse_parameters(parameters, nonzero_parameters=True, **kwargs)
             # Pass the newly generated parameter values, there are the originals if they were not 0's.
-            self._random_initial_condition(self.parameters, **kwargs).convert(to=state_type, inplace=True)
+            self._random_initial_condition(self.parameters, **kwargs).convert(to=basis, inplace=True)
 
     def __add__(self, other):
         """ Addition of Orbit states
@@ -55,7 +55,7 @@ class Orbit:
         -----
         Adding two spatiotemporal velocity fields u(t, x) + v(t, x)
         """
-        return self.__class__(state=(self.state + other.state), state_type=self.state_type,
+        return self.__class__(state=(self.state + other.state), basis=self.basis,
                               parameters=self.parameters)
 
     def __radd__(self, other):
@@ -73,7 +73,7 @@ class Orbit:
         -----
         This is the same as __add__ by Python makes the distinction between where the operator is, i.e. x + vs. + x.
         """
-        return self.__class__(state=(self.state + other.state), state_type=self.state_type,
+        return self.__class__(state=(self.state + other.state), basis=self.basis,
                               parameters=self.parameters)
 
     def __sub__(self, other):
@@ -87,7 +87,7 @@ class Orbit:
         -----
         Subtraction of two spatiotemporal states self - other
         """
-        return self.__class__(state=(self.state-other.state), state_type=self.state_type,
+        return self.__class__(state=(self.state-other.state), basis=self.basis,
                               parameters=self.parameters)
 
     def __rsub__(self, other):
@@ -101,7 +101,7 @@ class Orbit:
         -----
         Subtraction of two spatiotemporal states other - self
         """
-        return self.__class__(state=(other.state - self.state), state_type=self.state_type,
+        return self.__class__(state=(other.state - self.state), basis=self.basis,
                               parameters=self.parameters)
 
     def __mul__(self, num):
@@ -113,7 +113,7 @@ class Orbit:
             Scalar value to multiply by.
 
         """
-        return self.__class__(state=np.multiply(num, self.state), state_type=self.state_type,
+        return self.__class__(state=np.multiply(num, self.state), basis=self.basis,
                               parameters=self.parameters)
 
     def __rmul__(self, num):
@@ -125,7 +125,7 @@ class Orbit:
             Scalar value to multiply by.
 
         """
-        return self.__class__(state=np.multiply(num, self.state), state_type=self.state_type,
+        return self.__class__(state=np.multiply(num, self.state), basis=self.basis,
                               parameters=self.parameters)
 
     def __truediv__(self, num):
@@ -136,7 +136,7 @@ class Orbit:
         num : float
             Scalar value to divide by
         """
-        return self.__class__(state=np.divide(self.state, num), state_type=self.state_type,
+        return self.__class__(state=np.divide(self.state, num), basis=self.basis,
                               parameters=self.parameters)
 
     def __floordiv__(self, num):
@@ -153,7 +153,7 @@ class Orbit:
         but I'm including it because it's a fairly common binary operation and might be useful in some circumstances.
 
         """
-        return self.__class__(state=np.floor_divide(self.state, num), state_type=self.state_type,
+        return self.__class__(state=np.floor_divide(self.state, num), basis=self.basis,
                               parameters=self.parameters)
 
     def __pow__(self, power):
@@ -164,7 +164,7 @@ class Orbit:
         power : float
             Exponent
         """
-        return self.__class__(state=self.state**power, state_type=self.state_type,
+        return self.__class__(state=self.state**power, basis=self.basis,
                               parameters=self.parameters)
 
     def __str__(self):
@@ -178,7 +178,7 @@ class Orbit:
 
     def __repr__(self):
         # alias to save space
-        dict_ = {'state_type': self.state_type,
+        dict_ = {'basis': self.basis,
                  'parameters': tuple(np.format_float_scientific(p, 3) for p in self.parameters),
                  'field_shape': tuple(str(d) for d in self.field_shape)}
         # convert the dictionary to a string via json.dumps
@@ -285,7 +285,7 @@ class Orbit:
         """
         orbit_params = tuple(self_param + step_size * other_param for self_param, other_param
                              in zip(self.parameters, other.parameters))
-        return self.__class__(state=self.state+step_size*other.state, state_type=self.state_type,
+        return self.__class__(state=self.state+step_size*other.state, basis=self.basis,
                               parameters=orbit_params, **kwargs)
 
     def _pad(self, size, axis=0):
@@ -530,14 +530,14 @@ class Orbit:
         """ Check the status of a solution, whether or not it converged to the correct orbit type. """
         return None
 
-    def _parse_state(self, state, state_type, **kwargs):
+    def _parse_state(self, state, basis, **kwargs):
         """ Determine state shape parameters based on state array and the basis it is in.
 
         Parameters
         ----------
         state : ndarray
         Numpy array containing state information, can have any number of dimensions.
-        state_type :
+        basis :
         The basis that the array 'state' is assumed to be in.
         kwargs
 
@@ -546,7 +546,7 @@ class Orbit:
 
         """
         self.state = state
-        self.state_type = state_type
+        self.basis = basis
         return None
 
     def _parse_parameters(self, parameters, **kwargs):
@@ -622,5 +622,5 @@ def convert_class(orbit, new_type):
     # This avoids time-dimension issues with RelativeEquilibriumOrbitKS and EquilibriumOrbitKS
     tmp_orbit = orbit.convert(to='field')
 
-    return class_generator(state=tmp_orbit.state, state_type=tmp_orbit.state_type,
-                           parameters=tmp_orbit.parameters).convert(to=orbit.state_type)
+    return class_generator(state=tmp_orbit.state, basis=tmp_orbit.basis,
+                           parameters=tmp_orbit.parameters).convert(to=orbit.basis)

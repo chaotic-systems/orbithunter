@@ -15,18 +15,18 @@ def zero_pad_border(orbit_, space_padding_shape, time_padding_shape):
         spacetime_framed_state = np.concatenate((zeros_time, space_framed_state, zeros_time), axis=0)
     else:
         spacetime_framed_state = space_framed_state
-    spacetime_framed_orbit = orbit_.__class__(state=spacetime_framed_state, state_type='field',
+    spacetime_framed_orbit = orbit_.__class__(state=spacetime_framed_state, basis='field',
                                               parameters=orbit_.parameters)
     return spacetime_framed_orbit
 
 
 def main(*args, **kwargs):
     s = read_h5('EquilibriumOrbitKS_L6p39.h5', directory='../../data/local/tiles/original',
-                state_type='field')
+                basis='field')
     w = read_h5('AntisymmetricOrbitKS_L17p590_T17p146.h5', directory='../../data/local/tiles/original',
-                state_type='field')
+                basis='field')
     m = read_h5('RelativeOrbitKS_L13p026_T15p855.h5', directory='../../data/local/tiles/original',
-                state_type='field')
+                basis='field')
 
     m = dimension_continuation(m, new_size=w.T, verbose=True, method='hybrid',
                                hybrid_maxiter=(10000, 100), precision='very_high').orbit
@@ -96,7 +96,7 @@ def main(*args, **kwargs):
     # w_shift_pad = zero_pad_border(w_shifted, (48, 8), (8, 64))
     # mf_shift_pad = zero_pad_border(mf_shifted, (48, 8), (8, 64))
 
-    # m = read_h5('RelativeOrbitKS_L13p026_T15p855.h5', directory='../../data/tiles/original', state_type='field', data_format='orbithunter_old')
+    # m = read_h5('RelativeOrbitKS_L13p026_T15p855.h5', directory='../../data/tiles/original', basis='field', data_format='orbithunter_old')
     # m_result = dimension_continuation(m, w.T, verbose=True, method='lstsq')
     # mlstsq = m_result.orbit
     # mlstsq.plot()

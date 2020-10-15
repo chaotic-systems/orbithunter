@@ -11,7 +11,7 @@ __all__ = ['read_h5', 'parse_class', 'convergence_log', 'refurbish_log', 'symbol
 
 
 def read_h5(filename, directory='local', data_format='orbithunter', equation='ks',
-            state_type='modes', class_name=None, check=False, **orbitkwargs):
+            basis='modes', class_name=None, check=False, **orbitkwargs):
 
     if class_name is None:
         class_generator = parse_class(filename, equation=equation)
@@ -28,28 +28,28 @@ def read_h5(filename, directory='local', data_format='orbithunter', equation='ks
             if data_format == 'orbithunter':
                 field = np.array(f['field'])
                 params = tuple(f['parameters'])
-                orbit = class_generator(state=field, state_type='field', parameters=params, **orbitkwargs)
+                orbit = class_generator(state=field, basis='field', parameters=params, **orbitkwargs)
             elif data_format == 'orbithunter_old':
                 field = np.array(f['field'])
                 L = float(f['space_period'][()])
                 T = float(f['time_period'][()])
                 S = float(f['spatial_shift'][()])
-                orbit = class_generator(state=field, state_type='field', parameters=(T, L, S), **orbitkwargs)
+                orbit = class_generator(state=field, basis='field', parameters=(T, L, S), **orbitkwargs)
             else:
                 fieldtmp = f['/data/ufield']
                 L = float(f['/data/space'][0])
                 T = float(f['/data/time'][0])
                 field = fieldtmp[:]
                 S = float(f['/data/shift'][0])
-                orbit = class_generator(state=field, state_type='field', parameters=(T, L, S), **orbitkwargs)
+                orbit = class_generator(state=field, basis='field', parameters=(T, L, S), **orbitkwargs)
 
     # verify typically returns Orbit, code; just want the orbit instance here
     if check:
         # The automatic importation attempts to validate symmetry/class type.
-        return orbit.verify_integrity()[0].convert(to=state_type, inplace=True)
+        return orbit.verify_integrity()[0].convert(to=basis, inplace=True)
     else:
         # If the class name is provided, force it through without verification.
-        return orbit.convert(to=state_type, inplace=True)
+        return orbit.convert(to=basis, inplace=True)
 
 
 def parse_class(filename, equation='ks'):

@@ -152,7 +152,7 @@ def rediscretize(orbit_, **kwargs):
                     placeholder_orbit = placeholder_orbit._pad(d, axis=i)
                 else:
                     pass
-            return placeholder_orbit.convert(to=orbit_.state_type, inplace=True)
+            return placeholder_orbit.convert(to=orbit_.basis, inplace=True)
     else:
         return orbit_
 
