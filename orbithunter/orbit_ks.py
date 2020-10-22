@@ -812,7 +812,9 @@ class OrbitKS(Orbit):
         -------
 
         """
-        new_shape = tuple(*new_shape)
+        if len(new_shape)==1:
+            new_shape = tuple(*new_shape)
+
         placeholder_orbit = self.convert(to='field').copy().convert(to='modes', inplace=True)
         if new_shape is None:
             new_shape = parameter_based_discretization(self.parameters, **kwargs)

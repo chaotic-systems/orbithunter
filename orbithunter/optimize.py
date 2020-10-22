@@ -150,7 +150,7 @@ def _gradient_descent(orbit_, **kwargs):
     """
     orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_, **kwargs))
     orbit_maxiter = kwargs.get('orbit_maxiter', _default_orbit_maxiter(orbit_, 'gradient_descent'))
-    ftol = kwargs.get('ftol', np.product(orbit_.shape) * orbit_tol)
+    ftol = kwargs.get('ftol', np.product(orbit_.shape) * 10**-13)
     verbose = kwargs.get('verbose', False)
 
     n_iter = 0
@@ -205,7 +205,7 @@ def _lstsq(orbit_, **kwargs):
     orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_, **kwargs))
     orbit_maxiter = kwargs.get('orbit_maxiter', _default_orbit_maxiter(orbit_, **kwargs))
     verbose = kwargs.get('verbose', False)
-    ftol = kwargs.get('ftol', np.product(orbit_.shape) * orbit_tol)
+    ftol = kwargs.get('ftol', np.product(orbit_.shape) * 10**-13)
     n_iter = 0
     residual = orbit_.residual()
 

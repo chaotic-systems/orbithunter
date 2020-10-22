@@ -9,24 +9,26 @@ import matplotlib.pyplot as plt
 import glob
 
 def main(*args, **kwargs):
-    test = np.ones([32,32])
-    testtest = test.reshape(-1, 32)
-    example_orbit = OrbitKS(seed=5, parameters=(100, 100,0.)).rescale(3.5)
-    test = example_orbit.reshape((16, 16))
-    m = read_h5('C:/Users/Matt/Desktop/gudorf/KS/python/data_and_figures/tiles/defects/defect1/final_tile/RelativeOrbitKS_T15p855_L13p026.h5', directory='', basis='field')
-    cont_m = dimension_continuation(rediscretize(m, new_shape=(32, 32)), m.L-1, axis=1, method='lstsq', step_size=0.01, verbose=True).orbit
-    test = OrbitKS(seed=5, parameters=(32., 100,0.), N=32, M=256).rescale(4)
-    orbit_ = read_h5('OrbitKS_T54p129_L26p744.h5', directory='../../data/examples/').rotate(2, axis=0).rotate(0.1, axis=1)
-    orbit_ = read_h5('C:\\Users\\Matt\\Desktop\\orbithunter_test_data\\full_L26.7_T54.h5',directory='', data_format='kstori', basis='field')
-    test = RelativeOrbitKS(parameters=(100,100, 0), zero_shift=True).change_reference_frame(to='physical')
-    orbit_ = rediscretize(orbit_.convert(to='field'), new_shape=(512, 512))
-    # orbit_.plot()
-    clipped_orbit = clip(orbit_, ((0., 15), (None, 1.9091883092036783)), clipping_class=OrbitKS)
-    test_shift = calculate_spatial_shift(clipped_orbit.convert(to='s_modes').state,
-                                         clipped_orbit.L, n_modes=clipped_orbit.m)
-    clipped_orbit.plot()
-    clipped_orbit = rediscretize(clipped_orbit, new_shape=(16,20))
-    clipping_step_1_result = converge(clipped_orbit, precision='machine', method='lstsq', ftol=0, verbose=True)
+    test=converge(OrbitKS(seed=5, parameters=(100, 22, 0.), N=32, M=32, tscale=1, xscale=3).rescale(3.5),method='lstsq')
+
+    # test = np.ones([32,32])
+    # testtest = test.reshape(-1, 32)
+    # example_orbit = OrbitKS(seed=5, parameters=(100, 100,0.)).rescale(3.5)
+    # test = example_orbit.reshape((16, 16))
+    # m = read_h5('C:/Users/Matt/Desktop/gudorf/KS/python/data_and_figures/tiles/defects/defect1/final_tile/RelativeOrbitKS_T15p855_L13p026.h5', directory='', basis='field')
+    # cont_m = dimension_continuation(rediscretize(m, new_shape=(32, 32)), m.L-1, axis=1, method='lstsq', step_size=0.01, verbose=True).orbit
+    # test = OrbitKS(seed=5, parameters=(32., 100,0.), N=32, M=256).rescale(4)
+    # orbit_ = read_h5('OrbitKS_T54p129_L26p744.h5', directory='../../data/examples/').rotate(2, axis=0).rotate(0.1, axis=1)
+    # orbit_ = read_h5('C:\\Users\\Matt\\Desktop\\orbithunter_test_data\\full_L26.7_T54.h5',directory='', data_format='kstori', basis='field')
+    # test = RelativeOrbitKS(parameters=(100,100, 0), zero_shift=True).change_reference_frame(to='physical')
+    # orbit_ = rediscretize(orbit_.convert(to='field'), new_shape=(512, 512))
+    # # orbit_.plot()
+    # clipped_orbit = clip(orbit_, ((0., 15), (None, 1.9091883092036783)), clipping_class=OrbitKS)
+    # test_shift = calculate_spatial_shift(clipped_orbit.convert(to='s_modes').state,
+    #                                      clipped_orbit.L, n_modes=clipped_orbit.m)
+    # clipped_orbit.plot()
+    # clipped_orbit = rediscretize(clipped_orbit, new_shape=(16,20))
+    # clipping_step_1_result = converge(clipped_orbit, precision='machine', method='lstsq', ftol=0, verbose=True)
     # clipping_step_2_orbit = clip(clipping_step_1_result.orbit, ((None, None), (0,2)))
     # clipping_step_2_result = converge(clipping_step_2_orbit)
     # clipping_orbit_2 = clipping_step_2_result.orbit
@@ -38,12 +40,12 @@ def main(*args, **kwargs):
     # wtf_big = rediscretize(wtf, new_shape=(1, wtf.M+2))
     # res = converge(orbit_, method='lstsq', verbose=True)
     # res.orbit.plot()
-    orbit_ = read_h5('C:\\Users\\Matt\\Desktop\\orbithunter_test_data\\ppo_L21p79_T96p17.h5',
-                     directory='', data_format='kstori', basis='field')
-    orbit_ = convert_class(read_h5('C:\\Users\\Matt\\Desktop\\orbithunter_test_data\\ppo_L21p79_T96p17.h5',
-                     directory='', data_format='kstori', basis='field'), OrbitKS)
-    print(orbit_.residual())
-    orbit_ = converge(orbit_, method='lstsq', precision='machine', verbose=True).orbit
+    # orbit_ = read_h5('C:\\Users\\Matt\\Desktop\\orbithunter_test_data\\ppo_L21p79_T96p17.h5',
+    #                  directory='', data_format='kstori', basis='field')
+    # orbit_ = convert_class(read_h5('C:\\Users\\Matt\\Desktop\\orbithunter_test_data\\ppo_L21p79_T96p17.h5',
+    #                  directory='', data_format='kstori', basis='field'), OrbitKS)
+    # print(orbit_.residual())
+    # orbit_ = converge(orbit_, method='lstsq', precision='machine', verbose=True).orbit
     #
     # orbit_ = orbit_.convert(to='field')
     # np.random.seed(0)
@@ -51,8 +53,8 @@ def main(*args, **kwargs):
     #
     # orbit_.state = orbit_.state + np.multiply(noise, orbit_.state)
     # print(orbit_.residual())
-    res = converge(1.5*orbit_, method='lstsq', precision='machine', verbose=True)
-    print(orbit_.residual())
+    # res = converge(1.5*orbit_, method='lstsq', precision='machine', verbose=True)
+    # print(orbit_.residual())
     test = 0
     # orbit_ = OrbitKS(seed=0, N=64, M=32, tscale=5, tvar=10, xvar=5,
     #                  xscale=4, parameters=(100, 44, 0), spectrum='linear').rescale(3.25)

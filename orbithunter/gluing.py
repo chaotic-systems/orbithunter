@@ -152,17 +152,18 @@ def tile_dictionary_ks(padded=False, comoving=False):
     -----
     The dictionary is setup as follows : {0: streak, 1: merger, 2: wiggle}
     """
-    if padded:
-        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/padded_space_unpadded_time/'))
+    if not padded:
+        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/unpadded/'))
     else:
-        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/'))
+        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/padded'))
+
 
     if comoving:
+        # padded merger orbit in physical frame.
+        merger = read_h5('./OrbitKS_merger_comoving.h5', directory=directory, basis='field')
+    else:
         # padded merger Orbit in comoving frame
         merger = read_h5('./OrbitKS_merger.h5', directory=directory, basis='field')
-    else:
-        # padded merger orbit in physical frame.
-        merger = read_h5('./OrbitKS_merger_fdomain.h5', directory=directory, basis='field')
 
     # padded streak orbit
     streak = read_h5('./OrbitKS_streak.h5',directory=directory, basis='field')
