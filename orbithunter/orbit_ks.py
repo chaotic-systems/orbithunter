@@ -1,7 +1,6 @@
 from math import pi
 from .arrayops import *
 from .core import Orbit
-from .discretization import rediscretize, parameter_based_discretization
 from scipy.fft import rfft, irfft
 from scipy.linalg import block_diag
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -625,6 +624,60 @@ class OrbitKS(Orbit):
 
         return glued_parameters
 
+    @classmethod
+    def parameter_based_discretization(cls, parameters, **kwargs):
+        """ Follow orbithunter conventions for discretization size.
+
+
+        Parameters
+        ----------
+        orbit : Orbit or Orbit subclass
+        orbithunter class instance whose time, space periods will be used to determine the new discretization values.
+        kwargs :
+        resolution : str
+        Takes values 'coarse', 'normal', 'fine'. These options return one of three orbithunter conventions for the
+        discretization size.
+
+        Returns
+        -------
+        int, int
+        The new spatiotemporal discretization given as the number of time points (rows) and number of space points (columns)
+
+        Notes
+        -----
+        This function should only ever be called by rediscretize, the returned values can always be accessed by
+        the appropriate attributes of the rediscretized orbit_.
+        """
+        resolution = kwargs.get('resolution', 'normal')
+        T, L = cls.parameters[:2]
+        if kwargs.get('N', None) is None:
+            if T in [0, 0.]:
+                N = 1
+            elif resolution == 'coarse':
+                N = np.max([2*(int(2**(np.log2(T+1)-2))//2), 16])
+            elif resolution == 'fine':
+                N = np.max([2*(int(2**(np.log2(T+1)+4))//2), 32])
+            elif resolution == 'power':
+                N = np.max([2**(int(np.log2(T))), 16])
+            else:
+                N = np.max([4*int(T**(1./2.)), 16])
+        else:
+            N = kwargs.get('N', None)
+
+        if kwargs.get('M', None) is None:
+            if resolution == 'coarse':
+                M = np.max([2*(int(2**(np.log2(L+1)-1))//2), 16])
+            elif resolution == 'fine':
+                M = np.max([2*(int(2**(np.log2(L+1))+2)//2), 32])
+            elif resolution == 'power':
+                M = np.max([2**(int(np.log2(L))+1), 16])
+            else:
+                M = np.max([6*int(L**(1./2.)), 16])
+        else:
+            M = kwargs.get('M', None)
+
+        return N, M
+
     def plot(self, show=True, save=False, fundamental_domain=True, **kwargs):
         """ Plot the velocity field as a 2-d density plot using matplotlib's imshow
 
@@ -693,7 +746,7 @@ class OrbitKS(Orbit):
             xmult = (plot_orbit.L // 64) + 1
             xscale = xmult * 2*pi*np.sqrt(2)
             xticks = np.arange(0, plot_orbit.L, xscale)
-            xlabels = [str(int(xmult*int(x // xscale))) for x in xticks]
+            xlabels = [str(int((xmult*x) // xscale)) for x in xticks]
         else:
             scaled_L = np.round(plot_orbit.L / (2*pi*np.sqrt(2)), 1)
             xticks = np.array([0, plot_orbit.L])
@@ -812,14 +865,20 @@ class OrbitKS(Orbit):
         -------
 
         """
-        if len(new_shape)==1:
-            new_shape = tuple(*new_shape)
-
         placeholder_orbit = self.convert(to='field').copy().convert(to='modes', inplace=True)
-        if new_shape is None:
-            new_shape = parameter_based_discretization(self.parameters, **kwargs)
+
+        if len(new_shape) == 1:
+            # if passed as tuple, .reshape((a,b)), then need to unpack ((a, b)) into (a, b)
+            new_shape = tuple(*new_shape)
+        elif not new_shape:
+            # if nothing passed, then new_shape == () which evaluates to false.
+            # The default behavior for this will be to modify the current discretization
+            # to a `parameter based discretization'. If this is not desired then simply do not call reshape.
+            new_shape = self.parameter_based_discretization(self.parameters, **kwargs)
+
         if self.field_shape == new_shape:
-            return self
+            # to avoid unintended overwrites, return a copy.
+            return self.copy()
         else:
             for i, d in enumerate(new_shape):
                 if d < self.field_shape[i]:

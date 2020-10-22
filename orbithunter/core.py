@@ -185,6 +185,45 @@ class Orbit:
         dictstr = dumps(dict_)
         return self.__class__.__name__ + '(' + dictstr + ')'
 
+    def concat(self, *others, axis=0):
+        return None
+
+    def reshape(self, *new_shape, **kwargs):
+        """
+
+        Parameters
+        ----------
+        new_shape : tuple of ints or None
+        kwargs
+
+        Returns
+        -------
+
+        """
+        placeholder_orbit = self.convert(to='field').copy().convert(to='modes', inplace=True)
+
+        if len(new_shape) == 1:
+            # if passed as tuple, .reshape((a,b)), then need to unpack ((a, b)) into (a, b)
+            new_shape = tuple(*new_shape)
+        elif not new_shape:
+            # if nothing passed, then new_shape == () which evaluates to false.
+            # The default behavior for this will be to modify the current discretization
+            # to a `parameter based discretization'. If this is not desired then simply do not call reshape.
+            new_shape = self.parameter_based_discretization(self.parameters, **kwargs)
+
+        if self.field_shape == new_shape:
+            # to avoid unintended overwrites, return a copy.
+            return self.copy()
+        else:
+            for i, d in enumerate(new_shape):
+                if d < self.field_shape[i]:
+                    placeholder_orbit = placeholder_orbit._truncate(d, axis=i)
+                elif d > self.field_shape[i]:
+                    placeholder_orbit = placeholder_orbit._pad(d, axis=i)
+                else:
+                    pass
+            return placeholder_orbit.convert(to=self.basis, inplace=True)
+
     def convert(self, inplace=False, to=None):
         """ Method that handles all basis transformations.
 

@@ -192,7 +192,7 @@ def _gradient_descent(orbit_, **kwargs):
             n_iter += 1
             if verbose:
                 if np.mod(n_iter, 5000) == 0:
-                    print('\n Residual={:.7f} after {} gradient descent iterations. Current parameter values:{}'.format(
+                    print('\n Residual={:.7f} after {} gradient descent steps. Parameters:{}'.format(
                         orbit_.residual(), n_iter, orbit_.parameters))
                 elif np.mod(n_iter, 100) == 0:
                     print('#', end='')
@@ -582,7 +582,7 @@ def _default_orbit_maxiter(orbit_, method, **kwargs):
     if method in ['gradient_descent', 'cg', 'newton-cg', 'l-bfgs-b', 'tnc', 'lgmres', 'gmres', 'minres', 'krylov']:
         # Introduction of ugly conditional statements for convenience
         if max_iter == 'long':
-            default_max_iter =1024 * int(np.sqrt(np.product(orbit_.field_shape)))
+            default_max_iter = 1024 * int(np.sqrt(np.product(orbit_.field_shape)))
         elif max_iter == 'medium' or max_iter == 'default':
             default_max_iter = 512 * int(np.sqrt(np.product(orbit_.field_shape)))
         elif max_iter == 'short':

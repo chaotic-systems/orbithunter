@@ -1,5 +1,4 @@
 from .optimize import converge
-from .discretization import rediscretize
 import numpy as np
 
 __all__ = ['dimension_continuation', 'discretization_continuation']
@@ -100,7 +99,7 @@ def _increment_discretization(orbit_, target_size, increment, axis=0):
     else:
         next_size = current_size + increment
     incremented_shape = tuple(d if i != axis else next_size for i, d in enumerate(orbit_.field_shape))
-    return rediscretize(orbit_, new_shape=incremented_shape)
+    return orbit_.reshape(*incremented_shape)
 
 
 def discretization_continuation(orbit_, **kwargs):
@@ -147,5 +146,5 @@ def discretization_continuation(orbit_, **kwargs):
         # a discretization of an equilibrium solution that is brought to the final target shape by rediscretization.
         # In other words, the following rediscretization does not destroy the convergence of the orbit, if it
         # has indeed converged.
-        converge_result.orbit = rediscretize(converge_result.orbit, new_shape=new_shape)
+        converge_result.orbit = converge_result.orbit.reshape(*new_shape)
     return converge_result

@@ -9,8 +9,10 @@ import matplotlib.pyplot as plt
 import glob
 
 def main(*args, **kwargs):
-    test=converge(OrbitKS(seed=5, parameters=(100, 22, 0.), N=32, M=32, tscale=1, xscale=3).rescale(3.5),method='lstsq')
-
+    test=OrbitKS(seed=5, parameters=(20, 20, 0.), tscale=1, xscale=3).rescale(3.5)
+    jey = test.reshape()
+    int1 = kse_integrate(OrbitKS(seed=0, parameters=(512, 512), M=1024), verbose=True, integration_time=1000, step_size=0.25)
+    # clip(int1,((100,None),(None,None))).plot(figsize=(20,20))
     # test = np.ones([32,32])
     # testtest = test.reshape(-1, 32)
     # example_orbit = OrbitKS(seed=5, parameters=(100, 100,0.)).rescale(3.5)

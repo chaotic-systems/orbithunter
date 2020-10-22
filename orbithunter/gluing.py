@@ -1,8 +1,8 @@
-from .discretization import rediscretize
 from .io import read_h5
 import numpy as np
 import os
 import itertools
+from collections import Counter
 
 __all__ = ['tile', 'glue', 'generate_symbol_arrays']
 
@@ -76,7 +76,7 @@ def _correct_aspect_ratios(array_of_orbits, axis=0):
                       for i in range(len(o.shape))) for j, o in enumerate(array_of_orbits.ravel())]
 
     # Return the strip of orbits with corrected proportions.
-    return np.array([rediscretize(o, new_shape=shp) for o, shp in zip(array_of_orbits.ravel(), new_shapes)])
+    return np.array([o.reshape(shp) for o, shp in zip(array_of_orbits.ravel(), new_shapes)])
 
 
 def to_symbol_string(symbol_array):
@@ -342,5 +342,14 @@ def generate_symbol_arrays(tile_dictionary, glue_shape, unique=True):
         return [np.reshape(x, glue_shape) for x in symbol_array_generator]
 
 
+def rediscretize_tiling_dictionary(tiling_dictionary, **kwargs):
+    orbits = list(tiling_dictionary.values())
+    new_shape = kwargs.get('new_shape', None)
 
+    if new_shape is None:
+        average_dimensions = tuple(np.mean(x) for x in tuple(zip(*(o.dimensions for o in orbits))))
+        most_common_orbit_class = max(Counter([o.__class__ for o in orbits]))
+        new_shape = most_common_orbit_class.parameter_based_discretization(average_dimensions, **kwargs)
+
+    return {td_key: td_val.reshape(*new_shape) for td_key, td_val in tiling_dictionary.items()}
 
