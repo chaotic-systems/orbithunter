@@ -179,7 +179,7 @@ class Orbit:
     def __repr__(self):
         # alias to save space
         dict_ = {'basis': self.basis,
-                 'parameters': tuple(np.format_float_scientific(p, 3) for p in self.parameters),
+                 'parameters': tuple(str(np.round(p, 4)) for p in self.parameters),
                  'field_shape': tuple(str(d) for d in self.field_shape)}
         # convert the dictionary to a string via json.dumps
         dictstr = dumps(dict_)
@@ -496,7 +496,8 @@ class Orbit:
             filename = self.parameter_dependent_filename()
 
         if directory == 'local':
-            directory = os.path.join(os.path.abspath(os.path.join(__file__, '../../data/local/')), '')
+            directory = os.path.join(os.path.abspath(os.path.join(__file__,
+                                                                  ''.join(['../../data/local/', str(self), '/'])), ''))
         elif directory == '':
             pass
         elif not os.path.isdir(directory):
@@ -592,7 +593,7 @@ class Orbit:
         return None
 
 
-def convert_class(orbit, new_type):
+def convert_class(orbit, new_type, **kwargs):
     """ Utility for converting between different classes.
 
     Parameters
@@ -623,4 +624,4 @@ def convert_class(orbit, new_type):
     tmp_orbit = orbit.convert(to='field')
 
     return class_generator(state=tmp_orbit.state, basis=tmp_orbit.basis,
-                           parameters=tmp_orbit.parameters).convert(to=orbit.basis)
+                           parameters=tmp_orbit.parameters, **kwargs).convert(to=orbit.basis)

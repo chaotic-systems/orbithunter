@@ -7,7 +7,7 @@ import pandas as pd
 import itertools
 
 __all__ = ['read_h5', 'parse_class', 'convergence_log', 'refurbish_log', 'symbolic_convergence_log',
-           'check_symbolic_log', 'to_symbol_string']
+           'check_symbolic_log']
 
 
 def read_h5(filename, directory='local', data_format='orbithunter', equation='ks',
@@ -21,7 +21,8 @@ def read_h5(filename, directory='local', data_format='orbithunter', equation='ks
         class_generator = class_name
 
     if directory == 'local':
-        directory = os.path.abspath(os.path.join(__file__, '../../data/local/'))
+        directory = os.path.abspath(os.path.join(__file__, ''.join(['../../data/local/',
+                                                                    class_generator.__name__, '/'])))
 
     with h5py.File(os.path.abspath(os.path.join(directory, filename)), 'r') as f:
         if equation == 'ks':
@@ -165,14 +166,4 @@ def check_symbolic_log(symbol_array, log_filename, overwrite=False, retry=False)
             return True
 
 
-def to_symbol_string(symbol_array):
-    symbolic_string = symbol_array.astype(str).copy()
-    shape_of_axes_to_contract = symbol_array.shape[1:]
-    for i, shp in enumerate(shape_of_axes_to_contract):
-        symbolic_string = [(i*'_').join(list_) for list_ in np.array(symbolic_string).reshape(-1, shp).tolist()]
-    symbolic_string = ((len(shape_of_axes_to_contract))*'_').join(symbolic_string)
-    return symbolic_string
 
-
-def to_symbol_array(symbol_string, symbol_array_shape):
-    return np.array([char for char in symbol_string.replace('_', '')]).astype(int).reshape(symbol_array_shape)

@@ -34,45 +34,41 @@ def _slices_from_window(orbit_, window_dimensions, time_ordering='decreasing'):
     for i, (d_min, d_max) in enumerate(window_dimensions):
         # the division and multiplication by 2's keeps the sizes even.
         if d_min is None:
-            slice_start = None
-            d_min = plot_dimensions[i][0]
+            slice_start = 0
         else:
             # Clipping out of bounds does not make sense.
             assert d_min >= plot_dimensions[i][0], 'Trying to clip out of bounds. Please revise clipping domain.'
             # Some coordinate axis range from, for example, -1 to 1. Account for this by rescaling the interval.
             # An example clipping in this case could be from -1 to -0.5. To handle this, rescale the plotting dimensions
             # to [0, plotting_dimension_max - plotting_dimension_min], by subtracting the minimum.
-            slice_start = int(2*((field_shape[i] * ((d_min - plot_dimensions[i][0])
-                                                    / (plot_dimensions[i][1] - plot_dimensions[i][0])) + 1)//2))
-            # Time is always taken as "up" so T=0 is actually the LAST row of the first axis.
-            if i == 0 and time_ordering == 'decreasing':
-                if slice_start != 0:
-                    slice_start *= -1
-                else:
-                    slice_start = -1
+            # This makes the d_min value equal to the fraction of the domain.
+
+            rescaled_domain_min = (d_min-plot_dimensions[i][0])/(plot_dimensions[i][1]-plot_dimensions[i][0])
+            slice_start = int(field_shape[i] * rescaled_domain_min)
+
         if d_max is None:
-            slice_end = None
-            d_max = plot_dimensions[i][1]
+            slice_end = field_shape[i]
         else:
             assert d_max <= plot_dimensions[i][1], 'Trying to clip out of bounds. Please revise clipping domain.'
-            slice_end = int(2*((field_shape[i] * ((d_max - plot_dimensions[i][0])
-                                                  / (plot_dimensions[i][1] - plot_dimensions[i][0])) + 1)//2))
-            if i == 0 and time_ordering == 'decreasing':
-                slice_end *= -1
-                if np.mod(np.abs(slice_end - slice_start), 2):
-                    slice_end -= 1
-        # Find the correct fraction of the length>0 then subtract the minimum to rescale back to original plot units.
-        actual_max_dimension = (-1.0 * plot_dimensions[i][0]) + (actual_dimensions[i] * (d_max - plot_dimensions[i][0])
-                                                                 / (plot_dimensions[i][1] - plot_dimensions[i][0]))
-        actual_min_dimension = (-1.0 * plot_dimensions[i][0]) + (actual_dimensions[i] * (d_min - plot_dimensions[i][0])
-                                                                 / (plot_dimensions[i][1] - plot_dimensions[i][0]))
+            rescaled_domain_max = (d_max-plot_dimensions[i][0])/(plot_dimensions[i][1]-plot_dimensions[i][0])
+            slice_end = int(field_shape[i] * rescaled_domain_max)
 
-        if i == 0 and time_ordering=='decreasing':
+
+        if i == 0 and time_ordering == 'decreasing':
             # From the "top down convention for time.
+            slice_start = field_shape[i] - slice_start
+            slice_end = field_shape[i] - slice_end
             slice_start, slice_end = slice_end, slice_start
 
+        if np.mod(slice_end-slice_start, 2):
+            # If the difference is odd, then floor dividing and multiplying by two switches whichever is odd to even.
+            # By definition, only one can be odd if the difference is odd; hence only once number is changing.
+            slice_start, slice_end = 2*(slice_start // 2), 2*(slice_end // 2)
         clipping_slices.append(slice(slice_start, slice_end))
-        clipping_dimensions.append(actual_max_dimension - actual_min_dimension)
+
+        # Find the correct fraction of the length>0 then subtract the minimum to rescale back to original plot units.
+        ith_clipping_dim = (int(np.abs(slice_end - slice_start))/field_shape[i]) * actual_dimensions[i]
+        clipping_dimensions.append(ith_clipping_dim)
 
     return tuple(clipping_slices), tuple(clipping_dimensions)
 
@@ -105,7 +101,7 @@ def clip(orbit_, window_dimensions, clipping_class=None, **kwargs):
     slices, dimensions = _slices_from_window(orbit_, window_dimensions)
     parameters = tuple(dimensions[i] if i < len(dimensions) else p for i, p in enumerate(orbit_.parameters))
     clipped_orbit = clipping_class(state=orbit_.convert(to='field').state[slices], basis='field',
-                                   parameters=parameters, **kwargs).convert(to=orbit_.basis)
+                                   parameters=parameters, **kwargs)
     return clipped_orbit
 
 

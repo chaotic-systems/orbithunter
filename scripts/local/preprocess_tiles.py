@@ -7,9 +7,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def main(*args, **kwargs):
-    s = read_h5('EquilibriumOrbitKS_L6p39.h5', directory='../../data/tiles/original', basis='field', data_format='orbithunter_old')
-    w = read_h5('AntisymmetricOrbitKS_L17p590_T17p146.h5', directory='../../data/tiles/original', basis='field', data_format='orbithunter_old')
-    m = read_h5('RelativeOrbitKS_L13p026_T15p855.h5', directory='../../data/tiles/original', basis='field', data_format='orbithunter_old')
+    s = read_h5('EquilibriumOrbitKS_L6p39.h5', directory='../../data/tiles/', basis='field')
+    w = read_h5('AntisymmetricOrbitKS_T17p146_L17p590.h5', directory='../../data/tiles/', basis='field')
+    m = read_h5('RelativeOrbitKS_T17p146_L13p019.h5', directory='../../data/tiles/', basis='field')
 
     simple = True
     rescale = True

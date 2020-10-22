@@ -1,5 +1,5 @@
-from .discretization import rediscretize, correct_aspect_ratios
-from .io import read_h5, to_symbol_string
+from .discretization import rediscretize
+from .io import read_h5
 import numpy as np
 import os
 import itertools
@@ -7,47 +7,89 @@ import itertools
 __all__ = ['tile', 'glue', 'generate_symbol_arrays']
 
 
-def best_combination(orbit, other_orbit, fundamental_domain_combinations, axis=0):
-    half_combinations = list(itertools.product(half_list,repeat=2))
-    residual_list = []
-    glued_list = []
-    for halves in half_combinations:
-        orbit_domain = orbit._to_fundamental_domain(half=halves[0])
-        other_orbit_domain = other_orbit._to_fundamental_domain(half=halves[1])
-        glued = concat(orbit_domain, other_orbit_domain, direction=direction)
-        glued_orbit = glued._from_fundamental_domain()
-        glued_list.extend([glued_orbit])
-        residual_list.extend([glued_orbit.residual])
-    best_combi = np.array(glued_list)[np.argmin(residual_list)]
-    return best_combi
+def _correct_aspect_ratios(array_of_orbits, axis=0):
+
+    iterable_of_dims = [o.dimensions[axis] for o in array_of_orbits.ravel()]
+    iterable_of_shapes = [o.field_shape[axis] for o in array_of_orbits.ravel()]
+
+    disc_total = np.sum(iterable_of_shapes)
+    dim_total = np.sum(iterable_of_dims)
+
+    fraction_array = np.array(iterable_of_dims) / dim_total
+    new_discretization_sizes = (2 * np.round((fraction_array * disc_total) / 2)).astype(int)
+    number_of_dimensionless_orbits = np.sum(fraction_array == 0)
+    number_of_dimensionful_orbits = len(new_discretization_sizes) - number_of_dimensionless_orbits
+
+    # Due to how the fractions and rounding can work out the following is a safety measure to ensure the
+    # new discretization sizes add up to the original; this is a requirement in order to glue strips together.
+    # The simplest way of adjusting these is to simply make every even (it already should be and I actually cannot
+    # think of a case where this would not be true, but still), then add or subtract from the largest discretization
+    # until we get to the original total.
+    while np.sum(new_discretization_sizes) != disc_total:
+        new_discretization_sizes[np.mod(np.sum(new_discretization_sizes), 2) == 1] += 1
+        if np.sum(new_discretization_sizes) < disc_total:
+            # Add points to the first instance of the minimum discretization size not equal to 0.
+            non_zero_minimum = new_discretization_sizes[new_discretization_sizes > 0].min()
+            new_discretization_sizes[np.min(np.where(new_discretization_sizes == non_zero_minimum)[0])] += 2
+        else:
+            # non_zero_maximum is same as maximum, just a precaution and consistency with minimum
+            non_zero_maximum = new_discretization_sizes[new_discretization_sizes > 0].max()
+            # Using np.argmin here would return the index relative to the sliced disc_size array, not the original as
+            # we desire.
+            new_discretization_sizes[np.min(np.where(new_discretization_sizes == non_zero_maximum)[0])] -= 2
+
+    fraction_array = np.array(new_discretization_sizes) / np.sum(new_discretization_sizes)
+
+    # Can't have orbits with 0 discretization but don't want them too large because they have no inherent scale.
+    # If there are only orbits of this type however we need to return the original sizes.
+    if number_of_dimensionless_orbits == len(iterable_of_shapes):
+        # if gluing all equilibria in time, don't change anything.
+        new_shapes = [o.shape for o in array_of_orbits.ravel()]
+
+    elif number_of_dimensionless_orbits > 0 and number_of_dimensionful_orbits >= 1:
+        # The following is the most convoluted piece of code perhaps in the entire package. It attempts to find the
+        # best minimum discretization size for the dimensionless orbits; simply having them take the literal minimum
+        # size is as good as throwing them out.
+        # If the number of elements in the strip is large, then it is possible that the previous defaults will result
+        # in 0's.
+        half_dimless_disc = np.min([np.max([2 * (iterable_of_shapes[0] // (2*number_of_dimensionless_orbits
+                                                                           * number_of_dimensionful_orbits)),
+                                    disc_total // (len(iterable_of_shapes)*number_of_dimensionless_orbits),
+                                    2*int((np.round(1.0 / np.min(fraction_array[fraction_array != 0]))+1) // 2)]),
+                                    iterable_of_shapes[0]//2])
+
+        # Find the number of points to take from each orbit. Multiply by two to get an even total.
+        how_much_to_take_away_for_each = 2 * np.round(half_dimless_disc * fraction_array)
+        # Subtract the number of points to take away from each per dimensionless
+        new_discretization_sizes = (new_discretization_sizes
+                                             - (number_of_dimensionless_orbits * how_much_to_take_away_for_each))
+        # The size of the dimensionless orbits is of course how much we took from the other orbits.
+        new_discretization_sizes[new_discretization_sizes == 0] = np.sum(how_much_to_take_away_for_each).astype(int)
+
+        # The new shapes of each orbit are the new sizes along the gluing axis, and the originals for axes not being
+        # glued.
+        new_shapes = [tuple(int(new_discretization_sizes[j]) if i == axis else o.field_shape[i]
+                        for i in range(len(o.shape))) for j, o in enumerate(array_of_orbits.ravel())]
+
+    else:
+        new_shapes = [tuple(int(new_discretization_sizes[j]) if i == axis else o.field_shape[i]
+                      for i in range(len(o.shape))) for j, o in enumerate(array_of_orbits.ravel())]
+
+    # Return the strip of orbits with corrected proportions.
+    return np.array([rediscretize(o, new_shape=shp) for o, shp in zip(array_of_orbits.ravel(), new_shapes)])
 
 
-def best_rotation(orbit, other_orbit, axis=0):
-    field_orbit, field_other_orbit = correct_aspect_ratios(orbit, other_orbit, axis=axis)
-
-    resmat = np.zeros([field_other_orbit.N, field_other_orbit.M])
-    # The orbit only remains a converged solution if the rotations occur in
-    # increments of the discretization, i.e. multiples of L / M and T / N.
-    # The reason for this is because those are the only values that do not
-    # actually change the field via interpolation. In other words,
-    # The rotations must coincide with the collocation points.
-    # for n in range(0, field_other_orbit.N):
-    #     for m in range(0, field_other_orbit.M):
-    #         rotated_state = np.roll(np.roll(field_other_orbit.state, m, axis=1), n, axis=0)
-    #         rotated_orbit = other_orbit.__class__(state=rotated_state, basis=field_other_orbit.basis, T=other_orbit.T,
-    #                                               L=other_orbit.L, S=other_orbit.S)
-    #         resmat[n,m] = concat(field_orbit, rotated_orbit, direction=direction).residual
+def to_symbol_string(symbol_array):
+    symbolic_string = symbol_array.astype(str).copy()
+    shape_of_axes_to_contract = symbol_array.shape[1:]
+    for i, shp in enumerate(shape_of_axes_to_contract):
+        symbolic_string = [(i*'_').join(list_) for list_ in np.array(symbolic_string).reshape(-1, shp).tolist()]
+    symbolic_string = ((len(shape_of_axes_to_contract))*'_').join(symbolic_string)
+    return symbolic_string
 
 
-    bestn, bestm = np.unravel_index(np.argmin(resmat), resmat.shape)
-    high_resolution_orbit = rediscretize(field_orbit, new_N=16*field_orbit.N, new_M=16*field_orbit.M)
-    high_resolution_other_orbit = rediscretize(field_other_orbit, new_N=16*field_other_orbit.N, new_M=16*field_other_orbit.M)
-
-    best_rotation_state = np.roll(np.roll(high_resolution_other_orbit.state, 16*bestm, axis=1), 16*bestn, axis=0)
-    highres_rotation_orbit = other_orbit.__class__(state=best_rotation_state, basis='field',
-                                                   T=other_orbit.T, L=other_orbit.L, S=other_orbit.S)
-    best_gluing = concat(high_resolution_orbit, highres_rotation_orbit, direction=direction)
-    return best_gluing
+def to_symbol_array(symbol_string, symbol_array_shape):
+    return np.array([char for char in symbol_string.replace('_', '')]).astype(int).reshape(symbol_array_shape)
 
 
 def expensive_glue(pair_of_orbits_array, class_constructor, gluing_axis=0):
@@ -74,7 +116,7 @@ def expensive_glue(pair_of_orbits_array, class_constructor, gluing_axis=0):
     # the "gluing axis" in this case is always the same, we are just iterating through the gluing shape one
     # axis at a time.
     glue_shape = tuple(2 if i == gluing_axis else 1 for i in range(2))
-    corrected_pair_of_orbits = correct_aspect_ratios(pair_of_orbits_array, gluing_axis=0)
+    corrected_pair_of_orbits = _correct_aspect_ratios(pair_of_orbits_array, gluing_axis=0)
     # Bundle all of the parameters at once, instead of "stripwise"
     zipped_dimensions = tuple(zip(*(o.dimensions for o in pair_of_orbits_array.ravel())))
     glued_parameters = class_constructor.glue_parameters(zipped_dimensions, glue_shape=glue_shape)
@@ -209,7 +251,7 @@ def glue(array_of_orbit_instances, class_constructor, stripwise=False, **kwargs)
                 strip_of_orbits = array_of_orbit_instances[gs].reshape(strip_shape)
 
                 # Correct the proportions of the dimensions along the current gluing axis.
-                array_of_orbit_instances_corrected = correct_aspect_ratios(strip_of_orbits, axis=gluing_axis)
+                array_of_orbit_instances_corrected = _correct_aspect_ratios(strip_of_orbits, axis=gluing_axis)
                 # Concatenate the states with corrected proportions.
                 glued_strip_state = np.concatenate(tuple(x.state for x in array_of_orbit_instances_corrected),
                                                    axis=gluing_axis)

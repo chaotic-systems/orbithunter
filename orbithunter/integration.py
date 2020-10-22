@@ -57,8 +57,9 @@ def kse_integrate(orbit_, **kwargs):
     verbose = kwargs.get('verbose', False)
     orbit_ = orbit_.convert(to='s_modes')
     integration_time = kwargs.get('integration_time', orbit_.T)
-    # Take the last row (T=0) so this works for relative periodic solutions as well. i
-    orbit_t_equals_0 = orbit_.__class__(state=orbit_.state[-1, :].reshape(1, -1), basis=orbit_.basis,
+    start_point = kwargs.get('starting_time', -1)
+    # Take the last row (t=0) or first row (t=T) so this works for relative periodic solutions as well.
+    orbit_t_equals_0 = orbit_.__class__(state=orbit_.state[start_point, :].reshape(1, -1), basis=orbit_.basis,
                                         parameters=orbit_.parameters).convert(to='s_modes')
     # stepsize
     step_size = kwargs.get('step_size', 0.01)

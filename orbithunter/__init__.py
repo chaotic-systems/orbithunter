@@ -1,9 +1,7 @@
 from .optimize import converge
-from .io import (read_h5, parse_class, convergence_log, refurbish_log, to_symbol_string, check_symbolic_log,
-                 symbolic_convergence_log)
+from .io import (read_h5, parse_class, convergence_log, refurbish_log, check_symbolic_log, symbolic_convergence_log)
 from .gluing import glue, tile, generate_symbol_arrays
-from .discretization import (rediscretize, rediscretize_tiling_dictionary, parameter_based_discretization,
-                             correct_aspect_ratios)
+from .discretization import rediscretize, rediscretize_tiling_dictionary, parameter_based_discretization
 from .orbit_ks import (OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS,
                        AntisymmetricOrbitKS, EquilibriumOrbitKS, RelativeEquilibriumOrbitKS)
 from .arrayops import swap_modes, so2_coefficients, so2_generator, calculate_spatial_shift

@@ -37,7 +37,7 @@ def _increment_dimension(orbit_, target_extent, increment, axis=0):
                             parameters=parameters, constraints=orbit_.constraints)
 
 
-def dimension_continuation(orbit_, axis=0, step_size=0.01, **kwargs):
+def dimension_continuation(orbit_, new_size, axis=0, step_size=0.01, **kwargs):
     """
 
     Parameters
@@ -51,7 +51,6 @@ def dimension_continuation(orbit_, axis=0, step_size=0.01, **kwargs):
 
 
     """
-    new_size = kwargs.get('new_size', orbit_.parameters[axis])
     # As long as we keep converging to solutions, we keep stepping towards target value.
     # We need to be incrementing in the correct direction. i.e. to get smaller we need to have a negative increment.
     # Use list to get the correct count, then convert to tuple as expected.
@@ -61,7 +60,7 @@ def dimension_continuation(orbit_, axis=0, step_size=0.01, **kwargs):
     # check that the orbit_ instance is converged when having constraints, otherwise performance takes a big hit.
     # The constraints are applied but orbit_ can also be passed with the correct constrains.
     # This choice is described in the Notes section.
-    orbit_.constrain(axis=axis)
+    converge_result.orbit.constrain(axis=axis)
     # Ensure that we are stepping in correct direction.
     step_size = (np.sign(new_size - converge_result.orbit.parameters[axis]) * np.abs(step_size))
     # We need to be incrementing in the correct direction. i.e. to get smaller we need to have a negative increment.
