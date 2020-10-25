@@ -4,7 +4,7 @@ import os
 import itertools
 from collections import Counter
 
-__all__ = ['tile', 'glue', 'generate_symbol_arrays']
+__all__ = ['tile', 'glue', 'generate_symbol_arrays', 'rediscretize_tiling_dictionary']
 
 
 def _correct_aspect_ratios(array_of_orbits, axis=0):
@@ -166,7 +166,7 @@ def tile_dictionary_ks(padded=False, comoving=False):
         merger = read_h5('./OrbitKS_merger.h5', directory=directory, basis='field')
 
     # padded streak orbit
-    streak = read_h5('./OrbitKS_streak.h5',directory=directory, basis='field')
+    streak = read_h5('./OrbitKS_streak.h5', directory=directory, basis='field')
 
     # padded wiggle orbit
     wiggle = read_h5('./OrbitKS_wiggle.h5', directory=directory, basis='field')

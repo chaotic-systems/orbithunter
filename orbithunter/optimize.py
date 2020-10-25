@@ -1,6 +1,7 @@
-from scipy.sparse.linalg import LinearOperator, lsqr, lsmr
 from scipy.linalg import lstsq
-from scipy.optimize import minimize, root
+from scipy.optimize import minimize
+from scipy.sparse.linalg import (LinearOperator, bicg, bicgstab, gmres, lgmres,
+                                 cg, cgs, qmr, minres, lsqr, lsmr, gcrotmk)
 import sys
 import numpy as np
 
@@ -77,8 +78,33 @@ def converge(orbit_, **kwargs):
     Parameters
     ----------
     orbit_
-    method
-    kwargs
+
+    kwargs:
+        method :
+
+        orbit_maxiter :
+
+        orbit_tol :
+
+        hybrid_maxiter : tuple of two ints
+            Only used if method == 'hybrid', contains the maximum number of iterations to be used in gradient
+            descent and lstsq, respectively.
+
+        hybrid_tol : tuple of floats
+            Only used if method == 'hybrid', contains the tolerance threshold to be used in gradient
+            descent and lstsq, respectively.
+
+        scipy.optimize.minimize kwargs:
+            There are too many to describe and they depend on the particular algorithm utilized, see scipy
+            docs for more info. These pertain to numerical methods in ['cg', 'newton-cg', 'l-bfgs-b', 'tnc']
+
+        scipy.sparse.linalg kwargs
+            Additional arguments for scipy.sparse.linalg solvers method in ['lsqr', 'lsmr']
+
+        scipy.optimize.root kwargs:
+            Additional arguments for scipy.optimize.minimize solvers in ['lm', 'lgmres', 'gmres', 'minres'].
+            'lm' should not be used for large problems.
+
 
     Returns
     -------
@@ -114,13 +140,15 @@ def converge(orbit_, **kwargs):
         elif method == 'gradient_descent':
             result_orbit, n_iter, exit_code = _gradient_descent(orbit_, **kwargs)
         elif method == 'lstsq':
+            # solves Ax = b in least-squares manner
             result_orbit, n_iter, exit_code = _lstsq(orbit_, **kwargs)
-        elif method in ['lsqr', 'lsmr']:
+        elif method in ['lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
+                        'cg', 'cgs', 'qmr', 'minres', 'gcrotmk']:
+            # solves A^T A x = A^T b
             result_orbit, n_iter, exit_code = _scipy_sparse_linalg_solver_wrapper(orbit_, **kwargs)
-        elif method in ['cg', 'newton-cg', 'l-bfgs-b', 'tnc']:
+        elif method in ['cg', 'newton-cg', 'l-bfgs-b', 'tnc', 'bfgs']:
+            # minimizes cost functional 1/2 F^2
             result_orbit, n_iter, exit_code = _scipy_optimize_minimize_wrapper(orbit_,  **kwargs)
-        elif method in ['lm', 'lgmres', 'gmres', 'minres']:
-            result_orbit, n_iter, exit_code = _scipy_optimize_root_wrapper(orbit_, **kwargs)
         else:
             raise ValueError('Unknown or unsupported solver %s' % method)
 
@@ -155,13 +183,16 @@ def _gradient_descent(orbit_, **kwargs):
 
     n_iter = 0
     step_size = 1
-    # By default assume failure
-    exit_code = 0
 
     if verbose:
-        print('Starting gradient descent. Initial residual={}, target={}, max_iter={}'.format(orbit_.residual(),
-                                                                                              orbit_tol,
-                                                                                              orbit_maxiter))
+        print('\n-------------------------------------------------------------------------------------------------')
+        print('Starting gradient descent')
+        print('Initial residual : {}'.format(orbit_.residual()))
+        print('Target residual tolerance : {}'.format(orbit_tol))
+        print('Maximum iteration number : {}'.format(orbit_maxiter))
+        print('Initial parameter values : {}'.format(orbit_.parameters))
+        print('-------------------------------------------------------------------------------------------------')
+
     mapping = orbit_.spatiotemporal_mapping(**kwargs)
     residual = mapping.residual(apply_mapping=False)
     while residual > orbit_tol:
@@ -210,7 +241,13 @@ def _lstsq(orbit_, **kwargs):
     residual = orbit_.residual()
 
     if verbose:
-        print('\nStarting lstsq. Initial residual={}, target={}'.format(orbit_.residual(), orbit_tol))
+        print('\n-------------------------------------------------------------------------------------------------')
+        print('Starting lstsq optimization')
+        print('Initial residual : {}'.format(orbit_.residual()))
+        print('Target residual tolerance : {}'.format(orbit_tol))
+        print('Maximum iteration number : {}'.format(orbit_maxiter))
+        print('Initial parameter values : {}'.format(orbit_.parameters))
+        print('-------------------------------------------------------------------------------------------------')
 
     while residual > orbit_tol:
         step_size = 1
@@ -247,113 +284,116 @@ def _lstsq(orbit_, **kwargs):
     return orbit_, n_iter, 1
 
 
-def _scipy_sparse_linalg_solver_wrapper(orbit_, damp=0.0, atol=1e-6, btol=1e-6,
-                                        method='lsqr', maxiter=None, conlim=1e+08,
-                                        show=False, calc_var=False, **kwargs):
-
+def _scipy_sparse_linalg_solver_wrapper(orbit_, method='minres', **kwargs):
     orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_, **kwargs))
     orbit_maxiter = kwargs.get('orbit_maxiter', _default_orbit_maxiter(orbit_, method, **kwargs))
-    max_damp_factor = kwargs.get('orbit_damp_max', 8)
-    preconditioning = kwargs.get('preconditioning', True)
+    ftol = kwargs.get('ftol', np.product(orbit_.shape) * 10**-13)
+    scipy_kwargs = kwargs.pop('scipy_kwargs', {'x0': None})
 
-    linear_operator_shape = (orbit_.state.size, orbit_.state_vector().size)
-    istop = 1
     n_iter = 0
     orbit_n_iter = 0
     # Return codes that represent good results from the SciPy least-squares solvers.
-    good_codes = [0, 1, 2, 4, 5]
     residual = orbit_.residual()
+    if kwargs.get('verbose', False):
+        print('\n------------------------------------------------------------------------------------------------')
+        print('Starting {} optimization'.format(method))
+        print('Initial residual : {}'.format(orbit_.residual()))
+        print('Target residual tolerance : {}'.format(orbit_tol))
+        print('Maximum iteration number : {}'.format(orbit_maxiter))
+        print('Initial parameter values : {}'.format(orbit_.parameters))
+        print('-------------------------------------------------------------------------------------------------')
 
-    while (residual > orbit_tol) and (istop in good_codes) and orbit_n_iter < orbit_maxiter:
+    while (residual > orbit_tol) and orbit_n_iter < orbit_maxiter:
         orbit_n_iter += 1
-
-        # The operator depends on the current state; A=A(orbit)
-        def rmv_func(v):
-            # _process_newton_step turns state vector into class object.
-            v_orbit = orbit_.from_numpy_array(v, parameters=orbit_.parameters)
-            if preconditioning:
-                # To be consistent, if left preconditioning in matvec, need to right precondition rmatvec
-                # This means that only the modes should be preconditioned; the work around for this is to constrain
-                # the parameters, as v_orbit is just a placeholder anyway.
-                v_orbit.constraints = {k: True for k in orbit_.constraints.keys()}
-                return orbit_.rmatvec(v_orbit.precondition(orbit_.preconditioning_parameters),
-                                      **kwargs).state_vector().reshape(-1, 1)
-            else:
-                return orbit_.rmatvec(v_orbit, **kwargs).state_vector().reshape(-1, 1)
+        step_size = 1
+        # Solving `normal equations, A^T A x = A^T b. A^T A is its own transpose hence mv_func=rmv_func
 
         def mv_func(v):
             # _state_vector_to_orbit turns state vector into class object.
             v_orbit = orbit_.from_numpy_array(v)
-            if preconditioning:
-                return orbit_.matvec(v_orbit, **kwargs).precondition(orbit_.preconditioning_parameters).state.reshape(-1, 1)
-            else:
-                return orbit_.matvec(v_orbit, **kwargs).state.reshape(-1, 1)
+            return orbit_.rmatvec(orbit_.matvec(v_orbit, **kwargs), **kwargs).state_vector().reshape(-1, 1)
 
-        orbit_linear_operator = LinearOperator(linear_operator_shape, mv_func, rmatvec=rmv_func, dtype=float)
-        b = -1.0 * orbit_.spatiotemporal_mapping(**kwargs).state.reshape(-1, 1)
-        damp_factor = 0
+        linear_operator_shape = (orbit_.state_vector().size, orbit_.state_vector().size)
+        ATA = LinearOperator(linear_operator_shape, mv_func, rmatvec=mv_func, dtype=float)
+        ATb = orbit_.rmatvec(-1.0 * orbit_.spatiotemporal_mapping()).state_vector().reshape(-1, 1)
 
-        if method == 'lsmr':
-            result_tuple = lsmr(orbit_linear_operator, b, damp=damp, atol=atol, btol=btol,
-                                conlim=conlim, maxiter=maxiter, show=show)
+        if method == 'minres':
+            result_tuple = minres(ATA, ATb, **scipy_kwargs),
+        elif method == 'lsmr':
+            result_tuple = lsmr(ATA, ATb, **scipy_kwargs),
         elif method == 'lsqr':
-            # Depends heavily on scaling of the problem.
-            result_tuple = lsqr(orbit_linear_operator, b, damp=damp, atol=atol, btol=btol, conlim=conlim,
-                                iter_lim=maxiter, show=show, calc_var=calc_var)
+            result_tuple = lsqr(ATA, ATb, **scipy_kwargs),
+        elif method == 'bicg':
+            result_tuple = bicg(ATA, ATb, **scipy_kwargs),
+        elif method == 'bicgstab':
+            result_tuple = bicgstab(ATA, ATb, **scipy_kwargs),
+        elif method == 'gmres':
+            result_tuple = gmres(ATA, ATb, **scipy_kwargs),
+        elif method == 'lgmres':
+            result_tuple = lgmres(ATA, ATb, **scipy_kwargs),
+        elif method == 'cg':
+            result_tuple = cg(ATA, ATb, **scipy_kwargs),
+        elif method == 'cgs':
+            result_tuple = cgs(ATA, ATb, **scipy_kwargs),
+        elif method == 'qmr':
+            result_tuple = qmr(ATA, ATb, **scipy_kwargs),
+        elif method == 'gcrotmk':
+            result_tuple = gcrotmk(ATA, ATb, **scipy_kwargs),
         else:
             raise ValueError('Unknown solver %s' % method)
 
-        x = result_tuple[0]
-        istop = result_tuple[1]
-        n_iter += result_tuple[2]
-
-        dorbit = orbit_.from_numpy_array(x, **kwargs)
-        next_orbit = orbit_.increment(dorbit)
-        next_residual = next_orbit.residual()
-        while next_residual > residual:
-            damp_factor += 1
-            next_orbit = orbit_.increment(dorbit, step_size=2 ** -damp_factor)
-            next_residual = next_orbit.residual()
-            if damp_factor > max_damp_factor:
-                return orbit_, n_iter, 0
+        if len(result_tuple) == 1:
+            # if passed as tuple, .reshape((a,b)), then need to unpack ((a, b)) into (a, b)
+             x = tuple(*result_tuple)[0]
         else:
-            print(next_residual)
+            x = result_tuple[0]
+        dx = orbit_.from_numpy_array(x, **kwargs)
+        next_orbit = orbit_.increment(dx)
+        next_residual = next_orbit.residual()
+        while next_residual > residual and step_size > 10**-8:
+            # Continues until either step is too small or residual decreases
+            step_size /= 2.0
+            next_orbit = orbit_.increment(dx, step_size=step_size)
+            next_residual = next_orbit.residual()
+
+        # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
+        if next_residual <= orbit_tol:
+            return next_orbit, n_iter, 1
+        elif step_size <= 10**-8 or (residual - next_residual) / max([residual, next_residual, 1]) < ftol:
+            return next_orbit, n_iter, 0
+        elif n_iter >= orbit_maxiter:
+            return orbit_, n_iter, 2
+        else:
             orbit_ = next_orbit
             residual = next_residual
             if kwargs.get('verbose', False):
-                # print(damp_factor, end='')
-                if np.mod(orbit_n_iter, (orbit_maxiter // 10)) == 0:
+                print('#', end='')
+                if np.mod(orbit_n_iter, orbit_maxiter // 25) == 0:
                     print('Residual={} after {} {} iterations'.format(orbit_.residual(), orbit_n_iter, method))
 
-    if n_iter == orbit_maxiter:
-        exit_code = 2
-    else:
-        exit_code = 0
-
-    return orbit_, n_iter, exit_code
+    return orbit_, n_iter, 1
 
 
-def _scipy_optimize_minimize_wrapper(orbit_, method=None, bounds=None,
-                                     tol=None, callback=None, options=None, **kwargs):
-
+def _scipy_optimize_minimize_wrapper(orbit_, method='l-bfgs-b', **kwargs):
     orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_, **kwargs))
     orbit_maxiter = kwargs.get('orbit_maxiter', _default_orbit_maxiter(orbit_, method, **kwargs))
-    verbose = kwargs.get('verbose', False)
+
+    if kwargs.get('verbose', False):
+        print('\n-------------------------------------------------------------------------------------------------')
+        print('Starting {} optimization'.format(method))
+        print('Initial residual : {}'.format(orbit_.residual()))
+        print('Target residual tolerance : {}'.format(orbit_tol))
+        print('Maximum iteration number : {}'.format(orbit_maxiter))
+        print('Initial parameter values : {}'.format(orbit_.parameters))
+        print('-------------------------------------------------------------------------------------------------')
 
     # The performance of the different methods depends on preconditioning differently/
-    if method in ['newton-cg', 'tnc']:
+    if method in ['newton-cg', 'bfgs', 'cg']:
         # This is a work-around to have different defaults for the different methods.
         preconditioning = kwargs.get('preconditioning', False)
-    elif method == 'l-bfgs-b':
+    elif method in ['l-bfgs-b', 'tnc']:
         # This is a work-around to have different defaults for the different methods.
         preconditioning = kwargs.get('preconditioning', True)
-    elif method == 'cg':
-        # This is a work-around to have different defaults for the different methods.
-        preconditioning = kwargs.get('preconditioning', True)
-        if options is None:
-            options = {'gtol': 1e-3}
-        elif isinstance(options, dict):
-            options['gtol'] = options.get('gtol', 1e-3)
 
     def _cost_function_scipy_minimize(x):
         '''
@@ -393,115 +433,22 @@ def _scipy_optimize_minimize_wrapper(orbit_, method=None, bounds=None,
             return x_orbit.rmatvec(x_orbit.spatiotemporal_mapping(), **kwargs).state_vector().ravel()
 
     orbit_n_iter = 0
-    success = True
 
-    while (orbit_.residual() > orbit_tol) and (orbit_n_iter < orbit_maxiter) and success:
-        orbit_n_iter += 1
+    scipy_kwargs = kwargs.pop('scipy_kwargs', None)
+
+    if scipy_kwargs is not None:
         result = minimize(_cost_function_scipy_minimize, orbit_.state_vector(),
-                          method=method, jac=_cost_function_jac_scipy_minimize, bounds=bounds, tol=tol,
-                          callback=callback, options=options)
-        orbit_ = orbit_.from_numpy_array(result.x)
-        success = result.success
-        if verbose:
-            if np.mod(orbit_n_iter, orbit_maxiter // 10) == 0:
-                print('Residual={} after {} {} iterations'.format(orbit_.residual(), orbit_n_iter, method))
-
-    return orbit_, orbit_n_iter, success
-
-
-def _scipy_optimize_root_wrapper(orbit_, method=None, tol=None, callback=None, options=None, **kwargs):
-    """ Wrapper for scipy.optimize.root methods
-
-    Parameters
-    ----------
-    orbit_
-    method
-    tol
-    callback
-    options
-    kwargs
-
-    Returns
-    -------
-
-    Notes
-    -----
-    Does not allow for preconditioning currently. Only supports the following methods: 'lm', 'lgmres', 'gmres', 'minres'
-
-    """
-    # define the functions using orbit instance within scope instead of passing orbit
-    # instance as arg to scipy functions.
-
-    orbit_tol = kwargs.get('orbit_tol', _default_orbit_tol(orbit_,  **kwargs))
-    orbit_maxiter = kwargs.get('orbit_maxiter', _default_orbit_maxiter(orbit_, method, **kwargs))
-    verbose = kwargs.get('verbose', False)
-
-    def _cost_function_scipy_root(x):
-        '''
-        :param x0: (n,) numpy array
-        :param args: time discretization, space discretization, subClass from orbit.py
-        :return: value of cost functions (0.5 * L_2 norm of spatiotemporal mapping squared)
-        '''
-
-        '''
-        Note that passing Class as a function avoids dangerous statements using eval()
-        '''
-        x_orbit = orbit_.from_numpy_array(x, **kwargs)
-        n_params = x_orbit.state_vector().size - x_orbit.state.size
-        # Root requires input shape = output shape.
-        return np.concatenate((x_orbit.spatiotemporal_mapping(**kwargs).state.ravel(),
-                               np.zeros(n_params)), axis=0)
-
-    def _cost_function_jac_scipy_root(x):
-        """ The jacobian of the cost function (scalar) can be expressed as a vector product
-
-        Parameters
-        ----------
-        x
-        args
-
-        Returns
-        -------
-
-        Notes
-        -----
-        The gradient of 1/2 F^2 = J^T F, rmatvec is a function which does this matrix vector product
-        Will always use preconditioned version by default, not sure if wise.
-        """
-
-        x_orbit = orbit_.from_numpy_array(x, **kwargs)
-        n_params = x_orbit.state_vector().size - x_orbit.state.size
-        return np.concatenate((x_orbit.jacobian(**kwargs),
-                               np.zeros([n_params, x_orbit.state_vector().size])), axis=0)
-
-    # If not providing jacobian numerical approximation is used which can be beneficial.
-    if method == 'lm' and kwargs.get('jacobian_on', True):
-        jac_ = _cost_function_jac_scipy_root
-    elif method in ['lgmres', 'gmres', 'minres']:
-        jac_ = None
-        # These methods are actually inner loop methods of 'krylov' method; need to be passed into options dict.
-        #
-        if options is None:
-            options = {'jac_options': {'method': method}}
-        elif isinstance(options, dict):
-            options['jac_options'] = {'method': method}
-        method = 'krylov'
+                          method=method, jac=_cost_function_jac_scipy_minimize, **scipy_kwargs)
     else:
-        jac_ = None
+        result = minimize(_cost_function_scipy_minimize, orbit_.state_vector(),
+                          method=method, jac=_cost_function_jac_scipy_minimize)
+    orbit_ = orbit_.from_numpy_array(result.x)
+    success = result.success
+    if kwargs.get('verbose', False):
+        print('#', end='')
+        if np.mod(orbit_n_iter, orbit_maxiter // 25) == 0:
+            print('Residual={} after {} {} iterations'.format(orbit_.residual(), orbit_n_iter, method))
 
-    orbit_n_iter = 0
-    success = True
-
-    while (orbit_.residual() > orbit_tol) and (orbit_n_iter < orbit_maxiter) and success:
-        orbit_n_iter += 1
-        result = root(_cost_function_scipy_root, orbit_.state_vector(),
-                      method=method, jac=jac_, tol=tol,
-                      callback=callback, options=options)
-        orbit_ = orbit_.from_numpy_array(result.x, **kwargs)
-        success = result.success
-        if verbose:
-            if np.mod(orbit_n_iter, (kwargs.get('orbit_maxiter', 20) // 10)) == 0:
-                print('Residual={} after {} {} iterations'.format(orbit_.residual(), orbit_n_iter, method))
     return orbit_, orbit_n_iter, success
 
 
@@ -578,28 +525,28 @@ def _default_orbit_maxiter(orbit_, method, **kwargs):
     in specifying the default tolerance per method.
 
     """
-    max_iter = kwargs.get('max_iter', 'default')
-    if method in ['gradient_descent', 'cg', 'newton-cg', 'l-bfgs-b', 'tnc', 'lgmres', 'gmres', 'minres', 'krylov']:
+    comp_time = kwargs.get('comp_time', 'default')
+    if method == 'gradient descent':
         # Introduction of ugly conditional statements for convenience
-        if max_iter == 'long':
+        if comp_time == 'long':
             default_max_iter = 1024 * int(np.sqrt(np.product(orbit_.field_shape)))
-        elif max_iter == 'medium' or max_iter == 'default':
+        elif comp_time == 'medium' or comp_time == 'default':
             default_max_iter = 512 * int(np.sqrt(np.product(orbit_.field_shape)))
-        elif max_iter == 'short':
+        elif comp_time == 'short':
             default_max_iter = 128 * int(np.sqrt(np.product(orbit_.field_shape)))
-        elif max_iter == 'minimal':
+        elif comp_time == 'minimal':
             default_max_iter = 32 * int(np.sqrt(np.product(orbit_.field_shape)))
         else:
             raise ValueError('If a custom number of iterations is desired, use ''orbit_maxiter'' key word instead.')
     else:
         # Introduction of ugly conditional statements for convenience
-        if max_iter == 'long':
+        if comp_time == 'long':
             default_max_iter = 500
-        elif max_iter == 'medium' or max_iter == 'default':
+        elif comp_time == 'medium' or comp_time == 'default':
             default_max_iter = 250
-        elif max_iter == 'short':
+        elif comp_time == 'short':
             default_max_iter = 50
-        elif max_iter == 'minimal':
+        elif comp_time == 'minimal':
             default_max_iter = 10
         else:
             raise ValueError('If a custom number of iterations is desired, use ''orbit_maxiter'' key word instead.')

@@ -35,7 +35,7 @@ def main(*args, **kwargs):
                         orbit_ = read_h5(orbit_h5,  check=True)
                 directory = orbit_h5.split(os.path.basename(orbit_h5))[0]
                 if orbit_.N * orbit_.M > 64 * 128:
-                    orbit_ = rediscretize(orbit_)
+                    orbit_ = orbit_.reshape()
                 if search_directory.count('initial') > 0:
                     orbit_.to_h5(directory=directory, verbose=True)
                     orbit_.plot(show=False, save=True, directory=directory, verbose=True)

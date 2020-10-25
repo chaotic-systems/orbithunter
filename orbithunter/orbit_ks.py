@@ -411,17 +411,18 @@ class OrbitKS(Orbit):
 
         assert (self.basis == 'modes') and (other.basis == 'modes')
         self_field = self.convert(to='field')
-        other_field = other.convert(to='field')
-        matvec_params = other_field.parameters
+        other_mode_component = other.__class__(state=other.state, parameters=self.parameters)
+        other_field = other_mode_component.convert(to='field')
 
-        matvec_modes = (other.dt(return_array=True) + other.dx(power=2, return_array=True)
-                        + other.dx(power=4, return_array=True)
-                        + self_field.nonlinear(other_field, return_array=True))
+        # factor of two comes from differentiation of nonlinear term.
+        matvec_modes = (other_mode_component.dt(return_array=True) + other_mode_component.dx(power=2, return_array=True)
+                        + other_mode_component.dx(power=4, return_array=True)
+                        + 2 * self_field.nonlinear(other_field, return_array=True))
 
         if not self.constraints['T']:
             # Compute the product of the partial derivative with respect to T with the vector's value of T.
             # This is typically an incremental value dT.
-            matvec_modes += matvec_params[0] * (-1.0 / self.T) * self.dt(return_array=True)
+            matvec_modes += other.parameters[0] * (-1.0 / self.T) * self.dt(return_array=True)
 
         if not self.constraints['L']:
             # Compute the product of the partial derivative with respect to L with the vector's value of L.
@@ -429,38 +430,9 @@ class OrbitKS(Orbit):
             dfdl = ((-2.0/self.L)*self.dx(power=2, return_array=True)
                     + (-4.0/self.L)*self.dx(power=4, return_array=True)
                     + (-1.0/self.L) * self_field.nonlinear(self_field, return_array=True))
-            matvec_modes += matvec_params[1] * dfdl
+            matvec_modes += other.parameters[1] * dfdl
 
         return self.__class__(state=matvec_modes, basis='modes', parameters=self.parameters)
-
-    def matvec_parameters(self, self_field, other):
-        other_modes = other.state.ravel()
-        self_dx_modes = self.dx(return_array=True)
-
-        if not self.constraints['T']:
-            # Derivative with respect to T term equal to DF/DT * v
-            rmatvec_T = (-1.0 / self.T) * (self.dt(return_array=True)
-                                           + (-self.S / self.T) * self_dx_modes).ravel().dot(other_modes)
-        else:
-            rmatvec_T = 0
-
-        if not self.constraints['L']:
-            # change in L, dL, equal to DF/DL * v
-            rmatvec_L = ((-2.0 / self.L) * self.dx(power=2, return_array=True)
-                         + (-4.0 / self.L) * self.dx(power=4, return_array=True)
-                         + (-1.0 / self.L) * (self_field.nonlinear(self_field, return_array=True)
-                                              + (-self.S / self.T) * self_dx_modes)
-                        ).ravel().dot(other_modes)
-
-        else:
-            rmatvec_L = 0
-
-        if not self.constraints['S']:
-            rmatvec_S = (-1.0 / self.T) * self_dx_modes.ravel().dot(other_modes)
-        else:
-            rmatvec_S = 0.
-
-        return rmatvec_T, rmatvec_L, rmatvec_S
 
     def _pad(self, size, axis=0):
         """ Increase the size of the discretization via zero-padding
@@ -649,7 +621,7 @@ class OrbitKS(Orbit):
         the appropriate attributes of the rediscretized orbit_.
         """
         resolution = kwargs.get('resolution', 'normal')
-        T, L = cls.parameters[:2]
+        T, L = parameters[:2]
         if kwargs.get('N', None) is None:
             if T in [0, 0.]:
                 N = 1
@@ -779,7 +751,6 @@ class OrbitKS(Orbit):
 
         cbarticks = [minu, maxu]
         cbarticklabels = [str(i) for i in np.round(cbarticks, 1)]
-
         fig.subplots_adjust(right=0.95)
         divider = make_axes_locatable(ax)
         cax = divider.append_axes('right', size=0.075, pad=0.1)
@@ -844,12 +815,13 @@ class OrbitKS(Orbit):
                                + self.elementwise_dxn(dx_params, power=4))
         self.state = np.multiply(self.state, p_multipliers)
 
-        # Precondition the change in T and L so that they do not dominate;
+        # Precondition the change in T and L
+        param_powers = kwargs.get('param_prec_powers', (1, 4))
         if not self.constraints['T']:
-            self.T = self.T * (dt_params[0]**-1)
+            self.T = self.T * (dt_params[0]**-param_powers[0])
 
         if not self.constraints['L']:
-            self.L = self.L * (dx_params[0]**-4)
+            self.L = self.L * (dx_params[0]**-param_powers[1])
 
         return self
 
@@ -968,7 +940,7 @@ class OrbitKS(Orbit):
 
         """
         # Preconditioner is the inverse of the absolute value of the linear spatial derivative operators.
-        side = kwargs.get('side', 'left')
+        side = kwargs.get('side', 'right')
         dt_params, dx_params = preconditioning_parameters
         p_multipliers = (1.0 / (np.abs(self.elementwise_dtn(dt_params))
                                 + np.abs(self.elementwise_dxn(dx_params, power=2))
@@ -1317,7 +1289,7 @@ class OrbitKS(Orbit):
         np.random.seed(kwargs.get('seed', None))
 
         # also accepts N and M as kwargs
-        self.N, self.M = parameter_based_discretization(parameters, **kwargs)
+        self.N, self.M = self.__class__.parameter_based_discretization(parameters, **kwargs)
         self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
 
         # I think this is the easiest way to get symmetry-dependent Fourier mode arrays' shapes.
@@ -1700,7 +1672,7 @@ class OrbitKS(Orbit):
         """
         dft_mat = rfft(np.eye(self.N), norm='ortho', axis=0)
         time_dft_mat = np.concatenate((dft_mat[:-1, :].real,
-                                        dft_mat[1:-1, :].imag), axis=0)
+                                       dft_mat[1:-1, :].imag), axis=0)
         return np.kron(time_dft_mat, np.eye(self.M-2))
 
     def _inv_time_transform_matrix(self):
@@ -1997,12 +1969,16 @@ class RelativeOrbitKS(OrbitKS):
         -----
         Written as a general method that covers all subclasses instead of writing individual methods.
         """
+
         mode_shape, mode_size = self.mode_shape, self.state.size
         modes = state_array.ravel()[:mode_size]
-        params_list = state_array.ravel()[mode_size:].tolist()
-        params = tuple(params_list.pop(0) if not p and params_list else 0 for p in self.constraints.values())
+        # We slice off the modes and the rest of the list pertains to parameters; note if the state_array had
+        # parameters, and parameters were added by
+
+        params_list = list(kwargs.pop('parameters', state_array.ravel()[mode_size:].tolist()))
+        parameters = tuple(params_list.pop(0) if not p and params_list else 0 for p in self.constraints.values())
         return self.__class__(state=np.reshape(modes, mode_shape), basis='modes',
-                              parameters=params,  **kwargs)
+                              parameters=parameters, **kwargs)
 
     def _jacobian_parameter_derivatives_concat(self, jac_):
         """ Concatenate parameter partial derivatives to Jacobian matrix
@@ -2048,7 +2024,7 @@ class RelativeOrbitKS(OrbitKS):
         """ Extension of the OrbitKS method that includes the term for spatial translation symmetry"""
         return super()._jac_lin() + self.comoving_matrix()
 
-    def matvec(self, other, preconditioning=True, **kwargs):
+    def matvec(self, other, **kwargs):
         """ Extension of parent class method
 
         Parameters
@@ -2074,7 +2050,7 @@ class RelativeOrbitKS(OrbitKS):
         """
 
         assert (self.basis == 'modes') and (other.basis == 'modes')
-        matvec_orbit = super().matvec(other, preconditioning=preconditioning)
+        matvec_orbit = super().matvec(other)
 
         matvec_comoving = other.comoving_mapping_component()
         # this is needed unless all parameters are fixed, but that isn't ever a realistic choice.
@@ -2090,10 +2066,7 @@ class RelativeOrbitKS(OrbitKS):
             # technically could do self_comoving / self.S but this can be numerically unstable when self.S is small
             matvec_comoving.state += other.S * (-1.0 / self.T) * self_dx
 
-        if preconditioning:
-            return matvec_orbit + matvec_comoving.precondition(self.preconditioning_parameters)
-        else:
-            return matvec_orbit + matvec_comoving
+        return matvec_orbit + matvec_comoving
 
     def _pad(self, size, axis=0):
         """ Increase the size of the discretization via zero-padding
@@ -3274,9 +3247,10 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         p_multipliers = 1.0 / (np.abs(self.elementwise_dxn(dx_params, power=2))
                                + self.elementwise_dxn(dx_params, power=4))
         self.state = np.multiply(self.state, p_multipliers)
+        param_power = kwargs.get('param_prec_powers', 4)
         # Precondition the change in T and L so that they do not dominate
         if not self.constraints['L']:
-            self.L = self.L / (dx_params[0]**4)
+            self.L = self.L / (dx_params[0]**param_power)
 
         return self
 
