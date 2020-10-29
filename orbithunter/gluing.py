@@ -1,4 +1,4 @@
-from .io import read_h5
+from .io import read_h5, to_symbol_string
 import numpy as np
 import os
 import itertools
@@ -79,19 +79,6 @@ def _correct_aspect_ratios(array_of_orbits, axis=0):
     return np.array([o.reshape(shp) for o, shp in zip(array_of_orbits.ravel(), new_shapes)])
 
 
-def to_symbol_string(symbol_array):
-    symbolic_string = symbol_array.astype(str).copy()
-    shape_of_axes_to_contract = symbol_array.shape[1:]
-    for i, shp in enumerate(shape_of_axes_to_contract):
-        symbolic_string = [(i*'_').join(list_) for list_ in np.array(symbolic_string).reshape(-1, shp).tolist()]
-    symbolic_string = ((len(shape_of_axes_to_contract))*'_').join(symbolic_string)
-    return symbolic_string
-
-
-def to_symbol_array(symbol_string, symbol_array_shape):
-    return np.array([char for char in symbol_string.replace('_', '')]).astype(int).reshape(symbol_array_shape)
-
-
 def expensive_glue(pair_of_orbits_array, class_constructor, gluing_axis=0):
     """
 
@@ -131,6 +118,7 @@ def expensive_glue(pair_of_orbits_array, class_constructor, gluing_axis=0):
     glued_orbit = class_constructor(state=glued_orbit_state, basis='field',
                                     parameters=glued_parameters)
     return None
+
 
 def tile_dictionary_ks(padded=False, comoving=False):
     """ Template tiles for Kuramoto-Sivashinsky equation.

@@ -629,6 +629,8 @@ class OrbitKS(Orbit):
         ----------
         orbit : Orbit or Orbit subclass
         orbithunter class instance whose time, space periods will be used to determine the new discretization values.
+        parameters : tuple
+            tuple containing (T, L, S) i.e. OrbitKS().parameters
         kwargs :
         resolution : str
         Takes values 'coarse', 'normal', 'fine'. These options return one of three orbithunter conventions for the
@@ -637,7 +639,7 @@ class OrbitKS(Orbit):
         Returns
         -------
         int, int
-        The new spatiotemporal discretization given as the number of time points (rows) and number of space points (columns)
+        The new spatiotemporal field discretization; number of time points (rows) and number of space points (columns)
 
         Notes
         -----
@@ -654,24 +656,22 @@ class OrbitKS(Orbit):
             elif resolution == 'fine':
                 N = np.max([2*(int(2**(np.log2(T+1)+4))//2), 32])
             elif resolution == 'power':
-                N = np.max([2**(int(np.log2(T))), 16])
-            else:
                 N = np.max([4*int(T**(1./2.)), 16])
+            else:
+                N = np.max([2**(int(np.log(T))), 16])
         else:
             N = kwargs.get('N', None)
-
         if kwargs.get('M', None) is None:
             if resolution == 'coarse':
                 M = np.max([2*(int(2**(np.log2(L+1)-1))//2), 16])
             elif resolution == 'fine':
                 M = np.max([2*(int(2**(np.log2(L+1))+2)//2), 32])
             elif resolution == 'power':
-                M = np.max([2**(int(np.log2(L))+1), 16])
-            else:
                 M = np.max([6*int(L**(1./2.)), 16])
+            else:
+                M = np.max([2**(int(np.log2(L)-0.5)+1), 16])
         else:
             M = kwargs.get('M', None)
-
         return N, M
 
     def plot(self, show=True, save=False, fundamental_domain=True, **kwargs):
@@ -799,7 +799,7 @@ class OrbitKS(Orbit):
             # Create save directory if one doesn't exist.
             if isinstance(directory, str):
                 if directory == 'local':
-                    directory = os.path.abspath(os.path.join(__file__, '../../figs/local/'))
+                    directory = os.path.abspath(os.path.join(__file__, '../../data/local/'))
 
             filename = os.path.abspath(os.path.join(directory, filename))
 
@@ -839,7 +839,7 @@ class OrbitKS(Orbit):
                                + self.elementwise_dxn(dx_params, power=4))
         self.state = np.multiply(self.state, p_multipliers)
         # Precondition the change in T and L
-        param_powers = kwargs.get('param_prec_powers', (1, 4))
+        param_powers = kwargs.get('param_exp', (1, 1))
         if not self.constraints['T']:
             # self is the orbit being preconditioned, i.e. the correction orbit; by default this is dT = dT / T
             self.T = self.T * (dt_params[0]**-param_powers[0])

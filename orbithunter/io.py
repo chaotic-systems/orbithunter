@@ -6,8 +6,8 @@ import h5py
 import pandas as pd
 import itertools
 
-__all__ = ['read_h5', 'parse_class', 'convergence_log', 'refurbish_log', 'symbolic_convergence_log',
-           'check_symbolic_log']
+__all__ = ['read_h5', 'parse_class', 'convergence_log', 'refurbish_log', 'write_symbolic_log',
+           'read_symbolic_log', 'to_symbol_string', 'to_symbol_array']
 
 
 def read_h5(filename, directory='local', data_format='orbithunter', equation='ks',
@@ -85,8 +85,8 @@ def convergence_log(initial_orbit, converge_result, log_path, spectrum='random',
     # To store all relevant info as a row in a Pandas DataFrame, put into a 1-D array first.
     dataframe_row = [[initial_orbit.parameters, initial_orbit.field_shape,
                      np.abs(initial_orbit.convert(to='field').state).max(), converge_result.orbit.residual(),
-                     converge_result.exit_code, spectrum, method]]
-    labels = ['parameters', 'field_shape', 'field_magnitude', 'residual', 'exit_code', 'spectrum', 'numerical_method']
+                     converge_result.status, spectrum, method]]
+    labels = ['parameters', 'field_shape', 'field_magnitude', 'residual', 'status', 'spectrum', 'numerical_method']
     new_row = pd.DataFrame(dataframe_row, columns=labels)
     initial_condition_log_ = pd.concat((initial_condition_log_, new_row), axis=0)
     initial_condition_log_.reset_index(drop=True).drop_duplicates().to_csv(log_path)
@@ -106,14 +106,14 @@ def refurbish_log(orbit_, filename, log_filename, overwrite=False, **kwargs):
         refurbish_log_.reset_index(drop=True).drop_duplicates().to_csv(log_filename)
 
 
-def symbolic_convergence_log(symbol_array, converge_result, log_filename, padded=False,
-                             comoving=False, tile_dimension=32):
+def write_symbolic_log(symbol_array, converge_result, log_filename, padded=False,
+                             comoving=False):
     symbol_string = to_symbol_string(symbol_array)
     dataframe_row_values = [[symbol_string, converge_result.orbit.parameters, converge_result.orbit.field_shape,
                              converge_result.orbit.residual(),
-                             converge_result.exit_code, padded, comoving, tile_dimension]]
-    labels = ['symbol_string', 'parameters', 'field_shape', 'residual', 'exit_code', 'padded',
-              'comoving', 'tile_dimension']
+                             converge_result.status, padded, comoving, symbol_array.shape]]
+    labels = ['symbol_string', 'parameters', 'field_shape', 'residual', 'status', 'padded',
+              'comoving', 'tile_shape']
 
     dataframe_row = pd.DataFrame(dataframe_row_values, columns=labels).astype(object)
     log_path = os.path.abspath(os.path.join(__file__, '../../data/logs/', log_filename))
@@ -126,10 +126,10 @@ def symbolic_convergence_log(symbol_array, converge_result, log_filename, padded
 
     # To store all relevant info as a row in a Pandas DataFrame, put into a 1-D array first.
     symbolic_log.reset_index(drop=True).drop_duplicates().to_csv(log_path)
-    return symbolic_log
+    return None
 
 
-def check_symbolic_log(symbol_array, log_filename, overwrite=False, retry=False):
+def read_symbolic_log(symbol_array, log_filename, overwrite=False, retry=False):
     """ Check to see if a combination has already been searched for locally.
 
     Returns
@@ -146,24 +146,36 @@ def check_symbolic_log(symbol_array, log_filename, overwrite=False, retry=False)
     """
     all_rotations = itertools.product(*(list(range(a)) for a in symbol_array.shape))
     axes = tuple(range(len(symbol_array.shape)))
-    equivariant_str = []
+    equivariant_str_list = []
     for rotation in all_rotations:
-        equivariant_str.append(to_symbol_string(np.roll(symbol_array, rotation, axis=axes)))
+        equivariant_str_list.append(to_symbol_string(np.roll(symbol_array, rotation, axis=axes)))
 
     log_path = os.path.abspath(os.path.join(__file__, '../../data/logs/', log_filename))
     if not os.path.isfile(log_path):
         return False
     else:
         symbolic_df = pd.read_csv(log_path, dtype=object, index_col=0)
-        symbolic_intersection = symbolic_df[(symbolic_df['symbolic_string'].isin(equivariant_str))]
+        symbolic_intersection = symbolic_df[(symbolic_df['symbolic_string'].isin(equivariant_str_list))]
         if len(symbolic_intersection) == 0:
             return False
-        elif symbolic_intersection['exit_code'] == '1' and overwrite:
+        elif symbolic_intersection['status'] == '1' and overwrite:
             return False
-        elif symbolic_intersection['exit_code'] != '1' and retry:
+        elif symbolic_intersection['status'] != '1' and retry:
             return False
         else:
             return True
 
+
+def to_symbol_string(symbol_array):
+    symbolic_string = symbol_array.astype(str).copy()
+    shape_of_axes_to_contract = symbol_array.shape[1:]
+    for i, shp in enumerate(shape_of_axes_to_contract):
+        symbolic_string = [(i*'_').join(list_) for list_ in np.array(symbolic_string).reshape(-1, shp).tolist()]
+    symbolic_string = ((len(shape_of_axes_to_contract))*'_').join(symbolic_string)
+    return symbolic_string
+
+
+def to_symbol_array(symbol_string, symbol_array_shape):
+    return np.array([char for char in symbol_string.replace('_', '')]).astype(int).reshape(symbol_array_shape)
 
 

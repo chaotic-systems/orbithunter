@@ -1,0 +1,2 @@
+,symbol_string,parameters,field_shape,residual,status,padded,comoving,tile_shape
+0,01,"(22.01926332432897, 36.8430470566098, 0)","(16, 32)",1.8012985455062012e-09,"(2, 1)",True,False,"(1, 2)"

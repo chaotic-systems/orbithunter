@@ -1,7 +1,7 @@
 import os,sys
 import numpy as np
 import time
-sys.path.insert(0, os.path.abspath(os.path.join(sys.argv[0], '../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(sys.argv[0], '../../../')))
 from orbithunter import *
 from joblib import Parallel, delayed
 from argparse import ArgumentParser, ArgumentTypeError, ArgumentDefaultsHelpFormatter
@@ -22,9 +22,11 @@ def hunt(x, verbose=True):
     if verbose:
         print('Beginning search for {}'.format(repr(x)))
     result = converge(x, verbose=verbose, method='hybrid', comp_time='long', preconditioning=True)
-    if result.exit_code:
-        result.orbit.to_h5(verbose=True)
-        result.orbit.plot(show=False, save=True, verbose=True)
+    if min(result.residuals[-1]) <= min(list(result.tol)):
+        result.orbit.to_h5(verbose=True,
+                           directory='../../data/local/convergence_testing/disc_testing/')
+        result.orbit.plot(show=False, save=True, verbose=True,
+                          directory='../../data/local/convergence_testing/disc_testing/')
 
     return None
 
@@ -60,9 +62,8 @@ def main(*args, method='hybrid', **kwargs):
     lrange = (L_max-L_min)*np.random.rand(n_trials) + L_min
     domains = zip(trange, lrange)
     t = time.time()
-
     with Parallel(n_jobs=n_jobs) as parallel:
-        parallel(delayed(hunt)(cls(parameters=(T, L, 0.)), verbose=verbose) for (T, L) in domains)
+        parallel(delayed(hunt)(cls(parameters=(T, L, 0.)).rescale(3.2), verbose=verbose) for (T, L) in domains)
 
     print('{} trials took {} to complete with {} jobs'.format(n_trials, time.time()-t, n_jobs))
     return None

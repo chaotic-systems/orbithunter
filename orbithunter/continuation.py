@@ -63,7 +63,7 @@ def dimension_continuation(orbit_, new_size, axis=0, step_size=0.01, **kwargs):
     # Ensure that we are stepping in correct direction.
     step_size = (np.sign(new_size - converge_result.orbit.parameters[axis]) * np.abs(step_size))
     # We need to be incrementing in the correct direction. i.e. to get smaller we need to have a negative increment.
-    while converge_result.exit_code == 1 and not _extent_equals_target(converge_result.orbit, new_size, axis=axis):
+    while converge_result.status == 1 and not _extent_equals_target(converge_result.orbit, new_size, axis=axis):
         incremented_orbit = _increment_dimension(converge_result.orbit, new_size, step_size, axis=axis)
         converge_result = converge(incremented_orbit, **kwargs)
         # If we want to save all states in the family else save the returned orbit from converge_result
@@ -131,7 +131,7 @@ def discretization_continuation(orbit_, **kwargs):
         # While maintaining convergence proceed with continuation. If the shape equals the target, stop.
         # If the shape along the axis is 1, and the corresponding dimension is 0, then this means we have
         # an equilibrium solution along said axis; this can be handled by simply rediscretizing the field.
-        while converge_result.exit_code == 1 and (not converge_result.orbit.field_shape[axis] == new_shape[axis] and
+        while converge_result.status == 1 and (not converge_result.orbit.field_shape[axis] == new_shape[axis] and
                                                   not converge_result.orbit.field_shape[axis] == 1):
             incremented_orbit = _increment_discretization(converge_result.orbit, new_shape[axis],
                                                           step_size, axis=axis)
@@ -141,7 +141,7 @@ def discretization_continuation(orbit_, **kwargs):
                 converge_result.orbit.plot(show=kwargs.pop('show', False), **kwargs)
             elif kwargs.get('plot_intermediates', False):
                 converge_result.orbit.plot(show=kwargs.get('plot_intermediates', False), **kwargs)
-    if converge_result.exit_code == 1:
+    if converge_result.status == 1:
         # At the very end, we are either at the correct shape, such that the next line does nothing OR we have
         # a discretization of an equilibrium solution that is brought to the final target shape by rediscretization.
         # In other words, the following rediscretization does not destroy the convergence of the orbit, if it
