@@ -130,7 +130,7 @@ def expensive_glue(pair_of_orbits_array, class_constructor, gluing_axis=0):
 
     glued_orbit = class_constructor(state=glued_orbit_state, basis='field',
                                     parameters=glued_parameters)
-
+    return None
 
 def tile_dictionary_ks(padded=False, comoving=False):
     """ Template tiles for Kuramoto-Sivashinsky equation.
@@ -247,7 +247,7 @@ def glue(array_of_orbit_instances, class_constructor, stripwise=False, **kwargs)
 
                 # For each strip, need to know how to combine the dimensions of the orbits. Bundle, then combine.
                 zipped_dimensions = tuple(zip(*(o.dimensions for o in array_of_orbit_instances[gs].ravel())))
-                glued_parameters = class_constructor.glue_parameters(zipped_dimensions, glue_shape=strip_shape)
+                glued_parameters = class_constructor.glue_parameters(zipped_dimensions,glue_shape=strip_shape)
                 # Slice the orbit array to get the strip, reshape to maintain its d-dimensional form.
                 strip_of_orbits = array_of_orbit_instances[gs].reshape(strip_shape)
 
@@ -258,7 +258,7 @@ def glue(array_of_orbit_instances, class_constructor, stripwise=False, **kwargs)
                                                    axis=gluing_axis)
                 # Put the glued strip's state back into a class instance.
                 glued_strip_orbit = class_constructor(state=glued_strip_state, basis='field',
-                                                      parameters=glued_parameters)
+                                                      parameters=glued_parameters, **kwargs)
                 # Take the result and store it for futher gluings.
                 glued_orbit_strips.append(glued_strip_orbit)
             # We combined along the gluing axis meaning that that axis has a new shape of 1. For symbol arrays
@@ -286,7 +286,7 @@ def glue(array_of_orbit_instances, class_constructor, stripwise=False, **kwargs)
             glued_orbit_state = np.concatenate(glued_orbit_state, axis=gluing_axis)
 
         glued_orbit = class_constructor(state=glued_orbit_state, basis='field',
-                                        parameters=glued_parameters)
+                                        parameters=glued_parameters, **kwargs)
 
     return glued_orbit
 

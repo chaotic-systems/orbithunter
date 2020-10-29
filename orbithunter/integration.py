@@ -103,10 +103,16 @@ def kse_integrate(orbit_, **kwargs):
         Nc = -0.5*_dx_spatial_modes(c.convert(to='field')**2, power=1)
         v = (v.statemul(E) + Nv.statemul(f1)
              + (2.0 * (Na + Nb)).statemul(f2) + Nc.statemul(f3))
-        u = np.append(v.convert(to='field').state, u)
+        if kwargs.get('return_trajectory', True):
+            u = np.append(v.convert(to='field').state, u)
+        else:
+            u = v.convert(to='field').state
         if not np.mod(step, nmax // 25) and verbose:
             print('#', end='')
     if verbose:
         print(']', end='')
     # By default do not assign spatial shift S.
-    return orbit_.__class__(state=u.reshape(nmax+1, -1), basis='field', parameters=orbit_.parameters)
+    if kwargs.get('return_trajectory', True):
+        return orbit_.__class__(state=u.reshape(nmax+1, -1), basis='field', parameters=orbit_.parameters)
+    else:
+        return orbit_.__class__(state=u.reshape(1, -1), basis='field', parameters=orbit_.parameters)

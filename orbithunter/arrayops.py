@@ -32,7 +32,7 @@ def so2_coefficients(power=1):
 def calculate_spatial_shift(s_modes, L, **kwargs):
     """ Calculate the phase difference between the spatial modes at t=0 and t=T """
     m0 = s_modes.shape[1]//2
-    modes_included = np.min([kwargs.get('n_modes', 1), m0])
+    modes_included = np.min([kwargs.get('n_modes', m0), m0])
     if -m0 + modes_included == 0:
         space_imag_slice_end = None
     else:

@@ -1,5 +1,7 @@
+import numpy as np
+import itertools
 
-__all__ = ['kse_dissipation', 'kse_energy', 'kse_energy_variation', 'kse_power']
+__all__ = ['dissipation', 'energy', 'energy_variation', 'power', 'shadowing']
 
 
 def _averaging_wrapper(instance_with_state_to_average, average=None):
@@ -28,7 +30,7 @@ def _averaging_wrapper(instance_with_state_to_average, average=None):
         return instance_with_state_to_average.state
 
 
-def kse_dissipation(orbit_instance, average=None):
+def dissipation(orbit_instance, average=None):
     """ Amount of energy dissipation
     Notes
     -----
@@ -43,7 +45,7 @@ def kse_dissipation(orbit_instance, average=None):
                               average=average)
 
 
-def kse_energy(orbit_instance, average=None):
+def energy(orbit_instance, average=None):
     """ Amount of energy dissipation
     Notes
     -----
@@ -55,7 +57,7 @@ def kse_energy(orbit_instance, average=None):
                               average=average)
 
 
-def kse_energy_variation(orbit_instance, average=None):
+def energy_variation(orbit_instance, average=None):
     """ The field u_t * u whose spatial average should equal power - dissipation.
 
     Returns
@@ -66,7 +68,7 @@ def kse_energy_variation(orbit_instance, average=None):
                               average=average)
 
 
-def kse_power(orbit_instance, average=None):
+def power(orbit_instance, average=None):
     """ Amount of energy production
     Notes
     -----
@@ -76,3 +78,48 @@ def kse_power(orbit_instance, average=None):
     """
     return _averaging_wrapper(orbit_instance.dx().convert(to='field')**2,
                               average=average)
+
+
+def shadowing(window_orbit, base_orbit, **kwargs):
+
+    window_orbit.convert(to='field', inplace=True)
+    base_orbit.convert(to='field', inplace=True)
+    twindow, xwindow = window_orbit.field_shape
+    tbase, xbase = base_orbit.field_shape
+    assert twindow < tbase and xwindow < xbase, 'Shadowing window is larger than the orbit being searched. Reshape. '
+
+    # First, need to calculate the norm of the window squared and base squared (squared because then it detects
+    # the shape rather than the color coded field), for all translations of the window.
+    norm_matrix = np.zeros([tbase-twindow, xbase-xwindow])
+    for i, tcorner in enumerate(range(0, base_orbit.field_shape[1]-window_orbit.field_shape[1])):
+        if kwargs.get('verbose', False):
+            if np.mod(i, 1984//10) == 0:
+                print('#', end='')
+        for j, xcorner in enumerate(range(0,  base_orbit.field_shape[0]-window_orbit.field_shape[1])):
+            norm_matrix[i,j] = np.linalg.norm(base_orbit.state[tcorner:tcorner+twindow, xcorner:xcorner+xwindow]**2
+                                              -window_orbit.state**2)
+    indices = np.where(norm_matrix < np.percentile(norm_matrix.ravel(), kwargs.get('norm_percentile', 0.025)))
+    non_nan_points = []
+
+    # Once the norms are calculated, the positions with minimal norm represent the correct positions of the
+    # window corners, however we need the portions of the field corresponding to cutouts.
+
+    # By iterating over all corners, generating the corresponding windows, and then taking their intersection,
+    # we are left with the correct shadowing regions for the tolerance.
+    for t, x in zip(*indices):
+        if t < tbase-twindow and x < xbase-xwindow:
+            tslice = range(t, t+twindow)
+            xslice = range(x, x+xwindow)
+            testslice = itertools.product(tslice, xslice)
+            non_nan_points.extend(list(testslice))
+            non_nan_points = list(set(non_nan_points))
+            
+    tindex = np.array(tuple(pairs[0] for pairs in non_nan_points))
+    xindex = np.array(tuple(pairs[1] for pairs in non_nan_points))
+    final_indices = (tindex, xindex)
+    
+    masked_orbit = base_orbit.copy()
+    mask = np.zeros([tbase, xbase]) 
+    mask[final_indices] = 1
+    masked_orbit.state[mask != 1] = np.nan
+    return masked_orbit, mask

@@ -21,10 +21,10 @@ def str2bool(val):
 def hunt(x, verbose=True):
     if verbose:
         print('Beginning search for {}'.format(repr(x)))
-    result = converge(x, verbose=verbose)
+    result = converge(x, verbose=verbose, method='hybrid', comp_time='long', preconditioning=True)
     if result.exit_code:
-        result.orbit.to_h5(directory='local')
-        result.orbit.plot(show=False, save=True)
+        result.orbit.to_h5(verbose=True)
+        result.orbit.plot(show=False, save=True, verbose=True)
 
     return None
 
@@ -60,11 +60,9 @@ def main(*args, method='hybrid', **kwargs):
     lrange = (L_max-L_min)*np.random.rand(n_trials) + L_min
     domains = zip(trange, lrange)
     t = time.time()
-    T, L =T_min, L_min
-    # for T, L in domains:
-    #     hunt(cls(T=T, L=L), verbose=verbose)
+
     with Parallel(n_jobs=n_jobs) as parallel:
-        parallel(delayed(hunt)(cls(T=T, L=L), verbose=verbose) for (T, L) in domains)
+        parallel(delayed(hunt)(cls(parameters=(T, L, 0.)), verbose=verbose) for (T, L) in domains)
 
     print('{} trials took {} to complete with {} jobs'.format(n_trials, time.time()-t, n_jobs))
     return None

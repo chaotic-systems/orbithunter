@@ -319,11 +319,7 @@ class OrbitKS(Orbit):
         return self
 
     def cost_function_gradient(self, spatiotemporal_mapping, **kwargs):
-        if kwargs.get('method', 'gradient_descent') in ['gradient_descent', 'hybrid', 'l-bfgs-b', 'cg']:
-            preconditioning = kwargs.get('preconditioning', True)
-        else:
-            preconditioning = kwargs.get('preconditioning', False)
-
+        preconditioning = kwargs.get('preconditioning', False)
         if preconditioning:
             gradient = (self.rmatvec(spatiotemporal_mapping, **kwargs)
                         ).precondition(self.preconditioning_parameters, **kwargs)
@@ -363,17 +359,45 @@ class OrbitKS(Orbit):
         -------
         jac_ : matrix ((N-1)*(M-2), (N-1)*(M-2) + n_params)
             Jacobian matrix of the KSe where n_params = 2 - sum(parameter_constraints)
+
+        Notes
+        -----
+        If the user wants to compute the transpose of the jacobian, the actual transpose of the matrix
+        returned by this function will be incorrect. This is because of the fact that there is a factor
+        of two difference in the definition of the inverse and forward Fourier transform matrices. Therefore
+        the transpose needs to be manually constructed if desired; or preferably the function rmatvec should be
+        used.
         """
 
         self.convert(to='modes', inplace=True)
         # The Jacobian components for the spatiotemporal Fourier modes
         jac_ = self._jac_lin() + self._jac_nonlin()
         jac_ = self._jacobian_parameter_derivatives_concat(jac_)
-
-        if kwargs.get('preconditioning', False):
-            jac_ = np.dot(jac_, self.preconditioner(self.preconditioning_parameters))
-
         return jac_
+
+    def jacobian_transpose(self, **kwargs):
+        """ Jacobian transpose matrix evaluated at the current state.
+        Parameters
+        ----------
+        parameter_constraints : tuple
+            Determines whether to include period and spatial period
+            as variables.
+        Returns
+        -------
+        jac_ : matrix ((N-1)*(M-2), (N-1)*(M-2) + n_params)
+            Jacobian matrix of the KSe where n_params = 2 - sum(parameter_constraints)
+
+        Notes
+        -----
+        Note that this will NOT equal self.jacobian().transpose() due to the definition of
+        the DFT matrices and their normalization.
+        """
+
+        self.convert(to='modes', inplace=True)
+        # The Jacobian components for the spatiotemporal Fourier modes
+        jac_transpose = self._jac_transpose_lin() + self._jac_transpose_nonlin()
+        jac_transpose = self._jacobian_transpose_parameter_derivatives_concat(jac_transpose)
+        return jac_transpose
 
     def norm(self, order=None):
         """ Norm of spatiotemporal state via numpy.linalg.norm
@@ -789,12 +813,12 @@ class OrbitKS(Orbit):
         plt.close()
         return None
 
-    def precondition(self, preconditioning_parameters, **kwargs):
+    def precondition(self, parameters, **kwargs):
         """ Precondition a vector with the inverse (absolute value) of linear spatial terms
 
         Parameters
         ----------
-        preconditioning_parameters : tuple
+        parameters : tuple
 
         Returns
         -------
@@ -809,21 +833,58 @@ class OrbitKS(Orbit):
 
         I never preconditioned the spatial shift for relative periodic solutions so I don't include it here.
         """
-        dt_params, dx_params = preconditioning_parameters
+        dt_params, dx_params = parameters
         p_multipliers = 1.0 / (np.abs(self.elementwise_dtn(dt_params))
                                + np.abs(self.elementwise_dxn(dx_params, power=2))
                                + self.elementwise_dxn(dx_params, power=4))
         self.state = np.multiply(self.state, p_multipliers)
-
         # Precondition the change in T and L
         param_powers = kwargs.get('param_prec_powers', (1, 4))
         if not self.constraints['T']:
+            # self is the orbit being preconditioned, i.e. the correction orbit; by default this is dT = dT / T
             self.T = self.T * (dt_params[0]**-param_powers[0])
 
         if not self.constraints['L']:
+            # self is the orbit being preconditioned, i.e. the correction orbit; by default this is dL = dL / L^4
             self.L = self.L * (dx_params[0]**-param_powers[1])
 
         return self
+
+    def precondition_matvec(self, parameters, **kwargs):
+        """ Preconditioning operation for the normal equations
+
+        Parameters
+        ----------
+        parameters : tuple
+
+        Returns
+        -------
+        target : OrbitKS
+            Return the OrbitKS instance, modified by preconditioning.
+
+        Notes
+        -----
+        Precondition applied twice because it is attempting to approximate the inverse M = (A^T A)^-1 not just A.
+        """
+        return self.precondition(parameters, **kwargs).precondition(parameters, **kwargs)
+
+    def precondition_rmatvec(self, parameters, **kwargs):
+        """ Precondition a vector with the inverse (absolute value) of linear spatial terms
+
+        Parameters
+        ----------
+        parameters : tuple
+
+        Returns
+        -------
+        target : OrbitKS
+            Return the OrbitKS instance, modified by preconditioning.
+
+        Notes
+        -----
+            Diagonal preconditioning implies rmatvec and matvec are the same, by definition.
+        """
+        return self.precondition_matvec(parameters, **kwargs)
 
     def reshape(self, *new_shape, **kwargs):
         """
@@ -922,7 +983,7 @@ class OrbitKS(Orbit):
 
         return rmatvec_T, rmatvec_L, 0.
 
-    def preconditioner(self, preconditioning_parameters, **kwargs):
+    def preconditioner(self, parameters, **kwargs):
         """ Preconditioning matrix
 
         Parameters
@@ -941,7 +1002,7 @@ class OrbitKS(Orbit):
         """
         # Preconditioner is the inverse of the absolute value of the linear spatial derivative operators.
         side = kwargs.get('side', 'right')
-        dt_params, dx_params = preconditioning_parameters
+        dt_params, dx_params = parameters
         p_multipliers = (1.0 / (np.abs(self.elementwise_dtn(dt_params))
                                 + np.abs(self.elementwise_dxn(dx_params, power=2))
                                 + self.elementwise_dxn(dx_params, power=4))).ravel()
@@ -1464,11 +1525,42 @@ class OrbitKS(Orbit):
         the spatial differential is taken on spatial modes, then this function generalizes to the subclasses
         with discrete symmetry.
         """
-        nonlinear = np.dot(np.diag(self.convert(to='field').state.ravel()), self._inv_spacetime_transform_matrix())
-        nonlinear_dx = np.dot(self._time_transform_matrix(),
-                              np.dot(self._dx_matrix(basis='s_modes'),
-                                     np.dot(self._space_transform_matrix(), nonlinear)))
-        return nonlinear_dx
+
+        _jac_nonlin_left = self._dx_matrix().dot(self._time_transform_matrix())
+        _jac_nonlin_middle = self._space_transform_matrix().dot(np.diag(self.convert(to='field').state.ravel()))
+        _jac_nonlin_right = self._inv_spacetime_transform_matrix()
+        _jac_nonlin = _jac_nonlin_left.dot(_jac_nonlin_middle).dot(_jac_nonlin_right)
+        return _jac_nonlin
+
+    def _jac_transpose_lin(self):
+        """ The linear component of the Jacobian matrix of the Kuramoto-Sivashinsky equation"""
+        return -1.0 * self._dt_matrix() + self._dx_matrix(power=2) + self._dx_matrix(power=4)
+
+    def _jac_transpose_nonlin(self):
+        """ The nonlinear component of the Jacobian matrix of the Kuramoto-Sivashinsky equation
+
+        Returns
+        -------
+        nonlinear_dx : matrix
+            Matrix which represents the nonlinear component of the Jacobian. The derivative of
+            the nonlinear term, which is
+            (D/DU) 1/2 d_x (u .* u) = (D/DU) 1/2 d_x F (diag(F^-1 u)^2)  = d_x F( diag(F^-1 u) F^-1).
+            See
+            Chu, K.T. A direct matrix method for computing analytical Jacobians of discretized nonlinear
+            integro-differential equations. J. Comp. Phys. 2009
+            for details.
+
+        Notes
+        -----
+        The obvious way of computing this, represented above, is to multiply the linear operators
+        corresponding to d_x F( diag(F^-1 u) F^-1). However, if we slightly rearrange things such that
+        the spatial differential is taken on spatial modes, then this function generalizes to the subclasses
+        with discrete symmetry.
+        """
+        _jac_t_nonlin_left = self._spacetime_transform_matrix().dot(np.diag(self.convert(to='field').state.ravel()))
+        _jac_t_nonlin_right = self._inv_spacetime_transform_matrix().dot( self._dx_matrix())
+        _jac_t_nonlin = -1.0 * _jac_t_nonlin_left.dot(_jac_t_nonlin_right)
+        return _jac_t_nonlin
 
     def _jacobian_parameter_derivatives_concat(self, jac_):
         """ Concatenate parameter partial derivatives to Jacobian matrix
@@ -1504,6 +1596,40 @@ class OrbitKS(Orbit):
 
         return jac_
 
+    def _jacobian_transpose_parameter_derivatives_concat(self, jac_):
+        """ Concatenate parameter partial derivatives to Jacobian matrix
+
+        Parameters
+        ----------
+        jac_ : np.ndArray,
+        (N-1) * (M-2) dimensional array resultant from taking the derivative of the spatioatemporal mapping
+        with respect to Fourier modes.
+        parameter_constraints : tuple
+        Flags which indicate which parameters are constrained; if unconstrained then need to augment the Jacobian
+        with partial derivatives with respect to unconstrained parameters.
+
+        Returns
+        -------
+        Jacobian augmented with parameter partial derivatives as columns. Required to solve for changes to period,
+        space period in optimization process. Makes the system rectangular; needs to be solved by least squares type
+        methods.
+
+        """
+        # If period is not fixed, need to include dF/dT in jacobian matrix
+        if not self.constraints['T']:
+            time_period_derivative = (-1.0 / self.T)*self.dt(return_array=True).reshape(1, -1)
+            jac_ = np.concatenate((jac_, time_period_derivative), axis=0)
+
+        # If spatial period is not fixed, need to include dF/dL in jacobian matrix
+        if not self.constraints['L']:
+            self_field = self.convert(to='field')
+            spatial_period_derivative = ((-2.0 / self.L) * self.dx(power=2, return_array=True)
+                                         + (-4.0 / self.L) * self.dx(power=4, return_array=True)
+                                         + (-1.0 / self.L) * self_field.nonlinear(self_field, return_array=True))
+            jac_ = np.concatenate((jac_, spatial_period_derivative.reshape(1, -1)), axis=0)
+
+        return jac_
+
     def _dx_matrix(self, power=1, **kwargs):
         """ The space derivative matrix operator for the current state.
 
@@ -1534,7 +1660,7 @@ class OrbitKS(Orbit):
         basis = kwargs.get('basis', self.basis)
         # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
         space_dxn = np.kron(so2_generator(power=power), np.diag(self._wave_vector(self.dx_parameters,
-                                                                                 power=power).ravel()))
+                                                                                  power=power).ravel()))
         if basis == 'modes':
             # if spacetime modes, use the corresponding mode shape parameters
             spacetime_dxn = np.kron(np.eye(self.mode_shape[0]), space_dxn)
@@ -1831,7 +1957,7 @@ class OrbitKS(Orbit):
 
 class RelativeOrbitKS(OrbitKS):
 
-    def __init__(self, state=None, basis='field', parameters=(0., 0., 0.), frame='comoving', **kwargs):
+    def __init__(self, state=None, basis='modes', parameters=(0., 0., 0.), frame='comoving', **kwargs):
         # For uniform save format
         super().__init__(state=state, basis=basis, parameters=parameters, frame=frame, **kwargs)
         # If the frame is comoving then the calculated shift will always be 0 by definition of comoving frame.
@@ -1839,8 +1965,8 @@ class RelativeOrbitKS(OrbitKS):
         # if self.S == 0. and (self.frame == 'physical' or kwargs.get('nonzero_parameters', False) or state is None):
         #     self.S = calculate_spatial_shift(self.convert(to='s_modes').state, self.L)
 
-        # If specified that the state is in physical frame then shift is not calculated.
-        if self.S == 0. and frame == 'comoving':
+        # If specified that the state is in physical frame then shift is calculated.
+        if self.S == 0. and (frame == 'physical' or kwargs.get('nonzero_parameters', False)):
             self.S = calculate_spatial_shift(self.convert(to='s_modes').state, self.L)
 
     def copy(self):
@@ -2020,9 +2146,53 @@ class RelativeOrbitKS(OrbitKS):
 
         return jac_
 
+    def _jacobian_transpose_parameter_derivatives_concat(self, jac_):
+        """ Concatenate parameter partial derivatives to Jacobian matrix
+
+        Parameters
+        ----------
+        jac_ : np.ndArray,
+        (N-1) * (M-2) dimensional array resultant from taking the derivative of the spatioatemporal mapping
+        with respect to Fourier modes.
+        parameter_constraints : tuple
+        Flags which indicate which parameters are constrained; if unconstrained then need to augment the Jacobian
+        with partial derivatives with respect to unconstrained parameters.
+
+        Returns
+        -------
+        Jacobian augmented with parameter partial derivatives as columns. Required to solve for changes to period,
+        space period in optimization process. Makes the system rectangular; needs to be solved by least squares type
+        methods.
+
+        """
+        # If period is not fixed, need to include dF/dT in jacobian matrix
+        if not self.constraints['T']:
+            time_period_derivative = (-1.0 / self.T)*(self.dt(return_array=True)
+                                                      + (-self.S / self.T)*self.dx(return_array=True)
+                                                      ).reshape(1, -1)
+            jac_ = np.concatenate((jac_, time_period_derivative), axis=0)
+
+        # If spatial period is not fixed, need to include dF/dL in jacobian matrix
+        if not self.constraints['L']:
+            self_field = self.convert(to='field')
+            spatial_period_derivative = ((-2.0 / self.L) * self.dx(power=2, return_array=True)
+                                         + (-4.0 / self.L) * self.dx(power=4, return_array=True)
+                                         + (-1.0 / self.L) * self_field.nonlinear(self_field, return_array=True))
+            jac_ = np.concatenate((jac_, spatial_period_derivative.reshape(1, -1)), axis=0)
+
+        if not self.constraints['S']:
+            spatial_shift_derivatives = (-1.0 / self.T)*self.dx(return_array=True)
+            jac_ = np.concatenate((jac_, spatial_shift_derivatives.reshape(1, -1)), axis=0)
+
+        return jac_
+
     def _jac_lin(self):
         """ Extension of the OrbitKS method that includes the term for spatial translation symmetry"""
         return super()._jac_lin() + self.comoving_matrix()
+
+    def _jac_transpose_lin(self):
+        """ The linear component of the Jacobian matrix of the Kuramoto-Sivashinsky equation"""
+        return super()._jac_transpose_lin() - self.comoving_matrix()
 
     def matvec(self, other, **kwargs):
         """ Extension of parent class method
@@ -2051,8 +2221,7 @@ class RelativeOrbitKS(OrbitKS):
 
         assert (self.basis == 'modes') and (other.basis == 'modes')
         matvec_orbit = super().matvec(other)
-
-        matvec_comoving = other.comoving_mapping_component()
+        matvec_comoving = self.__class__(state=other.state, parameters=self.parameters).comoving_mapping_component()
         # this is needed unless all parameters are fixed, but that isn't ever a realistic choice.
         self_dx = self.dx(return_array=True)
         if not self.constraints['T']:
@@ -2110,52 +2279,6 @@ class RelativeOrbitKS(OrbitKS):
         """
         assert self.frame == 'comoving', 'Mode truncation requires comoving frame; set padding=False if plotting'
         return super()._truncate(size, axis=axis)
-
-    @classmethod
-    def glue_parameters(cls, parameter_dict_with_bundled_values, glue_shape=(1, 1)):
-        """ Class method for handling parameters in gluing
-
-        Parameters
-        ----------
-        parameter_dict_with_bundled_values
-        axis
-
-        Returns
-        -------
-
-        Notes
-        -----
-        The shift will be calculated when the parameters are passed to the instance because of the 'frame':'physical'
-        dict kay value pair.
-
-        """
-        T_array = np.array(parameter_dict_with_bundled_values['T'])
-        L_array = np.array(parameter_dict_with_bundled_values['L'])
-
-        if glue_shape[0] > 1 and glue_shape[1] == 1:
-            new_parameter_dict = {'T': np.sum(T_array),
-                                  'L': np.mean(L_array[L_array > 0]),
-                                  'S': 0.,
-                                  'frame': 'physical'}
-        elif glue_shape[0] == 1 and glue_shape[1] > 1:
-            new_parameter_dict = {'T': np.mean(T_array[T_array > 0]),
-                                  'L': np.sum(L_array),
-                                  'S': 0.,
-                                  'frame': 'physical'}
-        elif glue_shape[0] > 1 and glue_shape[1] > 1:
-            new_parameter_dict = {'T': glue_shape[0] * np.mean(T_array[T_array > 0]),
-                                  'L': glue_shape[1] * np.mean(L_array[L_array > 0]),
-                                  'S': 0.,
-                                  'frame': 'physical'}
-        else:
-            # Gluing shouldn't really be used if there is literally no gluing occuring, i.e. glue_shape = (1,1),
-            # but just for the sake of completeness.
-            new_parameter_dict = {'T': float(T_array),
-                                  'L': float(L_array),
-                                  'S': 0.,
-                                  'frame': 'physical'}
-
-        return new_parameter_dict
 
     @property
     def dt_parameters(self):
@@ -2302,7 +2425,7 @@ class RelativeOrbitKS(OrbitKS):
 
 class AntisymmetricOrbitKS(OrbitKS):
 
-    def __init__(self, state=None, basis='field', parameters=(0., 0., 0.), **kwargs):
+    def __init__(self, state=None, basis='modes', parameters=(0., 0., 0.), **kwargs):
         super().__init__(state=state, basis=basis, parameters=parameters, **kwargs)
 
     def dx(self, power=1, return_array=False):
@@ -2366,6 +2489,62 @@ class AntisymmetricOrbitKS(OrbitKS):
                                                                                         power=power).ravel()))
             _dx_matrix_complete = np.kron(np.eye(self.N), dx_n_matrix)
         return _dx_matrix_complete
+
+    def _jac_nonlin(self):
+        """ The nonlinear component of the Jacobian matrix of the Kuramoto-Sivashinsky equation
+
+        Returns
+        -------
+        nonlinear_dx : matrix
+            Matrix which represents the nonlinear component of the Jacobian. The derivative of
+            the nonlinear term, which is
+            (D/DU) 1/2 d_x (u .* u) = (D/DU) 1/2 d_x F (diag(F^-1 u)^2)  = d_x F( diag(F^-1 u) F^-1).
+            See
+            Chu, K.T. A direct matrix method for computing analytical Jacobians of discretized nonlinear
+            integro-differential equations. J. Comp. Phys. 2009
+            for details.
+
+        Notes
+        -----
+        The obvious way of computing this, represented above, is to multiply the linear operators
+        corresponding to d_x F( diag(F^-1 u) F^-1). However, if we slightly rearrange things such that
+        the spatial differential is taken on spatial modes, then this function generalizes to the subclasses
+        with discrete symmetry.
+        """
+
+        _jac_nonlin_left = self._time_transform_matrix().dot(self._dx_matrix(basis='s_modes'))
+        _jac_nonlin_middle = self._space_transform_matrix().dot(np.diag(self.convert(to='field').state.ravel()))
+        _jac_nonlin_right = self._inv_spacetime_transform_matrix()
+        _jac_nonlin = _jac_nonlin_left.dot(_jac_nonlin_middle).dot(_jac_nonlin_right)
+
+        return _jac_nonlin
+
+    def _jac_transpose_nonlin(self):
+        """ The nonlinear component of the Jacobian matrix of the Kuramoto-Sivashinsky equation
+
+        Returns
+        -------
+        nonlinear_dx : matrix
+            Matrix which represents the nonlinear component of the Jacobian. The derivative of
+            the nonlinear term, which is
+            (D/DU) 1/2 d_x (u .* u) = (D/DU) 1/2 d_x F (diag(F^-1 u)^2)  = d_x F( diag(F^-1 u) F^-1).
+            See
+            Chu, K.T. A direct matrix method for computing analytical Jacobians of discretized nonlinear
+            integro-differential equations. J. Comp. Phys. 2009
+            for details.
+
+        Notes
+        -----
+        The obvious way of computing this, represented above, is to multiply the linear operators
+        corresponding to d_x F( diag(F^-1 u) F^-1). However, if we slightly rearrange things such that
+        the spatial differential is taken on spatial modes, then this function generalizes to the subclasses
+        with discrete symmetry.
+        """
+        _jac_t_nonlin_left = self._spacetime_transform_matrix().dot(np.diag(self.convert(to='field').state.ravel()))
+        _jac_t_nonlin_middle = self._inv_space_transform_matrix().dot(self._dx_matrix(basis='s_modes'))
+        _jac_t_nonlin_right = self._inv_time_transform_matrix()
+        _jac_t_nonlin = -1.0 * _jac_t_nonlin_left.dot(_jac_t_nonlin_middle).dot(_jac_t_nonlin_right)
+        return _jac_t_nonlin
 
     def from_fundamental_domain(self, inplace=False, **kwargs):
         """ Overwrite of parent method """
@@ -2566,7 +2745,7 @@ class AntisymmetricOrbitKS(OrbitKS):
 
 class ShiftReflectionOrbitKS(OrbitKS):
 
-    def __init__(self, state=None, basis='field', parameters=(0., 0., 0.), **kwargs):
+    def __init__(self, state=None, basis='modes', parameters=(0., 0., 0.), **kwargs):
         """ Orbit subclass for solutions with spatiotemporal shift-reflect symmetry
 
 
@@ -2704,6 +2883,62 @@ class ShiftReflectionOrbitKS(OrbitKS):
             return 0.5 * self.statemul(other).dx(return_array=False).convert(to='modes').state
         else:
             return 0.5 * self.statemul(other).dx(return_array=False).convert(to='modes')
+
+    def _jac_nonlin(self):
+        """ The nonlinear component of the Jacobian matrix of the Kuramoto-Sivashinsky equation
+
+        Returns
+        -------
+        nonlinear_dx : matrix
+            Matrix which represents the nonlinear component of the Jacobian. The derivative of
+            the nonlinear term, which is
+            (D/DU) 1/2 d_x (u .* u) = (D/DU) 1/2 d_x F (diag(F^-1 u)^2)  = d_x F( diag(F^-1 u) F^-1).
+            See
+            Chu, K.T. A direct matrix method for computing analytical Jacobians of discretized nonlinear
+            integro-differential equations. J. Comp. Phys. 2009
+            for details.
+
+        Notes
+        -----
+        The obvious way of computing this, represented above, is to multiply the linear operators
+        corresponding to d_x F( diag(F^-1 u) F^-1). However, if we slightly rearrange things such that
+        the spatial differential is taken on spatial modes, then this function generalizes to the subclasses
+        with discrete symmetry.
+        """
+
+        _jac_nonlin_left = self._time_transform_matrix().dot(self._dx_matrix(basis='s_modes'))
+        _jac_nonlin_middle = self._space_transform_matrix().dot(np.diag(self.convert(to='field').state.ravel()))
+        _jac_nonlin_right = self._inv_spacetime_transform_matrix()
+        _jac_nonlin = _jac_nonlin_left.dot(_jac_nonlin_middle).dot(_jac_nonlin_right)
+
+        return _jac_nonlin
+
+    def _jac_transpose_nonlin(self):
+        """ The nonlinear component of the Jacobian matrix of the Kuramoto-Sivashinsky equation
+
+        Returns
+        -------
+        nonlinear_dx : matrix
+            Matrix which represents the nonlinear component of the Jacobian. The derivative of
+            the nonlinear term, which is
+            (D/DU) 1/2 d_x (u .* u) = (D/DU) 1/2 d_x F (diag(F^-1 u)^2)  = d_x F( diag(F^-1 u) F^-1).
+            See
+            Chu, K.T. A direct matrix method for computing analytical Jacobians of discretized nonlinear
+            integro-differential equations. J. Comp. Phys. 2009
+            for details.
+
+        Notes
+        -----
+        The obvious way of computing this, represented above, is to multiply the linear operators
+        corresponding to d_x F( diag(F^-1 u) F^-1). However, if we slightly rearrange things such that
+        the spatial differential is taken on spatial modes, then this function generalizes to the subclasses
+        with discrete symmetry.
+        """
+        _jac_t_nonlin_left = self._spacetime_transform_matrix().dot(np.diag(self.convert(to='field').state.ravel()))
+        _jac_t_nonlin_middle = self._inv_space_transform_matrix().dot(self._dx_matrix(basis='s_modes'))
+        _jac_t_nonlin_right = self._inv_time_transform_matrix()
+        _jac_t_nonlin = -1.0 * _jac_t_nonlin_left.dot(_jac_t_nonlin_middle).dot(_jac_t_nonlin_right)
+        return _jac_t_nonlin
 
     @property
     def dt_parameters(self):
@@ -2864,7 +3099,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
 
 class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
-    def __init__(self, state=None, basis='field', parameters=(0., 0., 0.), **kwargs):
+    def __init__(self, state=None, basis='modes', parameters=(0., 0., 0.), **kwargs):
         """ Subclass for equilibrium solutions (all of which are antisymmetric w.r.t. space).
         Parameters
         ----------
@@ -2941,6 +3176,10 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         """ Extension of the OrbitKS method that includes the term for spatial translation symmetry"""
         return self._dx_matrix(power=2) + self._dx_matrix(power=4)
 
+    def _jac_transpose_lin(self):
+        """ Extension of the OrbitKS method that includes the term for spatial translation symmetry"""
+        return self._jac_lin()
+
     def _jacobian_parameter_derivatives_concat(self, jac_, ):
         """ Concatenate parameter partial derivatives to Jacobian matrix
 
@@ -2967,6 +3206,35 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
                                          + (-4.0 / self.L) * self.dx(power=4, return_array=True)
                                          + (-1.0 / self.L) * self_field.nonlinear(self_field, return_array=True))
             jac_ = np.concatenate((jac_, spatial_period_derivative.reshape(-1, 1)), axis=1)
+
+        return jac_
+
+    def _jacobian_transpose_parameter_derivatives_concat(self, jac_, ):
+        """ Concatenate parameter partial derivatives to Jacobian matrix
+
+        Parameters
+        ----------
+        jac_ : np.ndArray,
+        (N-1) * (M-2) dimensional array resultant from taking the derivative of the spatioatemporal mapping
+        with respect to Fourier modes.
+        parameter_constraints : tuple
+        Flags which indicate which parameters are constrained; if unconstrained then need to augment the Jacobian
+        with partial derivatives with respect to unconstrained parameters.
+
+        Returns
+        -------
+        Jacobian augmented with parameter partial derivatives as columns. Required to solve for changes to period,
+        space period in optimization process. Makes the system rectangular; needs to be solved by least squares type
+        methods.
+
+        """
+        # If spatial period is not fixed, need to include dF/dL in jacobian matrix
+        if not self.constraints['L']:
+            self_field = self.convert(to='field')
+            spatial_period_derivative = ((-2.0 / self.L) * self.dx(power=2, return_array=True)
+                                         + (-4.0 / self.L) * self.dx(power=4, return_array=True)
+                                         + (-1.0 / self.L) * self_field.nonlinear(self_field, return_array=True))
+            jac_ = np.concatenate((jac_, spatial_period_derivative.reshape(1, -1)), axis=0)
 
         return jac_
 
@@ -3075,7 +3343,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         spectrum = kwargs.get('spectrum', 'gaussian')
 
         # also accepts N and M as kwargs
-        self.N, self.M = parameter_based_discretization(parameters, N=1)
+        self.N, self.M = self.__class__.parameter_based_discretization(parameters, N=1)
         self.n, self.m = 1, int(self.M // 2) - 1
         xscale = kwargs.get('xscale', int(np.round(self.L / (2*pi*np.sqrt(2)))))
         xvar = kwargs.get('xvar', np.sqrt(xscale))
@@ -3161,7 +3429,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         return 0., self.L
 
     @classmethod
-    def glue_parameters(cls, parameter_dict_with_bundled_values, glue_shape=(1, 1)):
+    def glue_parameters(cls, zipped_parameters, glue_shape=(1, 1)):
         """ Class method for handling parameters in gluing
 
         Parameters
@@ -3178,22 +3446,19 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         dict kay value pair.
 
         """
-        L_array = np.array(parameter_dict_with_bundled_values['L'])
+
+        L_array = np.array(zipped_parameters[1])
 
         if glue_shape[0] > 1:
             raise ValueError('Trying to glue EquilibriumOrbitKS() in time is contradictory.')
         elif glue_shape[0] == 1 and glue_shape[1] > 1:
-            new_parameter_dict = {'T': 0,
-                                  'L': np.sum(L_array),
-                                  'S': 0.}
+            glued_parameters = (0, np.sum(L_array), 0.)
         else:
             # Gluing shouldn't really be used if there is literally no gluing occuring, i.e. glue_shape = (1,1),
             # but just for the sake of completeness.
-            new_parameter_dict = {'T': 0.,
-                                  'L': float(L_array),
-                                  'S': 0.}
+            glued_parameters = (0, float(L_array), 0.)
 
-        return new_parameter_dict
+        return glued_parameters
 
     def _parse_state(self, state, basis, **kwargs):
         shp = state.shape
@@ -3219,7 +3484,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         self.n, self.m = 1, int(self.M // 2) - 1
         return self
 
-    def precondition(self, preconditioning_parameters, **kwargs):
+    def precondition(self, parameters, **kwargs):
         """ Precondition a vector with the inverse (aboslute value) of linear spatial terms
 
         Parameters
@@ -3243,7 +3508,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         I never preconditioned the spatial shift for relative periodic solutions so I don't include it here.
         """
-        _, dx_params = preconditioning_parameters
+        _, dx_params = parameters
         p_multipliers = 1.0 / (np.abs(self.elementwise_dxn(dx_params, power=2))
                                + self.elementwise_dxn(dx_params, power=4))
         self.state = np.multiply(self.state, p_multipliers)
@@ -3254,7 +3519,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         return self
 
-    def preconditioner(self, preconditioning_parameters, **kwargs):
+    def preconditioner(self, parameters, **kwargs):
         """ Preconditioning matrix
 
         Parameters
@@ -3275,7 +3540,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         # The construction of the matrix (i.e. here) is typically used in lstsq; therefore return right hand
         # preconditioner by default.
         side = kwargs.get('side', 'right')
-        dt_params, dx_params = preconditioning_parameters
+        dt_params, dx_params = parameters
         p_multipliers = (1.0 / (+ np.abs(self.elementwise_dxn(dx_params, power=2))
                                 + self.elementwise_dxn(dx_params, power=4))).ravel()
 
@@ -3406,7 +3671,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
 class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
-    def __init__(self, state=None, basis='field', parameters=(0., 0., 0.), frame='comoving', **kwargs):
+    def __init__(self, state=None, basis='modes', parameters=(0., 0., 0.), frame='comoving', **kwargs):
         super().__init__(state=state, basis=basis, parameters=parameters, frame=frame, **kwargs)
 
     def dt(self, power=1, return_array=False):
@@ -3460,7 +3725,11 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         """ Extension of the OrbitKS method that includes the term for spatial translation symmetry"""
         return self._dx_matrix(power=2) + self._dx_matrix(power=4) + self.comoving_matrix()
 
-    def _jacobian_parameter_derivatives_concat(self, jac_, ):
+    def _jac_transpose_lin(self):
+        """ Extension of the OrbitKS method that includes the term for spatial translation symmetry"""
+        return self._dx_matrix(power=2) + self._dx_matrix(power=4) - self.comoving_matrix()
+
+    def _jacobian_parameter_derivatives_concat(self, jac_):
         """ Concatenate parameter partial derivatives to Jacobian matrix
 
         Parameters
@@ -3495,6 +3764,44 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         if not self.constraints['S']:
             spatial_shift_derivatives = (-1.0 / self.T)*self.dx(return_array=True)
             jac_ = np.concatenate((jac_, spatial_shift_derivatives.reshape(-1, 1)), axis=1)
+
+        return jac_
+
+    def _jacobian_transpose_parameter_derivatives_concat(self, jac_):
+        """ Concatenate parameter partial derivatives to Jacobian matrix
+
+        Parameters
+        ----------
+        jac_ : np.ndArray,
+        (N-1) * (M-2) dimensional array resultant from taking the derivative of the spatioatemporal mapping
+        with respect to Fourier modes.
+        parameter_constraints : tuple
+        Flags which indicate which parameters are constrained; if unconstrained then need to augment the Jacobian
+        with partial derivatives with respect to unconstrained parameters.
+
+        Returns
+        -------
+        Jacobian augmented with parameter partial derivatives as columns. Required to solve for changes to period,
+        space period in optimization process. Makes the system rectangular; needs to be solved by least squares type
+        methods.
+
+        """
+        # If period is not fixed, need to include dF/dT in jacobian matrix
+        if not self.constraints['T']:
+            time_period_derivative = (-1.0 / self.T)*self.comoving_mapping_component(return_array=True).reshape(1, -1)
+            jac_ = np.concatenate((jac_, time_period_derivative), axis=0)
+
+        # If spatial period is not fixed, need to include dF/dL in jacobian matrix
+        if not self.constraints['L']:
+            self_field = self.convert(to='field')
+            spatial_period_derivative = ((-2.0 / self.L) * self.dx(power=2, return_array=True)
+                                          + (-4.0 / self.L) * self.dx(power=4, return_array=True)
+                                          + (-1.0 / self.L) * self_field.nonlinear(self_field, return_array=True))
+            jac_ = np.concatenate((jac_, spatial_period_derivative.reshape(1, -1)), axis=0)
+
+        if not self.constraints['S']:
+            spatial_shift_derivatives = (-1.0 / self.T)*self.dx(return_array=True)
+            jac_ = np.concatenate((jac_, spatial_shift_derivatives.reshape(1, -1)), axis=0)
 
         return jac_
 
@@ -3629,7 +3936,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         spectrum = kwargs.get('spectrum', 'gaussian')
 
         # also accepts N and M as kwargs
-        self.N, self.M = parameter_based_discretization(parameters, N=1)
+        self.N, self.M = self.parameter_based_discretization(parameters, N=1)
         self.n, self.m = 1, int(self.M // 2) - 1
 
         tscale = kwargs.get('tscale', int(np.round(self.T / (30*pi))))

@@ -434,7 +434,6 @@ class Orbit:
         """
         return 'T',
 
-
     @classmethod
     def glue_parameters(cls, parameter_dict_with_bundled_values, axis=0):
         """ Class method for handling parameters in gluing
@@ -483,28 +482,6 @@ class Orbit:
         """
         return None
 
-    def preconditioner(self, preconditioning_parameters, **kwargs):
-        """ Preconditioning matrix
-
-        Parameters
-        ----------
-        Parameters
-        preconditioning_parameters : tuple
-        Tuple containing parameters required to define the preconditioner
-
-        Returns
-        -------
-        matrix :
-            Preconditioning matrix
-
-        Notes
-        -----
-        if nothing desired then return identity matrix whose main diagonal is the same size as state-vector
-        (Could also need another identity that excludes parameter dimension, depending on whether right or left
-        preconditioning is chosen).
-        """
-        return None
-
     def rescale(self, magnitude, inplace=False):
         """ Scalar multiplication
 
@@ -535,8 +512,7 @@ class Orbit:
             filename = self.parameter_dependent_filename()
 
         if directory == 'local':
-            directory = os.path.join(os.path.abspath(os.path.join(__file__,
-                                                                  ''.join(['../../data/local/', str(self), '/'])), ''))
+            directory = os.path.abspath(os.path.join(__file__, ''.join(['../../data/local/', str(self), '/'])))
         elif directory == '':
             pass
         elif not os.path.isdir(directory):
@@ -607,18 +583,6 @@ class Orbit:
         Orbit :
         -----
 
-        """
-        return None
-
-    def statemul(self, other):
-        """ Elementwise multiplication of two Tori states
-
-        Returns
-        -------
-        Orbit :
-
-        Notes
-        -----
         """
         return None
 
