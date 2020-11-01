@@ -21,31 +21,31 @@ def str2bool(val):
 def hunt(x, verbose=True):
     if verbose:
         print('Beginning search for {}'.format(repr(x)))
-    result = converge(x, verbose=verbose, method='hybrid', comp_time='long', preconditioning=True)
+    result = converge(x, verbose=True, method='hybrid', comp_time='long', preconditioning=True, pexp=(1,4))
     if min(result.residuals[-1]) <= min(list(result.tol)):
         result.orbit.to_h5(verbose=True,
-                           directory='../../data/local/convergence_testing/disc_testing/')
+                           directory='../../data/local/hunt/')
         result.orbit.plot(show=False, save=True, verbose=True,
-                          directory='../../data/local/convergence_testing/disc_testing/')
+                          directory='../../data/local/hunt/')
 
     return None
 
 
-def main(*args, method='hybrid', **kwargs):
+def main():
     parser = ArgumentParser('hunt', formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-n_jobs', default=1, type=int, help='Number of concurrently runnings jobs; -1 == using all '
+    parser.add_argument('--n_jobs', default=1, type=int, help='Number of concurrently runnings jobs; -1 == using all '
                                                              'cores. See joblib\'s Parallel class for more details.')
-    parser.add_argument('-cls', default='OrbitKS', help='Orbit class defined by which symmetries are enforced:'
+    parser.add_argument('--cls', default='OrbitKS', help='Orbit class defined by which symmetries are enforced:'
                                                             'Options include: "OrbitKS", "ShiftReflectionOrbitKS", '
                                                             '"RelativeOrbitKS, "AntisymmetricOrbitKS",'
                                                             '"EquilibriumOrbitKS,''default=OrbitKS (no symmetries)')
-    parser.add_argument('-T_min', default=20, type=float, help='Smallest possible time-period value')
-    parser.add_argument('-T_max', default=200,type=float, help='Largest possible time-period value')
-    parser.add_argument('-L_min', default=16, type=float, help='Smallest possible space-period value generated')
-    parser.add_argument('-L_max', default=64, type=float, help='Largest possible space-period value generated')
-    parser.add_argument('-n_trials', default=1, type=int, help='Number of initial conditions to try')
-    parser.add_argument('-solver', default='hybrid', type=str, help='Solver to use')
-    parser.add_argument('-verbose', default=False, type=str2bool, help='Whether or not to print stats, not recommended'
+    parser.add_argument('--T_min', default=20, type=float, help='Smallest possible time-period value')
+    parser.add_argument('--T_max', default=200,type=float, help='Largest possible time-period value')
+    parser.add_argument('--L_min', default=16, type=float, help='Smallest possible space-period value generated')
+    parser.add_argument('--L_max', default=64, type=float, help='Largest possible space-period value generated')
+    parser.add_argument('--n_trials', default=1, type=int, help='Number of initial conditions to try')
+    parser.add_argument('--solver', default='hybrid', type=str, help='Solver to use')
+    parser.add_argument('--verbose', default=False, type=str2bool, help='Whether or not to print stats, not recommended'
                                                                        'for n_jobs != 1.')
 
     args = parser.parse_args()
@@ -62,8 +62,11 @@ def main(*args, method='hybrid', **kwargs):
     lrange = (L_max-L_min)*np.random.rand(n_trials) + L_min
     domains = zip(trange, lrange)
     t = time.time()
-    with Parallel(n_jobs=n_jobs) as parallel:
-        parallel(delayed(hunt)(cls(parameters=(T, L, 0.)).rescale(3.2), verbose=verbose) for (T, L) in domains)
+    for (T, L) in domains:
+        hunt(cls(parameters=(T, L, 0.)).rescale(5))
+    #
+    # with Parallel(n_jobs=n_jobs) as parallel:
+    #     parallel(delayed(hunt)(cls(parameters=(T, L, 0.)).rescale(5), verbose=verbose) for (T, L) in domains)
 
     print('{} trials took {} to complete with {} jobs'.format(n_trials, time.time()-t, n_jobs))
     return None

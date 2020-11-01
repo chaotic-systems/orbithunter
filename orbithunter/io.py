@@ -106,26 +106,25 @@ def refurbish_log(orbit_, filename, log_filename, overwrite=False, **kwargs):
         refurbish_log_.reset_index(drop=True).drop_duplicates().to_csv(log_filename)
 
 
-def write_symbolic_log(symbol_array, converge_result, log_filename, padded=False,
+def write_symbolic_log(symbol_array, converge_result, log_filename, padding=False,
                              comoving=False):
     symbol_string = to_symbol_string(symbol_array)
     dataframe_row_values = [[symbol_string, converge_result.orbit.parameters, converge_result.orbit.field_shape,
                              converge_result.orbit.residual(),
-                             converge_result.status, padded, comoving, symbol_array.shape]]
-    labels = ['symbol_string', 'parameters', 'field_shape', 'residual', 'status', 'padded',
+                             converge_result.status, padding, comoving, symbol_array.shape]]
+    labels = ['symbol_string', 'parameters', 'field_shape', 'residual', 'status', 'padding',
               'comoving', 'tile_shape']
 
     dataframe_row = pd.DataFrame(dataframe_row_values, columns=labels).astype(object)
     log_path = os.path.abspath(os.path.join(__file__, '../../data/logs/', log_filename))
 
     if not os.path.isfile(log_path):
-        symbolic_log = dataframe_row.copy()
+        file_ = dataframe_row.copy()
     else:
-        symbolic_log = pd.read_csv(log_path, dtype=object, index_col=0)
-        symbolic_log = pd.concat((symbolic_log, dataframe_row), axis=0)
-
+        file_ = pd.read_csv(log_path, dtype=object, index_col=0)
+        file_ = pd.concat((file_, dataframe_row), axis=0)
+    file_.reset_index(drop=True).drop_duplicates().to_csv(log_path)
     # To store all relevant info as a row in a Pandas DataFrame, put into a 1-D array first.
-    symbolic_log.reset_index(drop=True).drop_duplicates().to_csv(log_path)
     return None
 
 
@@ -146,21 +145,21 @@ def read_symbolic_log(symbol_array, log_filename, overwrite=False, retry=False):
     """
     all_rotations = itertools.product(*(list(range(a)) for a in symbol_array.shape))
     axes = tuple(range(len(symbol_array.shape)))
-    equivariant_str_list = []
+    equivariant_str = []
     for rotation in all_rotations:
-        equivariant_str_list.append(to_symbol_string(np.roll(symbol_array, rotation, axis=axes)))
+        equivariant_str.append(to_symbol_string(np.roll(symbol_array, rotation, axis=axes)))
 
     log_path = os.path.abspath(os.path.join(__file__, '../../data/logs/', log_filename))
     if not os.path.isfile(log_path):
         return False
     else:
         symbolic_df = pd.read_csv(log_path, dtype=object, index_col=0)
-        symbolic_intersection = symbolic_df[(symbolic_df['symbolic_string'].isin(equivariant_str_list))]
+        symbolic_intersection = symbolic_df[(symbolic_df['symbol_string'].isin(equivariant_str))].reset_index(drop=True)
         if len(symbolic_intersection) == 0:
             return False
-        elif symbolic_intersection['status'] == '1' and overwrite:
+        elif symbolic_intersection.loc[0, 'status'] == '1' and overwrite:
             return False
-        elif symbolic_intersection['status'] != '1' and retry:
+        elif symbolic_intersection.loc[0, 'status'] != '1' and retry:
             return False
         else:
             return True

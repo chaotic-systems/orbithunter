@@ -93,7 +93,7 @@ def kse_integrate(orbit_, **kwargs):
     nmax = int(integration_time / step_size)
     if verbose:
         print('Integration progress [', end='')
-    for step in range(0, nmax):
+    for step in range(0, nmax-1):
         Nv = -0.5*_dx_spatial_modes(v.convert(to='field')**2, power=1)
         a = v.statemul(E2) + Nv.statemul(Q)
         Na = -0.5*_dx_spatial_modes(a.convert(to='field')**2, power=1)
@@ -113,6 +113,6 @@ def kse_integrate(orbit_, **kwargs):
         print(']', end='')
     # By default do not assign spatial shift S.
     if kwargs.get('return_trajectory', True):
-        return orbit_.__class__(state=u.reshape(nmax+1, -1), basis='field', parameters=orbit_.parameters)
+        return orbit_.__class__(state=u.reshape(nmax, -1), basis='field', parameters=(integration_time, orbit_.L, 0))
     else:
-        return orbit_.__class__(state=u.reshape(1, -1), basis='field', parameters=orbit_.parameters)
+        return orbit_.__class__(state=u.reshape(1, -1), basis='field', parameters=(integration_time, orbit_.L, 0))

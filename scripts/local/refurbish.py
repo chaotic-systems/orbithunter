@@ -7,23 +7,26 @@ import numpy as np
 import pandas as pd
 
 def main(*args, **kwargs):
-    overwrite = False
+    overwrite = True
+    figs_only = True
     directory_root = 'C:/Users/Matt/Desktop/orbithunter/data/local/'
     fail_counter = 0
-    search = ['C:/Users/matt/Desktop/gudorf/KS/python/data_and_figures/blocks/**/*.h5',
-              'C:/Users/matt/Desktop/gudorf/KS/python/data_and_figures/trawl/**/*.h5',
-              'C:/Users/matt/Desktop/gudorf/KS/python/data_and_figures/GuBuCv17/**/*.h5',
-              'C:/Users/matt/Desktop/gudorf/KS/python/data_and_figures/tiles/**/*.h5',
-              'C:/Users/matt/Desktop/gudorf/KS/python/data_and_figures/continuation/**/*.h5',
-              'C:/Users/matt/Desktop/gudorf/KS/python/data_and_figures/gluing/**/*.h5',
+    search = [
+              # 'C:/Users/matt/Desktop/gudorf/KS/python/data_and_figures/blocks/**/*.h5',
+              # 'C:/Users/matt/Desktop/gudorf/KS/python/data_and_figures/trawl/**/*.h5',
+              # 'C:/Users/matt/Desktop/gudorf/KS/python/data_and_figures/GuBuCv17/**/*.h5',
+              # 'C:/Users/matt/Desktop/gudorf/KS/python/data_and_figures/tiles/**/*.h5',
+              # 'C:/Users/matt/Desktop/gudorf/KS/python/data_and_figures/continuation/**/*.h5',
+              # 'C:/Users/matt/Desktop/gudorf/KS/python/data_and_figures/gluing/**/*.h5',
               'C:/Users/matt/Desktop/orbithunter/data/**/*.h5'
               ]
     log_path = os.path.abspath(os.path.join(__file__ + '../../../../data/logs/refurbish_log.csv'))
     entry = True
     for search_directory in search:
         for orbit_h5 in glob.glob(search_directory, recursive=True):
+            orbit_h5 = os.path.abspath(orbit_h5)
             if orbit_h5.upper().count('FAIL') != 0 or orbit_h5.upper().count('OTHER') != 0 \
-                    or orbit_h5.upper().count('BLOCKS2') or orbit_h5.upper().count('LOCAL\\TILES'):
+                    or orbit_h5.upper().count('BLOCKS2'):# or orbit_h5.upper().count('LOCAL\\TILES'):
                 pass
             else:
                 try:
@@ -40,7 +43,6 @@ def main(*args, **kwargs):
                     orbit_.to_h5(directory=directory, verbose=True)
                     orbit_.plot(show=False, save=True, directory=directory, verbose=True)
                 else:
-
                     if entry and not os.path.isfile(log_path):
                         refurbish_log_ = pd.Series(orbit_h5).to_frame(name='filename')
                     elif entry:
@@ -55,37 +57,38 @@ def main(*args, **kwargs):
                         print(orbit_h5, ' already logged.')
                         continue
                     else:
-                        print('\n' + 'Refurbishing ' + orbit_h5)
-                        converge_result = converge(orbit_, ftol=10**-15, precision='machine', method='hybrid', verbose=True)
-                        # Want lower residual if possibile, but the tolerance sent to converge is the termination tolerance not
-                        # minimum.
-                        if (converge_result.orbit.residual() < np.product(orbit_.field_shape) * 1e-10) \
-                                and converge_result.exit_code != 4:
-                            dat_directory = os.path.abspath(os.path.join(directory_root.split('/data/')[0],
-                                                                         './data/local/', str(converge_result.orbit),
-                                                                         './'))
-                            # fig_directory = os.path.abspath(os.path.join(directory_root.split('/data/')[0],
-                            #                                              './figs/local/',str(converge_result.orbit),
-                            #                                              './'))
-                            redone_orbit_h5 = os.path.abspath(os.path.join(dat_directory,
-                                                              './',converge_result.orbit.parameter_dependent_filename()))
-                            converge_result.orbit.to_h5(directory=dat_directory, verbose=True)
-                            converge_result.orbit.plot(directory=dat_directory, show=False,
-                                                       save=True, verbose=True)
-                            refurbish_log_ = pd.concat((refurbish_log_,
-                                                        pd.Series([redone_orbit_h5, orbit_h5]).to_frame(name='filename')), axis=0)
+                        # print('\n' + 'Refurbishing ' + orbit_h5)
+                        if figs_only:
+                            orbit_ = orbit_.convert(to='field')
+                            orbit_.plot(filename=orbit_h5, show=False, verbose=True)
                         else:
+                            converge_result = converge(orbit_, ftol=10**-15, method='hybrid', verbose=True)
+                            # Want lower residual if possibile, but the tolerance sent to converge is the termination tolerance not
+                            # minimum.
+                            if (converge_result.orbit.residual() < np.product(orbit_.field_shape) * 1e-10) \
+                                    and converge_result.exit_code != 4:
+                                dat_directory = os.path.abspath(os.path.join(directory_root.split('/data/')[0],
+                                                                             './data/local/', str(converge_result.orbit),
+                                                                             './'))
+                                redone_orbit_h5 = os.path.abspath(os.path.join(dat_directory,
+                                                                  './',converge_result.orbit.parameter_dependent_filename()))
+                                converge_result.orbit.to_h5(directory=dat_directory, verbose=True)
+                                converge_result.orbit.plot(directory=dat_directory, show=False,
+                                                           save=True, verbose=True)
+                                refurbish_log_ = pd.concat((refurbish_log_,
+                                                            pd.Series([redone_orbit_h5, orbit_h5]).to_frame(name='filename')), axis=0)
+                            else:
 
-                            dat_directory = os.path.abspath(os.path.join(directory_root.split('/data/')[0],
-                                                                         './data/local/unconverged/',str(converge_result.orbit),
-                                                                         './'))
-                            orbit_.to_h5(orbit_h5, directory=dat_directory, verbose=True)
-                            orbit_.plot(filename=orbit_h5, show=False, save=True, directory=dat_directory, verbose=True)
-                            fail_counter += 1
+                                dat_directory = os.path.abspath(os.path.join(directory_root.split('/data/')[0],
+                                                                             './data/local/unconverged/',str(converge_result.orbit),
+                                                                             './'))
+                                orbit_.to_h5(orbit_h5, directory=dat_directory, verbose=True)
+                                orbit_.plot(filename=orbit_h5, show=False, save=True, directory=dat_directory, verbose=True)
+                                fail_counter += 1
 
-                        refurbish_log_ = pd.concat((refurbish_log_,
-                                                    pd.Series(orbit_h5).to_frame(name='filename')), axis=0)
-                        refurbish_log_.reset_index(drop=True).drop_duplicates().to_csv(log_path)
+                            refurbish_log_ = pd.concat((refurbish_log_,
+                                                        pd.Series(orbit_h5).to_frame(name='filename')), axis=0)
+                            refurbish_log_.reset_index(drop=True).drop_duplicates().to_csv(log_path)
                     entry = False
     print('There were {} failures to converge'.format(fail_counter))
     return None

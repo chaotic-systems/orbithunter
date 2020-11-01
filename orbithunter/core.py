@@ -497,7 +497,7 @@ class Orbit:
         """
         return None
 
-    def to_h5(self, filename=None, directory='local', verbose=False, **kwargs):
+    def to_h5(self, filename=None, directory='local', verbose=False, include_residual=True, **kwargs):
         """ Export current state information to HDF5 file
 
         Parameters
@@ -516,10 +516,9 @@ class Orbit:
         elif directory == '':
             pass
         elif not os.path.isdir(directory):
-            raise OSError('Trying to write to directory that does not exist.')
+            raise OSError('Trying to write to directory that does not exist. {}'.format(directory))
 
         save_path = os.path.abspath(os.path.join(directory, filename))
-
         if verbose:
             print('Saving data to {}'.format(save_path))
 
@@ -531,6 +530,12 @@ class Orbit:
             f.create_dataset('parameters', data=tuple(float(p) for p in self.parameters))
             # This isn't ever actually used for KSE, just saved in case the file is to be inspected.
             f.create_dataset("discretization", data=self.field_shape)
+            if include_residual:
+                # This is included as a conditional statement because it seems strange to make importing/exporting
+                # dependent upon full implementation of the governing equations; i.e. perhaps the equations
+                # are still in development and data is used to test their implementation. In that case you would
+                # not be able to export data which is undesirable.
+                f.create_dataset("residual", data=float(self.residual()))
         return None
 
     def parameter_dependent_filename(self, extension='.h5', decimals=3):
@@ -625,6 +630,7 @@ def convert_class(orbit, new_type, **kwargs):
 
     # This avoids time-dimension issues with RelativeEquilibriumOrbitKS and EquilibriumOrbitKS
     tmp_orbit = orbit.convert(to='field')
-
+    parameters = kwargs.get('parameters', tmp_orbit.parameters)
+    kwargs.pop('parameters', None)
     return class_generator(state=tmp_orbit.state, basis=tmp_orbit.basis,
-                           parameters=tmp_orbit.parameters, **kwargs).convert(to=orbit.basis)
+                           parameters=parameters, **kwargs).convert(to=orbit.basis)

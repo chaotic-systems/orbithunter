@@ -4,7 +4,7 @@ import os
 import itertools
 from collections import Counter
 
-__all__ = ['tile', 'glue', 'generate_symbol_arrays', 'rediscretize_tiling_dictionary']
+__all__ = ['tile', 'glue', 'generate_symbol_arrays', 'rediscretize_tiling_dictionary', 'tile_dictionary_ks']
 
 
 def _correct_aspect_ratios(array_of_orbits, axis=0):
@@ -14,8 +14,11 @@ def _correct_aspect_ratios(array_of_orbits, axis=0):
 
     disc_total = np.sum(iterable_of_shapes)
     dim_total = np.sum(iterable_of_dims)
+    min_fraction = 8 / disc_total
 
     fraction_array = np.array(iterable_of_dims) / dim_total
+    fraction_array[fraction_array < min_fraction] = min_fraction
+    fraction_array /= fraction_array.sum()
     new_discretization_sizes = (2 * np.round((fraction_array * disc_total) / 2)).astype(int)
     number_of_dimensionless_orbits = np.sum(fraction_array == 0)
     number_of_dimensionful_orbits = len(new_discretization_sizes) - number_of_dimensionless_orbits
@@ -29,11 +32,11 @@ def _correct_aspect_ratios(array_of_orbits, axis=0):
         new_discretization_sizes[np.mod(np.sum(new_discretization_sizes), 2) == 1] += 1
         if np.sum(new_discretization_sizes) < disc_total:
             # Add points to the first instance of the minimum discretization size not equal to 0.
-            non_zero_minimum = new_discretization_sizes[new_discretization_sizes > 0].min()
+            non_zero_minimum = new_discretization_sizes[new_discretization_sizes > 16].min()
             new_discretization_sizes[np.min(np.where(new_discretization_sizes == non_zero_minimum)[0])] += 2
         else:
             # non_zero_maximum is same as maximum, just a precaution and consistency with minimum
-            non_zero_maximum = new_discretization_sizes[new_discretization_sizes > 0].max()
+            non_zero_maximum = new_discretization_sizes[new_discretization_sizes > 16].max()
             # Using np.argmin here would return the index relative to the sliced disc_size array, not the original as
             # we desire.
             new_discretization_sizes[np.min(np.where(new_discretization_sizes == non_zero_maximum)[0])] -= 2
@@ -69,7 +72,7 @@ def _correct_aspect_ratios(array_of_orbits, axis=0):
         # The new shapes of each orbit are the new sizes along the gluing axis, and the originals for axes not being
         # glued.
         new_shapes = [tuple(int(new_discretization_sizes[j]) if i == axis else o.field_shape[i]
-                        for i in range(len(o.shape))) for j, o in enumerate(array_of_orbits.ravel())]
+                      for i in range(len(o.shape))) for j, o in enumerate(array_of_orbits.ravel())]
 
     else:
         new_shapes = [tuple(int(new_discretization_sizes[j]) if i == axis else o.field_shape[i]
@@ -102,25 +105,27 @@ def expensive_glue(pair_of_orbits_array, class_constructor, gluing_axis=0):
     # in size.
     # the "gluing axis" in this case is always the same, we are just iterating through the gluing shape one
     # axis at a time.
-    glue_shape = tuple(2 if i == gluing_axis else 1 for i in range(2))
-    corrected_pair_of_orbits = _correct_aspect_ratios(pair_of_orbits_array, gluing_axis=0)
-    # Bundle all of the parameters at once, instead of "stripwise"
-    zipped_dimensions = tuple(zip(*(o.dimensions for o in pair_of_orbits_array.ravel())))
-    glued_parameters = class_constructor.glue_parameters(zipped_dimensions, glue_shape=glue_shape)
 
-    # arrange the orbit states into an array of the same shape as the symbol array.
-    orbit_field_list = [o.convert(to='field').state for o in pair_of_orbits_array.ravel()]
-    glued_orbit_state = np.array(orbit_field_list).reshape(*pair_of_orbits_array.shape, *tiling_shape)
-    # iterate through and combine all of the axes.
-    while len(glued_orbit_state.shape) > len(tiling_shape):
-        glued_orbit_state = np.concatenate(glued_orbit_state, axis=gluing_axis)
+    # glue_shape = tuple(2 if i == gluing_axis else 1 for i in range(2))
+    # corrected_pair_of_orbits = _correct_aspect_ratios(pair_of_orbits_array, gluing_axis=0)
+    # # Bundle all of the parameters at once, instead of "stripwise"
+    # zipped_dimensions = tuple(zip(*(o.dimensions for o in pair_of_orbits_array.ravel())))
+    # glued_parameters = class_constructor.glue_parameters(zipped_dimensions, glue_shape=glue_shape)
+    #
+    # # arrange the orbit states into an array of the same shape as the symbol array.
+    # orbit_field_list = [o.convert(to='field').state for o in pair_of_orbits_array.ravel()]
+    # glued_orbit_state = np.array(orbit_field_list).reshape(*pair_of_orbits_array.shape, *tiling_shape)
+    # # iterate through and combine all of the axes.
+    # while len(glued_orbit_state.shape) > len(tiling_shape):
+    #     glued_orbit_state = np.concatenate(glued_orbit_state, axis=gluing_axis)
+    #
+    # glued_orbit = class_constructor(state=glued_orbit_state, basis='field',
+    #                                 parameters=glued_parameters)
 
-    glued_orbit = class_constructor(state=glued_orbit_state, basis='field',
-                                    parameters=glued_parameters)
     return None
 
 
-def tile_dictionary_ks(padded=False, comoving=False):
+def tile_dictionary_ks(padding=False, comoving=False):
     """ Template tiles for Kuramoto-Sivashinsky equation.
 
 
@@ -140,11 +145,13 @@ def tile_dictionary_ks(padded=False, comoving=False):
     -----
     The dictionary is setup as follows : {0: streak, 1: merger, 2: wiggle}
     """
-    if not padded:
-        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/unpadded/'))
-    else:
-        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/padded'))
 
+    if padding == 'spacetime':
+        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/padded/'))
+    elif padding == 'space':
+        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/padded_space.'))
+    else:
+        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/default/'))
 
     if comoving:
         # padded merger orbit in physical frame.
@@ -265,9 +272,8 @@ def glue(array_of_orbit_instances, class_constructor, stripwise=False, **kwargs)
         # Bundle all of the parameters at once, instead of "stripwise"
         zipped_dimensions = tuple(zip(*(o.dimensions for o in array_of_orbit_instances.ravel())))
         glued_parameters = class_constructor.glue_parameters(zipped_dimensions, glue_shape=glue_shape)
-
         # arrange the orbit states into an array of the same shape as the symbol array.
-        orbit_field_list = [o.convert(to='field').state for o in array_of_orbit_instances.ravel()]
+        orbit_field_list = np.array([o.convert(to='field').state for o in array_of_orbit_instances.ravel()])
         glued_orbit_state = np.array(orbit_field_list).reshape(*array_of_orbit_instances.shape, *tiling_shape)
         # iterate through and combine all of the axes.
         while len(glued_orbit_state.shape) > len(tiling_shape):

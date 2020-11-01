@@ -31,7 +31,7 @@ def _increment_dimension(orbit_, target_extent, increment, axis=0):
     else:
         next_extent = current_extent + increment
     parameters = tuple(next_extent if i == axis else orbit_.parameters[i]
-                             for i in range(len(orbit_.parameters)))
+                       for i in range(len(orbit_.parameters)))
     return orbit_.__class__(state=orbit_.state, basis=orbit_.basis,
                             parameters=parameters, constraints=orbit_.constraints)
 
@@ -53,7 +53,6 @@ def dimension_continuation(orbit_, new_size, axis=0, step_size=0.01, **kwargs):
     # As long as we keep converging to solutions, we keep stepping towards target value.
     # We need to be incrementing in the correct direction. i.e. to get smaller we need to have a negative increment.
     # Use list to get the correct count, then convert to tuple as expected.
-
     # Check that the orbit_ is converged prior to any constraints
     converge_result = converge(orbit_, **kwargs)
     # check that the orbit_ instance is converged when having constraints, otherwise performance takes a big hit.
@@ -63,7 +62,7 @@ def dimension_continuation(orbit_, new_size, axis=0, step_size=0.01, **kwargs):
     # Ensure that we are stepping in correct direction.
     step_size = (np.sign(new_size - converge_result.orbit.parameters[axis]) * np.abs(step_size))
     # We need to be incrementing in the correct direction. i.e. to get smaller we need to have a negative increment.
-    while converge_result.status == 1 and not _extent_equals_target(converge_result.orbit, new_size, axis=axis):
+    while converge_result.status == -1 and not _extent_equals_target(converge_result.orbit, new_size, axis=axis):
         incremented_orbit = _increment_dimension(converge_result.orbit, new_size, step_size, axis=axis)
         converge_result = converge(incremented_orbit, **kwargs)
         # If we want to save all states in the family else save the returned orbit from converge_result
@@ -102,7 +101,7 @@ def _increment_discretization(orbit_, target_size, increment, axis=0):
     return orbit_.reshape(*incremented_shape)
 
 
-def discretization_continuation(orbit_, **kwargs):
+def discretization_continuation(orbit_, new_shape, **kwargs):
     """ Incrementally change discretization while maintaining convergence
 
     Parameters
@@ -115,7 +114,6 @@ def discretization_continuation(orbit_, **kwargs):
     -------
 
     """
-    new_shape = kwargs.get('new_shape', orbit_.field_shape)
     # check that we are starting from converged solution, first of all.
     converge_result = converge(orbit_)
     order_of_axes_to_increment = np.argsort(new_shape)
@@ -131,8 +129,8 @@ def discretization_continuation(orbit_, **kwargs):
         # While maintaining convergence proceed with continuation. If the shape equals the target, stop.
         # If the shape along the axis is 1, and the corresponding dimension is 0, then this means we have
         # an equilibrium solution along said axis; this can be handled by simply rediscretizing the field.
-        while converge_result.status == 1 and (not converge_result.orbit.field_shape[axis] == new_shape[axis] and
-                                                  not converge_result.orbit.field_shape[axis] == 1):
+        while converge_result.status == -1 and (not converge_result.orbit.field_shape[axis] == new_shape[axis] and
+                                                not converge_result.orbit.field_shape[axis] == 1):
             incremented_orbit = _increment_discretization(converge_result.orbit, new_shape[axis],
                                                           step_size, axis=axis)
             converge_result = converge(incremented_orbit, **kwargs)
@@ -141,7 +139,7 @@ def discretization_continuation(orbit_, **kwargs):
                 converge_result.orbit.plot(show=kwargs.pop('show', False), **kwargs)
             elif kwargs.get('plot_intermediates', False):
                 converge_result.orbit.plot(show=kwargs.get('plot_intermediates', False), **kwargs)
-    if converge_result.status == 1:
+    if converge_result.status == -1:
         # At the very end, we are either at the correct shape, such that the next line does nothing OR we have
         # a discretization of an equilibrium solution that is brought to the final target shape by rediscretization.
         # In other words, the following rediscretization does not destroy the convergence of the orbit, if it
