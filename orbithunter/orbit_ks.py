@@ -658,7 +658,7 @@ class OrbitKS(Orbit):
             elif resolution == 'fine':
                 N = np.max([2*(int(2**(np.log2(T+1)+4))//2), 32])
             elif resolution == 'power':
-                N = np.max([4*int(T**(1./2.)), 16])
+                N = np.max([2*(int(4*T**(1./2.))//2), 16])
             else:
                 N = np.max([2**(int(np.log2(T)-1)), 32])
         else:
@@ -670,7 +670,7 @@ class OrbitKS(Orbit):
             elif resolution == 'fine':
                 M = np.max([2*(int(2**(np.log2(L+1))+2)//2), 32])
             elif resolution == 'power':
-                M = np.max([6*int(L**(1./2.)), 16])
+                M = np.max([2*(int(6*L**(1./2.))//2), 16])
             else:
                 M = np.max([2**(int(np.log2(L)-0.5) + 1), 32])
         else:
@@ -1350,7 +1350,7 @@ class OrbitKS(Orbit):
         tscale = kwargs.get('tscale', max([int(np.round(self.T / 25.)), 1]))
         xscale = kwargs.get('xscale', max([int(1 + np.round(self.L / (2*pi*np.sqrt(2)))), 1]))
         xvar = kwargs.get('xvar', np.sqrt(xscale))
-        tvar = kwargs.get('tvar', tscale)
+        tvar = kwargs.get('tvar', np.sqrt(tscale))
         np.random.seed(kwargs.get('seed', None))
 
         # also accepts N and M as kwargs
@@ -1372,6 +1372,7 @@ class OrbitKS(Orbit):
             # spacetime gaussian modulation
             gaussian_modulator = np.exp(-((space_ - xscale)**2/(2*xvar)) - ((time_ - tscale)**2 / (2*tvar)))
             modes = np.multiply(gaussian_modulator, random_modes)
+
         elif spectrum == 'piecewise-exponential':
             # space scaling is constant up until certain wave number then exponential decrease
             # time scaling is static
@@ -1395,9 +1396,28 @@ class OrbitKS(Orbit):
             time_[time_ <= tscale] = 1.
             time_[time_ != 1.] = 0.
             # so we get qk^2 - qk^4
-            space_modulator = -1.0 * (self.elementwise_dxn(self.dx_parameters, power=2)
-                                      + self.elementwise_dxn(self.dx_parameters, power=4))
-            modulated_modes = np.divide(random_modes, space_modulator)
+            mollifier = np.abs(self.elementwise_dxn(self.dx_parameters, power=2)
+                                + self.elementwise_dxn(self.dx_parameters, power=4))
+            modulated_modes = np.divide(random_modes, mollifier)
+            modes = np.multiply(time_, modulated_modes)
+        elif spectrum == 'linear-exponential':
+            # Modulate the spectrum using the spatial linear operator; equivalent to preconditioning.
+            time_[time_ <= tscale] = 1.
+            time_[time_ != 1.] = 0.
+            # so we get qk^2 - qk^4
+            mollifier = -1.0*np.abs((2*pi*xscale/self.L)**2-(2*pi*xscale/self.L)**4
+                                    - (2*pi*space_ / self.L)**2+(2*pi*space_/self.L)**4)
+            modulated_modes = np.multiply(np.exp(mollifier), random_modes)
+            modes = np.multiply(time_, modulated_modes)
+        elif spectrum == 'plateau-linear':
+            # Modulate the spectrum using the spatial linear operator; equivalent to preconditioning.
+            time_[time_ <= tscale] = 1.
+            time_[time_ != 1.] = 0.
+            plateau = np.where(space_[space_ <= xscale])
+            # so we get qk^2 - qk^4
+            mollifier = (2*pi*space_/self.L)**2 - (2*pi*space_/self.L)**4
+            mollifier[np.unravel_index(plateau, space_.shape)] = 1
+            modulated_modes = np.divide(random_modes, np.abs(mollifier))
             modes = np.multiply(time_, modulated_modes)
         elif spectrum == 'random':
             modes = random_modes
@@ -1449,7 +1469,7 @@ class OrbitKS(Orbit):
         """
         self.constraints = kwargs.get('constraints', {'T': False, 'L': False})
         T, L = parameters[:2]
-        if T == 0. and kwargs.get('nonzero_parameters', False):
+        if T == 0. and kwargs.get('nonzero_parameters', True):
             if kwargs.get('seed', None) is not None:
                 np.random.seed(kwargs.get('seed', None))
             self.T = (kwargs.get('T_min', 20.)
@@ -1457,7 +1477,7 @@ class OrbitKS(Orbit):
         else:
             self.T = float(T)
 
-        if L == 0. and kwargs.get('nonzero_parameters', False):
+        if L == 0. and kwargs.get('nonzero_parameters', True):
             if kwargs.get('seed', None) is not None:
                 np.random.seed(kwargs.get('seed', None)+1)
             self.L = (kwargs.get('L_min', 22.)
@@ -1664,12 +1684,12 @@ class OrbitKS(Orbit):
         # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
         space_dxn = np.kron(so2_generator(power=power), np.diag(self._wave_vector(self.dx_parameters,
                                                                                   power=power).ravel()))
-        if basis == 'modes':
-            # if spacetime modes, use the corresponding mode shape parameters
-            spacetime_dxn = np.kron(np.eye(self.mode_shape[0]), space_dxn)
-        else:
+        if basis == 's_modes':
             # else use time discretization size.
             spacetime_dxn = np.kron(np.eye(self.N), space_dxn)
+        else:
+            # if spacetime modes, use the corresponding mode shape parameters
+            spacetime_dxn = np.kron(np.eye(self.mode_shape[0]), space_dxn)
 
         return spacetime_dxn
 
@@ -1696,7 +1716,7 @@ class OrbitKS(Orbit):
         """
         # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
         dt_n_matrix = np.kron(so2_generator(power=power), np.diag(self._frequency_vector(self.dt_parameters,
-                                                                                        power=power).ravel()))
+                                                                                         power=power).ravel()))
         # Zeroth frequency was not included in frequency vector.
         dt_n_matrix = block_diag([[0]], dt_n_matrix)
         # Take kronecker product to account for the number of spatial modes.
@@ -1965,11 +1985,11 @@ class RelativeOrbitKS(OrbitKS):
         super().__init__(state=state, basis=basis, parameters=parameters, frame=frame, **kwargs)
         # If the frame is comoving then the calculated shift will always be 0 by definition of comoving frame.
         # The cases where is makes sense to calculate the shift
-        # if self.S == 0. and (self.frame == 'physical' or kwargs.get('nonzero_parameters', False) or state is None):
+        # if self.S == 0. and (self.frame == 'physical' or kwargs.get('nonzero_parameters', True) or state is None):
         #     self.S = calculate_spatial_shift(self.convert(to='s_modes').state, self.L)
 
         # If specified that the state is in physical frame then shift is calculated.
-        if self.S == 0. and (frame == 'physical' or kwargs.get('nonzero_parameters', False)):
+        if self.S == 0. and (frame == 'physical' or kwargs.get('nonzero_parameters', True)):
             self.S = calculate_spatial_shift(self.convert(to='s_modes').state, self.L)
 
     def copy(self):
@@ -2315,7 +2335,7 @@ class RelativeOrbitKS(OrbitKS):
         self.constraints = kwargs.get('constraints', {'T': False, 'L': False, 'S': False})
         self.frame = kwargs.get('frame', 'comoving')
 
-        if T == 0. and kwargs.get('nonzero_parameters', False):
+        if T == 0. and kwargs.get('nonzero_parameters', True):
             if kwargs.get('seed', None) is not None:
                 np.random.seed(kwargs.get('seed', None))
             self.T = (kwargs.get('T_min', 20.)
@@ -2323,7 +2343,7 @@ class RelativeOrbitKS(OrbitKS):
         else:
             self.T = float(T)
 
-        if L == 0. and kwargs.get('nonzero_parameters', False):
+        if L == 0. and kwargs.get('nonzero_parameters', True):
             if kwargs.get('seed', None) is not None:
                 np.random.seed(kwargs.get('seed', None)+1)
             self.L = (kwargs.get('L_min', 22.)
@@ -3303,7 +3323,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         L = parameters[1]
 
         # The default value of nonzero_parameters is False. If its true, assign random value to L
-        if L == 0. and kwargs.get('nonzero_parameters', False):
+        if L == 0. and kwargs.get('nonzero_parameters', True):
             if kwargs.get('seed', None) is not None:
                 np.random.seed(kwargs.get('seed', None)+1)
             self.L = (kwargs.get('L_min', 22.)
@@ -3381,9 +3401,26 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         elif spectrum == 'linear':
             # so we get qk^2 - qk^4
-            space_modulator = -1.0 * (self.elementwise_dxn(self.dx_parameters, power=2)
+            mollifier = -1.0 * (self.elementwise_dxn(self.dx_parameters, power=2)
                                       + self.elementwise_dxn(self.dx_parameters, power=4))
-            modes = np.divide(random_modes, space_modulator)
+            modes = np.divide(random_modes, mollifier)
+        elif spectrum == 'linear':
+            # so we get qk^2 - qk^4
+            mollifier = (self.elementwise_dxn(self.dx_parameters, power=2)
+                         + self.elementwise_dxn(self.dx_parameters, power=4))
+            # The sign of the spectrum doesn't matter because modes were random anyway.
+            modes = np.divide(random_modes, mollifier)
+        elif spectrum == 'linear-exponential':
+            # so we get qk^2 - qk^4
+            mollifier = -1.0*np.abs((2*pi*xscale/self.L)**2-(2*pi*xscale/self.L)**4
+                                    -(2*pi*space_ / self.L)**2+(2*pi*space_/self.L)**4)
+            modes = np.multiply(mollifier, random_modes)
+        elif spectrum == 'plateau-linear':
+            plateau = np.where(space_[space_ <= xscale])
+            # so we get qk^2 - qk^4
+            mollifier = (2*pi*space_/self.L)**2 - (2*pi*space_/self.L)**4
+            mollifier[plateau] = 1
+            modes = np.divide(random_modes, np.abs(mollifier))
         else:
             modes = random_modes
 
@@ -3987,29 +4024,32 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             time_[time_ <= tscale] = 1.
             time_[time_ != 1.] = 0.
             # so we get qk^2 - qk^4
-            space_modulator = -1.0 * (self.elementwise_dxn(self.dx_parameters, power=2)
+            mollifier = -1.0 * (self.elementwise_dxn(self.dx_parameters, power=2)
                                       + self.elementwise_dxn(self.dx_parameters, power=4))
-            modulated_modes = np.divide(random_modes, space_modulator)
+            modulated_modes = np.divide(random_modes, mollifier)
             modes = np.multiply(time_, modulated_modes)
+
         elif spectrum == 'linear-exponential':
             # Modulate the spectrum using the spatial linear operator; equivalent to preconditioning.
             time_[time_ <= tscale] = 1.
             time_[time_ != 1.] = 0.
             # so we get qk^2 - qk^4
-            space_modulator = -(((2*pi*xscale/self.L)**2-(2*pi*xscale/self.L)**4)
+            mollifier = -(((2*pi*xscale/self.L)**2-(2*pi*xscale/self.L)**4)
                                 -((2*pi*space_/self.L)**2-(2*pi*space_/self.L)**4))
-            modulated_modes = np.divide(random_modes, space_modulator)
+            modulated_modes = np.divide(random_modes, mollifier)
             modes = np.multiply(time_, modulated_modes)
+
         elif spectrum == 'plateau-linear':
             # Modulate the spectrum using the spatial linear operator; equivalent to preconditioning.
             time_[time_ <= tscale] = 1.
             time_[time_ != 1.] = 0.
             plateau = np.where(space_[space_ <= xscale])
             # so we get qk^2 - qk^4
-            space_modulator = (2*pi*space_/self.L)**2 - (2*pi*space_/self.L)**4
-            space_modulator[plateau] = 1
-            modulated_modes = np.divide(random_modes, np.abs(space_modulator))
+            mollifier = (2*pi*space_/self.L)**2 - (2*pi*space_/self.L)**4
+            mollifier[plateau] = 1
+            modulated_modes = np.divide(random_modes, np.abs(mollifier))
             modes = np.multiply(time_, modulated_modes)
+
         else:
             modes = random_modes
 

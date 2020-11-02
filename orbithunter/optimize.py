@@ -1,5 +1,5 @@
 from scipy.linalg import lstsq, pinv
-from scipy.optimize import minimize
+from scipy.optimize import minimize, root, newton_krylov, anderson
 from scipy.sparse.linalg import (LinearOperator, bicg, bicgstab, gmres, lgmres,
                                  cg, cgs, qmr, minres, lsqr, lsmr, gcrotmk)
 import sys
@@ -157,6 +157,9 @@ def converge(orbit_, method='adj', precision='default', comp_time='default', **k
                 # had to use an alias because this is also defined for scipy.sparse.linalg
                 method = 'cg'
             result_orbit, statistics = _scipy_optimize_minimize_wrapper(orbit_, tol, maxiter, method=method,  **kwargs)
+        elif method in ['hybr', 'lm','broyden1', 'broyden2', 'root_anderson', 'linearmixing',
+                        'diagbroyden', 'excitingmixing', 'root_krylov',' df-sane', 'newton_krylov', 'anderson']:
+            result_orbit, statistics = _scipy_optimize_root_wrapper(orbit_, tol, maxiter, method=method,  **kwargs)
         else:
             result_orbit, statistics = _adjoint_descent(orbit_, tol, maxiter, **kwargs)
 
@@ -216,7 +219,8 @@ def _adjoint_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
             next_residual = next_mapping.residual(apply_mapping=False)
         else:
             orbit_, stats = _check_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
-                                              step_size, min_step, residual, next_residual,  'adj', **kwargs)
+                                              step_size, min_step, residual, next_residual,  'adj', verbose=verbose,
+                                              log_residual=kwargs.get('log_residual', None))
             mapping = next_mapping
             residual = next_residual
     else:
@@ -474,6 +478,68 @@ def _scipy_optimize_minimize_wrapper(orbit_, tol, maxiter, method='l-bfgs-b', ve
 
     def _cost_function_jac_scipy_minimize(x):
         """ The jacobian of the cost function (scalar) can be expressed as a vector product
+        Parameters
+        ----------
+        x
+        args
+        Returns
+        -------
+        Notes
+        -----
+        The gradient of 1/2 F^2 = J^T F, rmatvec is a function which does this matrix vector product
+        Will always use preconditioned version by default, not sure if wise.
+        """
+
+        x_orbit = orbit_.from_numpy_array(x)
+        return x_orbit.cost_function_gradient(x_orbit.spatiotemporal_mapping(), **kwargs).state_vector().ravel()
+
+    scipy_kwargs = kwargs.get('scipy_kwargs', {'tol': tol})
+    while residual > tol and stats['status'] == 1:
+        result = minimize(_cost_function_scipy_minimize, orbit_.state_vector(),
+                          method=method, jac=_cost_function_jac_scipy_minimize, **scipy_kwargs)
+        scipy_kwargs['tol'] /= 10.
+
+        next_orbit = orbit_.from_numpy_array(result.x)
+        next_residual = next_orbit.residual()
+        # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
+        orbit_, stats = _check_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
+                                          1, 0, residual, next_residual, method, **kwargs)
+        residual = next_residual
+    else:
+        stats['residuals'].append(orbit_.residual())
+        return orbit_, stats
+
+
+def _scipy_optimize_root_wrapper(orbit_, tol, maxiter, method='lgmres', verbose=False, **kwargs):
+    residual = orbit_.residual()
+    ftol = kwargs.get('ftol', np.product(orbit_.shape) * 10**-10)
+    stats = {'nit': 0, 'residuals': [residual], 'maxiter': maxiter, 'tol': tol, 'status': 1}
+    if verbose:
+        print('\n-------------------------------------------------------------------------------------------------')
+        print('Starting {} optimization'.format(method))
+        print('Initial residual : {}'.format(orbit_.residual()))
+        print('Target residual tolerance : {}'.format(tol))
+        print('Initial guess : {}'.format(repr(orbit_)))
+        print('-------------------------------------------------------------------------------------------------')
+        sys.stdout.flush()
+
+    def _cost_function_scipy_root(x):
+        '''
+        :param x0: (n,) numpy array
+        :param args: time discretization, space discretization, subClass from orbit.py
+        :return: value of cost functions (0.5 * L_2 norm of spatiotemporal mapping squared)
+        '''
+
+        '''
+        Note that passing Class as a function avoids dangerous statements using eval()
+        '''
+        x_orbit = orbit_.from_numpy_array(x, **kwargs)
+        xvec = x_orbit.spatiotemporal_mapping(**kwargs).state_vector().ravel()
+        xvec[-(x_orbit.state_vector().size - len(x_orbit.parameters)):] = 0
+        return xvec
+
+    def _cost_function_jac_scipy_root(x):
+        """ The jacobian of the cost function (scalar) can be expressed as a vector product
 
         Parameters
         ----------
@@ -492,13 +558,26 @@ def _scipy_optimize_minimize_wrapper(orbit_, tol, maxiter, method='l-bfgs-b', ve
         x_orbit = orbit_.from_numpy_array(x)
         return x_orbit.cost_function_gradient(x_orbit.spatiotemporal_mapping(), **kwargs).state_vector().ravel()
 
-    scipy_kwargs = kwargs.get('scipy_kwargs', {'tol': tol})
     while residual > tol and stats['status'] == 1:
-        result = minimize(_cost_function_scipy_minimize, orbit_.state_vector(),
-                          method=method, jac=_cost_function_jac_scipy_minimize, **scipy_kwargs)
-        scipy_kwargs['tol'] /= 10.
+        if method == 'newton_krylov':
+            scipy_kwargs = dict({'f_tol': 1e-6}, **kwargs.get('scipy_kwargs', {}))
+            result_state_vector = newton_krylov(_cost_function_scipy_root, orbit_.state_vector(),
+                                                **scipy_kwargs)
+        elif method == 'anderson':
+            scipy_kwargs = dict({'f_tol': 1e-6}, **kwargs.get('scipy_kwargs', {}))
+            result_state_vector = anderson(_cost_function_scipy_root, orbit_.state_vector().ravel(),
+                                           **scipy_kwargs)
 
-        next_orbit = orbit_.from_numpy_array(result.x)
+        elif method in ['root_anderson', 'linearmixing', 'diagbroyden',
+                        'excitingmixing', 'krylov',' df-sane']:
+            scipy_kwargs = dict({'tol': 1e-6}, **kwargs.get('scipy_kwargs', {}))
+            result_state_vector = root(_cost_function_scipy_root, orbit_.state_vector().ravel(),
+                                       method=method, jac=_cost_function_jac_scipy_root,
+                                       **scipy_kwargs)
+        else:
+            stats['residuals'].append(orbit_.residual())
+            return orbit_, stats
+        next_orbit = orbit_.from_numpy_array(result_state_vector)
         next_residual = next_orbit.residual()
         # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
         orbit_, stats = _check_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
@@ -583,7 +662,9 @@ def _default_maxiter(orbit_, method='adj', comp_time='default'):
     if method in ['lstsq', 'newton_descent', 'lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
                   'cg', 'cgs', 'qmr', 'minres', 'gcrotmk']:
         # Introduction of ugly conditional statements for convenience
-        if comp_time == 'thorough':
+        if comp_time == 'excessive':
+            default_max_iter = 5000
+        elif comp_time == 'thorough':
             default_max_iter = 1000
         elif comp_time == 'long':
             default_max_iter = 500
@@ -600,7 +681,9 @@ def _default_maxiter(orbit_, method='adj', comp_time='default'):
         # if default_max_iter = 3 then this means the function scipy.optimize.minimize is called 3 times with
         # tolerance values tol, tol/10, tol/100. The reason for this is because the methods differ wildly
         # in what tolerance and iteration number mean.
-        if comp_time == 'thorough':
+        if comp_time == 'excessive':
+            default_max_iter = 10
+        elif comp_time == 'thorough':
             default_max_iter = 5
         elif comp_time == 'long':
             default_max_iter = 4
@@ -614,16 +697,18 @@ def _default_maxiter(orbit_, method='adj', comp_time='default'):
             raise ValueError('If a custom number of iterations is desired, use ''maxiter'' key word instead.')
     else:
         # Introduction of ugly conditional statements for convenience
-        if comp_time == 'thorough':
+        if comp_time == 'excessive':
+            default_max_iter = 512 * int(np.product(orbit_.field_shape))
+        elif comp_time == 'thorough':
             default_max_iter = 128 * int(np.product(orbit_.field_shape))
         elif comp_time == 'long':
-            default_max_iter = 1024 * int(np.sqrt(np.product(orbit_.field_shape)))
+            default_max_iter = 32 * int(np.product(orbit_.field_shape))
         elif comp_time == 'medium' or comp_time == 'default':
-            default_max_iter = 512 * int(np.sqrt(np.product(orbit_.field_shape)))
+            default_max_iter = 16 * int(np.product(orbit_.field_shape))
         elif comp_time == 'short':
-            default_max_iter = 128 * int(np.sqrt(np.product(orbit_.field_shape)))
+            default_max_iter = 8 * int(np.product(orbit_.field_shape))
         elif comp_time == 'minimal':
-            default_max_iter = 32 * int(np.sqrt(np.product(orbit_.field_shape)))
+            default_max_iter = int(np.product(orbit_.field_shape))
         else:
             raise ValueError('If a custom number of iterations is desired, use ''maxiter'' key word instead.')
 

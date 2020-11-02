@@ -40,7 +40,7 @@ class Orbit:
             self._parse_state(state, basis, **kwargs)
         else:
             # This generates non-zero parameters if zeroes were passed
-            self._parse_parameters(parameters, nonzero_parameters=True, **kwargs)
+            self._parse_parameters(parameters, **kwargs)
             # Pass the newly generated parameter values, there are the originals if they were not 0's.
             self._random_initial_condition(self.parameters, **kwargs).convert(to=basis, inplace=True)
 
