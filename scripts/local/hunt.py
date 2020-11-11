@@ -3,7 +3,6 @@ import numpy as np
 import time
 sys.path.insert(0, os.path.abspath(os.path.join(sys.argv[0], '../../../')))
 from orbithunter import *
-from joblib import Parallel, delayed
 from argparse import ArgumentParser, ArgumentTypeError, ArgumentDefaultsHelpFormatter
 
 
@@ -21,8 +20,15 @@ def str2bool(val):
 def hunt(x, verbose=True):
     if verbose:
         print('Beginning search for {}'.format(repr(x)))
-    result = converge(x, verbose=True, method='hybrid', comp_time='long', preconditioning=True, pexp=(1,4))
-    if min(result.residuals[-1]) <= min(list(result.tol)):
+    # result = converge(converge(x, verbose=True, method='adj').orbit, method='lstsq', verbose=True, min_step=0.0001)
+    result = converge(converge(x, verbose=True, method='adj').orbit,
+                      method='lstsq', verbose=True)
+    if result.orbit.residual() <= result.tol:
+        fname_init = ''.join([result.orbit.parameter_dependent_filename(extension=''), '_initial.h5'])
+        x.to_h5(filename=fname_init, verbose=True,
+                           directory='../../data/local/hunt/')
+        x.plot(filename=fname_init, show=False, save=True, verbose=True,
+                          directory='../../data/local/hunt/')
         result.orbit.to_h5(verbose=True,
                            directory='../../data/local/hunt/')
         result.orbit.plot(show=False, save=True, verbose=True,
@@ -43,30 +49,37 @@ def main():
     parser.add_argument('--T_max', default=200,type=float, help='Largest possible time-period value')
     parser.add_argument('--L_min', default=16, type=float, help='Smallest possible space-period value generated')
     parser.add_argument('--L_max', default=64, type=float, help='Largest possible space-period value generated')
+    parser.add_argument('--field_magnitude', default=5, type=float, help='Value of L_infinite norm to initialize with.')
     parser.add_argument('--n_trials', default=1, type=int, help='Number of initial conditions to try')
     parser.add_argument('--solver', default='hybrid', type=str, help='Solver to use')
-    parser.add_argument('--verbose', default=False, type=str2bool, help='Whether or not to print stats, not recommended'
-                                                                       'for n_jobs != 1.')
-
+    parser.add_argument('--seed_min', default=0, type=int,
+                        help='Starting value for random seeds for reproducibility')
+    parser.add_argument('--verbose', default=True, type=str2bool, help='Whether or not to print stats progress')
+    parser.add_argument('--spectrum', default='gaussian', type=str, help='The spectrum modulation to apply to the '
+                                                                         'randomly initialized modes.')
+    parser.add_argument('--constrain', default=-1, type=int, help='Dimension to constrain, provided as the array axis.')
     args = parser.parse_args()
-
     n_jobs = int(args.n_jobs)
     cls = parse_class(args.cls)
     n_trials = int(args.n_trials)
     verbose = args.verbose
-
+    solve = args.solver
+    seed_min = args.seed_min
+    mode_spectrum = args.spectrum
+    seeds = np.arange(int(seed_min), int(seed_min+n_trials))
     T_min, T_max = float(args.T_min), float(args.T_max)
     L_min, L_max = float(args.L_min), float(args.L_max)
-
-    trange = (T_max-T_min)*np.random.rand(n_trials) + T_min
-    lrange = (L_max-L_min)*np.random.rand(n_trials) + L_min
-    domains = zip(trange, lrange)
+    mag = args.field_magnitude
     t = time.time()
-    for (T, L) in domains:
-        hunt(cls(parameters=(T, L, 0.)).rescale(5))
-    #
-    # with Parallel(n_jobs=n_jobs) as parallel:
-    #     parallel(delayed(hunt)(cls(parameters=(T, L, 0.)).rescale(5), verbose=verbose) for (T, L) in domains)
+    constraint = args.constrain
+
+
+    for s in seeds:
+        orbit_ = cls(seed=s, T_min=T_min, T_max=T_max, L_min=L_min, L_max=L_max, nonzero_parameters=True,
+                     spectrum=mode_spectrum).rescale(mag)
+        if constraint != -1:
+            orbit_.constrain(axis=constraint)
+        hunt(orbit_)
 
     print('{} trials took {} to complete with {} jobs'.format(n_trials, time.time()-t, n_jobs))
     return None

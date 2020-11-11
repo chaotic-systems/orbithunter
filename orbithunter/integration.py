@@ -75,7 +75,7 @@ def kse_integrate(orbit_, **kwargs):
     roots_of_unity = np.exp(1.0j*pi*(np.arange(1, n_roots+1, 1)-0.5)/n_roots).reshape(1, n_roots)
 
     # Matrix quantities for exponential time differencing.
-    LR = step_size*np.tile(lin_diag, (1, n_roots)) + np.tile(roots_of_unity, (orbit_t_equals_0.M-2, 1))
+    LR = step_size*np.tile(lin_diag, (1, n_roots)) + np.tile(roots_of_unity, (orbit_t_equals_0.mode_shape[1], 1))
     Q = step_size*np.real(np.mean((np.exp(LR/2.)-1.0)/LR, axis=1))
     f1 = step_size*np.real(np.mean((-4.0-LR+np.exp(LR)*(4.0-3.0*LR+LR**2))/LR**3, axis=1))
     f2 = step_size*np.real(np.mean((2.0+LR+np.exp(LR)*(-2.0+LR))/LR**3, axis=1))
@@ -87,6 +87,13 @@ def kse_integrate(orbit_, **kwargs):
     f3 = f3.reshape(1, -1)
     E = E.reshape(1, -1)
     E2 = E2.reshape(1, -1)
+    if orbit_t_equals_0.__class__.__name__ == 'AntisymmetricOrbitKS':
+            Q = np.concatenate((0*Q, Q), axis=1)
+            f1 = np.concatenate((0*f1, f1), axis=1)
+            f2 = np.concatenate((0*f2, f2), axis=1)
+            f3 = np.concatenate((0*f3, f3), axis=1)
+            E = np.concatenate((0*E, E), axis=1)
+            E2 = np.concatenate((0*E2, E2), axis=1)
 
     u = orbit_t_equals_0.convert(to='field').state
     v = orbit_t_equals_0.convert(to='s_modes')
@@ -94,13 +101,13 @@ def kse_integrate(orbit_, **kwargs):
     if verbose:
         print('Integration progress [', end='')
     for step in range(0, nmax-1):
-        Nv = -0.5*_dx_spatial_modes(v.convert(to='field')**2, power=1)
+        Nv = -0.5*(v.convert(to='field')**2).dx(basis='s_modes')
         a = v.statemul(E2) + Nv.statemul(Q)
-        Na = -0.5*_dx_spatial_modes(a.convert(to='field')**2, power=1)
+        Na = -0.5*(a.convert(to='field')**2).dx(basis='s_modes')
         b = v.statemul(E2) + Na.statemul(Q)
-        Nb = -0.5*_dx_spatial_modes(b.convert(to='field')**2, power=1)
+        Nb = -0.5*(b.convert(to='field')**2).dx(basis='s_modes')
         c = a.statemul(E2) + (2.0 * Nb - Nv).statemul(Q)
-        Nc = -0.5*_dx_spatial_modes(c.convert(to='field')**2, power=1)
+        Nc = -0.5*(c.convert(to='field')**2).dx(basis='s_modes')
         v = (v.statemul(E) + Nv.statemul(f1)
              + (2.0 * (Na + Nb)).statemul(f2) + Nc.statemul(f3))
         if kwargs.get('return_trajectory', True):

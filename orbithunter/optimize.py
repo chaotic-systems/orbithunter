@@ -168,7 +168,7 @@ def converge(orbit_, method='adj', precision='default', comp_time='default', **k
             sys.stdout.flush()
         return OrbitResult(orbit=result_orbit, **statistics)
     else:
-        return OrbitResult(orbit=orbit_, nit=0, residuals=[orbit_.residual()], status=-1, maxiter=maxiter, tol=tol)
+        return OrbitResult(orbit=orbit_, nit=0, residuals=[orbit_.residual()], status=-1, maxiter=maxiter, tol=[tol])
 
 
 def _adjoint_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
@@ -189,7 +189,7 @@ def _adjoint_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
     """
     ftol = kwargs.get('ftol', np.product(orbit_.shape) * 10**-10)
     verbose = kwargs.get('verbose', False)
-    if verbose:
+    if kwargs.get('verbose', False):
         print('\n-------------------------------------------------------------------------------------------------')
         print('Starting adjoint descent')
         print('Initial residual : {}'.format(orbit_.residual()))
@@ -219,12 +219,12 @@ def _adjoint_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
             next_residual = next_mapping.residual(apply_mapping=False)
         else:
             orbit_, stats = _check_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
-                                              step_size, min_step, residual, next_residual,  'adj', verbose=verbose,
+                                              step_size, min_step, residual, next_residual,
+                                              'adj', verbose=verbose,
                                               log_residual=kwargs.get('log_residual', None))
             mapping = next_mapping
             residual = next_residual
     else:
-        stats['residuals'].append(orbit_.residual())
         return orbit_,  stats
 
 
@@ -235,7 +235,7 @@ def _newton_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
     ftol = kwargs.get('ftol', np.product(orbit_.shape) * 10**-10)
     residual = orbit_.residual()
     stats = {'nit': 0, 'residuals': [residual], 'maxiter': maxiter, 'tol': tol, 'status': 1}
-    if verbose:
+    if kwargs.get('verbose', False):
         print('\n-------------------------------------------------------------------------------------------------')
         print('Starting Newton descent optimization')
         print('Initial residual : {}'.format(orbit_.residual()))
@@ -262,9 +262,9 @@ def _newton_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
             next_mapping = next_orbit.spatiotemporal_mapping()
             next_residual = next_mapping.residual(apply_mapping=False)
         else:
+            inner_nit = 1
             if kwargs.get('approximation', True):
                 # Re-use the same pseudoinverse for many inexact solutions to dx_n = - A^+(x) F(x + dx_{n-1})
-                inner_nit = 1
                 b = -1 * next_mapping.state.ravel()
                 dx = orbit_.from_numpy_array(inv_A.dot(b))
                 inner_orbit = next_orbit.increment(dx, step_size=step_size)
@@ -297,12 +297,11 @@ def _newton_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
 
 def _lstsq(orbit_, tol, maxiter, min_step=1e-6,  **kwargs):
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
-    verbose = kwargs.get('verbose', False)
     ftol = kwargs.get('ftol', np.product(orbit_.shape) * 10**-10)
     mapping = orbit_.spatiotemporal_mapping(**kwargs)
     residual = mapping.residual(apply_mapping=False)
     stats = {'nit': 0, 'residuals': [residual], 'maxiter': maxiter, 'tol': tol, 'status': 1}
-    if verbose:
+    if kwargs.get('verbose', False):
         print('\n-------------------------------------------------------------------------------------------------')
         print('Starting lstsq optimization')
         print('Initial residual : {}'.format(orbit_.residual()))
@@ -326,20 +325,21 @@ def _lstsq(orbit_, tol, maxiter, min_step=1e-6,  **kwargs):
             next_mapping = next_orbit.spatiotemporal_mapping(**kwargs)
             next_residual = next_mapping.residual(apply_mapping=False)
         else:
-            # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
             orbit_, stats = _check_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
-                                              step_size, min_step, residual, next_residual,  'lstsq', **kwargs)
+                                              step_size, min_step, residual, next_residual,
+                                              'lstsq',
+                                              log_residual=kwargs.get('log_residual', False),
+                                              verbose=kwargs.get('verbose', False))
             mapping = next_mapping
             residual = next_residual
     else:
-        stats['residuals'].append(orbit_.residual())
         return orbit_, stats
 
 
-def _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method='minres', min_step=1e-6, verbose=False, **kwargs):
+def _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method='minres', min_step=1e-6, **kwargs):
     ftol = kwargs.get('ftol', np.product(orbit_.shape) * 10**-10)
     residual = orbit_.residual()
-    if verbose:
+    if kwargs.get('verbose', False):
         print('\n------------------------------------------------------------------------------------------------')
         print('Starting {} optimization'.format(method))
         print('Initial residual : {}'.format(orbit_.residual()))
@@ -353,7 +353,8 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method='minres', m
     while residual > tol and stats['status'] == 1:
         step_size = 1
         if method in ['lsmr', 'lsqr']:
-            scipy_kwargs = kwargs.pop('scipy_kwargs', {'atol': 1e-6, 'btol': 1e-6})
+            if stats['nit'] == 0:
+                scipy_kwargs = kwargs.pop('scipy_kwargs', {'atol': 1e-6, 'btol': 1e-6})
             # Solving least-squares equations, A x = b
 
             def matvec_func(v):
@@ -375,9 +376,10 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method='minres', m
                 result_tuple = lsqr(A, b, **scipy_kwargs)
 
         else:
-            scipy_kwargs = kwargs.pop('scipy_kwargs', {'tol': 1e-8})
-            # Solving `normal equations, A^T A x = A^T b. A^T A is its own transpose hence matvec_func=rmatvec_func
+            if stats['nit'] == 0:
+                scipy_kwargs = kwargs.pop('scipy_kwargs', {'tol': 1e-8})
 
+            # Solving `normal equations, A^T A x = A^T b. A^T A is its own transpose hence matvec_func=rmatvec_func
             def matvec_func(v):
                 # _state_vector_to_orbit turns state vector into class object.
                 v_orbit = orbit_.from_numpy_array(v)
@@ -442,19 +444,20 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method='minres', m
         else:
             # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
             orbit_, stats = _check_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
-                                              step_size, min_step, residual, next_residual, method, **kwargs)
+                                              1, 0, residual, next_residual,
+                                              method, log_residual=kwargs.get('log_residual', False),
+                                              verbose=kwargs.get('verbose', False))
             residual = next_residual
 
     else:
-        stats['residuals'].append(orbit_.residual())
         return orbit_, stats
 
 
-def _scipy_optimize_minimize_wrapper(orbit_, tol, maxiter, method='l-bfgs-b', verbose=False, **kwargs):
+def _scipy_optimize_minimize_wrapper(orbit_, tol, maxiter, method='l-bfgs-b',  **kwargs):
     residual = orbit_.residual()
     ftol = kwargs.get('ftol', np.product(orbit_.shape) * 10**-10)
     stats = {'nit': 0, 'residuals': [residual], 'maxiter': maxiter, 'tol': tol, 'status': 1}
-    if verbose:
+    if kwargs.get('verbose', False):
         print('\n-------------------------------------------------------------------------------------------------')
         print('Starting {} optimization'.format(method))
         print('Initial residual : {}'.format(orbit_.residual()))
@@ -503,18 +506,19 @@ def _scipy_optimize_minimize_wrapper(orbit_, tol, maxiter, method='l-bfgs-b', ve
         next_residual = next_orbit.residual()
         # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
         orbit_, stats = _check_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
-                                          1, 0, residual, next_residual, method, **kwargs)
+                                          1, 0, residual, next_residual,
+                                          method, log_residual=kwargs.get('log_residual', False),
+                                          verbose=kwargs.get('verbose', False))
         residual = next_residual
     else:
-        stats['residuals'].append(orbit_.residual())
         return orbit_, stats
 
 
-def _scipy_optimize_root_wrapper(orbit_, tol, maxiter, method='lgmres', verbose=False, **kwargs):
+def _scipy_optimize_root_wrapper(orbit_, tol, maxiter, method='lgmres', **kwargs):
     residual = orbit_.residual()
     ftol = kwargs.get('ftol', np.product(orbit_.shape) * 10**-10)
     stats = {'nit': 0, 'residuals': [residual], 'maxiter': maxiter, 'tol': tol, 'status': 1}
-    if verbose:
+    if kwargs.get('verbose', False):
         print('\n-------------------------------------------------------------------------------------------------')
         print('Starting {} optimization'.format(method))
         print('Initial residual : {}'.format(orbit_.residual()))
@@ -581,7 +585,9 @@ def _scipy_optimize_root_wrapper(orbit_, tol, maxiter, method='lgmres', verbose=
         next_residual = next_orbit.residual()
         # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
         orbit_, stats = _check_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
-                                          1, 0, residual, next_residual, method, **kwargs)
+                                          1, 0, residual, next_residual,
+                                          method, log_residual=kwargs.get('log_residual', False),
+                                          verbose=kwargs.get('verbose', False))
         residual = next_residual
     else:
         stats['residuals'].append(orbit_.residual())
@@ -592,19 +598,15 @@ def _print_exit_messages(orbit, status):
     if isinstance(status, tuple):
         status = status[-1]
     if status == 0:
-        print('\nInsufficient residual decrease. Exiting with residual {}'.format(orbit.residual()))
+        print('\nStalled. Exiting with residual {}'.format(orbit.residual()))
     elif status == -1:
-        print('\nTolerance threshold met. Exiting with residual {}'.format(orbit.residual()))
+        print('\nConverged. Exiting with residual {}'.format(orbit.residual()))
     elif status == 2:
-        print('\nFailed to converge. Maximum number of iterations reached.'
+        print('\nMaximum number of iterations reached.'
               ' exiting with residual {}'.format(orbit.residual()))
-    elif status == 3:
-        print('\nConverged to an equilibrium'
-              ' exiting with residual {}'.format(orbit.residual()))
-    elif status == 4:
-        print('\nConverged to the trivial u(x,t)=0 solution')
-    elif status == 5:
-        print('\n Relative periodic orbit converged to periodic orbit with essentially zero shift.')
+    else:
+        # A general catch all for custom status flag values
+        print('\n Optimization termination with status {} and residual {}'.format(status, orbit.residual()))
     return None
 
 
@@ -716,7 +718,7 @@ def _default_maxiter(orbit_, method='adj', comp_time='default'):
 
 
 def _check_correction(orbit_, next_orbit_, stats, tol, maxiter, ftol, step_size, min_step,
-                      residual, next_residual, method, **kwargs):
+                      residual, next_residual, method, log_residual=False, inner_nit=None, verbose=False):
     # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
     stats['nit'] += 1
     if next_residual <= tol:
@@ -737,19 +739,19 @@ def _check_correction(orbit_, next_orbit_, stats, tol, maxiter, ftol, step_size,
         return next_orbit_,  stats
     else:
         # Update and restart loop if residual successfully decreases.
-        if kwargs.get('log_residual', False):
+        if log_residual:
             stats['residuals'].append(next_residual)
-        if kwargs.get('verbose', False):
+        if verbose:
             if method == 'adj':
                 if np.mod(stats['nit'], 5000) == 0:
-                    print('\n Residual={:.7f} after {} gradient descent steps. Parameters:{}'.format(
+                    print('\n Residual={:.7f} after {} adjoint descent steps. Parameters:{}'.format(
                           next_residual, stats['nit'], orbit_.parameters))
                 elif np.mod(stats['nit'], 100) == 0:
                     print('#', end='')
             elif method == 'newton_descent':
-                if kwargs.get('inner_nit', None) is not None:
+                if inner_nit is not None:
                     print(('Residual={} after {} inner loops, for a total Newton descent step with size {}').
-                          format(next_residual, kwargs.get('inner_nit'), step_size*kwargs.get('inner_nit')))
+                          format(next_residual, inner_nit, step_size*inner_nit))
             else:
                 print('#', end='')
                 if np.mod(stats['nit'], 25) == 0:

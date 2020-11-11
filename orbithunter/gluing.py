@@ -125,7 +125,7 @@ def expensive_glue(pair_of_orbits_array, class_constructor, gluing_axis=0):
     return None
 
 
-def tile_dictionary_ks(padding=False, comoving=False):
+def tile_dictionary_ks(tileset='default', comoving=False):
     """ Template tiles for Kuramoto-Sivashinsky equation.
 
 
@@ -146,10 +146,20 @@ def tile_dictionary_ks(padding=False, comoving=False):
     The dictionary is setup as follows : {0: streak, 1: merger, 2: wiggle}
     """
 
-    if padding == 'spacetime':
+    if tileset == 'padded':
         directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/padded/'))
-    elif padding == 'space':
-        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/padded_space.'))
+    elif tileset == 'extra_padded':
+        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/extra_padded/'))
+    elif tileset == 'extra_padded_space':
+        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/extra_space_padded/'))
+    elif tileset == 'all_padded_space':
+        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/all_padded_space/'))
+    elif tileset == 'padded_space':
+        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/padded_space/'))
+    elif tileset == 'padded_time':
+        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/padded_time/'))
+    elif tileset == 'rescaled':
+        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/rescaled/'))
     else:
         directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/default/'))
 
@@ -235,7 +245,6 @@ def glue(array_of_orbit_instances, class_constructor, stripwise=False, **kwargs)
             # Each strip will have a resulting glued orbit, collect these via appending to list.
             glued_orbit_strips = []
             for gs in gluing_slices:
-
                 # The strip shape is 1-d but need a d-dimensional tuple filled with 1's to keep track of axes.
                 strip_shape = tuple(len(array_of_orbit_instances[gs]) if n == gluing_axis else 1
                                     for n in range(len(array_of_orbit_instances.shape)))
@@ -254,6 +263,7 @@ def glue(array_of_orbit_instances, class_constructor, stripwise=False, **kwargs)
                 # Put the glued strip's state back into a class instance.
                 glued_strip_orbit = class_constructor(state=glued_strip_state, basis='field',
                                                       parameters=glued_parameters, **kwargs)
+
                 # Take the result and store it for futher gluings.
                 glued_orbit_strips.append(glued_strip_orbit)
             # We combined along the gluing axis meaning that that axis has a new shape of 1. For symbol arrays

@@ -115,7 +115,7 @@ def discretization_continuation(orbit_, new_shape, **kwargs):
 
     """
     # check that we are starting from converged solution, first of all.
-    converge_result = converge(orbit_)
+    converge_result = converge(orbit_, **kwargs)
     order_of_axes_to_increment = np.argsort(new_shape)
     # Use list to get the correct count, then convert to tuple as expected.
     step_sizes = kwargs.get('step_sizes', tuple(len(order_of_axes_to_increment) * [2]))

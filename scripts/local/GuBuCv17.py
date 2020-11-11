@@ -1,9 +1,13 @@
 from __future__ import print_function, division, absolute_import
 import os,sys
-sys.path.insert(0, os.path.abspath(os.path.join(sys.argv[0], '../..')))
-from torihunter import *
+sys.path.insert(0, os.path.abspath(os.path.join(sys.argv[0], '../../..')))
+from orbithunter import *
+import time
 import numpy as np
-
+from math import pi
+import matplotlib.pyplot as plt
+import glob
+from scipy.linalg import pinv
 
 def plot_cartoon_Orbit():
     PWD = os.path.dirname(__file__)

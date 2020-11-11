@@ -106,13 +106,13 @@ def refurbish_log(orbit_, filename, log_filename, overwrite=False, **kwargs):
         refurbish_log_.reset_index(drop=True).drop_duplicates().to_csv(log_filename)
 
 
-def write_symbolic_log(symbol_array, converge_result, log_filename, padding=False,
+def write_symbolic_log(symbol_array, converge_result, log_filename, tileset='default',
                              comoving=False):
     symbol_string = to_symbol_string(symbol_array)
     dataframe_row_values = [[symbol_string, converge_result.orbit.parameters, converge_result.orbit.field_shape,
                              converge_result.orbit.residual(),
-                             converge_result.status, padding, comoving, symbol_array.shape]]
-    labels = ['symbol_string', 'parameters', 'field_shape', 'residual', 'status', 'padding',
+                             converge_result.status, tileset, comoving, symbol_array.shape]]
+    labels = ['symbol_string', 'parameters', 'field_shape', 'residual', 'status', 'tileset',
               'comoving', 'tile_shape']
 
     dataframe_row = pd.DataFrame(dataframe_row_values, columns=labels).astype(object)
@@ -157,9 +157,11 @@ def read_symbolic_log(symbol_array, log_filename, overwrite=False, retry=False):
         symbolic_intersection = symbolic_df[(symbolic_df['symbol_string'].isin(equivariant_str))].reset_index(drop=True)
         if len(symbolic_intersection) == 0:
             return False
-        elif symbolic_intersection.loc[0, 'status'] == '1' and overwrite:
+        elif overwrite:
             return False
-        elif symbolic_intersection.loc[0, 'status'] != '1' and retry:
+        # If success, then one of the 'status' values has been saves as -1. Count the number of negative ones
+        # and see if there is indeed such a value.
+        elif len(symbolic_intersection[symbolic_intersection['status'] == -1]) == 0 and retry:
             return False
         else:
             return True
@@ -176,5 +178,3 @@ def to_symbol_string(symbol_array):
 
 def to_symbol_array(symbol_string, symbol_array_shape):
     return np.array([char for char in symbol_string.replace('_', '')]).astype(int).reshape(symbol_array_shape)
-
-

@@ -497,7 +497,7 @@ class Orbit:
         """
         return None
 
-    def to_h5(self, filename=None, directory='local', verbose=False, include_residual=True, **kwargs):
+    def to_h5(self, filename=None, directory='local', verbose=False, include_residual=False, **kwargs):
         """ Export current state information to HDF5 file
 
         Parameters

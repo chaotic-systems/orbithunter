@@ -105,13 +105,13 @@ def clip(orbit_, window_dimensions, clipping_class=None, **kwargs):
     return clipped_orbit
 
 
-def mask_orbit(orbit_, iterable_of_windows, mask_region='exterior'):
+def mask_orbit(orbit_, windows, mask_region='exterior'):
     """
 
     Parameters
     ----------
     orbit_
-    iterable_of_windows: iterable of window-tuples
+    iterable_of_windows: list of window-tuples
         `window tuples' are tuples whose elements are d-dimensional tuples
         indicating the dimensions which define the window. i.e.
         for window_tuple = ((0, 10), (0, 5)) would mean to mask the values outside the subdomain defined
@@ -125,12 +125,17 @@ def mask_orbit(orbit_, iterable_of_windows, mask_region='exterior'):
     """
     # Create boolean mask to manipulate for numpy masked arrays.
     mask = np.zeros(orbit_.field_shape).astype(bool)
-    for window in iterable_of_windows:
+    if isinstance(windows, list):
+        for window in windows:
+            # Do not need dimensions, as we are not clipping technically.
+            window_slices, _ = _slices_from_window(orbit_, window)
+            mask[window_slices] = True
+    else:
         # Do not need dimensions, as we are not clipping technically.
-        window_slices, _ = _slices_from_window(orbit_, window)
+        window_slices, _ = _slices_from_window(orbit_, windows)
         mask[window_slices] = True
 
     if mask_region == 'exterior':
         mask = np.invert(mask)
-    masked_field = np.ma.masked_array(orbit_.convert(to='field').state, mask)
+    masked_field = np.ma.masked_array(orbit_.convert(to='field').state, mask=mask)
     return orbit_.__class__(state=masked_field, basis='field', parameters=orbit_.parameters)

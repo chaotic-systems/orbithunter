@@ -611,7 +611,6 @@ class OrbitKS(Orbit):
             # T_array.mean() not used because Tarray[T_array>0.] could be empty.
             glued_parameters = (T_array.sum()/max([1, len(T_array[T_array>0.])]), np.sum(L_array), 0.)
         elif glue_shape[0] > 1 and glue_shape[1] > 1:
-
             glued_parameters = (glue_shape[0] * T_array.sum()/max([1, len(T_array[T_array>0.])]),
                                 glue_shape[1] * L_array.sum()/max([1, len(L_array[L_array>0.])]),
                                 0.)
@@ -653,26 +652,30 @@ class OrbitKS(Orbit):
         if kwargs.get('N', None) is None:
             if T in [0, 0.]:
                 N = 1
+            elif isinstance(resolution, tuple):
+                N = np.max([2**(int(np.log2(T)+resolution[0])), 16])
             elif resolution == 'coarse':
-                N = np.max([2*(int(2**(np.log2(T+1)-2))//2), 16])
+                N = np.max([2**(int(np.log2(T)-2)), 16])
             elif resolution == 'fine':
-                N = np.max([2*(int(2**(np.log2(T+1)+4))//2), 32])
+                N = np.max([2**(int(np.log2(T)+1)), 32])
             elif resolution == 'power':
-                N = np.max([2*(int(4*T**(1./2.))//2), 16])
+                N = np.max([2*(int(4*T**(1./2.))//2), 32])
             else:
-                N = np.max([2**(int(np.log2(T)-1)), 32])
+                N = np.max([2**(int(np.log2(T))-1), 32])
         else:
             N = kwargs.get('N', None)
 
         if kwargs.get('M', None) is None:
-            if resolution == 'coarse':
-                M = np.max([2*(int(2**(np.log2(L+1)-1))//2), 16])
+            if isinstance(resolution, tuple):
+                M = np.max([2**(int(np.log2(L)+resolution[1])), 16])
+            elif resolution == 'coarse':
+                M = np.max([2**(int(np.log2(L)-1)), 16])
             elif resolution == 'fine':
-                M = np.max([2*(int(2**(np.log2(L+1))+2)//2), 32])
+                M = np.max([2**(int(np.log2(L)+2)), 32])
             elif resolution == 'power':
-                M = np.max([2*(int(6*L**(1./2.))//2), 16])
+                M = np.max([2*(int(4*L**(1./2.))//2), 32])
             else:
-                M = np.max([2**(int(np.log2(L)-0.5) + 1), 32])
+                M = np.max([2**(int(np.log2(L))), 32])
         else:
             M = kwargs.get('M', None)
         return N, M
@@ -728,11 +731,11 @@ class OrbitKS(Orbit):
         # to font size) Default label tick size is 10 for time and the fundamental frequency, 2 pi sqrt(2) for space.
 
         # Create time ticks, with the separation
-        if plot_orbit.T > 5:
+        if plot_orbit.T > 10:
             timetick_step = np.max([np.min([100, (5 * 2**(np.max([int(np.log2(plot_orbit.T//2)) - 3,  1])))]), 5])
             yticks = np.arange(0, plot_orbit.T, timetick_step)
             ylabels = np.array([str(int(y)) for y in yticks])
-        elif 0 < plot_orbit.T <= 5:
+        elif 0 < plot_orbit.T < 10:
             scaled_T = np.round(plot_orbit.T, 1)
             yticks = np.array([0, plot_orbit.T])
             ylabels = np.array(['0', str(scaled_T)])
@@ -1190,7 +1193,8 @@ class OrbitKS(Orbit):
                             + np.multiply(sine_block, modes_timeimaginary))
             rotated_imag = (-np.multiply(sine_block, modes_timereal)
                             + np.multiply(cosine_block, modes_timeimaginary))
-            time_rotated_modes = np.concatenate((self.state[0, :].reshape(1, -1), rotated_real, rotated_imag), axis=0)
+            time_rotated_modes = np.concatenate((orbit_to_rotate.state[0, :].reshape(1, -1),
+                                                 rotated_real, rotated_imag), axis=0)
             return self.__class__(state=time_rotated_modes, basis='modes',
                                   parameters=self.parameters).convert(to=self.basis)
         else:
@@ -1347,8 +1351,8 @@ class OrbitKS(Orbit):
         """
 
         spectrum = kwargs.get('spectrum', 'gaussian')
-        tscale = kwargs.get('tscale', max([int(np.round(self.T / 25.)), 1]))
-        xscale = kwargs.get('xscale', max([int(1 + np.round(self.L / (2*pi*np.sqrt(2)))), 1]))
+        tscale = kwargs.get('tscale', int(np.round(self.T / 25.)))
+        xscale = kwargs.get('xscale', int(1 + np.round(self.L / (2*pi*np.sqrt(2)))))
         xvar = kwargs.get('xvar', np.sqrt(xscale))
         tvar = kwargs.get('tvar', np.sqrt(tscale))
         np.random.seed(kwargs.get('seed', None))
@@ -1373,58 +1377,41 @@ class OrbitKS(Orbit):
             gaussian_modulator = np.exp(-((space_ - xscale)**2/(2*xvar)) - ((time_ - tscale)**2 / (2*tvar)))
             modes = np.multiply(gaussian_modulator, random_modes)
 
-        elif spectrum == 'piecewise-exponential':
-            # space scaling is constant up until certain wave number then exponential decrease
-            # time scaling is static
-            time_[time_ > tscale] = 0.
-            time_[time_ != 0.] = 1.
-            space_[space_ <= xscale] = xscale
-            exp_modulator = np.exp(-1.0 * np.abs(space_ - xscale) / xvar)
-            p_exp_modulator = np.multiply(time_, exp_modulator)
-            modes = np.multiply(p_exp_modulator, random_modes)
+        elif spectrum == 'gtime_espace':
+            gtime_espace_modulator = np.exp(-1.0 * (np.abs(space_- xscale) / xvar) - ((time_ - tscale)**2 / (2*tvar)))
+            modes = np.multiply(gtime_espace_modulator, random_modes)
 
         elif spectrum == 'exponential':
             # exponential decrease away from selected spatial scale
-            time_[time_ > tscale] = 0.
-            time_[time_ != 0.] = 1.
+            truncate_indices = np.where(time_ > tscale)
+            untruncated_indices = np.where(time_ <= tscale)
+            time_[truncate_indices] = 0
+            time_[untruncated_indices] = 1.
             exp_modulator = np.exp(-1.0 * np.abs(space_- xscale) / xvar)
             exp_modulator = np.multiply(time_, exp_modulator)
             modes = np.multiply(exp_modulator, random_modes)
 
-        elif spectrum == 'linear':
-            # Modulate the spectrum using the spatial linear operator; equivalent to preconditioning.
-            time_[time_ <= tscale] = 1.
-            time_[time_ != 1.] = 0.
-            # so we get qk^2 - qk^4
-            mollifier = np.abs(self.elementwise_dxn(self.dx_parameters, power=2)
-                                + self.elementwise_dxn(self.dx_parameters, power=4))
-            modulated_modes = np.divide(random_modes, mollifier)
-            modes = np.multiply(time_, modulated_modes)
         elif spectrum == 'linear-exponential':
             # Modulate the spectrum using the spatial linear operator; equivalent to preconditioning.
-            time_[time_ <= tscale] = 1.
-            time_[time_ != 1.] = 0.
+            truncate_indices = np.where(time_ > tscale)
+            untruncated_indices = np.where(time_ <= tscale)
+            time_[truncate_indices] = 0
+            time_[untruncated_indices] = 1.
             # so we get qk^2 - qk^4
             mollifier = -1.0*np.abs((2*pi*xscale/self.L)**2-(2*pi*xscale/self.L)**4
                                     - (2*pi*space_ / self.L)**2+(2*pi*space_/self.L)**4)
             modulated_modes = np.multiply(np.exp(mollifier), random_modes)
             modes = np.multiply(time_, modulated_modes)
-        elif spectrum == 'plateau-linear':
-            # Modulate the spectrum using the spatial linear operator; equivalent to preconditioning.
-            time_[time_ <= tscale] = 1.
-            time_[time_ != 1.] = 0.
-            plateau = np.where(space_[space_ <= xscale])
-            # so we get qk^2 - qk^4
-            mollifier = (2*pi*space_/self.L)**2 - (2*pi*space_/self.L)**4
-            mollifier[np.unravel_index(plateau, space_.shape)] = 1
-            modulated_modes = np.divide(random_modes, np.abs(mollifier))
-            modes = np.multiply(time_, modulated_modes)
-        elif spectrum == 'random':
-            modes = random_modes
-        else:
-            time_[time_ > tscale] = 0.
-            time_[time_ != 0.] = 1.
+        elif spectrum == 'time_truncated':
+            # need to use conditional statements before modifying values, hence why these are stored
+            truncate_indices = np.where(time_ > tscale)
+            untruncated_indices = np.where(time_ <= tscale)
+            time_[truncate_indices] = 0
+            time_[untruncated_indices] = 1.
+            # time_[time_ != 1.] = 0.
             modes = np.multiply(time_, random_modes)
+        else:
+            modes = random_modes
 
         self.state = modes
         self.basis = 'modes'
@@ -1469,7 +1456,7 @@ class OrbitKS(Orbit):
         """
         self.constraints = kwargs.get('constraints', {'T': False, 'L': False})
         T, L = parameters[:2]
-        if T == 0. and kwargs.get('nonzero_parameters', True):
+        if T == 0. and kwargs.get('nonzero_parameters', False):
             if kwargs.get('seed', None) is not None:
                 np.random.seed(kwargs.get('seed', None))
             self.T = (kwargs.get('T_min', 20.)
@@ -1477,7 +1464,7 @@ class OrbitKS(Orbit):
         else:
             self.T = float(T)
 
-        if L == 0. and kwargs.get('nonzero_parameters', True):
+        if L == 0. and kwargs.get('nonzero_parameters', False):
             if kwargs.get('seed', None) is not None:
                 np.random.seed(kwargs.get('seed', None)+1)
             self.L = (kwargs.get('L_min', 22.)
@@ -1985,7 +1972,7 @@ class RelativeOrbitKS(OrbitKS):
         super().__init__(state=state, basis=basis, parameters=parameters, frame=frame, **kwargs)
         # If the frame is comoving then the calculated shift will always be 0 by definition of comoving frame.
         # The cases where is makes sense to calculate the shift
-        # if self.S == 0. and (self.frame == 'physical' or kwargs.get('nonzero_parameters', True) or state is None):
+        # if self.S == 0. and (self.frame == 'physical' or kwargs.get('nonzero_parameters', False) or state is None):
         #     self.S = calculate_spatial_shift(self.convert(to='s_modes').state, self.L)
 
         # If specified that the state is in physical frame then shift is calculated.
@@ -2335,7 +2322,7 @@ class RelativeOrbitKS(OrbitKS):
         self.constraints = kwargs.get('constraints', {'T': False, 'L': False, 'S': False})
         self.frame = kwargs.get('frame', 'comoving')
 
-        if T == 0. and kwargs.get('nonzero_parameters', True):
+        if T == 0. and kwargs.get('nonzero_parameters', False):
             if kwargs.get('seed', None) is not None:
                 np.random.seed(kwargs.get('seed', None))
             self.T = (kwargs.get('T_min', 20.)
@@ -2343,7 +2330,7 @@ class RelativeOrbitKS(OrbitKS):
         else:
             self.T = float(T)
 
-        if L == 0. and kwargs.get('nonzero_parameters', True):
+        if L == 0. and kwargs.get('nonzero_parameters', False):
             if kwargs.get('seed', None) is not None:
                 np.random.seed(kwargs.get('seed', None)+1)
             self.L = (kwargs.get('L_min', 22.)
@@ -3115,9 +3102,9 @@ class ShiftReflectionOrbitKS(OrbitKS):
         """ Overwrite of parent method """
         field = self.convert(to='field').state
         if half == 0:
-            f_domain = field[:-int(self.N // 2), :]
-        else:
             f_domain = field[-int(self.N // 2):, :]
+        else:
+            f_domain = field[:-int(self.N // 2), :]
         return self.__class__(state=f_domain, basis='field', parameters=(self.T / 2.0, self.L, 0.))
 
 
@@ -3323,7 +3310,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         L = parameters[1]
 
         # The default value of nonzero_parameters is False. If its true, assign random value to L
-        if L == 0. and kwargs.get('nonzero_parameters', True):
+        if L == 0. and kwargs.get('nonzero_parameters', False):
             if kwargs.get('seed', None) is not None:
                 np.random.seed(kwargs.get('seed', None)+1)
             self.L = (kwargs.get('L_min', 22.)
@@ -3386,7 +3373,6 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             # spacetime gaussian modulation
             gaussian_modulator = np.exp(-(space_ - xscale)**2/(2*xvar))
             modes = np.multiply(gaussian_modulator, random_modes)
-
         elif spectrum == 'piecewise-exponential':
             # space scaling is constant up until certain wave number then exponential decrease
             # time scaling is static
@@ -3398,12 +3384,6 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             # exponential decrease away from selected spatial scale
             exp_modulator = np.exp(-1.0 * np.abs(space_- xscale) / xvar)
             modes = np.multiply(exp_modulator, random_modes)
-
-        elif spectrum == 'linear':
-            # so we get qk^2 - qk^4
-            mollifier = -1.0 * (self.elementwise_dxn(self.dx_parameters, power=2)
-                                      + self.elementwise_dxn(self.dx_parameters, power=4))
-            modes = np.divide(random_modes, mollifier)
         elif spectrum == 'linear':
             # so we get qk^2 - qk^4
             mollifier = (self.elementwise_dxn(self.dx_parameters, power=2)
