@@ -100,7 +100,7 @@ def clip(orbit_, window_dimensions, clipping_class=None, **kwargs):
 
     slices, dimensions = _slices_from_window(orbit_, window_dimensions)
     parameters = tuple(dimensions[i] if i < len(dimensions) else p for i, p in enumerate(orbit_.parameters))
-    clipped_orbit = clipping_class(state=orbit_.convert(to='field').state[slices], basis='field',
+    clipped_orbit = clipping_class(state=orbit_.transform(to='field').state[slices], basis='field',
                                    parameters=parameters, **kwargs)
     return clipped_orbit
 
@@ -137,5 +137,5 @@ def mask_orbit(orbit_, windows, mask_region='exterior'):
 
     if mask_region == 'exterior':
         mask = np.invert(mask)
-    masked_field = np.ma.masked_array(orbit_.convert(to='field').state, mask=mask)
+    masked_field = np.ma.masked_array(orbit_.transform(to='field').state, mask=mask)
     return orbit_.__class__(state=masked_field, basis='field', parameters=orbit_.parameters)

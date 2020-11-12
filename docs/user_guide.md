@@ -5,7 +5,7 @@ This adds another component to the linear term of the equation when handled via 
 reference frame. 
 
 Important properties to note:
-1. The spatial shift ```'S'``` is ALWAYS stored as the spatial shift FROM comoving TO physical reference frames.
+1. The spatial shift ```'S'``` is should always be stored as the spatial shift FROM comoving TO physical reference frames.
 2. The only method that should be used to change reference frames is ```change_reference_frame(to=[frame_type,])```
 3. There are a very small number of operations allowed for state's in the physical reference frame.
 4. The field state should always be (and is assumed to be) saved in the COMOVING frame.

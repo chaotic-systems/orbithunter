@@ -21,8 +21,11 @@ def hunt(x, verbose=True):
     if verbose:
         print('Beginning search for {}'.format(repr(x)))
     # result = converge(converge(x, verbose=True, method='adj').orbit, method='lstsq', verbose=True, min_step=0.0001)
-    result = converge(converge(x, verbose=True, method='adj').orbit,
-                      method='lstsq', verbose=True)
+    # result = converge(converge(x, verbose=True, method='adj').orbit, method='lstsq', verbose=True)
+    result = converge(x, method='hybrid', verbose=True,
+                      comp_time='excessive',
+                      preconditioning=True, pexp=(1, 4))
+
     if result.orbit.residual() <= result.tol:
         fname_init = ''.join([result.orbit.parameter_dependent_filename(extension=''), '_initial.h5'])
         x.to_h5(filename=fname_init, verbose=True,
@@ -71,14 +74,9 @@ def main():
     L_min, L_max = float(args.L_min), float(args.L_max)
     mag = args.field_magnitude
     t = time.time()
-    constraint = args.constrain
-
-
     for s in seeds:
         orbit_ = cls(seed=s, T_min=T_min, T_max=T_max, L_min=L_min, L_max=L_max, nonzero_parameters=True,
                      spectrum=mode_spectrum).rescale(mag)
-        if constraint != -1:
-            orbit_.constrain(axis=constraint)
         hunt(orbit_)
 
     print('{} trials took {} to complete with {} jobs'.format(n_trials, time.time()-t, n_jobs))

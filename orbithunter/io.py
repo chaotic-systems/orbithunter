@@ -1,81 +1,67 @@
-from .orbit_ks import OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS, \
-    AntisymmetricOrbitKS, EquilibriumOrbitKS, RelativeEquilibriumOrbitKS
 import os
 import numpy as np
-import h5py
 import pandas as pd
 import itertools
+import h5py
+from .ks.orbits import ks_parsing_util, ks_fpo_dictionary
 
-__all__ = ['read_h5', 'parse_class', 'convergence_log', 'refurbish_log', 'write_symbolic_log',
+__all__ = ['read_h5', 'read_fpo_set', 'convergence_log', 'refurbish_log', 'write_symbolic_log',
            'read_symbolic_log', 'to_symbol_string', 'to_symbol_array']
 
 
-def read_h5(filename, directory='local', data_format='orbithunter', equation='ks',
-            basis='modes', class_name=None, check=False, **orbitkwargs):
+def read_h5(filename, directory='local', data_format='orbithunter',
+            basis='modes', cls=None,  check=False, equation='ks', **orbitkwargs):
 
-    if class_name is None:
-        class_generator = parse_class(filename, equation=equation)
-    elif isinstance(class_name, str):
-        class_generator = parse_class(class_name, equation=equation)
+    parsing_dictionary, instantiate_orbit = parsing_util(equation=equation)
+
+    if cls is None:
+        class_generator = parse_class(filename, parsing_dictionary)
+    elif isinstance(cls, str):
+        class_generator = parse_class(cls, parsing_dictionary)
     else:
-        class_generator = class_name
+        class_generator = cls
 
     if directory == 'local':
         directory = os.path.abspath(os.path.join(__file__, ''.join(['../../data/local/',
                                                                     class_generator.__name__, '/'])))
 
     with h5py.File(os.path.abspath(os.path.join(directory, filename)), 'r') as f:
-        if equation == 'ks':
-            if data_format == 'orbithunter':
-                field = np.array(f['field'])
-                params = tuple(f['parameters'])
-                orbit = class_generator(state=field, basis='field', parameters=params, **orbitkwargs)
-            elif data_format == 'orbithunter_old':
-                field = np.array(f['field'])
-                L = float(f['space_period'][()])
-                T = float(f['time_period'][()])
-                S = float(f['spatial_shift'][()])
-                orbit = class_generator(state=field, basis='field', parameters=(T, L, S), **orbitkwargs)
-            else:
-                fieldtmp = f['/data/ufield']
-                L = float(f['/data/space'][0])
-                T = float(f['/data/time'][0])
-                field = fieldtmp[:]
-                S = float(f['/data/shift'][0])
-                orbit = class_generator(state=field, basis='field', parameters=(T, L, S), **orbitkwargs)
-
+        orbit_ = instantiate_orbit(f, class_generator, data_format=data_format,
+                                   **orbitkwargs)
     # verify typically returns Orbit, code; just want the orbit instance here
     if check:
         # The automatic importation attempts to validate symmetry/class type.
-        return orbit.verify_integrity()[0].convert(to=basis, inplace=True)
+        return orbit_.verify_integrity()[0].transform(to=basis, inplace=True)
     else:
         # If the class name is provided, force it through without verification.
-        return orbit.convert(to=basis, inplace=True)
+        return orbit_.transform(to=basis, inplace=True)
 
 
-def parse_class(filename, equation='ks'):
+def parse_class(filename, class_dict):
     name_string = os.path.basename(filename).split('_')[0]
+    keys = np.array(class_dict.keys())
+
+    if name_string in keys:
+        cls_str = name_string
+    else:
+        name_index = np.array([filename.find(cls_str) for cls_str in keys], dtype=float)
+        name_index[name_index < 0] = np.inf
+        cls_str = np.array(keys)[np.argmin(name_index)]
+
+    return class_dict.get(cls_str, class_dict['base'])
+
+
+def read_fpo_set(equation='ks', **kwargs):
     if equation == 'ks':
-        old_names = ['none', 'full', 'rpo', 'reqva', 'ppo', 'eqva', 'anti']
-        new_names = ['OrbitKS', 'RelativeOrbitKS', 'RelativeEquilibriumOrbitKS', 'ShiftReflectionOrbitKS',
-                     'AntisymmetricOrbitKS', 'EquilibriumOrbitKS']
+        fpo_dict = ks_fpo_dictionary
+    else:
+        raise ValueError('The function read_fpo_set encountered an unrecognizable equation.')
+    return {key: read_h5(val, **kwargs) for key, val in fpo_dict(**kwargs)}
 
-        all_names = np.array(old_names + new_names)
-        if name_string in all_names:
-            class_name = name_string
-        else:
-            name_index = np.array([filename.find(class_name) for class_name in all_names], dtype=float)
-            name_index[name_index < 0] = np.inf
-            class_name = np.array(all_names)[np.argmin(name_index)]
 
-        class_dict = {'none': OrbitKS, 'full': OrbitKS, 'OrbitKS': OrbitKS,
-                      'anti': AntisymmetricOrbitKS, 'AntisymmetricOrbitKS': AntisymmetricOrbitKS,
-                      'ppo': ShiftReflectionOrbitKS, 'ShiftReflectionOrbitKS': ShiftReflectionOrbitKS,
-                      'rpo': RelativeOrbitKS, 'RelativeOrbitKS': RelativeOrbitKS,
-                      'eqva': EquilibriumOrbitKS, 'EquilibriumOrbitKS': EquilibriumOrbitKS,
-                      'reqva': RelativeEquilibriumOrbitKS, 'RelativeEquilibriumOrbitKS': RelativeEquilibriumOrbitKS}
-        class_generator = class_dict.get(class_name, OrbitKS)
-        return class_generator
+def parsing_util(equation='ks'):
+    if equation == 'ks':
+        return ks_parsing_util()
     else:
         return None
 
@@ -84,7 +70,7 @@ def convergence_log(initial_orbit, converge_result, log_path, spectrum='random',
     initial_condition_log_ = pd.read_csv(log_path, index_col=0)
     # To store all relevant info as a row in a Pandas DataFrame, put into a 1-D array first.
     dataframe_row = [[initial_orbit.parameters, initial_orbit.field_shape,
-                     np.abs(initial_orbit.convert(to='field').state).max(), converge_result.orbit.residual(),
+                     np.abs(initial_orbit.transform(to='field').state).max(), converge_result.orbit.residual(),
                      converge_result.status, spectrum, method]]
     labels = ['parameters', 'field_shape', 'field_magnitude', 'residual', 'status', 'spectrum', 'numerical_method']
     new_row = pd.DataFrame(dataframe_row, columns=labels)

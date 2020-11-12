@@ -29,7 +29,7 @@ def orbit_complex(orbit_,  **kwargs):
     -----
     I do not think orbithunter support vector fields for now, I think each component would have its own cubical complex?
     """
-    orbit_ = orbit_.convert(to='field')
+    orbit_ = orbit_.transform(to='field')
     periodic_dimensions = kwargs.pop('periodic_dimensions', tuple(len(orbit_.field_shape)*[True]))
     cubical_complex = gh.PeriodicCubicalComplex(dimensions=orbit_.state.shape,
                                                 top_dimensional_cells=orbit_.state.ravel(),
@@ -55,7 +55,7 @@ def orbit_persistence(orbit_, **kwargs):
     return orbit_complex(orbit_).persistence(**kwargs)
 
 
-def gudhi_plot(orbit_persistence_, method='diagram', **gudhi_kwargs):
+def gudhi_plot(orbit_, method='diagram', **kwargs):
     """
     Parameters
     ----------
@@ -67,12 +67,13 @@ def gudhi_plot(orbit_persistence_, method='diagram', **gudhi_kwargs):
     gudhi_kwargs :
         kwargs related to gudhi plotting functions. See Gudhi docs for details.
     """
+    orbit_persistence_ = orbit_persistence(orbit_, **kwargs)
     if method == 'diagram':
-        gh.plot_persistence_diagram(orbit_persistence_, **gudhi_kwargs)
+        gh.plot_persistence_diagram(orbit_persistence_, **kwargs)
     elif method == 'barcode':
-        gh.plot_persistence_barcode(orbit_persistence_, **gudhi_kwargs)
+        gh.plot_persistence_barcode(orbit_persistence_, **kwargs)
     elif method == 'density':
-        gh.plot_persistence_diagram(orbit_persistence_, **gudhi_kwargs)
+        gh.plot_persistence_diagram(orbit_persistence_, **kwargs)
     else:
         raise ValueError('Gudhi plotting method not recognized.')
     plt.show()

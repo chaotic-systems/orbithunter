@@ -141,3 +141,4 @@ notebooks/*.jpg
 
 # local data and figures
 */local/*
+**/local/*

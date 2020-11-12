@@ -80,35 +80,62 @@ def converge(orbit_, method='adj', precision='default', comp_time='default', **k
     orbit_
 
     kwargs:
-        method :
+        method : str, optional
+            Default is 'adj', representing the adjoint descent method, valid choices are:
+            'adj', 'lstsq', 'newton_descent', 'lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
+            'cg', 'cgs', 'qmr', 'minres', 'gcrotmk', 'hybr', 'lm','broyden1', 'broyden2', 'root_anderson',
+            'linearmixing', 'diagbroyden', 'excitingmixing', 'root_krylov',' df-sane',
+            'newton_krylov', 'anderson', 'cg_min', 'newton-cg', 'l-bfgs-b', 'tnc', 'bfgs'
 
-        maxiter :
+        precision : str, optional
+            Key word to choose an `orbithunter recommended' tolerance.  Choices include:
+            'machine', 'high', 'medium' or 'default' (equivalent), 'low', 'minimal'
 
-        tol :
+        comp_time: str, optional
+            Key word to choose an `orbithunter recommended' number of iterations, dependent on the chosen method.
+            Choices include : 'excessive', 'thorough', 'long' , 'medium' or 'default' (equivalent), 'short', 'minimal'.
 
-        hybrid_maxiter : tuple of two ints
+        maxiter : int, optional
+            The maximum number of steps; computation time can be highly dependent on this number i.e.
+            maxiter=100 for adjoint descent and lstsq have very very different computational times.
+
+        tol : float, optional
+            The threshold for the residual function for an orbit approximation to be declared successful.
+
+        scipy_kwargs: dict
+            Additional arguments for SciPy solvers.
+            There are too many to describe and they depend on the particular algorithm utilized, see scipy
+            docs for more info. These pertain to numerical methods:
+
+            See https://docs.scipy.org/doc/scipy/reference/sparse.linalg.html for details
+            For methods in the following list: ['lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
+                                                'cg', 'cgs', 'qmr', 'minres', 'gcrotmk']
+
+:
+            https://docs.scipy.org/doc/scipy/reference/optimize.html
+            https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize
+
+
+            ['cg_min', 'newton-cg', 'l-bfgs-b', 'tnc', 'bfgs']:
+
+            https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.root.html
+            ['hybr', 'lm','broyden1', 'broyden2', 'root_anderson', 'linearmixing',
+                        'diagbroyden', 'excitingmixing', 'root_krylov',' df-sane', 'newton_krylov', 'anderson']
+
+        hybrid_maxiter : tuple of two ints, optional
             Only used if method == 'hybrid', contains the maximum number of iterations to be used in gradient
             descent and lstsq, respectively.
 
-        hybrid_tol : tuple of floats
+        hybrid_tol : tuple of floats, optional
             Only used if method == 'hybrid', contains the tolerance threshold to be used in gradient
             descent and lstsq, respectively.
-
-        scipy.optimize.minimize kwargs:
-            There are too many to describe and they depend on the particular algorithm utilized, see scipy
-            docs for more info. These pertain to numerical methods in ['cg', 'newton-cg', 'l-bfgs-b', 'tnc']
-
-        scipy.sparse.linalg kwargs
-            Additional arguments for scipy.sparse.linalg solvers method in ['lsqr', 'lsmr']
-
-        scipy.optimize.root kwargs:
-            Additional arguments for scipy.optimize.minimize solvers in ['lm', 'lgmres', 'gmres', 'minres'].
-            'lm' should not be used for large problems.
 
 
     Returns
     -------
-
+    OrbitResult :
+        OrbitResult instance including optimization properties like exit code, residuals, tol, maxiter, etc. and
+        the final resulting orbit approximation.
     Notes
     -----
     Passing tol and maxiter in conjuction with method=='hybrid' will cause the _adj and
@@ -117,9 +144,6 @@ def converge(orbit_, method='adj', precision='default', comp_time='default', **k
     once with method == 'adj' and once more with method == 'lstsq', passing unique
     tol and maxiter to each call.
     """
-    # Convert basis, creating a copy in the process.
-    orbit_ = orbit_.convert(to='modes')
-
     # Sometimes it is desirable to provide exact numerical value for tolerance, other times an approximate guideline
     # `precision' is used. This may seem like bad design except the guidelines depend on the orbit_'s discretization
     # and so there is no way of including this in the explicit function kwargs as opposed to **kwargs.
@@ -173,18 +197,17 @@ def converge(orbit_, method='adj', precision='default', comp_time='default', **k
 
 def _adjoint_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
     """
+
     Parameters
     ----------
     orbit_
-    preconditioning
+    tol
+    maxiter
+    min_step
     kwargs
 
     Returns
     -------
-
-    Notes
-    -----
-    Preconditioning left out of **kwargs because of its special usage
 
     """
     ftol = kwargs.get('ftol', np.product(orbit_.shape) * 10**-10)
@@ -229,6 +252,20 @@ def _adjoint_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
 
 
 def _newton_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
+    """
+
+    Parameters
+    ----------
+    orbit_
+    tol
+    maxiter
+    min_step
+    kwargs
+
+    Returns
+    -------
+
+    """
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
     step_size = kwargs.get('step_size', 0.001)
     verbose = kwargs.get('verbose', False)
@@ -296,6 +333,20 @@ def _newton_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
 
 
 def _lstsq(orbit_, tol, maxiter, min_step=1e-6,  **kwargs):
+    """
+
+    Parameters
+    ----------
+    orbit_
+    tol
+    maxiter
+    min_step
+    kwargs
+
+    Returns
+    -------
+
+    """
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
     ftol = kwargs.get('ftol', np.product(orbit_.shape) * 10**-10)
     mapping = orbit_.spatiotemporal_mapping(**kwargs)
@@ -337,6 +388,21 @@ def _lstsq(orbit_, tol, maxiter, min_step=1e-6,  **kwargs):
 
 
 def _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method='minres', min_step=1e-6, **kwargs):
+    """
+
+    Parameters
+    ----------
+    orbit_
+    tol
+    maxiter
+    method
+    min_step
+    kwargs
+
+    Returns
+    -------
+
+    """
     ftol = kwargs.get('ftol', np.product(orbit_.shape) * 10**-10)
     residual = orbit_.residual()
     if kwargs.get('verbose', False):
@@ -372,12 +438,12 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method='minres', m
             b = -1.0 * orbit_.spatiotemporal_mapping(**kwargs).state.reshape(-1, 1)
             if method == 'lsmr':
                 result_tuple = lsmr(A, b, **scipy_kwargs)
-            elif method == 'lsqr':
+            else:
                 result_tuple = lsqr(A, b, **scipy_kwargs)
 
         else:
             if stats['nit'] == 0:
-                scipy_kwargs = kwargs.pop('scipy_kwargs', {'tol': 1e-8})
+                scipy_kwargs = kwargs.pop('scipy_kwargs', {'tol': 1e-3})
 
             # Solving `normal equations, A^T A x = A^T b. A^T A is its own transpose hence matvec_func=rmatvec_func
             def matvec_func(v):
@@ -426,7 +492,6 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method='minres', m
                 raise ValueError('Unknown solver %s' % method)
 
         if len(result_tuple) == 1:
-            # if passed as tuple, .reshape((a,b)), then need to unpack ((a, b)) into (a, b)
             x = tuple(*result_tuple)[0]
         else:
             x = result_tuple[0]
@@ -454,6 +519,20 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method='minres', m
 
 
 def _scipy_optimize_minimize_wrapper(orbit_, tol, maxiter, method='l-bfgs-b',  **kwargs):
+    """
+
+    Parameters
+    ----------
+    orbit_
+    tol
+    maxiter
+    method
+    kwargs
+
+    Returns
+    -------
+
+    """
     residual = orbit_.residual()
     ftol = kwargs.get('ftol', np.product(orbit_.shape) * 10**-10)
     stats = {'nit': 0, 'residuals': [residual], 'maxiter': maxiter, 'tol': tol, 'status': 1}
@@ -515,6 +594,20 @@ def _scipy_optimize_minimize_wrapper(orbit_, tol, maxiter, method='l-bfgs-b',  *
 
 
 def _scipy_optimize_root_wrapper(orbit_, tol, maxiter, method='lgmres', **kwargs):
+    """
+
+    Parameters
+    ----------
+    orbit_
+    tol
+    maxiter
+    method
+    kwargs
+
+    Returns
+    -------
+
+    """
     residual = orbit_.residual()
     ftol = kwargs.get('ftol', np.product(orbit_.shape) * 10**-10)
     stats = {'nit': 0, 'residuals': [residual], 'maxiter': maxiter, 'tol': tol, 'status': 1}
@@ -595,6 +688,17 @@ def _scipy_optimize_root_wrapper(orbit_, tol, maxiter, method='lgmres', **kwargs
 
 
 def _print_exit_messages(orbit, status):
+    """
+
+    Parameters
+    ----------
+    orbit
+    status
+
+    Returns
+    -------
+
+    """
     if isinstance(status, tuple):
         status = status[-1]
     if status == 0:

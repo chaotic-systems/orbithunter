@@ -10,7 +10,7 @@ def zero_pad_border(orbit_, space_padding_shape, time_padding_shape):
     # orbit_ = rediscretize(orbit_, new_shape=(48, 48))
     zeros_time = np.zeros(time_padding_shape)
     zeros_space = np.zeros(space_padding_shape)
-    space_framed_state = np.concatenate((zeros_space, orbit_.convert(to='field').state, zeros_space), axis=1)
+    space_framed_state = np.concatenate((zeros_space, orbit_.transform(to='field').state, zeros_space), axis=1)
     if len(zeros_time) > 0:
         spacetime_framed_state = np.concatenate((zeros_time, space_framed_state, zeros_time), axis=0)
     else:
@@ -32,14 +32,14 @@ def main(*args, **kwargs):
                                hybrid_maxiter=(10000, 100), precision='very_high').orbit
     s = discretization_continuation(s, new_shape=(64, 64),
                                     verbose=True, method='hybrid',
-                                    precision='very_high').orbit.convert(to='field')
+                                    precision='very_high').orbit.transform(to='field')
 
     w = discretization_continuation(w, new_shape=(64, 64),
                                     verbose=True, method='hybrid',
-                                    precision='very_high').orbit.convert(to='field')
+                                    precision='very_high').orbit.transform(to='field')
     m = discretization_continuation(m, new_shape=(64, 64),
                                     verbose=True, method='hybrid',
-                                    precision='very_high').orbit.convert(to='field')
+                                    precision='very_high').orbit.transform(to='field')
     mf = m.change_reference_frame(to='physical')
     m_shifted = m.cell_shift(axis=1)
     s_shifted = s.cell_shift(axis=1)
@@ -54,14 +54,14 @@ def main(*args, **kwargs):
     orbits_rescaled = []
     for i, o in enumerate(orbits):
         o.to_h5(filename=filenames[i], directory='../../data/tiles/unpadded/')
-        tmp = o.convert(to='field').rescale(np.abs(m.state).max())
+        tmp = o.transform(to='field').rescale(np.abs(m.state).max())
         tmp.to_h5(filename=filenames[i], directory='../../data/tiles/rescaled/')
         orbits_rescaled.append(tmp)
 
     # orbits_rescaled = []
     # for i, o in enumerate(filenames):
     #     orbit_ = read_h5(filename=o, directory='../../data/tiles/rescaled/')
-    #     print(orbit_.convert(to='field').state.max())
+    #     print(orbit_.transform(to='field').state.max())
     #     orbits_rescaled.append(orbit_)
 
     m, s, w, mf, m_shifted, mf_shifted, w_shifted, s_shifted = orbits_rescaled

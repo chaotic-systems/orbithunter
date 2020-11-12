@@ -14,7 +14,7 @@ While not listed here explicitly, this package is fundamentally a spectral metho
 to write the functions rmatvec, matvec, spatiotemporal mapping, one will necessarily have to include
 methods for differentiation, basis transformations, etc. I do not include them because different equations
 have different dimensions and hence will have different transforms. All transforms should be wrapped by
-the method .convert(). The spatiotemporal basis should be labeled as 'modes', the physical field should be
+the method .transform(). The spatiotemporal basis should be labeled as 'modes', the physical field should be
 labeled as 'field'. There are no assumptions on what "field" and "modes" actually mean, so the physical state space
 need not be an actual field. 
 
@@ -42,7 +42,7 @@ class Orbit:
             # This generates non-zero parameters if zeroes were passed
             self._parse_parameters(parameters, **kwargs)
             # Pass the newly generated parameter values, there are the originals if they were not 0's.
-            self._random_initial_condition(self.parameters, **kwargs).convert(to=basis, inplace=True)
+            self._random_initial_condition(self.parameters, **kwargs).transform(to=basis, inplace=True)
 
     def __add__(self, other):
         """ Addition of Orbit states
@@ -188,6 +188,15 @@ class Orbit:
     def concat(self, *others, axis=0):
         return None
 
+    def cost_function_gradient(self, spatiotemporal_mapping, **kwargs):
+        preconditioning = kwargs.get('preconditioning', False)
+        if preconditioning:
+            gradient = (self.rmatvec(spatiotemporal_mapping, **kwargs)
+                        ).precondition(self.preconditioning_parameters, **kwargs)
+        else:
+            gradient = self.rmatvec(spatiotemporal_mapping, **kwargs)
+        return gradient
+
     def reshape(self, *new_shape, **kwargs):
         """
 
@@ -200,7 +209,7 @@ class Orbit:
         -------
 
         """
-        placeholder_orbit = self.convert(to='field').copy().convert(to='modes', inplace=True)
+        placeholder_orbit = self.transform(to='field').copy().transform(to='modes', inplace=True)
 
         if len(new_shape) == 1:
             # if passed as tuple, .reshape((a,b)), then need to unpack ((a, b)) into (a, b)
@@ -222,7 +231,7 @@ class Orbit:
                     placeholder_orbit = placeholder_orbit._pad(d, axis=i)
                 else:
                     pass
-            return placeholder_orbit.convert(to=self.basis, inplace=True)
+            return placeholder_orbit.transform(to=self.basis, inplace=True)
 
     def convert(self, inplace=False, to=None):
         """ Method that handles all basis transformations.
@@ -259,7 +268,7 @@ class Orbit:
             R = 1/2 ||F||^2. The current form generalizes to any equation.
         """
         if apply_mapping:
-            v = self.convert(to='modes').spatiotemporal_mapping().state.ravel()
+            v = self.transform(to='modes').spatiotemporal_mapping().state.ravel()
             return 0.5 * v.dot(v)
         else:
             u = self.state.ravel()
@@ -525,7 +534,7 @@ class Orbit:
         # Undefined (scalar) parameters will be accounted for by __getattr__
         with h5py.File(save_path, 'w') as f:
             # The velocity field.
-            f.create_dataset("field", data=self.convert(to='field').state)
+            f.create_dataset("field", data=self.transform(to='field').state)
             # The parameters required to exactly specify an orbit.
             f.create_dataset('parameters', data=tuple(float(p) for p in self.parameters))
             # This isn't ever actually used for KSE, just saved in case the file is to be inspected.
@@ -601,7 +610,7 @@ class Orbit:
         return None
 
 
-def convert_class(orbit, new_type, **kwargs):
+def convert_class(orbit, class_generator, **kwargs):
     """ Utility for converting between different classes.
 
     Parameters
@@ -615,22 +624,10 @@ def convert_class(orbit, new_type, **kwargs):
     -------
 
     """
-    from .orbit_ks import (OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS,
-                           AntisymmetricOrbitKS, EquilibriumOrbitKS, RelativeEquilibriumOrbitKS)
-    if isinstance(new_type, str):
-        class_dict = {'OrbitKS': OrbitKS,
-                      'AntisymmetricOrbitKS': AntisymmetricOrbitKS,
-                      'ShiftReflectionOrbitKS': ShiftReflectionOrbitKS,
-                      'RelativeOrbitKS': RelativeOrbitKS,
-                      'EquilibriumOrbitKS': EquilibriumOrbitKS,
-                      'RelativeEquilibriumOrbitKS': RelativeEquilibriumOrbitKS}
-        class_generator = class_dict[new_type]
-    else:
-        class_generator = new_type
-
     # This avoids time-dimension issues with RelativeEquilibriumOrbitKS and EquilibriumOrbitKS
-    tmp_orbit = orbit.convert(to='field')
+    tmp_orbit = orbit.transform(to='field')
+    basis = kwargs.get('result_basis', orbit.basis)
     parameters = kwargs.get('parameters', tmp_orbit.parameters)
     kwargs.pop('parameters', None)
     return class_generator(state=tmp_orbit.state, basis=tmp_orbit.basis,
-                           parameters=parameters, **kwargs).convert(to=orbit.basis)
+                           parameters=parameters, **kwargs).transform(to=basis)

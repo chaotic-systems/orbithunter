@@ -2,7 +2,7 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(sys.argv[0], '../..')))
 from orbithunter import *
-from argparse import ArgumentParser,ArgumentTypeError, FileType, ArgumentDefaultsHelpFormatter
+from argparse import ArgumentParser, ArgumentTypeError, ArgumentDefaultsHelpFormatter
 
 def str2bool(val):
     if isinstance(val, bool):

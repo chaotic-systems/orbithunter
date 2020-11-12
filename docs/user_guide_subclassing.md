@@ -48,14 +48,6 @@ rescale :
 Rescale the maximum/minimum field values, useful for making life easier when constructing random
 initial conditions. 
 
-preconditioning / precondition_matvec / precondition_rmatvec:
-
-Apply a preconditioning operation to the state_vector of an orbit; alternatively the
-matvec and rmatvec versions of this are used to define a SciPy LinearOperator used in 
-the scipy.sparse.linalg algorithms. 
-
-
-
 
 Required for reshape
 --------------------

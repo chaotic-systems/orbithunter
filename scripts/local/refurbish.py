@@ -59,7 +59,7 @@ def main(*args, **kwargs):
                     else:
                         # print('\n' + 'Refurbishing ' + orbit_h5)
                         if figs_only:
-                            orbit_ = orbit_.convert(to='field')
+                            orbit_ = orbit_.transform(to='field')
                             orbit_.plot(filename=orbit_h5, show=False, verbose=True)
                         else:
                             converge_result = converge(orbit_, ftol=10**-15, method='hybrid', verbose=True)

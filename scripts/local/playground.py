@@ -8,9 +8,15 @@ from math import pi
 import matplotlib.pyplot as plt
 import glob
 from scipy.linalg import pinv
-
 def main(*args, **kwargs):
-    # figs = '../../data/local/thesis/figures/'
+    #
+    # streak = td[0]
+    # merger = td[1]
+    # wiggle = td[2]
+    # x = discretization_continuation(merger.reshape(16, 16).transform(to='modes'), (24, 24),
+    #                                 step_sizes=(2,2), cycle=True, verbose=True, method='lstsq')
+
+        # figs = '../../data/local/thesis/figures/'
     # defect_fam = '../../data/local/thesis/families/defect/'
     # tmp = read_h5('ppo_L21p74_T95p23_ppo_L21p94_T94p98_time.h5',
     #               directory='../../data/local/thesis/gluing', data_format='kstori')
@@ -23,18 +29,19 @@ def main(*args, **kwargs):
     #                                                                fundamental_domain=True)
     # read_h5('RelativeOrbitKS_T8p458_L13p103.h5', directory='../../data/local/continuation/merge_tile/').plot(filename='reqv_defect.pdf', directory=figs,
     #                                                                fundamental_domain=True)
-    test = OrbitKS(nonzero_parameters=True)
-    result = kse_integrate(test)
-    mode_spectrum = 'time_truncated'
-    s = 0
-    mag = 5
-    a = AntisymmetricOrbitKS(seed=s, T_min=40, T_max=80, L_min=22,
-                             L_max=22, tscale=0, nonzero_parameters=True, spectrum=mode_spectrum).rescale(mag)
-    a = a.reshape(32, 16)
-    a.plot(fundamental_domain=False)
-    plt.matshow(np.log10(np.abs(a.state)))
-    plt.colorbar()
-    plt.show()
+    # test = AntisymmetricOrbitKS(seed=5, parameters=(100,22,0)).reshape(64, 64).rescale(5)
+    # result = kse_integrate(test, verbose=True, integration_time=2000, step_size=0.2)
+    # result.plot(fundamental_domain=False)
+    # mode_spectrum = 'time_truncated'
+    # s = 0
+    # mag = 5
+    # a = AntisymmetricOrbitKS(seed=s, T_min=40, T_max=80, L_min=22,
+    #                          L_max=22, tscale=0, nonzero_parameters=True, spectrum=mode_spectrum).rescale(mag)
+    # a = a.reshape(32, 16)
+    # a.plot(fundamental_domain=False)
+    # plt.matshow(np.log10(np.abs(a.state)))
+    # plt.colorbar()
+    # plt.show()
     # datadir = '../../data/examples/gluing/'
     # o0=read_h5('OrbitKS_T41p382_L38p050.h5', directory=datadir).reshape(512,512)
     # o1=read_h5('OrbitKS_T46p754_L31p245.h5', directory=datadir).reshape(512,512)
@@ -47,7 +54,7 @@ def main(*args, **kwargs):
     # random_orbit_tiling_result = converge(random_orbit_tiling, method='gmres',
     #                                   scipy_kwargs={'tol':1e-1, 'maxiter':1, 'restart':1},
     #                                   verbose=True)
-    # plt.matshow(np.log10(np.abs(example_orbit.convert(to='modes').state)))
+    # plt.matshow(np.log10(np.abs(example_orbit.transform(to='modes').state)))
     # plt.colorbar()
     # plt.show()
     #

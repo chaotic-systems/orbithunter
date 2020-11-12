@@ -1,10 +1,9 @@
-from .io import read_h5, to_symbol_string
+from .io import to_symbol_string
 import numpy as np
-import os
 import itertools
 from collections import Counter
 
-__all__ = ['tile', 'glue', 'generate_symbol_arrays', 'rediscretize_tiling_dictionary', 'tile_dictionary_ks']
+__all__ = ['tile', 'glue', 'generate_symbol_arrays', 'rediscretize_fpo_dictionary']
 
 
 def _correct_aspect_ratios(array_of_orbits, axis=0):
@@ -80,104 +79,6 @@ def _correct_aspect_ratios(array_of_orbits, axis=0):
 
     # Return the strip of orbits with corrected proportions.
     return np.array([o.reshape(shp) for o, shp in zip(array_of_orbits.ravel(), new_shapes)])
-
-
-def expensive_glue(pair_of_orbits_array, class_constructor, gluing_axis=0):
-    """
-
-    Parameters
-    ----------
-    orbit
-    other_orbit
-    axis
-
-    Returns
-    -------
-
-    Notes
-    -----
-    This function gives the user a lot more control over the result of gluing when considering only the
-    combination of two orbits. This should be used when the optimal gluing is desired for a pair of orbits.
-    """
-    # Converts tori to best representatives for gluing by choosing from group orbit.
-    # If we want a much simpler method of gluing, we can do "arraywise" which simply concatenates everything at
-    # once. I would say this is the better option if all orbits in the tile dictionary are approximately equal
-    # in size.
-    # the "gluing axis" in this case is always the same, we are just iterating through the gluing shape one
-    # axis at a time.
-
-    # glue_shape = tuple(2 if i == gluing_axis else 1 for i in range(2))
-    # corrected_pair_of_orbits = _correct_aspect_ratios(pair_of_orbits_array, gluing_axis=0)
-    # # Bundle all of the parameters at once, instead of "stripwise"
-    # zipped_dimensions = tuple(zip(*(o.dimensions for o in pair_of_orbits_array.ravel())))
-    # glued_parameters = class_constructor.glue_parameters(zipped_dimensions, glue_shape=glue_shape)
-    #
-    # # arrange the orbit states into an array of the same shape as the symbol array.
-    # orbit_field_list = [o.convert(to='field').state for o in pair_of_orbits_array.ravel()]
-    # glued_orbit_state = np.array(orbit_field_list).reshape(*pair_of_orbits_array.shape, *tiling_shape)
-    # # iterate through and combine all of the axes.
-    # while len(glued_orbit_state.shape) > len(tiling_shape):
-    #     glued_orbit_state = np.concatenate(glued_orbit_state, axis=gluing_axis)
-    #
-    # glued_orbit = class_constructor(state=glued_orbit_state, basis='field',
-    #                                 parameters=glued_parameters)
-
-    return None
-
-
-def tile_dictionary_ks(tileset='default', comoving=False):
-    """ Template tiles for Kuramoto-Sivashinsky equation.
-
-
-    Parameters
-    ----------
-    padded : bool
-    Whether to use the zero-padded versions of the tiles
-    comoving : bool
-    Whether to use the merger tile in the physical or comoving frame.
-
-    Returns
-    -------
-    tile_dict : dict
-    Dictionary which contains merger, streak, wiggle tiles for use in tiling and gluing.
-
-    Notes
-    -----
-    The dictionary is setup as follows : {0: streak, 1: merger, 2: wiggle}
-    """
-
-    if tileset == 'padded':
-        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/padded/'))
-    elif tileset == 'extra_padded':
-        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/extra_padded/'))
-    elif tileset == 'extra_padded_space':
-        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/extra_space_padded/'))
-    elif tileset == 'all_padded_space':
-        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/all_padded_space/'))
-    elif tileset == 'padded_space':
-        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/padded_space/'))
-    elif tileset == 'padded_time':
-        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/padded_time/'))
-    elif tileset == 'rescaled':
-        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/rescaled/'))
-    else:
-        directory = os.path.abspath(os.path.join(__file__, '../../data/tiles/default/'))
-
-    if comoving:
-        # padded merger orbit in physical frame.
-        merger = read_h5('./OrbitKS_merger_comoving.h5', directory=directory, basis='field')
-    else:
-        # padded merger Orbit in comoving frame
-        merger = read_h5('./OrbitKS_merger.h5', directory=directory, basis='field')
-
-    # padded streak orbit
-    streak = read_h5('./OrbitKS_streak.h5', directory=directory, basis='field')
-
-    # padded wiggle orbit
-    wiggle = read_h5('./OrbitKS_wiggle.h5', directory=directory, basis='field')
-
-    tile_dict = {0: streak, 1: merger, 2: wiggle}
-    return tile_dict
 
 
 def glue(array_of_orbit_instances, class_constructor, stripwise=False, **kwargs):
@@ -283,7 +184,7 @@ def glue(array_of_orbit_instances, class_constructor, stripwise=False, **kwargs)
         zipped_dimensions = tuple(zip(*(o.dimensions for o in array_of_orbit_instances.ravel())))
         glued_parameters = class_constructor.glue_parameters(zipped_dimensions, glue_shape=glue_shape)
         # arrange the orbit states into an array of the same shape as the symbol array.
-        orbit_field_list = np.array([o.convert(to='field').state for o in array_of_orbit_instances.ravel()])
+        orbit_field_list = np.array([o.transform(to='field').state for o in array_of_orbit_instances.ravel()])
         glued_orbit_state = np.array(orbit_field_list).reshape(*array_of_orbit_instances.shape, *tiling_shape)
         # iterate through and combine all of the axes.
         while len(glued_orbit_state.shape) > len(tiling_shape):
@@ -325,8 +226,8 @@ def tile(symbol_array, tiling_dictionary, class_constructor,  **kwargs):
     return glued_orbit
 
 
-def generate_symbol_arrays(tile_dictionary, glue_shape, unique=True):
-    symbol_array_generator = itertools.product(list(tile_dictionary.keys()), repeat=np.product(glue_shape))
+def generate_symbol_arrays(fpo_dictionary, glue_shape, unique=True):
+    symbol_array_generator = itertools.product(list(fpo_dictionary.keys()), repeat=np.product(glue_shape))
     if unique:
         axes = tuple(range(len(glue_shape)))
         cumulative_equivariants = []
@@ -346,7 +247,7 @@ def generate_symbol_arrays(tile_dictionary, glue_shape, unique=True):
         return [np.reshape(x, glue_shape) for x in symbol_array_generator]
 
 
-def rediscretize_tiling_dictionary(tiling_dictionary, **kwargs):
+def rediscretize_fpo_dictionary(tiling_dictionary, **kwargs):
     orbits = list(tiling_dictionary.values())
     new_shape = kwargs.get('new_shape', None)
 
