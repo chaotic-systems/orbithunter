@@ -662,7 +662,7 @@ class OrbitKS(Orbit):
             M = kwargs.get('M', None)
         return N, M
 
-    def plot(self, show=True, save=False, fundamental_domain=True, **kwargs):
+    def plot(self, show=True, save=False, fundamental_domain=False, **kwargs):
         """ Plot the velocity field as a 2-d density plot using matplotlib's imshow
 
         Parameters
