@@ -14,60 +14,61 @@ __all__ = ['OrbitKS', 'RelativeOrbitKS', 'ShiftReflectionOrbitKS', 'Antisymmetri
 
 
 class OrbitKS(Orbit):
-    """ Object that represents invariant 2-Orbit solution of the Kuramoto-Sivashinsky equation.
-
-    Parameters
-    ----------
-
-    state : ndarray(dtype=float, ndim=2)
-        Array which contains one of the following: velocity field,
-        spatial Fourier modes, or spatiotemporal Fourier modes.
-        If None then a randomly generated set of spatiotemporal modes
-        will be produced.
-    basis : str
-        Which basis the array 'state' is currently in. Takes values
-        'field', 's_modes', 'modes'. Needs to reflect the current basis.
-    T : float
-        The temporal period.
-    L : float
-        The spatial period.
-    S : float
-        The spatial shift for doubly-periodic orbits with continuous translation symmetry.
-        S represents rotation/translation such that S = S mod L
-    **kwargs :
-    N : int
-        The lattice size in the temporal dimension.
-    M : int
-        The lattice size in the spatial dimension.
-
-    Raises
-    ----------
-    ValueError :
-        If 'state' is not a NumPy array
-
-    See Also
-    --------
-
-
-    Notes
-    -----
-    The 'state' is ordered such that when in the physical basis, the last row corresponds to 't=0'. This
-    results in an extra negative sign when computing time derivatives. This convention was chosen
-    because it is conventional to display positive time as 'up'. This convention prevents errors
-    due to flipping fields up and down. The spatial shift parameter only applies to RelativeOrbitKS.
-    Its inclusion in the base class is again a convention
-    for exporting and importing data. If no state is None then a randomly generated state will be
-    provided. It's dimensions will provide on the spatial and temporal periods unless provided
-    as keyword arguments {N, M}.
-
-
-    Examples
-    --------
-    """
 
     def __init__(self, state=None, basis='modes', parameters=(0., 0., 0.), **kwargs):
-        # Capital letters per Physics conventions for variables.
-        # If no state is provided, randomly generate one.
+        """ Object that represents invariant 2-torus solution of the Kuramoto-Sivashinsky equation.
+
+        Parameters
+        ----------
+        state : ndarray(dtype=float, ndim=2)
+            Array which contains one of the following: velocity field,
+            spatial Fourier modes, or spatiotemporal Fourier modes.
+            If None then a randomly generated set of spatiotemporal modes
+            will be produced.
+        basis : str
+            Which basis the array 'state' is currently in. Takes values
+            'field', 's_modes', 'modes'.
+        parameters : tuple
+
+        **kwargs :
+        N : int
+            The lattice size in the temporal dimension.
+        M : int
+            The lattice size in the spatial dimension.
+
+        constraints: dict
+            Dictionary where the keys are `self.parameter_labels` and values are bools, namely, whether
+            the dimensions/parameters are to be constrained during optimization.
+
+        _parse_parameter kwargs :
+            See the description of the aforementioned method.
+
+        Raises
+        ----------
+        ValueError :
+            If 'state' is not a NumPy array
+
+        See Also
+        --------
+
+
+        Notes
+        -----
+        The 'state' is ordered such that when in the physical basis, the last row corresponds to 't=0'. This
+        results in an extra negative sign when computing time derivatives. This convention was chosen
+        because it is conventional to display positive time as 'up'. This convention prevents errors
+        due to flipping fields up and down. The spatial shift parameter only applies to RelativeOrbitKS.
+        Its inclusion in the base class is again a convention
+        for exporting and importing data. If no state is None then a randomly generated state will be
+        provided. It's dimensions will provide on the spatial and temporal periods unless provided
+        as keyword arguments {N, M}.
+
+        The `parameters' argument is always given as a len(parameters)=3 tuple, in-case of conversion between
+        different symmetry sub-types.
+
+        Examples
+        --------
+        """
         super().__init__(state=state, basis=basis, parameters=parameters, **kwargs)
 
     def __getattr__(self, attr):
@@ -84,39 +85,52 @@ class OrbitKS(Orbit):
             print('Attribute is not of readable type')
 
     def state_vector(self):
-        """ Vector which completely specifies the orbit """
+        """ Vector which completely specifies the orbit, contains state information and parameters. """
         return np.concatenate((self.state.reshape(-1, 1),
                                np.array([[float(self.T)]]),
                                np.array([[float(self.L)]])), axis=0)
 
-    def from_numpy_array(self, state_array, **kwargs):
+    def from_numpy_array(self, state_vector, **kwargs):
         """ Utility to convert from numpy array to orbithunter format for scipy wrappers.
-        :param orbit:
-        :param state_array:
-        :param parameter_constraints:
-        :return:
+
+        Parameters
+        ----------
+        state_vector : ndarray
+            State vector containing state values (modes, typically) and parameters or optimization corrections thereof.
+
+        kwargs :
+            parameters : tuple
+                If parameters from another Orbit instance are to overwrite the values within the state_vector
+            parameter_constraints : dict
+                constraint dictionary, keys are parameter_labels, values are bools
+            OrbitKS or subclass kwargs : dict
+                If special kwargs are required/desired for Orbit instantiation.
+        Returns
+        -------
+
 
         Notes
         -----
-        Written as a general method that covers all subclasses instead of writing individual methods.
-
         Important: If parameters are passed as a keyword argument, they are appended to the numpy array,
-        'state_array', via concatenation. The purpose of this is for rmatvec products wherein the
+        'state_array', via concatenation. The common usage of this function is to take the output of SciPy
+        optimization functions which are in the form of numpy arrays and cast them as Orbit instances.
         """
         # If there are parameters_passed, then they are meant to be added to the state_array (i.e. we're taking
         # values from another orbit instance.
         mode_shape, mode_size = self.mode_shape, self.state.size
-        modes = state_array.ravel()[:mode_size]
+        modes = state_vector.ravel()[:mode_size]
         # We slice off the modes and the rest of the list pertains to parameters; note if the state_array had
         # parameters, and parameters were added by
 
-        params_list = list(kwargs.pop('parameters', state_array.ravel()[mode_size:].tolist()))
+        params_list = list(kwargs.pop('parameters', state_vector.ravel()[mode_size:].tolist()))
         parameters = tuple(params_list.pop(0) if not p and params_list else 0 for p in self.constraints.values())
-        return self.__class__(state=np.reshape(modes, mode_shape), basis='modes',
-                              parameters=parameters, **kwargs)
+        state_orbit = self.__class__(state=np.reshape(modes, mode_shape), basis='modes',
+                                     parameters=parameters, **kwargs)
+        return state_orbit
 
     def verify_integrity(self):
-        """ Check whether the orbit converged to an equilibrium or close-to-zero solution """
+        """ Check whether the orbit converged to an equilibrium or close-to-zero solution
+        """
         # Take the L_2 norm of the field, if uniformly close to zero, the magnitude will be very small.
         field_orbit = self.transform(to='field')
 
@@ -143,10 +157,8 @@ class OrbitKS(Orbit):
 
     def transform(self, inplace=False, to='modes'):
         """ Convert current state to a different basis.
-        This instance method is just a wrapper for different
-        Fourier transforms. It's purpose is to remove the
-        need for the user to keep track of the basis by hand.
-        This should be used as opposed to Fourier transforms.
+
+
         Parameters
         ----------
         inplace : bool
@@ -162,6 +174,14 @@ class OrbitKS(Orbit):
         ----------
         converted_orbit : orbit or orbit subclass instance
             The class instance in the new basis.
+
+        Notes
+        -----
+        This instance method is just a wrapper for different
+        Fourier transforms. It's purpose is to remove the
+        need for the user to keep track of the basis by hand.
+        This should be used as opposed to Fourier transforms.
+
         """
         if to == 'field':
             if self.basis == 's_modes':
@@ -188,11 +208,11 @@ class OrbitKS(Orbit):
             raise ValueError('Trying to convert to unrecognizable state type.')
 
     def copy(self):
+        """ Create another Orbit instance with a copy of the state array"""
         return self.__class__(state=self.state.copy(), basis=self.basis, parameters=self.parameters)
 
     def dot(self, other):
         """ Return the L_2 inner product of two orbits
-
         Returns
         -------
         float :
@@ -201,7 +221,7 @@ class OrbitKS(Orbit):
         return float(np.dot(self.state.ravel(), other.state.ravel()))
 
     def dt(self, power=1, return_array=False):
-        """ A time derivative of the current state.
+        """ Time derivatives of the current state.
 
         Parameters
         ----------
@@ -686,6 +706,8 @@ class OrbitKS(Orbit):
         if fundamental_domain:
             plot_orbit = plot_orbit.to_fundamental_domain().transform(to='field', inplace=True)
         else:
+            # The fundamental domain is never used in computation, so no operations are required if we do not want
+            # to plot the fundamental domain explicitly.
             plot_orbit = plot_orbit.transform(to='field', inplace=True)
 
         # The following creates custom tick labels and accounts for some pathological cases
@@ -767,7 +789,7 @@ class OrbitKS(Orbit):
             # Create save directory if one doesn't exist.
             if isinstance(directory, str):
                 if directory == 'local':
-                    directory = os.path.abspath(os.path.join(__file__, '../../data/local/'))
+                    directory = os.path.abspath(os.path.join(__file__, '../../../data/local/', str(self)))
 
             # If filename is provided as an absolute path it overrides the value of 'directory'.
             filename = os.path.abspath(os.path.join(directory, filename))
@@ -939,13 +961,11 @@ class OrbitKS(Orbit):
 
         if not self.constraints['L']:
             # change in L, dL, equal to DF/DL * v
-
             # original
             rmatvec_L = ((-2.0 / self.L) * self.dx(power=2, return_array=True)
                          + (-4.0 / self.L) * self.dx(power=4, return_array=True)
                          + (-1.0 / self.L) * self_field.nonlinear(self_field, return_array=True)
                          ).ravel().dot(other_modes_in_vector_form)
-
         else:
             rmatvec_L = 0
 
@@ -977,8 +997,9 @@ class OrbitKS(Orbit):
 
         # If including parameters, need an extra diagonal matrix to account for this (right-side preconditioning)
         if side == 'right':
+            pexp = kwargs.get('pexp', (1, 1))
             return np.diag(np.concatenate((p_multipliers,
-                                           self._parameter_preconditioning(dt_params, dx_params)), axis=0))
+                                           self._parameter_preconditioning(dt_params, dx_params, pexp=pexp)), axis=0))
         else:
             return np.diag(p_multipliers)
 
@@ -1246,14 +1267,13 @@ class OrbitKS(Orbit):
         # to be efficient, should be in modes basis.
         assert self.basis == 'modes', 'Convert to spatiotemporal Fourier mode basis before computing mapping func.'
 
-        # to avoid two IFFT calls, convert before nonlinear product
+        # # to avoid two IFFT calls, convert before nonlinear product
         orbit_field = self.transform(to='field')
-
-        # Compute the Kuramoto-sivashinsky equation
+        # 
+        # # Compute the Kuramoto-sivashinsky equation
         mapping_modes = (self.dt(return_array=True) + self.dx(power=2, return_array=True)
                          + self.dx(power=4, return_array=True)
                          + orbit_field.nonlinear(orbit_field, return_array=True))
-        # Put the result in an orbit instance.
         return self.__class__(state=mapping_modes, basis='modes', parameters=self.parameters)
 
     def statemul(self, other):
@@ -1690,7 +1710,7 @@ class OrbitKS(Orbit):
         time_real = modes[:-self.n, :]
         time_imaginary = np.concatenate((np.zeros([1, self.mode_shape[1]]), modes[-self.n:, :]), axis=0)
         complex_modes = np.concatenate((time_real + 1j * time_imaginary, np.zeros([1, self.mode_shape[1]])), axis=0)
-        complex_modes[1:, :] = complex_modes[1:, :]/np.sqrt(2)
+        complex_modes[1:, :] = (1./np.sqrt(2)) * complex_modes[1:, :]
         space_modes = irfft(complex_modes, norm='ortho', axis=0)
         if inplace:
             self.basis = 's_modes'
@@ -1783,6 +1803,7 @@ class OrbitKS(Orbit):
         idft_mat_imag = irfft(1j * np.eye(self.N//2 + 1), norm='ortho', axis=0)
         time_idft_mat = np.concatenate((idft_mat_real[:, :-1],
                                         idft_mat_imag[:, 1:-1]), axis=1)
+        # to make the transformations orthogonal, based on scipy implementation of scipy.fft.irfft
         time_idft_mat[:, 1:] = time_idft_mat[:, 1:]/np.sqrt(2)
         return np.kron(time_idft_mat, np.eye(self.M-2))
 
@@ -1801,7 +1822,8 @@ class OrbitKS(Orbit):
 
         idft_mat_real = irfft(np.eye(self.M//2 + 1), norm='ortho', axis=0)[:, 1:-1]
         idft_mat_imag = irfft(1j*np.eye(self.M//2 + 1), norm='ortho', axis=0)[:, 1:-1]
-        space_idft_mat = (1./np.sqrt(2))*np.concatenate((idft_mat_real, idft_mat_imag), axis=1)
+        # to make the transformations orthogonal, based on scipy implementation of scipy.fft.irfft
+        space_idft_mat = (1./np.sqrt(2)) * np.concatenate((idft_mat_real, idft_mat_imag), axis=1)
         return np.kron(np.eye(self.N), space_idft_mat)
 
     def _space_transform_matrix(self):
@@ -1828,7 +1850,7 @@ class OrbitKS(Orbit):
         """
 
         dft_mat = rfft(np.eye(self.M), norm='ortho', axis=0)[1:-1, :]
-        space_dft_mat = np.sqrt(2)*np.concatenate((dft_mat.real, dft_mat.imag), axis=0)
+        space_dft_mat = np.sqrt(2) * np.concatenate((dft_mat.real, dft_mat.imag), axis=0)
         return np.kron(np.eye(self.N), space_dft_mat)
 
     def _inv_spacetime_transform(self, inplace=False):
@@ -2616,7 +2638,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
 
     def dx(self, power=1, return_array=False):
         """ Overwrite of parent method """
-        tmp  = 0
+
         if np.mod(power, 2):
             dxn_s_modes = swap_modes(np.multiply(self.elementwise_dxn(self.dx_parameters, power=power),
                                                  self.transform(to='s_modes').state), axis=1)
@@ -3918,10 +3940,13 @@ def ks_fpo_dictionary(tileset='default', comoving=False, rescaled=False, **kwarg
     The dictionary is setup as follows : {0: streak, 1: defect, 2: wiggle}
     """
     fpo_filenames = []
-    directory = os.path.abspath(os.path.join(__file__, '../../data/ks/tiles/', ''.join(['./', tileset])))
+    directory = os.path.abspath(os.path.join(__file__, '../../../data/ks/tiles/', ''.join(['./', tileset])))
     if rescaled:
         directory = os.path.abspath(os.path.join(directory, './rescaled/'))
-    
+
+    # streak orbit
+    fpo_filenames.append(os.path.abspath(os.path.join(directory, './OrbitKS_streak.h5')))
+
     if comoving:
         # padded defect orbit in physical frame.
         fpo_filenames.append(os.path.abspath(os.path.join(directory, './OrbitKS_defect_comoving.h5')))
@@ -3929,11 +3954,8 @@ def ks_fpo_dictionary(tileset='default', comoving=False, rescaled=False, **kwarg
         # padded defect Orbit in comoving frame
         fpo_filenames.append(os.path.abspath(os.path.join(directory, './OrbitKS_defect.h5')))
 
-    # streak orbit
-    fpo_filenames.append(os.path.abspath(os.path.join(directory, './OrbitKS_streak.h5')))
-
     # wiggle orbit
-    fpo_filenames.append( os.path.abspath(os.path.join(directory, './OrbitKS_wiggle.h5')))
+    fpo_filenames.append(os.path.abspath(os.path.join(directory, './OrbitKS_wiggle.h5')))
 
     return dict(zip(range(len(fpo_filenames)), fpo_filenames))
 

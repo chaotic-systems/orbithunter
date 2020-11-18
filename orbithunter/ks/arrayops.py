@@ -32,7 +32,7 @@ def so2_coefficients(power=1):
 def calculate_spatial_shift(s_modes, L, **kwargs):
     """ Calculate the phase difference between the spatial modes at t=0 and t=T """
     m0 = s_modes.shape[1]//2
-    modes_included = np.min([kwargs.get('n_modes', 1), m0])
+    modes_included = np.min([kwargs.get('n_modes', m0), m0])
     if -m0 + modes_included == 0:
         space_imag_slice_end = None
     else:
@@ -45,10 +45,10 @@ def calculate_spatial_shift(s_modes, L, **kwargs):
     if np.linalg.norm(modes_0-modes_T) <= 10**-6:
         shift = L / s_modes.shape[1]
     else:
-        shift_guess = (L / (2 * pi))*float(np.arccos((np.dot(np.transpose(modes_T), modes_0)
-                                       / (np.linalg.norm(modes_T)*np.linalg.norm(modes_0)))))
+        shift_guess = (-L / (2 * pi))*float(np.arccos((np.dot(np.transpose(modes_T), modes_0)
+                                           / (np.linalg.norm(modes_T)*np.linalg.norm(modes_0)))))
         def fun_(shift):
-            thetak = 1.0 * shift * ((2 * pi) / L) * np.arange(1, m+1)
+            thetak = -1.0 * shift * ((2 * pi) / L) * np.arange(1, m+1)
             cosinek = np.cos(thetak)
             sinek = np.sin(thetak)
             rotated_real_modes_T = np.multiply(cosinek,  modes_T[:-m]) + np.multiply(sinek,  modes_T[-m:])

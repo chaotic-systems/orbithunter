@@ -101,9 +101,6 @@ def dimension_continuation(orbit_, new_size, axis=0, step_size=0.01, **kwargs):
         # outside the function
         if kwargs.get('save', False):
             converge_result.orbit.to_h5(**kwargs)
-            converge_result.orbit.plot(show=kwargs.pop('show', False), **kwargs)
-        elif kwargs.get('plot_intermediates', False):
-            converge_result.orbit.plot(show=kwargs.get('plot_intermediates', False), **kwargs)
 
     return converge_result
 

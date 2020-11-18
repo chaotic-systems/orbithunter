@@ -701,13 +701,15 @@ def _print_exit_messages(orbit, status):
     """
     if isinstance(status, tuple):
         status = status[-1]
-    if status == 0:
-        print('\nStalled. Exiting with residual {}'.format(orbit.residual()))
-    elif status == -1:
-        print('\nConverged. Exiting with residual {}'.format(orbit.residual()))
+    if status == -1:
+        print('\nConverged. Exiting with residual={}'.format(orbit.residual()))
+    elif status == 0:
+        print('\nStalled. Exiting with residual={}'.format(orbit.residual()))
     elif status == 2:
         print('\nMaximum number of iterations reached.'
-              ' exiting with residual {}'.format(orbit.residual()))
+              ' exiting with residual={}'.format(orbit.residual()))
+    elif status == 3:
+        print('\nInsufficient residual decrease, exiting with residual={}'.format(orbit.residual()))
     else:
         # A general catch all for custom status flag values
         print('\n Optimization termination with status {} and residual {}'.format(status, orbit.residual()))
@@ -833,12 +835,12 @@ def _check_correction(orbit_, next_orbit_, stats, tol, maxiter, ftol, step_size,
         stats['status'] = 0
         stats['residuals'].append(next_residual)
         return orbit_,  stats
-    elif (residual - next_residual) / max([residual, next_residual, 1]) < ftol:
-        stats['status'] = 0
-        stats['residuals'].append(next_residual)
-        return next_orbit_,  stats
     elif stats['nit'] == maxiter:
         stats['status'] = 2
+        stats['residuals'].append(next_residual)
+        return next_orbit_,  stats
+    elif (residual - next_residual) / max([residual, next_residual, 1]) < ftol:
+        stats['status'] = 3
         stats['residuals'].append(next_residual)
         return next_orbit_,  stats
     else:
@@ -848,17 +850,20 @@ def _check_correction(orbit_, next_orbit_, stats, tol, maxiter, ftol, step_size,
         if verbose:
             if method == 'adj':
                 if np.mod(stats['nit'], 5000) == 0:
-                    print('\n Residual={:.7f} after {} adjoint descent steps. Parameters:{}'.format(
+                    print('\n Residual={:.7f} after {} adjoint descent steps. Parameters={}'.format(
                           next_residual, stats['nit'], orbit_.parameters))
                 elif np.mod(stats['nit'], 100) == 0:
                     print('#', end='')
             elif method == 'newton_descent':
                 if inner_nit is not None:
-                    print(('Residual={} after {} inner loops, for a total Newton descent step with size {}').
+                    print('Residual={} after {} inner loops, for a total Newton descent step with size {}'.
                           format(next_residual, inner_nit, step_size*inner_nit))
             else:
                 print('#', end='')
                 if np.mod(stats['nit'], 25) == 0:
-                    print(' Residual={:.7f} after {} {} iterations'.format(next_residual, stats['nit'], method))
+                    print('\n Residual={:.7f} after {} adjoint descent steps. Parameters={}'.format(
+                      next_residual, stats['nit'], orbit_.parameters))
+                    print(' Residual={:.7f} after {} {} iterations. Parameters={}'.format(next_residual,
+                                                                           stats['nit'], method, orbit_.parameters))
             sys.stdout.flush()
         return next_orbit_, stats

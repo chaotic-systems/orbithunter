@@ -35,6 +35,7 @@ class Orbit:
     """
 
     def __init__(self, state=None, basis='field', parameters=(0.,), **kwargs):
+
         if state is not None:
             self._parse_parameters(parameters, **kwargs)
             self._parse_state(state, basis, **kwargs)
@@ -233,7 +234,7 @@ class Orbit:
                     pass
             return placeholder_orbit.transform(to=self.basis, inplace=True)
 
-    def convert(self, inplace=False, to=None):
+    def transform(self, inplace=False, to=None):
         """ Method that handles all basis transformations.
 
         Parameters
@@ -521,7 +522,7 @@ class Orbit:
             filename = self.parameter_dependent_filename()
 
         if directory == 'local':
-            directory = os.path.abspath(os.path.join(__file__, ''.join(['../../data/local/', str(self), '/'])))
+            directory = os.path.abspath(os.path.join(__file__, '../../data/local/', str(self)))
         elif directory == '':
             pass
         elif not os.path.isdir(directory):

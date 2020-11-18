@@ -10,20 +10,18 @@ __all__ = ['read_h5', 'read_fpo_set', 'convergence_log', 'refurbish_log', 'write
 
 
 def read_h5(filename, directory='local', data_format='orbithunter',
-            basis='modes', cls=None,  check=False, equation='ks', **orbitkwargs):
+            basis='modes', import_cls=None,  check=False, equation='ks', **orbitkwargs):
 
     parsing_dictionary, instantiate_orbit = parsing_util(equation=equation)
-
-    if cls is None:
-        class_generator = parse_class(filename, parsing_dictionary)
-    elif isinstance(cls, str):
-        class_generator = parse_class(cls, parsing_dictionary)
-    else:
-        class_generator = cls
-
+    class_generator = parse_class(filename, parsing_dictionary)
     if directory == 'local':
-        directory = os.path.abspath(os.path.join(__file__, ''.join(['../../data/local/',
-                                                                    class_generator.__name__, '/'])))
+        directory = os.path.abspath(os.path.join(__file__, '../../data/local/', str(class_generator.__name__)))
+
+    if import_cls is not None:
+        if isinstance(import_cls, str):
+            class_generator = parse_class(import_cls, parsing_dictionary)
+        else:
+            class_generator = import_cls
 
     with h5py.File(os.path.abspath(os.path.join(directory, filename)), 'r') as f:
         orbit_ = instantiate_orbit(f, class_generator, data_format=data_format,
@@ -39,7 +37,7 @@ def read_h5(filename, directory='local', data_format='orbithunter',
 
 def parse_class(filename, class_dict):
     name_string = os.path.basename(filename).split('_')[0]
-    keys = np.array(class_dict.keys())
+    keys = np.array(list(class_dict.keys()))
 
     if name_string in keys:
         cls_str = name_string
@@ -56,7 +54,9 @@ def read_fpo_set(equation='ks', **kwargs):
         fpo_dict = ks_fpo_dictionary
     else:
         raise ValueError('The function read_fpo_set encountered an unrecognizable equation.')
-    return {key: read_h5(val, **kwargs) for key, val in fpo_dict(**kwargs)}
+    # Require fpos to be in field basis; pop it off kwargs lest it throws an error for multiples
+    kwargs.pop('basis', None)
+    return {key: read_h5(val, basis='field', **kwargs) for key, val in fpo_dict(**kwargs).items()}
 
 
 def parsing_util(equation='ks'):

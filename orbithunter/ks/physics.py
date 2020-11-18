@@ -110,49 +110,43 @@ def power(orbit_instance, average=None):
                               average=average)
 
 
-def shadowing(window_orbit, base_orbit, **kwargs):
+def shadowing(window_orbit, base_orbit, verbose=False, threshold=0.02, threshold_type='percentile', stride=1):
 
-    window_orbit.transform(to='field', inplace=True)
-    base_orbit.transform(to='field', inplace=True)
+    window_orbit = window_orbit.transform(to='field')
+    base_orbit = base_orbit.transform(to='field')
     twindow, xwindow = window_orbit.field_shape
     tbase, xbase = base_orbit.field_shape
-    assert twindow < tbase and xwindow < xbase, 'Shadowing window is larger than the orbit being searched. Reshape. '
+
+    assert twindow < tbase and xwindow < xbase, 'Shadowing window is larger than the base orbit. Reshape first. '
 
     # First, need to calculate the norm of the window squared and base squared (squared because then it detects
     # the shape rather than the color coded field), for all translations of the window.
-    norm_matrix = np.zeros([tbase-twindow, xbase-xwindow])
-    for i, tcorner in enumerate(range(0, base_orbit.field_shape[1]-window_orbit.field_shape[1])):
-        if kwargs.get('verbose', False):
-            if np.mod(i, (base_orbit.field_shape[1]-window_orbit.field_shape[1])//10) == 0:
-                print('#', end='')
-        for j, xcorner in enumerate(range(0,  base_orbit.field_shape[0]-window_orbit.field_shape[1])):
-            norm_matrix[i, j] = np.linalg.norm(base_orbit.state[tcorner:tcorner+twindow, xcorner:xcorner+xwindow]**2
-                                               -window_orbit.state**2)
-    indices = np.where(norm_matrix < np.percentile(norm_matrix.ravel(), kwargs.get('norm_percentile', 0.025)))
-    non_nan_points = []
-
-    # Once the norms are calculated, the positions with minimal norm represent the correct positions of the
-    # window corners, however we need the portions of the field corresponding to cutouts.
-
-    # By iterating over all corners, generating the corresponding windows, and then taking their intersection,
-    # we are left with the correct shadowing regions for the tolerance.
-    for t, x in zip(*indices):
-        if t < tbase-twindow and x < xbase-xwindow:
-            tslice = range(t, t+twindow)
-            xslice = range(x, x+xwindow)
-            testslice = itertools.product(tslice, xslice)
-            non_nan_points.extend(list(testslice))
-            non_nan_points = list(set(non_nan_points))
-
-    tindex = np.array(tuple(pairs[0] for pairs in non_nan_points))
-    xindex = np.array(tuple(pairs[1] for pairs in non_nan_points))
-    final_indices = (tindex, xindex)
+    mask = np.zeros([tbase, xbase])
+    norm_matrix = np.zeros([(tbase-twindow)//stride, (xbase-xwindow)//stride])
+    for i, t in enumerate(range(0, tbase-twindow, stride)):
+        if verbose and np.mod(i, ((tbase-twindow)//stride)//10) == 0:
+            print('#', end='')
+        for j, x in enumerate(range(0,  xbase-xwindow, stride)):
+            trange = np.arange(t, t+twindow)
+            xrange = np.arange(x, x+xwindow)
+            # numpy meshgrid returns list but slicing needs a tuple.
+            window_slice_indices = tuple(np.meshgrid(trange, xrange, indexing='ij'))
+            norm_matrix[i, j] = np.linalg.norm(base_orbit.state[window_slice_indices]**2 - window_orbit.state**2)
+    if threshold_type == 'percentile':
+        threshold = np.percentile(norm_matrix[norm_matrix > 0.],  threshold)
+        indices = np.where((norm_matrix > 0.) & (norm_matrix < threshold))
+    else:
+        indices = np.where((norm_matrix > 0.) & (norm_matrix < threshold))
+    for i, j in zip(*indices):
+        t, x = stride*i,  stride*j
+        trange = np.arange(t, t+twindow)
+        xrange = np.arange(x, x+xwindow)
+        # numpy meshgrid returns list but slicing needs a tuple.
+        mask[tuple(np.meshgrid(trange, xrange, indexing='ij'))] = 1
 
     masked_orbit = base_orbit.copy()
-    mask = np.zeros([tbase, xbase])
-    mask[final_indices] = 1
-    masked_orbit.state[mask != 1] = np.nan
-    return masked_orbit, mask
+    masked_orbit.state = np.ma.masked_array(masked_orbit.transform(to='field').state, mask=mask)
+    return masked_orbit, mask, threshold
 
 
 def integrate(orbit_, **kwargs):
