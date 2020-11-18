@@ -99,7 +99,12 @@ def clip(orbit_, window_dimensions, clipping_class=None, **kwargs):
         clipping_class = orbit_.__class__
 
     slices, dimensions = _slices_from_window(orbit_, window_dimensions)
-    parameters = tuple(dimensions[i] if i < len(dimensions) else p for i, p in enumerate(orbit_.parameters))
+
+    # It of course is better to get the dimensions/parameters from the clipping directly, but if the user wants to
+    # this gives them the ability to override.
+    parameters = kwargs.pop('parameters',
+                            tuple(dimensions[i] if i < len(dimensions) else p for i, p in enumerate(orbit_.parameters)))
+
     clipped_orbit = clipping_class(state=orbit_.transform(to='field').state[slices], basis='field',
                                    parameters=parameters, **kwargs)
     return clipped_orbit

@@ -1905,7 +1905,7 @@ class RelativeOrbitKS(OrbitKS):
 
         # If specified that the state is in physical frame then shift is calculated.
         if self.S == 0. and (frame == 'physical' or kwargs.get('nonzero_parameters', True)):
-            self.S = calculate_spatial_shift(self.transform(to='s_modes').state, self.L)
+            self.S = calculate_spatial_shift(self.transform(to='s_modes').state, self.L, **kwargs)
 
     def copy(self):
         return self.__class__(state=self.state.copy(), basis=self.basis, parameters=self.parameters, frame=self.frame)
