@@ -4,20 +4,24 @@ are either mandatory or highly recommended to be written for subclassing purpose
 For any equation for 2-d scalar fields, many functions can be borrowed from orbit_ks.py 
 (other than the governing equations of course).
 
-Dependencies for numerical optimization
----------------------------------------
+Requirements
+------------------
 
-spatiotemporal_mapping:
-Returns a class object whose state is the evaluation of the governing equations.
+Attributes
+--------------------------
 
-matvec: 
-Returns class instance with state equal to $A\cdot x$ where $A$ is the Jacobian and x is the original state. 
+state : ndarray or None
+If None type provided, then _random_initial_condition is called. 
 
-rmatvec:
-Returns class instance with state equal to $A^{\top}\cdot x$ where $A$ is the Jacobian and x is the original state. 
+Properties
+----------
+parameters : tuple
+A tuple representing a collection of  parameters required to define the orbit. 
+Typically dimensions + symmetry parameters. 
 
-convert : 
-Function which converts to and from the specified bases of the problem.
+
+Initialization methods
+----------------------
 
 _parse_state :
 A manner of processing input for state variable (vector/scalar field typically)
@@ -28,6 +32,32 @@ A manner of processing input for parameters variable (vector/scalar field typica
 _random_initial_condition :
 Unless all data will be imported, need some manner of creating initial conditions
 
+Dependencies for numerical optimization
+---------------------------------------
+
+spatiotemporal_mapping:
+Returns a class object whose state is the evaluation of the governing equations.
+
+matvec: 
+Returns class instance with state equal to $A\cdot x$ where $A$ is the Jacobian and x is the original state. 
+
+rmatvec:
+Returns class instance with state equal to $A^{\top}\cdot x$ where $A^{\top}$ is the Jacobian transpose
+and x is the original state. (Recommended to use formal Lagrangian to derive adjoint equations).
+
+transform : 
+Function which converts to and from the relevant bases of the state.  ALL
+Chebyshev/Fourier transforms should be accessed through this wrapper. 
+(i.e. field to modes, modes to field).
+
+from_numpy_array : 
+Method for transforming numpy arrays into Orbits. 
+
+residual :
+The numerical residual of a state, currently defaults to 1/2|f|^2 where f is the governing equation.
+
+cost_function_gradient : 
+The derivative of the function which produces the residual 
 
 Dependencies for spt techniques (clip, glue, etc.)
 --------------------------------------------------
@@ -37,6 +67,19 @@ How to add/average parameters for gluing
 
 reshape:
 Interpolate/truncate to change the dimensionality of the tile and by consequence, the state.
+
+@property
+field_shape :
+The discretization shape of the field, i.e. $(N_t, N_x, N_y, N_z, ...)$
+
+@property
+dimensions : 
+The magnitude of each field dimension
+
+@property
+plotting_dimensions :
+Returns the dimensions in plotting units, can be the same as dimensions 
+
 
 Highly recommended
 ------------------
@@ -62,21 +105,15 @@ reduce dimensionality via truncation of modes
 
 
 
-properties, static methods
---------------------------
-
-parameters : 
-literally just a tuple of the parameters required for spatiotemporal_mapping/rmatvec/matvec etc. 
-
-
 
 Future inclusions
 -----------------
-preconditioning : method which applies preconditioning operation to state / parameters 
-***The inclusion of this ***
+preconditioning : 
+method which applies preconditioning operation to state / parameters 
 
-preconditioner : matrix representation of precondition
-
+@property
+preconditioning_parameters: 
+parameters required to apply preconditioning
 
 
 

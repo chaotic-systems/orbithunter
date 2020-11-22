@@ -2,7 +2,7 @@ from .optimize import converge
 from .io import read_h5, read_fpo_set
 from .ks import (OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS, AntisymmetricOrbitKS, EquilibriumOrbitKS,
                  RelativeEquilibriumOrbitKS)
-from .gluing import glue, tile
+from .gluing import glue, tile, rediscretize_fpo_dictionary
 from .clipping import clip, mask_orbit
 from .persistent_homology import gudhi_plot, gudhi_distance
 from .continuation import dimension_continuation, discretization_continuation

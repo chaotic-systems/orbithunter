@@ -186,9 +186,6 @@ class Orbit:
         dictstr = dumps(dict_)
         return self.__class__.__name__ + '(' + dictstr + ')'
 
-    def concat(self, *others, axis=0):
-        return None
-
     def cost_function_gradient(self, spatiotemporal_mapping, **kwargs):
         preconditioning = kwargs.get('preconditioning', False)
         if preconditioning:
@@ -332,10 +329,10 @@ class Orbit:
         This is used primarily in optimization methods, e.g. adding a gradient descent step using class instances
         instead of simply arrays.
         """
-        orbit_params = tuple(self_param + step_size * other_param for self_param, other_param
-                             in zip(self.parameters, other.parameters))
+        incremented_params = tuple(self_param + step_size * other_param for self_param, other_param
+                                   in zip(self.parameters, other.parameters))
         return self.__class__(state=self.state+step_size*other.state, basis=self.basis,
-                              parameters=orbit_params, **kwargs)
+                              parameters=incremented_params, **kwargs)
 
     def _pad(self, size, axis=0):
         """ Increase the size of the discretization along an axis.
@@ -507,7 +504,7 @@ class Orbit:
         """
         return None
 
-    def to_h5(self, filename=None, directory='local', verbose=False, include_residual=False, **kwargs):
+    def to_h5(self, filename=None, directory='local', verbose=False, include_residual=False):
         """ Export current state information to HDF5 file
 
         Parameters
@@ -600,6 +597,14 @@ class Orbit:
 
         """
         return None
+
+    def to_fundamental_domain(self, **kwargs):
+        """ Placeholder for subclassees, included for compatibility"""
+        return self
+
+    def from_fundamental_domain(self, **kwargs):
+        """ Placeholder for subclassees, included for compatibility"""
+        return self
 
     def copy(self):
         """ Returns a shallow copy of an orbit instance.

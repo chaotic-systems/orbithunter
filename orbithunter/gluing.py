@@ -7,7 +7,21 @@ __all__ = ['tile', 'glue', 'generate_symbol_arrays', 'rediscretize_fpo_dictionar
 
 
 def _correct_aspect_ratios(array_of_orbits, axis=0):
+    """ Correct aspect ratios of a one-dimensional strip of orbits.
 
+    Parameters
+    ----------
+    array_of_orbits
+    axis
+
+    Returns
+    -------
+
+    Notes
+    -----
+    Currently heavily biased to work properly only for the KSe.
+
+    """
     iterable_of_dims = [o.dimensions[axis] for o in array_of_orbits.ravel()]
     iterable_of_shapes = [o.field_shape[axis] for o in array_of_orbits.ravel()]
 
@@ -216,7 +230,7 @@ def tile(symbol_array, tiling_dictionary, class_constructor,  **kwargs):
     Notes
     -----
     This is simply a wrapper for gluing that allows the user to submit symbol arrays and dictionaries instead
-    of orbit arrays. It also reshapes all orbits in the dictionary to a uniform size.
+    of orbit arrays.
 
     """
     symbol_array_shape = symbol_array.shape
@@ -227,6 +241,23 @@ def tile(symbol_array, tiling_dictionary, class_constructor,  **kwargs):
 
 
 def generate_symbol_arrays(fpo_dictionary, glue_shape, unique=True):
+    """ Produce all d-dimensional symbol arrays for a given dictionary and shape.
+
+    Parameters
+    ----------
+    fpo_dictionary
+    glue_shape
+    unique
+
+    Returns
+    -------
+
+    Notes
+    -----
+    If unique = False then this produces a list of d^N elements, d being the dimension and N being the number
+    of symbols in the dictionary.
+
+    """
     symbol_array_generator = itertools.product(list(fpo_dictionary.keys()), repeat=np.product(glue_shape))
     if unique:
         axes = tuple(range(len(glue_shape)))
@@ -252,6 +283,8 @@ def rediscretize_fpo_dictionary(tiling_dictionary, **kwargs):
     new_shape = kwargs.get('new_shape', None)
 
     if new_shape is None:
+        # If the user is really lazy this will make the dictionary uniform by
+        # changing the discretization sizes based on averages (and class type).
         average_dimensions = tuple(np.mean(x) for x in tuple(zip(*(o.dimensions for o in orbits))))
         most_common_orbit_class = max(Counter([o.__class__ for o in orbits]))
         new_shape = most_common_orbit_class.parameter_based_discretization(average_dimensions, **kwargs)

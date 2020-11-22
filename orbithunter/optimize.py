@@ -456,6 +456,8 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method='minres', m
             ATA = LinearOperator(linear_operator_shape, matvec_func, rmatvec=matvec_func, dtype=float)
             ATb = orbit_.rmatvec(-1.0 * orbit_.spatiotemporal_mapping()).state_vector().reshape(-1, 1)
 
+            # Experimental testing of preconditioning of the Normal equations.
+            ############################################################################################################
             if kwargs.get('preconditioning', False):
                 def p_matvec_func(v):
                     # _state_vector_to_orbit turns state vector into class object.
@@ -468,7 +470,9 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method='minres', m
                     v_orbit = orbit_.from_numpy_array(v)
                     return v_orbit.precondition_rmatvec(orbit_.preconditioning_parameters,
                                                         **kwargs).state_vector().reshape(-1, 1)
+
                 scipy_kwargs['M'] = LinearOperator(ATA.shape, p_matvec_func, rmatvec=p_rmatvec_func, dtype=float)
+            ############################################################################################################
 
             if method == 'minres':
                 result_tuple = minres(ATA, ATb, **scipy_kwargs),
@@ -541,6 +545,7 @@ def _scipy_optimize_minimize_wrapper(orbit_, tol, maxiter, method='l-bfgs-b',  *
         print('Starting {} optimization'.format(method))
         print('Initial residual : {}'.format(orbit_.residual()))
         print('Target residual tolerance : {}'.format(tol))
+        print('Maximum iteration number : {}'.format(maxiter))
         print('Initial guess : {}'.format(repr(orbit_)))
         print('-------------------------------------------------------------------------------------------------')
         sys.stdout.flush()
@@ -861,8 +866,6 @@ def _check_correction(orbit_, next_orbit_, stats, tol, maxiter, ftol, step_size,
             else:
                 print('#', end='')
                 if np.mod(stats['nit'], 25) == 0:
-                    print('\n Residual={:.7f} after {} adjoint descent steps. Parameters={}'.format(
-                      next_residual, stats['nit'], orbit_.parameters))
                     print(' Residual={:.7f} after {} {} iterations. Parameters={}'.format(next_residual,
                                                                            stats['nit'], method, orbit_.parameters))
             sys.stdout.flush()

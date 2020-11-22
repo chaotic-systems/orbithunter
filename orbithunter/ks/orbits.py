@@ -358,6 +358,16 @@ class OrbitKS(Orbit):
                               parameters=orbit_params,
                               constraints=self.constraints, **kwargs)
 
+    def to_h5(self, filename=None, directory='local', verbose=False, include_residual=True):
+        """ Export current state information to HDF5 file
+
+        Notes
+        -----
+        Literally just to get a different default behavior for include_residual.
+        """
+        super().to_h5(filename=filename, directory=directory, verbose=verbose, include_residual=include_residual)
+        return None
+
     def jacobian(self, **kwargs):
         """ Jacobian matrix evaluated at the current state.
         Parameters
@@ -802,6 +812,53 @@ class OrbitKS(Orbit):
             plt.show()
 
         plt.close()
+        return None
+
+    def mode_plot(self, scale='log'):
+        """ Plot the velocity field as a 2-d density plot using matplotlib's imshow
+
+        Parameters
+        ----------
+        show : bool
+            Whether or not to display the figure
+        save : bool
+            Whether to save the figure
+        padding : bool
+            Whether to interpolate with zero padding before plotting. (Increases the effective resolution).
+        fundamental_domain : bool
+            Whether to plot only the fundamental domain or not.
+        **kwargs :
+            new_shape : (int, int)
+                The field discretization to plot, will be used instead of default padding if padding is enabled.
+            filename : str
+                The (custom) save name of the figure, if save==True. Save name will be generated otherwise.
+            directory : str
+                The location to save to, if save==True
+        Notes
+        -----
+        new_N and new_M are accessed via .get() because this is the only manner in which to incorporate
+        the current N and M values as defaults.
+
+        """
+        plt.rc('text', usetex=True)
+        plt.rc('font', family='serif')
+        plt.rcParams['text.usetex'] = True
+
+        if scale=='log':
+            modes = np.log10(np.abs(self.transform(to='modes').state))
+        else:
+            modes = self.transform(to='modes').state
+
+        fig, ax = plt.subplots()
+        image = ax.imshow(modes, interpolation='none', aspect='auto')
+
+        # Custom colorbar values
+        fig.subplots_adjust(right=0.95)
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes('right', size=0.075, pad=0.1)
+        plt.colorbar(image, cax=cax)
+        plt.show()
+
         return None
 
     def precondition(self, parameters, **kwargs):
@@ -1295,10 +1352,6 @@ class OrbitKS(Orbit):
             product = np.multiply(self.state, other.state)
         return self.__class__(state=product, basis=self.basis, parameters=self.parameters)
 
-    def to_fundamental_domain(self, **kwargs):
-        """ Placeholder for subclassees, included for compatibility"""
-        return self
-
     def _random_initial_condition(self, parameters, **kwargs):
         """ Initial a set of random spatiotemporal Fourier modes
         Parameters
@@ -1354,7 +1407,7 @@ class OrbitKS(Orbit):
             gaussian_modulator = np.exp(-((space_ - xscale)**2/(2*xvar)) - ((time_ - tscale)**2 / (2*tvar)))
             modes = np.multiply(gaussian_modulator, random_modes)
 
-        elif spectrum == 'gtime_espace':
+        elif spectrum == 'gtes':
             gtime_espace_modulator = np.exp(-1.0 * (np.abs(space_- xscale) / xvar) - ((time_ - tscale)**2 / (2*tvar)))
             modes = np.multiply(gtime_espace_modulator, random_modes)
 
