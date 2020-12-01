@@ -32,7 +32,7 @@ def _averaging_wrapper(instance_with_state_to_average, average=None):
         return instance_with_state_to_average.state
 
 
-def _dx_spatial_modes(orbit_, power=1):
+def _dx_spatial_modes(orbit_, order=1):
     """ Modification of spatial derivative method
 
     Parameters
@@ -51,10 +51,10 @@ def _dx_spatial_modes(orbit_, power=1):
 
     modes = orbit_.transform(to='s_modes').state
     # Elementwise multiplication of modes with frequencies, this is the derivative.
-    dxn_modes = np.multiply(orbit_.elementwise_dxn(orbit_.dx_parameters, power=power), modes)
+    dxn_modes = np.multiply(orbit_.elementwise_dxn(orbit_.dx_parameters, order=order), modes)
 
     # If the order of the differentiation is odd, need to swap imaginary and real components.
-    if np.mod(power, 2):
+    if np.mod(order, 2):
         dxn_modes = swap_modes(dxn_modes, axis=1)
 
     return orbit_.__class__(state=dxn_modes, basis='s_modes', parameters=orbit_.parameters)
@@ -71,7 +71,7 @@ def dissipation(orbit_instance, average=None):
     Field computed is u_xx**2.
     """
 
-    return _averaging_wrapper(orbit_instance.dx(power=2).transform(to='field')**2,
+    return _averaging_wrapper(orbit_instance.dx(order=2).transform(to='field')**2,
                               average=average)
 
 
@@ -181,8 +181,8 @@ def integrate(orbit_, **kwargs):
     step_size = kwargs.get('step_size', 0.01)
 
     # Because N = 1, this is just the spatial matrices, negative sign b.c. other side of equation.
-    lin_diag = -1.0*(orbit_t_equals_0.elementwise_dxn(orbit_t_equals_0.dx_parameters, power=2)
-                     + orbit_t_equals_0.elementwise_dxn(orbit_t_equals_0.dx_parameters, power=4)).reshape(-1, 1)
+    lin_diag = -1.0*(orbit_t_equals_0.elementwise_dxn(orbit_t_equals_0.dx_parameters, order=2)
+                     + orbit_t_equals_0.elementwise_dxn(orbit_t_equals_0.dx_parameters, order=4)).reshape(-1, 1)
 
     E = np.exp(step_size*lin_diag)
     E2 = np.exp(step_size*lin_diag/2.0)
@@ -219,13 +219,13 @@ def integrate(orbit_, **kwargs):
     if kwargs.get('return_trajectory', True):
         u = np.zeros([nmax, orbit_t_equals_0.field_shape[1]])
     for step in range(1, nmax):
-        Nv = -0.5*_dx_spatial_modes(v.transform(to='field')**2, power=1)
+        Nv = -0.5*_dx_spatial_modes(v.transform(to='field')**2, order=1)
         a = v.statemul(E2) + Nv.statemul(Q)
-        Na = -0.5*_dx_spatial_modes(a.transform(to='field')**2, power=1)
+        Na = -0.5*_dx_spatial_modes(a.transform(to='field')**2, order=1)
         b = v.statemul(E2) + Na.statemul(Q)
-        Nb = -0.5*_dx_spatial_modes(b.transform(to='field')**2, power=1)
+        Nb = -0.5*_dx_spatial_modes(b.transform(to='field')**2, order=1)
         c = a.statemul(E2) + (2.0 * Nb - Nv).statemul(Q)
-        Nc = -0.5*_dx_spatial_modes(c.transform(to='field')**2, power=1)
+        Nc = -0.5*_dx_spatial_modes(c.transform(to='field')**2, order=1)
         v = (v.statemul(E) + Nv.statemul(f1)
              + (2.0 * (Na + Nb)).statemul(f2) + Nc.statemul(f3))
         if kwargs.get('return_trajectory', True):

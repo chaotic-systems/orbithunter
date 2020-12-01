@@ -166,7 +166,7 @@ def glue(array_of_orbit_instances, class_constructor, stripwise=False, **kwargs)
 
                 # For each strip, need to know how to combine the dimensions of the orbits. Bundle, then combine.
                 zipped_dimensions = tuple(zip(*(o.dimensions for o in array_of_orbit_instances[gs].ravel())))
-                glued_parameters = class_constructor.glue_parameters(zipped_dimensions,glue_shape=strip_shape)
+                glued_parameters = class_constructor.glue_parameters(zipped_dimensions, glue_shape=strip_shape)
                 # Slice the orbit array to get the strip, reshape to maintain its d-dimensional form.
                 strip_of_orbits = array_of_orbit_instances[gs].reshape(strip_shape)
 

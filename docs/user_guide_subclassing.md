@@ -19,6 +19,17 @@ parameters : tuple
 A tuple representing a collection of  parameters required to define the orbit. 
 Typically dimensions + symmetry parameters. 
 
+field_shape : tuple
+The shape of the numpy array containing in the 'physical field' basis. 
+
+Static Methods
+--------------
+
+dimension_labels : tuple of str
+	The string labels for each dimension; for the KS equation these are 'T', 'L'
+
+parameter_labels : tuple of str
+	The string labels for all possible parameters. 
 
 Initialization methods
 ----------------------
@@ -35,7 +46,7 @@ Unless all data will be imported, need some manner of creating initial condition
 Dependencies for numerical optimization
 ---------------------------------------
 
-spatiotemporal_mapping:
+dae:
 Returns a class object whose state is the evaluation of the governing equations.
 
 matvec: 
@@ -80,7 +91,6 @@ The magnitude of each field dimension
 plotting_dimensions :
 Returns the dimensions in plotting units, can be the same as dimensions 
 
-
 Highly recommended
 ------------------
 
@@ -118,14 +128,7 @@ parameters required to apply preconditioning
 
 
 
-
-
-
-
-
-
-
 If LSTSQ is desired to be used:
 
-Jacobian : (requires matrix representations of operators in spatiotemporal_mapping, or at least
+jacobian : (requires matrix representations of operators in dae, or at least
 that is probably the easiest manner of construction)

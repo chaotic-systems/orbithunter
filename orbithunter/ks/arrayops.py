@@ -20,13 +20,13 @@ def swap_modes(modes, axis=1):
 
 
 @lru_cache(maxsize=8)
-def so2_generator(power=1):
-    return np.linalg.matrix_power(np.array([[0, -1], [1, 0]]), np.mod(power, 4))
+def so2_generator(order=1):
+    return np.linalg.matrix_power(np.array([[0, -1], [1, 0]]), np.mod(order, 4))
 
 
 @lru_cache(maxsize=8)
-def so2_coefficients(power=1):
-    return np.sum(so2_generator(power=power), axis=0)
+def so2_coefficients(order=1):
+    return np.sum(so2_generator(order=order), axis=0)
 
 
 def calculate_spatial_shift(s_modes, L, **kwargs):

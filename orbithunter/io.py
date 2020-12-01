@@ -6,7 +6,7 @@ import h5py
 from .ks.orbits import ks_parsing_util, ks_fpo_dictionary
 
 __all__ = ['read_h5', 'read_fpo_set', 'convergence_log', 'refurbish_log', 'write_symbolic_log',
-           'read_symbolic_log', 'to_symbol_string', 'to_symbol_array']
+           'read_symbolic_log', 'to_symbol_string', 'to_symbol_array', 'parse_class']
 
 
 def read_h5(filename, directory='local', data_format='orbithunter',

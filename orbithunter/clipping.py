@@ -53,7 +53,6 @@ def _slices_from_window(orbit_, window_dimensions, time_ordering='decreasing'):
             rescaled_domain_max = (d_max-plot_dimensions[i][0])/(plot_dimensions[i][1]-plot_dimensions[i][0])
             slice_end = int(field_shape[i] * rescaled_domain_max)
 
-
         if i == 0 and time_ordering == 'decreasing':
             # From the "top down convention for time.
             slice_start = field_shape[i] - slice_start

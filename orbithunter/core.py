@@ -40,7 +40,8 @@ class Orbit:
             self._parse_parameters(parameters, **kwargs)
             self._parse_state(state, basis, **kwargs)
         else:
-            # This generates non-zero parameters if zeroes were passed
+            # If the state is not passed, then it will be randomly generated. This will require referencing
+            #
             self._parse_parameters(parameters, **kwargs)
             # Pass the newly generated parameter values, there are the originals if they were not 0's.
             self._random_initial_condition(self.parameters, **kwargs).transform(to=basis, inplace=True)
@@ -186,13 +187,13 @@ class Orbit:
         dictstr = dumps(dict_)
         return self.__class__.__name__ + '(' + dictstr + ')'
 
-    def cost_function_gradient(self, spatiotemporal_mapping, **kwargs):
+    def cost_function_gradient(self, dae, **kwargs):
         preconditioning = kwargs.get('preconditioning', False)
         if preconditioning:
-            gradient = (self.rmatvec(spatiotemporal_mapping, **kwargs)
+            gradient = (self.rmatvec(dae, **kwargs)
                         ).precondition(self.preconditioning_parameters, **kwargs)
         else:
-            gradient = self.rmatvec(spatiotemporal_mapping, **kwargs)
+            gradient = self.rmatvec(dae, **kwargs)
         return gradient
 
     def reshape(self, *new_shape, **kwargs):
@@ -247,7 +248,7 @@ class Orbit:
         """
         return None
 
-    def spatiotemporal_mapping(self, *args, **kwargs):
+    def dae(self, *args, **kwargs):
         """ The governing equations evaluated using the current state.
 
         Returns
@@ -256,7 +257,7 @@ class Orbit:
         """
         return None
 
-    def residual(self, apply_mapping=True):
+    def residual(self, dae=True):
         """ The value of the cost function
 
         Returns
@@ -265,12 +266,12 @@ class Orbit:
             The value of the cost function, equal to 1/2 the squared L_2 norm of the spatiotemporal mapping,
             R = 1/2 ||F||^2. The current form generalizes to any equation.
         """
-        if apply_mapping:
-            v = self.transform(to='modes').spatiotemporal_mapping().state.ravel()
-            return 0.5 * v.dot(v)
+        if dae:
+            v = self.transform(to='modes').dae().state.ravel()
         else:
-            u = self.state.ravel()
-            return 0.5 * u.dot(u)
+            v = self.state.ravel()
+
+        return 0.5 * v.dot(v)
 
     def matvec(self, other, **kwargs):
         """ Matrix-vector product of a vector with the Jacobian of the current state.
@@ -599,11 +600,11 @@ class Orbit:
         return None
 
     def to_fundamental_domain(self, **kwargs):
-        """ Placeholder for subclassees, included for compatibility"""
+        """ Placeholder for symmetry subclassees"""
         return self
 
     def from_fundamental_domain(self, **kwargs):
-        """ Placeholder for subclassees, included for compatibility"""
+        """ Placeholder for symmetry subclassees"""
         return self
 
     def copy(self):

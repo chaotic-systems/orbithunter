@@ -100,7 +100,8 @@ def dimension_continuation(orbit_, new_size, axis=0, step_size=0.01, **kwargs):
         # If we want to save all states in the family else save the returned orbit from converge_result
         # outside the function
         if kwargs.get('save', False):
-            converge_result.orbit.to_h5(**kwargs)
+            converge_result.orbit.to_h5(directory=kwargs.get('directory', ''), verbose=kwargs.get('verbose', False),
+                                        include_residual=kwargs.get('include_residual', False))
 
     return converge_result
 
