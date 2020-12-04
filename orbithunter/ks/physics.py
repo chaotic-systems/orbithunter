@@ -110,7 +110,8 @@ def power(orbit_instance, average=None):
                               average=average)
 
 
-def shadowing(window_orbit, base_orbit, verbose=False, threshold=0.02, threshold_type='percentile', stride=1):
+def shadowing(window_orbit, base_orbit, verbose=False, threshold=0.02, threshold_type='percentile', stride=1,
+              mask_region='exterior'):
 
     window_orbit = window_orbit.transform(to='field')
     base_orbit = base_orbit.transform(to='field')
@@ -121,7 +122,7 @@ def shadowing(window_orbit, base_orbit, verbose=False, threshold=0.02, threshold
 
     # First, need to calculate the norm of the window squared and base squared (squared because then it detects
     # the shape rather than the color coded field), for all translations of the window.
-    mask = np.zeros([tbase, xbase])
+    mask = np.zeros([tbase, xbase], dtype=bool)
     norm_matrix = np.zeros([(tbase-twindow)//stride, (xbase-xwindow)//stride])
     for i, t in enumerate(range(0, tbase-twindow, stride)):
         if verbose and np.mod(i, ((tbase-twindow)//stride)//10) == 0:
@@ -142,9 +143,11 @@ def shadowing(window_orbit, base_orbit, verbose=False, threshold=0.02, threshold
         trange = np.arange(t, t+twindow)
         xrange = np.arange(x, x+xwindow)
         # numpy meshgrid returns list but slicing needs a tuple.
-        mask[tuple(np.meshgrid(trange, xrange, indexing='ij'))] = 1
+        mask[tuple(np.meshgrid(trange, xrange, indexing='ij'))] = True
 
     masked_orbit = base_orbit.copy()
+    if mask_region == 'exterior':
+        mask = np.invert(mask)
     masked_orbit.state = np.ma.masked_array(masked_orbit.transform(to='field').state, mask=mask)
     return masked_orbit, mask, threshold
 
