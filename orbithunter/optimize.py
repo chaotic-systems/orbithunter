@@ -1,4 +1,4 @@
-from scipy.linalg import lstsq, pinv
+from scipy.linalg import lstsq, pinv, solve
 from scipy.optimize import minimize, root, newton_krylov, anderson
 from scipy.sparse.linalg import (LinearOperator, bicg, bicgstab, gmres, lgmres,
                                  cg, cgs, qmr, minres, lsqr, lsmr, gcrotmk)
@@ -172,6 +172,9 @@ def converge(orbit_, method='adj', precision='default', comp_time='default', **k
         elif method == 'lstsq':
             # solves Ax = b in least-squares manner
             result_orbit, statistics = _lstsq(orbit_, tol, maxiter, **kwargs)
+        elif method == 'solve':
+            # solves Ax = b in least-squares manner
+            result_orbit, statistics = _solve(orbit_, tol, maxiter, **kwargs)
         elif method in ['lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
                                           'cg', 'cgs', 'qmr', 'minres', 'gcrotmk']:
             # solves A^T A x = A^T b repeatedly
@@ -367,6 +370,60 @@ def _lstsq(orbit_, tol, maxiter, min_step=1e-6,  **kwargs):
         A = orbit_.jacobian(**kwargs)
         b = -1.0 * mapping.state.reshape(-1, 1)
         dx = orbit_.from_numpy_array(lstsq(A, b)[0], **kwargs)
+        next_orbit = orbit_.increment(dx, step_size=step_size)
+        next_mapping = next_orbit.dae(**kwargs)
+        next_residual = next_mapping.residual(dae=False)
+        while next_residual > residual and step_size > min_step:
+            # Continues until either step is too small or residual decreases
+            step_size /= 2.0
+            next_orbit = orbit_.increment(dx, step_size=step_size)
+            next_mapping = next_orbit.dae(**kwargs)
+            next_residual = next_mapping.residual(dae=False)
+        else:
+            orbit_, stats = _check_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
+                                              step_size, min_step, residual, next_residual,
+                                              'lstsq',
+                                              log_residual=kwargs.get('log_residual', False),
+                                              verbose=kwargs.get('verbose', False))
+            mapping = next_mapping
+            residual = next_residual
+    else:
+        return orbit_, stats
+
+def _solve(orbit_, tol, maxiter, min_step=1e-6,  **kwargs):
+    """
+
+    Parameters
+    ----------
+    orbit_
+    tol
+    maxiter
+    min_step
+    kwargs
+
+    Returns
+    -------
+
+    """
+    # This is to handle the case where method == 'hybrid' such that different defaults are used.
+    ftol = kwargs.get('ftol', np.product(orbit_.shape) * 10**-10)
+    mapping = orbit_.dae(**kwargs)
+    residual = mapping.residual(dae=False)
+    stats = {'nit': 0, 'residuals': [residual], 'maxiter': maxiter, 'tol': tol, 'status': 1}
+    if kwargs.get('verbose', False):
+        print('\n-------------------------------------------------------------------------------------------------')
+        print('Starting lstsq optimization')
+        print('Initial residual : {}'.format(orbit_.residual()))
+        print('Target residual tolerance : {}'.format(tol))
+        print('Maximum iteration number : {}'.format(maxiter))
+        print('Initial guess : {}'.format(repr(orbit_)))
+        print('-------------------------------------------------------------------------------------------------')
+    while residual > tol and stats['status'] == 1:
+        step_size = 1
+        # Solve A dx = b <--> J dx = - f, for dx.
+        A = orbit_.jacobian(**kwargs)
+        b = -1.0 * mapping.state.reshape(-1, 1)
+        dx = orbit_.from_numpy_array(solve(A, b)[0], **kwargs)
         next_orbit = orbit_.increment(dx, step_size=step_size)
         next_mapping = next_orbit.dae(**kwargs)
         next_residual = next_mapping.residual(dae=False)
