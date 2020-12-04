@@ -5,6 +5,9 @@ import numpy as np
 __all__ = ['OrbitHN']
 
 class OrbitHN(Orbit):
+    """ Spatiotemporal Henon map
+
+    """
     def __init__(self, state=None, basis='field', parameters=(0, 0), **kwargs):
         # state is numpy array
         self.state = state

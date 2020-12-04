@@ -3,7 +3,7 @@ Patch notes v0.9.1
 Major changes
 -------------
 1. Massive reorganization and refactoring to increase modularity 
-2. spatiotemporal_mapping -> dae
+2. More renaming of methods for brevity. 
 
 
 Minor changes
