@@ -40,11 +40,12 @@ class Orbit:
             self._parse_parameters(parameters, **kwargs)
             self._parse_state(state, basis, **kwargs)
         else:
-            # If the state is not passed, then it will be randomly generated. This will require referencing
-            #
-            self._parse_parameters(parameters, **kwargs)
+            # If the state is not passed, then it will be randomly generated. This will require referencing the
+            # dimensions, expected to be nonzero to define the collocation grid. Therefore, it is required to
+            # either provide
+            self._parse_parameters(parameters, nonzero_parameters=kwargs.pop('nonzero_parameters', True), **kwargs)
             # Pass the newly generated parameter values, there are the originals if they were not 0's.
-            self._random_initial_condition(self.parameters, **kwargs).transform(to=basis, inplace=True)
+            self._random_initial_condition(self.parameters, **kwargs).transform(to=basis)
 
     def __add__(self, other):
         """ Addition of Orbit states
@@ -196,6 +197,9 @@ class Orbit:
             gradient = self.rmatvec(dae, **kwargs)
         return gradient
 
+    def transform(self, **kwargs):
+        return self
+
     def reshape(self, *new_shape, **kwargs):
         """
 
@@ -208,7 +212,7 @@ class Orbit:
         -------
 
         """
-        placeholder_orbit = self.transform(to='field').copy().transform(to='modes', inplace=True)
+        placeholder_orbit = self.transform(to='field').copy().transform(to='modes')
 
         if len(new_shape) == 1:
             # if passed as tuple, .reshape((a,b)), then need to unpack ((a, b)) into (a, b)
@@ -230,9 +234,9 @@ class Orbit:
                     placeholder_orbit = placeholder_orbit._pad(d, axis=i)
                 else:
                     pass
-            return placeholder_orbit.transform(to=self.basis, inplace=True)
+            return placeholder_orbit.transform(to=self.basis)
 
-    def transform(self, inplace=False, to=None):
+    def transform(self, return_array=False, to=None):
         """ Method that handles all basis transformations.
 
         Parameters
@@ -401,6 +405,26 @@ class Orbit:
         return np.linalg.norm(self.state.ravel(), ord=order)
 
     @property
+    def shape(self):
+        """ Convenience to not have to type '.state'
+
+        Notes
+        -----
+        This is a property to not have to write '()' :)
+        """
+        return self.state.shape
+
+    @property
+    def size(self):
+        """ Convenience to not have to type '.state'
+
+        Notes
+        -----
+        This is a property to not have to write '()' :)
+        """
+        return self.state.size
+
+    @property
     def parameters(self):
         """ Parameters required to specify a solution
 
@@ -490,7 +514,7 @@ class Orbit:
         """
         return None
 
-    def rescale(self, magnitude, inplace=False):
+    def rescale(self, magnitude, return_array=False):
         """ Scalar multiplication
 
         Parameters
@@ -630,11 +654,11 @@ def convert_class(orbit, class_generator, **kwargs):
     Returns
     -------
 
+    Notes
+    -----
+    To avoid conflicts with projections onto invariant subspaces, the orbit is always transformed into field
+    prior to conversion; the default basis to return is the basis of the input.
+
     """
-    # This avoids time-dimension issues with RelativeEquilibriumOrbitKS and EquilibriumOrbitKS
-    tmp_orbit = orbit.transform(to='field')
-    basis = kwargs.get('result_basis', orbit.basis)
-    parameters = kwargs.get('parameters', tmp_orbit.parameters)
-    kwargs.pop('parameters', None)
-    return class_generator(state=tmp_orbit.state, basis=tmp_orbit.basis,
-                           parameters=parameters, **kwargs).transform(to=basis)
+    return class_generator(state=orbit.transform(to='field').state, basis='field',
+                           parameters=kwargs.pop('parameters', orbit.parameters), **kwargs).transform(to=orbit.basis)
