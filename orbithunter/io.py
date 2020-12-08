@@ -29,10 +29,10 @@ def read_h5(filename, directory='local', data_format='orbithunter',
     # verify typically returns Orbit, code; just want the orbit instance here
     if check:
         # The automatic importation attempts to validate symmetry/class type.
-        return orbit_.verify_integrity()[0].transform(to=basis, inplace=True)
+        return orbit_.verify_integrity()[0].transform(to=basis)
     else:
         # If the class name is provided, force it through without verification.
-        return orbit_.transform(to=basis, inplace=True)
+        return orbit_.transform(to=basis)
 
 
 def parse_class(filename, class_dict):

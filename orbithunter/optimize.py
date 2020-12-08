@@ -204,11 +204,15 @@ def _adjoint_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
 
     Parameters
     ----------
-    orbit_
-    tol
-    maxiter
-    min_step
-    kwargs
+    orbit_ : Orbit (or subclass) instance
+    tol : float
+        Numerical tolerance for the residual.
+    maxiter : int
+        Maximum number of adjoint descent iterations
+    min_step : float
+        Minimum backtracking step size.
+    kwargs : dict
+        Keyword arguments relevant for differential algebraic equations and cost function gradient.
 
     Returns
     -------
@@ -389,6 +393,7 @@ def _lstsq(orbit_, tol, maxiter, min_step=1e-6,  **kwargs):
             residual = next_residual
     else:
         return orbit_, stats
+
 
 def _solve(orbit_, tol, maxiter, min_step=1e-6,  **kwargs):
     """
