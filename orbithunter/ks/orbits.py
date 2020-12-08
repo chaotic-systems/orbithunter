@@ -107,7 +107,8 @@ class OrbitKS(Orbit):
                 If special kwargs are required/desired for Orbit instantiation.
         Returns
         -------
-
+        state_orbit : Orbit instance
+            Orbit instance whose state and parameters are extracted from the input state_vector.
 
         Notes
         -----
@@ -164,12 +165,12 @@ class OrbitKS(Orbit):
         inplace : bool
             Whether or not to perform the conversion "in place" or not.
         to : str
-            One of the following: 'field', 's_modes', 'modes'. Specifies
-            the basis which the orbit will be converted to. \
+            One of the following: 'field', 's_modes', 'modes'. Specifies the basis which the orbit will be converted to.
         Raises
         ----------
         ValueError
             Raised if the provided basis is unrecognizable.
+
         Returns
         ----------
         converted_orbit : orbit or orbit subclass instance
@@ -177,11 +178,8 @@ class OrbitKS(Orbit):
 
         Notes
         -----
-        This instance method is just a wrapper for different
-        Fourier transforms. It's purpose is to remove the
-        need for the user to keep track of the basis by hand.
-        This should be used as opposed to Fourier transforms.
-
+        This method is just a wrapper for different Fourier transforms. It's purpose is to remove the
+        need for the user to keep track of the basis by hand. This should be used as opposed to Fourier transforms.
         """
         if to == 'field':
             if self.basis == 's_modes':
@@ -208,7 +206,7 @@ class OrbitKS(Orbit):
             raise ValueError('Trying to convert to unrecognizable state type.')
 
     def copy(self):
-        """ Create another Orbit instance with a copy of the state array"""
+        """ Create another Orbit instance with a copied state array"""
         return self.__class__(state=self.state.copy(), basis=self.basis, parameters=self.parameters)
 
     def dot(self, other):
@@ -227,6 +225,9 @@ class OrbitKS(Orbit):
         ----------
         order :int
             The order of the derivative.
+        return_array : bool
+            Whether or not to return a numpy array. Used for efficiency/avoiding construction of redundant
+            Orbit instances.
 
         Returns
         ----------
@@ -249,8 +250,7 @@ class OrbitKS(Orbit):
             return orbit_dtn.transform(to=self.basis)
 
     def dx(self, order=1, **kwargs):
-
-        """ A spatial derivative of the current state.
+        """ Spatial derivative of the current state.
 
         Parameters
         ----------
@@ -286,19 +286,26 @@ class OrbitKS(Orbit):
     def elementwise_dxn(cls, dx_parameters, order=1):
         """ Matrix of temporal mode frequencies
 
-        Creates and returns a matrix whose elements
-        are the properly ordered spatial frequencies,
-        which is the same shape as the spatiotemporal
-        Fourier mode state. The elementwise product
-        with a set of spatiotemporal Fourier modes
-        is equivalent to taking a spatial derivative.
+        Parameters
+        ----------
+        dx_parameters : tuple
+            The tuple of parameters returned by the dx_parameters property. See notes for why this isn't merely
+            referenced.
+
+        Notes
+        -----
+        Creates and returns a matrix whose elements are the properly ordered spatial frequencies,
+        which is the same shape as the spatiotemporal Fourier mode state. The elementwise product
+        with a set of spatiotemporal Fourier modes is equivalent to taking a spatial derivative.
+
+        The reason why self.dx_parameters is not used is due to my understanding of lru_cache requiring a
+        hashable data type.
 
         Returns
         ----------
-        matrix
-            Matrix of spatial frequencies
+        dxn_multipliers : ndarray
+            Array of spatial frequencies in the same shape as modes
         """
-
         q = cls._wave_vector(dx_parameters, order=order)
         # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
         c1, c2 = so2_coefficients(order=order)
@@ -311,18 +318,14 @@ class OrbitKS(Orbit):
     def elementwise_dtn(cls, dt_parameters, order=1):
         """ Matrix of temporal mode frequencies
 
-        Creates and returns a matrix whose elements
-        are the properly ordered temporal frequencies,
-        which is the same shape as the spatiotemporal
-        Fourier mode state. The elementwise product
-        with a set of spatiotemporal Fourier modes
-        is equivalent to taking a time derivative.
-
+        Creates and returns a matrix whose elements are the properly ordered temporal frequencies,
+        which is the same shape as the spatiotemporal Fourier mode state. The elementwise product
+        with a set of spatiotemporal Fourier modes is equivalent to taking a spatial derivative.
 
         Returns
         ----------
-        matrix
-            Matrix of temporal frequencies
+        dtn_multipliers : ndarray
+            Array of spatial frequencies in the same shape as modes
         """
 
         w = cls._frequency_vector(dt_parameters, order=order)
@@ -334,11 +337,11 @@ class OrbitKS(Orbit):
         return dtn_multipliers
 
     def from_fundamental_domain(self):
-        """ This is a placeholder for the subclasses """
+        """ This is a placeholder for the subclass methods, however"""
         return self
 
     def increment(self, other, step_size=1, **kwargs):
-        """ Add optimization correction  to current state
+        """ Add optimization correction to current state
 
         Parameters
         ----------
@@ -365,7 +368,6 @@ class OrbitKS(Orbit):
         -----
         Literally just a wrapper to get a different default behavior for include_residual.
         """
-
         if float(self.T) == 0. or float(self.L) == 0:
             # safety net to protect against division by zero after conversion of EquilibriumOrbitKS to other classes
             include_residual = False
@@ -375,11 +377,13 @@ class OrbitKS(Orbit):
 
     def jacobian(self, **kwargs):
         """ Jacobian matrix evaluated at the current state.
+
         Parameters
         ----------
-        parameter_constraints : tuple
+        kwargs : dict
             Determines whether to include period and spatial period
             as variables.
+
         Returns
         -------
         jac_ : matrix ((N-1)*(M-2), (N-1)*(M-2) + n_params)
@@ -1379,7 +1383,7 @@ class OrbitKS(Orbit):
         np.random.seed(kwargs.get('seed', None))
 
         # also accepts N and M as kwargs
-        self.N, self.M = self.__class__.parameter_based_discretization(parameters, **kwargs)
+        self.N, self.M = self.parameter_based_discretization(parameters, **kwargs)
         self.n, self.m = int(self.N // 2) - 1, int(self.M // 2) - 1
 
         # I think this is the easiest way to get symmetry-dependent Fourier mode arrays' shapes.
@@ -1387,10 +1391,6 @@ class OrbitKS(Orbit):
         space_ = np.sqrt((self.L / (2*pi))**2 * np.abs(self.elementwise_dxn(self.dx_parameters,
                                                                             order=2))).astype(int)
         time_ = (self.T / (2*pi)) * np.abs(self.elementwise_dtn(self.dt_parameters))
-
-        # space_ = np.tile(np.arange().reshape(1, -1), (mode_shape[0], 1))
-
-
         random_modes = np.random.randn(*self.mode_shape)
         # piece-wise constant + exponential
         # linear-component based. multiply by preconditioner?
@@ -3248,7 +3248,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         spectrum = kwargs.get('spectrum', 'gaussian')
 
         # also accepts N and M as kwargs
-        self.N, self.M = self.__class__.parameter_based_discretization(parameters, N=1)
+        self.N, self.M = self.parameter_based_discretization(parameters, N=1)
         self.n, self.m = 1, int(self.M // 2) - 1
         xscale = kwargs.get('xscale', int(np.round(self.L / (2*pi*np.sqrt(2)))))
         xvar = kwargs.get('xvar', np.sqrt(xscale))
