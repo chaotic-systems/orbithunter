@@ -6,7 +6,7 @@ __all__ = ['dimension_continuation', 'discretization_continuation']
 
 def _constrain(orbit_, axis=0):
     constraints = {key: (val if key != orbit_.parameter_labels()[axis] else True)
-                         for key, val in orbit_.constraints.items()}
+                   for key, val in orbit_.constraints.items()}
     return orbit_.__class__(state=orbit_.state, basis=orbit_.basis,
                             parameters=orbit_.parameters, constraints=constraints)
 

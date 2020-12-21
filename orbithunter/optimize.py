@@ -236,7 +236,7 @@ def _adjoint_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
     while residual > tol and stats['status'] == 1:
         # Calculate the step
         gradient = orbit_.cost_function_gradient(mapping, **kwargs)
-        # Apply the step
+        # Negative sign -> 'descent'
         next_orbit = orbit_.increment(gradient, step_size=-1.0*step_size)
         # Calculate the mapping and store; need it for next step and to compute residual.
         next_mapping = next_orbit.dae(**kwargs)
@@ -276,7 +276,6 @@ def _newton_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
     """
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
     step_size = kwargs.get('step_size', 0.001)
-    verbose = kwargs.get('verbose', False)
     ftol = kwargs.get('ftol', np.product(orbit_.shape) * 10**-10)
     residual = orbit_.residual()
     stats = {'nit': 0, 'residuals': [residual], 'maxiter': maxiter, 'tol': tol, 'status': 1}
@@ -295,7 +294,7 @@ def _newton_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
         # Solve A dx = b <--> J dx = - f, for dx.
         A, b = orbit_.jacobian(), -1*mapping.state.ravel()
         inv_A = pinv(A)
-        dx = orbit_.from_numpy_array(inv_A.dot(b))
+        dx = orbit_.from_numpy_array(np.dot(inv_A, b))
         next_orbit = orbit_.increment(dx, step_size=step_size)
         next_mapping = next_orbit.dae(**kwargs)
         next_residual = next_mapping.residual(dae=False)
@@ -311,7 +310,7 @@ def _newton_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
             if kwargs.get('approximation', True):
                 # Re-use the same pseudoinverse for many inexact solutions to dx_n = - A^+(x) F(x + dx_{n-1})
                 b = -1 * next_mapping.state.ravel()
-                dx = orbit_.from_numpy_array(inv_A.dot(b))
+                dx = orbit_.from_numpy_array(np.dot(inv_A, b))
                 inner_orbit = next_orbit.increment(dx, step_size=step_size)
                 inner_mapping = inner_orbit.dae(**kwargs)
                 inner_residual = inner_mapping.residual(dae=False)
@@ -320,7 +319,7 @@ def _newton_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
                     next_mapping = inner_mapping
                     next_residual = inner_residual
                     b = -1 * next_mapping.state.ravel()
-                    dx = orbit_.from_numpy_array(inv_A.dot(b))
+                    dx = orbit_.from_numpy_array(np.dot(inv_A, b))
                     inner_orbit = next_orbit.increment(dx, step_size=step_size)
                     inner_mapping = inner_orbit.dae(**kwargs)
                     inner_residual = inner_mapping.residual(dae=False)

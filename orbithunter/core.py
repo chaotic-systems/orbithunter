@@ -10,34 +10,62 @@ The core class for all orbithunter calculations. The methods listed are the ones
 full functionality isn't currently desired then I recommend only implementing the methods used in optimize.py,
 saving data to disk, and plotting. Of course this is in addition to the dunder methods such as __init__. 
 
-While not listed here explicitly, this package is fundamentally a spectral method based package. So in order
-to write the functions rmatvec, matvec, spatiotemporal mapping, one will necessarily have to include
+While not listed here explicitly, this package is fundamentally a (pseudo)spectral method based package; while it is not
+technically required to use a spectral method, not doing so may result in awkwardly named attributes. For example,
+the reshape method in spectral space essentially interpolates via zero-padding and truncation. Therefore, other
+interpolation methods would be forced to use _pad and _truncate, unless they specifically overwrite the reshape
+method itself. Another example, The spatiotemporal basis should be labeled as 'modes', the "physical" basis, 
+'field'. There are no assumptions on what "field" and "modes" actually mean, so the physical state space
+need not be an actual field.
+ 
+In order to write the functions rmatvec, matvec, spatiotemporal mapping, one will necessarily have to include
 methods for differentiation, basis transformations, etc. I do not include them because different equations
 have different dimensions and hence will have different transforms. All transforms should be wrapped by
-the method .transform(). The spatiotemporal basis should be labeled as 'modes', the physical field should be
-labeled as 'field'. There are no assumptions on what "field" and "modes" actually mean, so the physical state space
-need not be an actual field. 
+the method .transform(), such that transforming to another basis can be accessed by statements such as 
+.transform(to='modes'). NOTE: if the orbit is in the same basis as that specified by 'to', the ORIGINAL orbit;
+NOT a copy be returned. The reason why this is allowed is because transform then has the dual
+functionality of ensuring an orbit is a certain basis for a calculation, while maintaining flexibility. There
+are instances where it is required to be in the spatiotemporal basis, to avoid unanticipated transforms, however,
+there are a number of operations which require the spatiotemporal basis, but often one wants to remain in the
+physical basis. Therefore, to avoid verbosity, the user can specify the function self.method() instead of
+self.transform(to='required_basis').method().transform(to='original_basis').  
 
 In order for all numerical methods to work, the mandatory methods compute the matrix-vector products rmatvec = J^T * x,
 matvec = J * x, and must be able to construct the Jacobian = J. ***NOTE: the matrix vector products SHOULD NOT
-explicitly construct the Jacobian matrix.***
+explicitly construct the Jacobian matrix. In the context of DAE's there is typically no need to write these
+with finite difference approximations of time evolved Jacobians. (Of course if the DAEs are defined
+in terms of finite differences, so should the Jacobian).***
 
 """
 
 
 class Orbit:
-    """ Base class for all equations
 
+    def __init__(self, state=None, basis='field', parameters=(0., 0., 0., 0.), **kwargs):
+        """ Base/Template class for orbits
 
-    Notes
-    -----
-    Methods listed here are required to have everything work.
-    """
+        Parameters
+        ----------
+        state : ndarray(dtype=float, ndim=4) or None
+            If an array, it should contain the state values pertaining to the 'basis' label. E.g. for Navier-stokes
+            this would be all spatiotemporal velocity field values,
+        basis : str
+            Which basis the array 'state' is currently in. Takes values
+            'field', 's_modes', 'modes'.
+        parameters : tuple
+            Time period, spatial period, spatial shift (unused but kept for uniformity, in case of conversion between
+            OrbitKS and RelativeOrbitKS).
+        **kwargs :
+            Extra arguments for _parse_parameters and _random_initial_condition
+                See the description of the aforementioned method.
 
-    def __init__(self, state=None, basis='field', parameters=(0.,), **kwargs):
+        Notes
+        -----
+        Methods listed here are required to have everything work.
 
+        """
         if state is not None:
-            self._parse_parameters(parameters, **kwargs)
+            self._parse_parameters(parameters, nonzero_parameters=kwargs.pop('nonzero_parameters', False), **kwargs)
             self._parse_state(state, basis, **kwargs)
         else:
             # If the state is not passed, then it will be randomly generated. This will require referencing the
@@ -45,7 +73,7 @@ class Orbit:
             # either provide
             self._parse_parameters(parameters, nonzero_parameters=kwargs.pop('nonzero_parameters', True), **kwargs)
             # Pass the newly generated parameter values, there are the originals if they were not 0's.
-            self._random_initial_condition(self.parameters, **kwargs).transform(to=basis)
+            self._random_initial_condition(self.parameters, **kwargs)
 
     def __add__(self, other):
         """ Addition of Orbit states
@@ -56,10 +84,9 @@ class Orbit:
         Should have same class as self. Should be in same basis as self.
         Notes
         -----
-        Adding two spatiotemporal velocity fields u(t, x) + v(t, x)
+        Add two spatiotemporal states
         """
-        return self.__class__(state=(self.state + other.state), basis=self.basis,
-                              parameters=self.parameters)
+        return self.__class__(state=(self.state + other.state), basis=self.basis, parameters=self.parameters)
 
     def __radd__(self, other):
         """ Addition of Orbit states
@@ -76,8 +103,7 @@ class Orbit:
         -----
         This is the same as __add__ by Python makes the distinction between where the operator is, i.e. x + vs. + x.
         """
-        return self.__class__(state=(self.state + other.state), basis=self.basis,
-                              parameters=self.parameters)
+        return self.__class__(state=(self.state + other.state), basis=self.basis, parameters=self.parameters)
 
     def __sub__(self, other):
         """ Subtraction of orbit states
@@ -90,8 +116,7 @@ class Orbit:
         -----
         Subtraction of two spatiotemporal states self - other
         """
-        return self.__class__(state=(self.state-other.state), basis=self.basis,
-                              parameters=self.parameters)
+        return self.__class__(state=(self.state-other.state), basis=self.basis, parameters=self.parameters)
 
     def __rsub__(self, other):
         """ Subtraction of orbit states
@@ -104,8 +129,7 @@ class Orbit:
         -----
         Subtraction of two spatiotemporal states other - self
         """
-        return self.__class__(state=(other.state - self.state), basis=self.basis,
-                              parameters=self.parameters)
+        return self.__class__(state=(other.state - self.state), basis=self.basis, parameters=self.parameters)
 
     def __mul__(self, num):
         """ Scalar multiplication of state values
@@ -116,8 +140,7 @@ class Orbit:
             Scalar value to multiply by.
 
         """
-        return self.__class__(state=np.multiply(num, self.state), basis=self.basis,
-                              parameters=self.parameters)
+        return self.__class__(state=np.multiply(num, self.state), basis=self.basis, parameters=self.parameters)
 
     def __rmul__(self, num):
         """ Scalar multiplication of state values
@@ -128,8 +151,7 @@ class Orbit:
             Scalar value to multiply by.
 
         """
-        return self.__class__(state=np.multiply(num, self.state), basis=self.basis,
-                              parameters=self.parameters)
+        return self.__class__(state=np.multiply(num, self.state), basis=self.basis, parameters=self.parameters)
 
     def __truediv__(self, num):
         """ Scalar division of state values
@@ -139,8 +161,7 @@ class Orbit:
         num : float
             Scalar value to divide by
         """
-        return self.__class__(state=np.divide(self.state, num), basis=self.basis,
-                              parameters=self.parameters)
+        return self.__class__(state=np.divide(self.state, num), basis=self.basis, parameters=self.parameters)
 
     def __floordiv__(self, num):
         """ Scalar multiplication
@@ -156,8 +177,7 @@ class Orbit:
         but I'm including it because it's a fairly common binary operation and might be useful in some circumstances.
 
         """
-        return self.__class__(state=np.floor_divide(self.state, num), basis=self.basis,
-                              parameters=self.parameters)
+        return self.__class__(state=np.floor_divide(self.state, num), basis=self.basis, parameters=self.parameters)
 
     def __pow__(self, power):
         """ Exponentiate a state
@@ -167,8 +187,7 @@ class Orbit:
         power : float
             Exponent
         """
-        return self.__class__(state=self.state**power, basis=self.basis,
-                              parameters=self.parameters)
+        return self.__class__(state=self.state**power, basis=self.basis, parameters=self.parameters)
 
     def __str__(self):
         """ String name
@@ -189,6 +208,24 @@ class Orbit:
         return self.__class__.__name__ + '(' + dictstr + ')'
 
     def cost_function_gradient(self, dae, **kwargs):
+        """ Derivative of 1/2 |F|^2
+
+        Parameters
+        ----------
+        dae : Orbit
+            Orbit instance whose state equals DAE evaluated with respect to current state, i.e. F(v)
+        kwargs
+
+        Returns
+        -------
+        gradient :
+            Orbit instance whose state contains (dF/dv)^T * F ; (adjoint Jacobian * DAE)
+
+        Notes
+        -----
+        Withing optimization routines, the DAE orbit is used for other calculations and hence should not be
+        recalculated
+        """
         preconditioning = kwargs.get('preconditioning', False)
         if preconditioning:
             gradient = (self.rmatvec(dae, **kwargs)
@@ -196,6 +233,9 @@ class Orbit:
         else:
             gradient = self.rmatvec(dae, **kwargs)
         return gradient
+
+    def preconditioning_parameters(self, **kwargs):
+        return self.parameters
 
     def transform(self, **kwargs):
         return self
@@ -236,30 +276,35 @@ class Orbit:
                     pass
             return placeholder_orbit.transform(to=self.basis)
 
-    def transform(self, return_array=False, to=None):
+    def transform(self, to='field'):
         """ Method that handles all basis transformations.
 
         Parameters
         ----------
-        inplace : bool
-        Whether or not to return a new Orbit instance, or overwrite self.
         to : str
-        The basis to transform into.
+            The basis to transform into, for this template class there is no such thing.
 
         Returns
         -------
-
+        Orbit :
+            Orbit in new basis.
         """
-        return None
+        return self.copy()
 
     def dae(self, *args, **kwargs):
         """ The governing equations evaluated using the current state.
 
         Returns
         -------
-        Orbit
+        Orbit :
+            Orbit instance whose state equals evaluation of governing equation.
+
+        Notes
+        -----
+        If self.dae().state = 0. at every point (within some numerical tolerance), then 'self' constitutes
+        a solution to the governing equation. Of course there is no equation for this class, so zeros are returned.
         """
-        return None
+        return self.__class__(state=np.zeros(self.shape), basis=self.basis, parameters=self.parameters)
 
     def residual(self, dae=True):
         """ The value of the cost function
@@ -383,15 +428,18 @@ class Orbit:
 
     def jacobian(self, **kwargs):
         """ Jacobian matrix evaluated at the current state.
-        Parameters
-        ----------
 
         Returns
         -------
         jac_ : matrix
         2-d numpy array equalling the Jacobian matrix of the governing equations evaluated at current state.
+
+        Notes
+        -----
+        Will typically be rectangular, as including the tile dimensions as parameters augments the DAE Jacobian.
+
         """
-        return None
+        return np.zeros([self.size, self.state_vector().size])
 
     def norm(self, order=None):
         """ Norm of spatiotemporal state via numpy.linalg.norm
@@ -400,27 +448,26 @@ class Orbit:
         -------
         Norm of a state. Should be something like np.linalg.norm(self.state.ravel(), ord=order). The following would
         return the L_2 distance between two Orbit instances, default of NumPy linalg norm is 2-norm.
-        >>> (self - other).norm()
         """
         return np.linalg.norm(self.state.ravel(), ord=order)
 
     @property
     def shape(self):
-        """ Convenience to not have to type '.state'
+        """ Current state's shape
 
         Notes
         -----
-        This is a property to not have to write '()' :)
+        Just a convenience to be able to write self.shape
         """
         return self.state.shape
 
     @property
     def size(self):
-        """ Convenience to not have to type '.state'
+        """ Current state's dimensionality
 
         Notes
         -----
-        This is a property to not have to write '()' :)
+        Just a convenience to be able to write self.size
         """
         return self.state.size
 
@@ -428,11 +475,12 @@ class Orbit:
     def parameters(self):
         """ Parameters required to specify a solution
 
-        Returns
-        -------
+        Notes
+        -----
+        In this setting these will be dimensions of spatiotemporal tiles and any additional equation parameters.
 
         """
-        return 0.,
+        return 0., 0., 0., 0.
 
     @property
     def field_shape(self):
@@ -440,96 +488,89 @@ class Orbit:
 
         Returns
         -------
-
+        tuple :
+            Equivalent to self.transform(to='field').shape, keeping it as a property saves computations
+            the entry '3' corresponds to different 3-d vector field directions; i.e. sort of treating this as
+            a bundle of 3, (3+1) dimensional scalar fields
         """
-        return 0,
+        return 1, 1, 1, 1, 3
 
     @property
     def dimensions(self):
-        """ Continuous dimension extents.
+        """ Continuous tile dimensions
 
         Returns
         -------
-
+        tuple :
+            Tuple of dimensions, typically this will take the form (T, L_x, L_y, L_z) for (3+1)-D spacetime
         """
-        return 0.,
+        return 0., 0., 0., 0.
 
     @staticmethod
     def parameter_labels():
         """ Strings to use to label dimensions/periods
         """
-        return 'T',
+        return 'T', 'Lx', 'Ly', 'Lz'
 
     @staticmethod
     def dimension_labels():
         """ Strings to use to label dimensions/periods
         """
-        return 'T',
+        return 'T', 'Lx', 'Ly', 'Lz'
 
     @classmethod
-    def glue_parameters(cls, parameter_dict_with_bundled_values, axis=0):
+    def glue_parameters(cls, tuple_of_zipped_dimensions, glue_shape=(1, 1, 1, 1)):
         """ Class method for handling parameters in gluing
 
         Parameters
         ----------
-        parameter_dict_with_bundled_values
-        axis
+        tuple_of_zipped_dimensions : tuple of tuples
+
+        glue_shape : tuple of ints
+            The shape of the gluing being performed i.e. for a 2x2 orbit grid glue_shape would equal (2,2).
 
         Returns
         -------
-
-        Notes
-        -----
-        Only required if gluing module is to be used. In the gluing process, we must have a rule for how to combine
-        the fields and how to approximate the dimensions of the newly glued field. This method approximates
-        with simple summation and averaging. Should accomodate any dimension via zipping parameter dict values
-        in the correct manner.
+        glued_parameters : tuple
+            tuple of parameters same dimension and type as self.parameters
 
         """
-        new_parameter_dict = {}
-        return new_parameter_dict
+        return tuple(glue_shape[i] * p[p > 0.].mean() for i, p in enumerate(np.array(ptuples) for ptuples
+                                                                            in tuple_of_zipped_dimensions))
 
     def plot(self, show=True, save=False, padding=True, fundamental_domain=True, **kwargs):
-        """ Custom plotting method using matplotlib
+        """ Signature for plotting method using matplotlib
         """
         return None
 
-    def precondition(self, preconditioning_parameters, **kwargs):
-        """
-
-        Parameters
-        ----------
-        preconditioning_parameters : dict
-        Dictionary containing all relevant orbit parameters.
-        kwargs
-
-        Returns
-        -------
-
-        Notes
-        -----
-        If no preconditioning is desired then pass preconditioning=False to numerical methods, or simply return
-        self as is written here.
-
-        """
-        return None
-
-    def rescale(self, magnitude, return_array=False):
+    def rescale(self, magnitude=3., method='absolute'):
         """ Scalar multiplication
 
         Parameters
         ----------
-        num : float
-            Scalar value to rescale by.
+        magnitude : float
+            Scalar value which controls rescaling based on method.
+        method : str
+            power or absolute; absolute rescales the L_infty norm to a value equal to magnitude; power simply
+            uses a power law rescaling.
 
-        Notes
-        -----
-        This rescales the physical field such that the absolute value of the max/min takes on a new value
-        of magnitude
+        Returns
+        -------
+        OrbitKS
+            rescaled Orbit instance
         """
-        return None
 
-    def to_h5(self, filename=None, directory='local', verbose=False, include_residual=False):
+        field = self.transform(to='field').state
+        if method == 'absolute':
+            rescaled_field = ((magnitude * field) / np.max(np.abs(field.ravel())))
+        elif method == 'power':
+            rescaled_field = np.sign(field) * np.abs(field)**magnitude
+        else:
+            raise ValueError('Unrecognizable method.')
+        return self.__class__(state=rescaled_field, basis='field',
+                              parameters=self.parameters).transform(to=self.basis)
+
+    def to_h5(self, filename=None, directory='', verbose=False, include_residual=False):
         """ Export current state information to HDF5 file
 
         Parameters
@@ -538,6 +579,8 @@ class Orbit:
             Name for the save file
         directory :
             Location to save at
+        include_residual : bool
+            Whether or not to include the residual, 1/2 F^2 in the .h5 file.
         verbose : If true, prints save messages to std out
         """
         if filename is None:
@@ -589,10 +632,11 @@ class Orbit:
         Parameters
         ----------
         state : ndarray
-        Numpy array containing state information, can have any number of dimensions.
-        basis :
-        The basis that the array 'state' is assumed to be in.
-        kwargs
+            Numpy array containing state information, can have any number of dimensions.
+        basis : str
+            The basis that the array 'state' is assumed to be in.
+        kwargs :
+            Signature for subclasses.
 
         Returns
         -------
@@ -648,11 +692,9 @@ def convert_class(orbit, class_generator, **kwargs):
     ----------
     orbit : Instance of OrbitKS or any of the derived classes.
         The orbit instance to be converted
-    new_type : str or class object (not an instance).
+    class_generator : Orbit class
         The target class that orbit will be converted to.
 
-    Returns
-    -------
 
     Notes
     -----

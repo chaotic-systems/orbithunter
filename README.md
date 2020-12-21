@@ -34,5 +34,5 @@ the first couple steps would be
 # Known Bugs and issues
 ---------------------
 -If RelativeOrbitKS in physical frame, plotting in comoving is not possible 
-
+-KSe shadowing, masking not returned properly; can be accessed via returned orbit's state, shadowing_output[0].mask
 

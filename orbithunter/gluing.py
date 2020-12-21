@@ -130,8 +130,9 @@ def glue(array_of_orbit_instances, class_constructor, stripwise=False, **kwargs)
     are being concatenated in time (because the first axis should always be time).
 
     Example for the spatiotemporal Navier-stokes equation. The spacetime is (1+3) dimensional. Let's assume we're gluing
-    two vector fields with the same discretization size, (N, X, Y, Z). We can think of this discretization as a collection
-    of 3D vector field snapshots in time. Therefore, there are actually (N, X, Y, Z, 3) degrees of freedom. Therefore
+    two vector fields with the same discretization size, (N, X, Y, Z). We can think of this discretization as a
+    collection of 3D vector field snapshots in time. Therefore, there are actually (N, X, Y, Z, 3) degrees of freedom.
+    Therefore
     the actually tensor before the gluing will be of the shape (2, 1, 1, 1, N, X, Y, Z, 3). Because we are gluing the
     orbits along the time axis, The final shape will be (1, 1, 1, 1, 2*N, X, Y, Z, 3), given that the original
     X, Y, Z, are all the same size. Being forced to have everything the same size is what makes this difficult, because
@@ -165,8 +166,8 @@ def glue(array_of_orbit_instances, class_constructor, stripwise=False, **kwargs)
                                     for n in range(len(array_of_orbit_instances.shape)))
 
                 # For each strip, need to know how to combine the dimensions of the orbits. Bundle, then combine.
-                zipped_dimensions = tuple(zip(*(o.dimensions for o in array_of_orbit_instances[gs].ravel())))
-                glued_parameters = class_constructor.glue_parameters(zipped_dimensions, glue_shape=strip_shape)
+                tuple_of_zipped_dimensions = tuple(zip(*(o.dimensions for o in array_of_orbit_instances[gs].ravel())))
+                glued_parameters = class_constructor.glue_parameters(tuple_of_zipped_dimensions, glue_shape=strip_shape)
                 # Slice the orbit array to get the strip, reshape to maintain its d-dimensional form.
                 strip_of_orbits = array_of_orbit_instances[gs].reshape(strip_shape)
 
