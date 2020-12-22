@@ -10,7 +10,7 @@ __all__ = ['read_h5', 'read_fpo_set', 'convergence_log', 'refurbish_log', 'write
 
 
 def read_h5(filename, directory='local', data_format='orbithunter',
-            basis='modes', import_cls=None,  check=False, equation='ks', **orbitkwargs):
+            basis='field', import_cls=None,  validate=False, equation='ks', **orbitkwargs):
 
     parsing_dictionary, instantiate_orbit = parsing_util(equation=equation)
     class_generator = parse_class(filename, parsing_dictionary)
@@ -27,12 +27,12 @@ def read_h5(filename, directory='local', data_format='orbithunter',
         orbit_ = instantiate_orbit(f, class_generator, data_format=data_format,
                                    **orbitkwargs)
     # verify typically returns Orbit, code; just want the orbit instance here
-    if check:
+    if validate:
         # The automatic importation attempts to validate symmetry/class type.
-        return orbit_.verify_integrity()[0].transform(to=basis)
+        return orbit_.verify_integrity()[0].transform(to=basis, inplace=True)
     else:
         # If the class name is provided, force it through without verification.
-        return orbit_.transform(to=basis)
+        return orbit_.transform(to=basis, inplace=True)
 
 
 def parse_class(filename, class_dict):

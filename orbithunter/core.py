@@ -40,7 +40,6 @@ in terms of finite differences, so should the Jacobian).***
 
 
 class Orbit:
-
     def __init__(self, state=None, basis='field', parameters=(0., 0., 0., 0.), **kwargs):
         """ Base/Template class for orbits
 
@@ -281,15 +280,16 @@ class Orbit:
 
         Parameters
         ----------
+        inplace : bool
+        Whether or not to return a new Orbit instance, or overwrite self.
         to : str
-            The basis to transform into, for this template class there is no such thing.
+        The basis to transform into.
 
         Returns
         -------
-        Orbit :
-            Orbit in new basis.
+
         """
-        return self.copy()
+        return self
 
     def dae(self, *args, **kwargs):
         """ The governing equations evaluated using the current state.
@@ -428,16 +428,13 @@ class Orbit:
 
     def jacobian(self, **kwargs):
         """ Jacobian matrix evaluated at the current state.
+        Parameters
+        ----------
 
         Returns
         -------
         jac_ : matrix
         2-d numpy array equalling the Jacobian matrix of the governing equations evaluated at current state.
-
-        Notes
-        -----
-        Will typically be rectangular, as including the tile dimensions as parameters augments the DAE Jacobian.
-
         """
         return np.zeros([self.size, self.state_vector().size])
 
@@ -448,6 +445,7 @@ class Orbit:
         -------
         Norm of a state. Should be something like np.linalg.norm(self.state.ravel(), ord=order). The following would
         return the L_2 distance between two Orbit instances, default of NumPy linalg norm is 2-norm.
+        >>> (self - other).norm()
         """
         return np.linalg.norm(self.state.ravel(), ord=order)
 
@@ -546,20 +544,11 @@ class Orbit:
     def rescale(self, magnitude=3., method='absolute'):
         """ Scalar multiplication
 
-        Parameters
-        ----------
-        magnitude : float
-            Scalar value which controls rescaling based on method.
-        method : str
-            power or absolute; absolute rescales the L_infty norm to a value equal to magnitude; power simply
-            uses a power law rescaling.
-
-        Returns
-        -------
-        OrbitKS
-            rescaled Orbit instance
+        Notes
+        -----
+        This rescales the physical field such that the absolute value of the max/min takes on a new value
+        of magnitude
         """
-
         field = self.transform(to='field').state
         if method == 'absolute':
             rescaled_field = ((magnitude * field) / np.max(np.abs(field.ravel())))
@@ -569,8 +558,9 @@ class Orbit:
             raise ValueError('Unrecognizable method.')
         return self.__class__(state=rescaled_field, basis='field',
                               parameters=self.parameters).transform(to=self.basis)
+        return None
 
-    def to_h5(self, filename=None, directory='', verbose=False, include_residual=False):
+    def to_h5(self, filename=None, directory='local', verbose=False, include_residual=False):
         """ Export current state information to HDF5 file
 
         Parameters
@@ -579,8 +569,9 @@ class Orbit:
             Name for the save file
         directory :
             Location to save at
-        include_residual : bool
-            Whether or not to include the residual, 1/2 F^2 in the .h5 file.
+        h5pymode : str
+            Mode with which to open the file. Default is a, read/write if exists, create otherwise,
+            other modes ['r', 'r+', 'a', 'w-'].
         verbose : If true, prints save messages to std out
         """
         if filename is None:
@@ -597,14 +588,11 @@ class Orbit:
         if verbose:
             print('Saving data to {}'.format(save_path))
 
-        # Undefined (scalar) parameters will be accounted for by __getattr__
-        with h5py.File(save_path, 'w') as f:
+        with h5py.File(save_path, 'a') as f:
             # The velocity field.
             f.create_dataset("field", data=self.transform(to='field').state)
             # The parameters required to exactly specify an orbit.
             f.create_dataset('parameters', data=tuple(float(p) for p in self.parameters))
-            # This isn't ever actually used for KSE, just saved in case the file is to be inspected.
-            f.create_dataset("discretization", data=self.field_shape)
             if include_residual:
                 # This is included as a conditional statement because it seems strange to make importing/exporting
                 # dependent upon full implementation of the governing equations; i.e. perhaps the equations
@@ -692,7 +680,7 @@ def convert_class(orbit, class_generator, **kwargs):
     ----------
     orbit : Instance of OrbitKS or any of the derived classes.
         The orbit instance to be converted
-    class_generator : Orbit class
+    new_type : str or class object (not an instance).
         The target class that orbit will be converted to.
 
 

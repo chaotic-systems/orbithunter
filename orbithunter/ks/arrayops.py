@@ -1,8 +1,10 @@
 import numpy as np
 from functools import lru_cache
 from math import pi
+from scipy.fft import rfftfreq
 
-__all__ = ['swap_modes', 'so2_generator', 'so2_coefficients', 'calculate_spatial_shift']
+__all__ = ['swap_modes', 'so2_generator', 'so2_coefficients', 'elementwise_dtn', 'elementwise_dxn',
+           'calculate_spatial_shift', 'dxn_block', 'dtn_block', 'spatial_frequencies', 'temporal_frequencies']
 
 
 def swap_modes(modes, axis=1):
@@ -27,6 +29,146 @@ def so2_generator(order=1):
 @lru_cache(maxsize=8)
 def so2_coefficients(order=1):
     return np.sum(so2_generator(order=order), axis=0)
+
+
+@lru_cache(maxsize=128)
+def spatial_frequencies(L, M, order=1):
+    """ Array of spatial frequencies
+
+    Parameters
+    ----------
+    dx_parameters :
+
+    Returns
+    -------
+    ndarray :
+        Array of spatial frequencies of shape (1, m), raised to 'order' power for n-th order derivatives.
+    """
+    q_k = rfftfreq(M, d=L/(2*pi*M))[1:-1].reshape(1, -1)
+    return q_k**order
+
+
+@lru_cache(maxsize=128)
+def temporal_frequencies(T, N, order=1):
+    """
+    Returns
+    -------
+    ndarray
+        Temporal frequency array of shape (n, 1)
+
+    Notes
+    -----
+    Extra factor of '-1' because of how the state is ordered; see __init__ for
+    more details.
+
+    """
+    w_j = rfftfreq(N, d=-T/(2*pi*N))[1:-1].reshape(-1, 1)
+    return w_j**order
+
+
+@lru_cache(maxsize=128)
+def elementwise_dtn(T, N, space_dimension, order=1):
+    """ Matrix of temporal mode frequencies
+
+    Creates and returns a matrix whose elements are the properly ordered temporal frequencies,
+    which is the same shape as the spatiotemporal Fourier mode state. The elementwise product
+    with a set of spatiotemporal Fourier modes is equivalent to taking a spatial derivative.
+
+    Parameters
+    ----------
+    dt_parameters : tuple
+        The tuple of parameters returned by the dx_parameters property. See notes for why this isn't merely
+        referenced.
+
+    order : int
+        The order of the derivative, and the according power of the spatial frequencies.
+
+    Returns
+    ----------
+    dtn_multipliers : ndarray
+        Array of spatial frequencies in the same shape as modes
+    """
+
+    w = temporal_frequencies(T, N, order=order)
+    # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
+    c1, c2 = so2_coefficients(order=order)
+    # The Nyquist frequency is never included, this is how time frequency modes are ordered.
+    # Elementwise product of modes with time frequencies is the spectral derivative.
+    dtn_multipliers = np.tile(np.concatenate(([[0]], c1*w, c2*w), axis=0), (1, space_dimension))
+    return dtn_multipliers
+
+
+@lru_cache(maxsize=128)
+def elementwise_dxn(L, M, time_dimension, order=1):
+    """ Matrix of temporal mode frequencies
+
+    Parameters
+    ----------
+    L : float
+
+    M : int
+
+    tile_size : int
+        The dimension of the mode te
+
+    order : int
+        The order of the derivative, and the according power of the spatial frequencies.
+
+    Notes
+    -----
+    Creates and returns a matrix whose elements are the properly ordered spatial frequencies,
+    which is the same shape as the spatiotemporal Fourier mode state. The elementwise product
+    with a set of spatiotemporal Fourier modes is equivalent to taking a spatial derivative.
+
+    The choice of making this a classmethod with caching, is that
+
+    Returns
+    ----------
+    dxn_multipliers : ndarray
+        Array of spatial frequencies in the same shape as modes
+    """
+    q = spatial_frequencies(L, M, order=order)
+    # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
+    c1, c2 = so2_coefficients(order=order)
+    # Create elementwise spatial frequency matrix
+    dxn_multipliers = np.tile(np.concatenate((c1*q, c2*q), axis=1), (time_dimension, 1))
+    return dxn_multipliers
+
+
+@lru_cache(maxsize=128)
+def dxn_block(L, M, order=1):
+    """
+
+    Parameters
+    ----------
+    L
+    M
+    time_dimension
+    order
+
+    Returns
+    -------
+
+    """
+    return np.kron(so2_generator(order=order), np.diag(spatial_frequencies(L, M, order=order).ravel()))
+
+
+@lru_cache(maxsize=128)
+def dtn_block(T, N, order=1):
+    """
+
+    Parameters
+    ----------
+    L
+    M
+    time_dimension
+    order
+
+    Returns
+    -------
+
+    """
+    return np.kron(so2_generator(order=order), np.diag(temporal_frequencies(T, N, order=order).ravel()))
 
 
 def calculate_spatial_shift(s_modes, L, **kwargs):
@@ -62,4 +204,6 @@ def calculate_spatial_shift(s_modes, L, **kwargs):
         warnings.resetwarnings()
         shift = np.sign(shift) * np.mod(np.abs(shift), L)
     return shift
+
+
 

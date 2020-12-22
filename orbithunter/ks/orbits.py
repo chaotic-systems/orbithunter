@@ -27,7 +27,7 @@ class OrbitKS(Orbit):
         basis : str
             Which basis the array 'state' is currently in. Takes values
             'field', 's_modes', 'modes'.
-        parameters : (float, float, float)
+        parameters : tuple
             Time period, spatial period, spatial shift (unused but kept for uniformity, in case of conversion between
             OrbitKS and RelativeOrbitKS).
         **kwargs :
@@ -224,7 +224,7 @@ class OrbitKS(Orbit):
         """
         modes = self.transform(to='modes').state
         # Elementwise multiplication of modes with frequencies, this is the derivative.
-        dtn_modes = np.multiply(self.elementwise_dtn(self.dt_parameters(), order=order), modes)
+        dtn_modes = np.multiply(elementwise_dtn(self.T, self.N, self.mode_shape[1], order=order), modes)
 
         # If the order of the derivative is odd, then imaginary component and real components switch.
         if np.mod(order, 2):
@@ -236,101 +236,55 @@ class OrbitKS(Orbit):
             orbit_dtn = self.__class__(state=dtn_modes, basis='modes', parameters=self.parameters)
             return orbit_dtn.transform(to=self.basis)
 
-    def dx(self, order=1, **kwargs):
+    def dx(self, order=1, computation_basis='modes', return_array=False, **kwargs):
         """ Spatial derivative of the current state.
 
         Parameters
         ----------
         order :int
             The order of the derivative.
-
+        computation_basis : str
+            The basis in which to perform the tensor products
+        return_array : bool
+            Whether to return a numpy array or Orbit instance, primarily for internal use.
         Returns
         ----------
         orbit_dxn : OrbitKS or subclass instance
             Class instance whose spatiotemporal state represents the spatial derivative in the
             the basis of the original state.
 
+        Notes
+        -----
+        For agility, differentiation will silently perform Fourier transforms to get into the "right" basis in
+        which to compute the tensor products. The onus of responsibility is put on the user to transform their
+        instances prior to differentiation. In cases where forgetting to do so would cause dramatic slow downs,
+        i.e. optimization, errors are raised.
+
+        The general case returned by the function elementwise_dxn is an array of spatial frequencies of the shape
+        [N-1, M-2]. The columns are comprised of two repeats of an array of dimension [N-1, M//2-1]; for orbits
+        with discrete symmetry, we only want this array for the differentiation in the mode basis, simply due
+        to how the selection rules work. Therefore, we can slice by the shape of the mode tensor; for orbits without
+        discrete symmetry this does nothing, for those with discrete symmetry, it slices the half that we want.
 
         """
-        modes = self.transform(to='modes').state
-        # Elementwise multiplication of modes with frequencies, this is the derivative.
-        dxn_modes = np.multiply(self.elementwise_dxn(self.dx_parameters(), order=order), modes)
-
+        if computation_basis == 's_modes':
+            modes = self.transform(to='s_modes').state
+            # Elementwise multiplication of modes with frequencies, this is the derivative.
+            dxn_modes = np.multiply(elementwise_dxn(self.L, self.M, self.s_mode_shape[0],
+                                                    order=order), modes)
+        else:
+            modes = self.transform(to='modes').state
+            dxn_modes = np.multiply(elementwise_dxn(self.L, self.M, self.mode_shape[0],
+                                                    order=order)[:, :modes.shape[1]], modes)
         # If the order of the differentiation is odd, need to swap imaginary and real components.
         if np.mod(order, 2):
             dxn_modes = swap_modes(dxn_modes, axis=1)
 
-        if kwargs.get('return_array', False):
+        if return_array:
             return dxn_modes
         else:
-            orbit_dxn = self.__class__(state=dxn_modes, basis='modes', parameters=self.parameters)
+            orbit_dxn = self.__class__(state=dxn_modes, basis=computation_basis, parameters=self.parameters)
             return orbit_dxn.transform(to=kwargs.get('basis', self.basis))
-
-    @classmethod
-    @lru_cache(maxsize=128)
-    def elementwise_dxn(cls, dx_parameters, order=1):
-        """ Matrix of temporal mode frequencies
-
-        Parameters
-        ----------
-        dx_parameters : tuple
-            The tuple of parameters returned by the dx_parameters property. See notes for why this isn't merely
-            referenced.
-
-        order : int
-            The order of the derivative, and the according power of the spatial frequencies.
-
-        Notes
-        -----
-        Creates and returns a matrix whose elements are the properly ordered spatial frequencies,
-        which is the same shape as the spatiotemporal Fourier mode state. The elementwise product
-        with a set of spatiotemporal Fourier modes is equivalent to taking a spatial derivative.
-
-        The choice of making this a classmethod with caching, is that
-
-        Returns
-        ----------
-        dxn_multipliers : ndarray
-            Array of spatial frequencies in the same shape as modes
-        """
-        q = cls._wave_vector(dx_parameters, order=order)
-        # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
-        c1, c2 = so2_coefficients(order=order)
-        # Create elementwise spatial frequency matrix
-        dxn_multipliers = np.tile(np.concatenate((c1*q, c2*q), axis=1), (dx_parameters[-1], 1))
-        return dxn_multipliers
-
-    @classmethod
-    @lru_cache(maxsize=128)
-    def elementwise_dtn(cls, dt_parameters, order=1):
-        """ Matrix of temporal mode frequencies
-
-        Creates and returns a matrix whose elements are the properly ordered temporal frequencies,
-        which is the same shape as the spatiotemporal Fourier mode state. The elementwise product
-        with a set of spatiotemporal Fourier modes is equivalent to taking a spatial derivative.
-
-        Parameters
-        ----------
-        dt_parameters : tuple
-            The tuple of parameters returned by the dx_parameters property. See notes for why this isn't merely
-            referenced.
-
-        order : int
-            The order of the derivative, and the according power of the spatial frequencies.
-
-        Returns
-        ----------
-        dtn_multipliers : ndarray
-            Array of spatial frequencies in the same shape as modes
-        """
-
-        w = cls._frequency_vector(dt_parameters, order=order)
-        # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
-        c1, c2 = so2_coefficients(order=order)
-        # The Nyquist frequency is never included, this is how time frequency modes are ordered.
-        # Elementwise product of modes with time frequencies is the spectral derivative.
-        dtn_multipliers = np.tile(np.concatenate(([[0]], c1*w, c2*w), axis=0), (1, dt_parameters[-1]))
-        return dtn_multipliers
 
     def from_fundamental_domain(self):
         """ OrbitKS is always in its 'fundamental domain' """
@@ -595,31 +549,6 @@ class OrbitKS(Orbit):
     def preconditioning_parameters(self):
         """ Parameters used in the preconditioning method """
         return self.dt_parameters(), self.dx_parameters()
-
-    # @classmethod
-    # def glue_parameters(cls, zipped_parameters, glue_shape=(1, 1)):
-    #     """ Class method for handling parameters in gluing
-    #
-    #     Parameters
-    #     ----------
-    #     zipped_parameters : dict
-    #         A dictionary whose values are a type which can be cast as a numpy.ndarray.
-    #
-    #     glue_shape : tuple of ints
-    #         The shape of the gluing being performed i.e. for a 2x2 orbit grid glue_shape would equal (2,2).
-    #
-    #     Returns
-    #     -------
-    #     glued_parameters : tuple
-    #         tuple of parameters same dimension and type as self.parameters
-    #     """
-    #     T_array = np.array(zipped_parameters[0])
-    #     L_array = np.array(zipped_parameters[1])
-    #     glued_parameters = (glue_shape[0] * T_array[T_array>0.].mean(),
-    #                         glue_shape[0] * L_array[L_array>0.].mean(),
-    #                         0.)
-    #
-    #     return glued_parameters
 
     @classmethod
     def parameter_based_discretization(cls, parameters, **kwargs):
@@ -903,9 +832,9 @@ class OrbitKS(Orbit):
         I never preconditioned the spatial shift for relative periodic solutions so I don't include it here.
         """
 
-        p_multipliers = 1.0 / (np.abs(self.elementwise_dtn(parameters[0]))
-                               + np.abs(self.elementwise_dxn(parameters[1], order=2))
-                               + self.elementwise_dxn(parameters[1], order=4))
+        p_multipliers = 1.0 / (np.abs(elementwise_dtn(self.T, self.N, self.mode_shape[1]))
+                               + np.abs(elementwise_dxn(parameters[1], order=2))
+                               + elementwise_dxn(parameters[1], order=4))
 
         preconditioned_state = np.multiply(self.state, p_multipliers)
         # Precondition the change in T and L
@@ -1188,7 +1117,7 @@ class OrbitKS(Orbit):
         else:
             if units == 'wavelength':
                 distance = distance * 2*pi*np.sqrt(2)
-            thetak = distance * self._wave_vector(self.dx_parameters())
+            thetak = distance * spatial_frequencies(self.dx_parameters())
             cosinek = np.cos(thetak)
             sinek = np.sin(thetak)
 
@@ -1356,9 +1285,9 @@ class OrbitKS(Orbit):
 
         # I think this is the easiest way to get symmetry-dependent Fourier mode arrays' shapes.
         # power = 2 b.c. odd powers not defined for spacetime modes for discrete symmetries.
-        space_ = np.sqrt((self.L / (2*pi))**2 * np.abs(self.elementwise_dxn(self.dx_parameters(),
-                                                                            order=2))).astype(int)
-        time_ = (self.T / (2*pi)) * np.abs(self.elementwise_dtn(self.dt_parameters()))
+        space_ = np.sqrt((self.L / (2*pi))**2 * np.abs(elementwise_dxn(self.L, self.M, self.mode_shape[0],
+                                                                       order=2))).astype(int)
+        time_ = (self.T / (2*pi)) * np.abs(elementwise_dtn(self.T, self.N, self.mode_shape[1])).astype(int)
         random_modes = np.random.randn(*self.mode_shape)
 
         # Pretruncation norm, random normal distribution for modes approximately gives field of "correct" magnitude
@@ -1488,42 +1417,42 @@ class OrbitKS(Orbit):
             self.L = float(L)
         return None
 
-    @classmethod
-    @lru_cache(maxsize=128)
-    def _wave_vector(cls, dx_parameters, order=1):
-        """ Array of spatial frequencies
-
-        Parameters
-        ----------
-        dx_parameters :
-
-        Returns
-        -------
-        ndarray :
-            Array of spatial frequencies of shape (1, m), raised to 'order' power for n-th order derivatives.
-        """
-        L, M, m = dx_parameters[:3]
-        q_m = ((2 * pi * M / L) * np.fft.fftfreq(M)[1:m+1]).reshape(1, -1)
-        return q_m**order
-
-    @classmethod
-    @lru_cache(maxsize=128)
-    def _frequency_vector(cls, dt_parameters, order=1):
-        """
-        Returns
-        -------
-        ndarray
-            Temporal frequency array of shape (n, 1)
-
-        Notes
-        -----
-        Extra factor of '-1' because of how the state is ordered; see __init__ for
-        more details.
-
-        """
-        T, N, n = dt_parameters[:3]
-        w_n = (-1.0 * (2 * pi * N / T) * np.fft.fftfreq(N)[1:n+1]).reshape(-1, 1)
-        return w_n**order
+    # @classmethod
+    # @lru_cache(maxsize=128)
+    # def _wave_vector(cls, dx_parameters, order=1):
+    #     """ Array of spatial frequencies
+    #
+    #     Parameters
+    #     ----------
+    #     dx_parameters :
+    #
+    #     Returns
+    #     -------
+    #     ndarray :
+    #         Array of spatial frequencies of shape (1, m), raised to 'order' power for n-th order derivatives.
+    #     """
+    #     L, M, m = dx_parameters[:3]
+    #     q_m = ((2 * pi * M / L) * np.fft.fftfreq(M)[1:m+1]).reshape(1, -1)
+    #     return q_m**order
+    #
+    # @classmethod
+    # @lru_cache(maxsize=128)
+    # def _frequency_vector(cls, dt_parameters, order=1):
+    #     """
+    #     Returns
+    #     -------
+    #     ndarray
+    #         Temporal frequency array of shape (n, 1)
+    #
+    #     Notes
+    #     -----
+    #     Extra factor of '-1' because of how the state is ordered; see __init__ for
+    #     more details.
+    #
+    #     """
+    #     T, N, n = dt_parameters[:3]
+    #     w_j = (-1.0 * (2 * pi * N / T) * np.fft.fftfreq(N)[1:n+1]).reshape(-1, 1)
+    #     return w_j**order
 
     def _jac_lin(self):
         """ The linear component of the Jacobian matrix of the Kuramoto-Sivashinsky equation"""
@@ -1554,7 +1483,7 @@ class OrbitKS(Orbit):
         _jac_nonlin_left = self._dx_matrix().dot(self._time_transform_matrix())
         _jac_nonlin_middle = self._space_transform_matrix().dot(np.diag(self.transform(to='field').state.ravel()))
         _jac_nonlin_right = self._inv_spacetime_transform_matrix()
-        _jac_nonlin = np.dot(_jac_nonlin_left, _jac_nonlin_middle, _jac_nonlin_right)
+        _jac_nonlin = _jac_nonlin_left.dot(_jac_nonlin_middle).dot(_jac_nonlin_right)
 
         return _jac_nonlin
 
@@ -1591,7 +1520,7 @@ class OrbitKS(Orbit):
 
         return jac_
 
-    def _dx_matrix(self, order=1, **kwargs):
+    def _dx_matrix(self, order=1, computation_basis='modes'):
         """ The space derivative matrix operator for the current state.
 
         Parameters
@@ -1617,17 +1546,16 @@ class OrbitKS(Orbit):
         space_dxn equal to the number of temporal frequencies. If in the spatial mode basis, this is the
         number of time points instead.
         """
-
-        basis = kwargs.get('basis', self.basis)
         # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
-        space_dxn = np.kron(so2_generator(order=order), np.diag(self._wave_vector(self.dx_parameters(),
-                                                                                  order=order).ravel()))
-        if basis == 's_modes':
+        if computation_basis == 's_modes':
             # else use time discretization size.
-            spacetime_dxn = np.kron(np.eye(self.N), space_dxn)
+            spacetime_dxn = np.kron(np.eye(self.N),  dxn_block(self.L, self.M, order=order))
         else:
             # if spacetime modes, use the corresponding mode shape parameters
-            spacetime_dxn = np.kron(np.eye(self.mode_shape[0]), space_dxn)
+            # This slicing method won't work for odd ordered derivatives with orbits with discrete symmetry, but
+            # that's not an issue because it isn't well defined anyway.
+            spacetime_dxn = np.kron(np.eye(self.mode_shape[0]),
+                                    dxn_block(self.L, self.M, order=order)[:self.mode_shape[1], :self.mode_shape[1]])
 
         return spacetime_dxn
 
@@ -1653,12 +1581,10 @@ class OrbitKS(Orbit):
         we need a number of copies of dt_n_matrix equal to the number of spatial frequencies.
         """
         # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
-        dt_n_matrix = np.kron(so2_generator(order=order), np.diag(self._frequency_vector(self.dt_parameters(),
-                                                                                         order=order).ravel()))
         # Zeroth frequency was not included in frequency vector.
-        dt_n_matrix = block_diag([[0]], dt_n_matrix)
+        dtn_matrix = block_diag([[0]], dtn_block(self.T, self.N, order=order))
         # Take kronecker product to account for the number of spatial modes.
-        spacetime_dtn = np.kron(dt_n_matrix, np.eye(self.mode_shape[1]))
+        spacetime_dtn = np.kron(dtn_matrix, np.eye(self.mode_shape[1]))
         return spacetime_dtn
 
     def _inv_spacetime_transform_matrix(self):
@@ -1989,7 +1915,7 @@ class RelativeOrbitKS(OrbitKS):
         time_vector = np.flipud(np.linspace(0, self.T, num=self.N, endpoint=True)).reshape(-1, 1)
         translation_per_period = shift / self.T
         time_dependent_translations = translation_per_period*time_vector
-        thetak = time_dependent_translations.reshape(-1, 1)*self._wave_vector(self.dx_parameters()).ravel()
+        thetak = time_dependent_translations.reshape(-1, 1)*spatial_frequencies(self.dx_parameters()).ravel()
         cosine_block = np.cos(thetak)
         sine_block = np.sin(thetak)
         real_modes = s_modes[:, :-self.m]
@@ -2283,68 +2209,6 @@ class AntisymmetricOrbitKS(OrbitKS):
     def __init__(self, state=None, basis='modes', parameters=(0., 0., 0.), **kwargs):
         super().__init__(state=state, basis=basis, parameters=parameters, **kwargs)
 
-    def dx(self, order=1, return_array=False):
-        """ Overwrite of parent method """
-        if np.mod(order, 2):
-            dxn_s_modes = swap_modes(np.multiply(self.elementwise_dxn(self.dx_parameters(), order=order),
-                                                 self.transform(to='s_modes').state), axis=1)
-            # Typically have to keep odd ordered spatial derivatives as spatial modes or field.
-            if return_array:
-                return dxn_s_modes
-            else:
-                return self.__class__(state=dxn_s_modes, basis='s_modes', parameters=self.parameters)
-        else:
-            dxn_modes = np.multiply(self.elementwise_dxn(self.dx_parameters(), order=order),
-                                    self.transform(to='modes').state)
-            if return_array:
-                return dxn_modes
-            else:
-                return self.__class__(state=dxn_modes, basis='modes',
-                                      parameters=self.parameters).transform(to=self.basis)
-
-    @classmethod
-    @lru_cache(maxsize=128)
-    def elementwise_dxn(cls, dx_parameters, order=1):
-        """ Matrix of temporal mode frequencies
-
-        Creates and returns a matrix whose elements
-        are the properly ordered spatial frequencies,
-        which is the same shape as the spatiotemporal
-        Fourier mode state. The elementwise product
-        with a set of spatiotemporal Fourier modes
-        is equivalent to taking a spatial derivative.
-
-        Returns
-        ----------
-        matrix
-            Matrix of spatial frequencies
-        """
-        q = cls._wave_vector(dx_parameters, order=order)
-        # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
-        c1, c2 = so2_coefficients(order=order)
-        # Create elementwise spatial frequency matrix
-        if np.mod(order, 2):
-            # If the order of the derivative is odd, need to apply to spatial modes not spacetime modes.
-            dxn_multipliers = np.tile(np.concatenate((c1*q, c2*q), axis=1), (dx_parameters[-2], 1))
-        else:
-            # if order is even, make the frequencies into an array with same shape as modes; c1 = c2 when power is even.
-            dxn_multipliers = np.tile(c1*q, (dx_parameters[-1], 1))
-        return dxn_multipliers
-
-    def _dx_matrix(self, order=1, **kwargs):
-        """ Overwrite of parent method """
-        basis = kwargs.get('basis', self.basis)
-        # Define spatial wavenumber vector
-        if basis == 'modes':
-            _, c = so2_coefficients(order=order)
-            dx_n_matrix = c * np.diag(self._wave_vector(self.dx_parameters(), order=order).ravel())
-            _dx_matrix_complete = np.kron(np.eye(self.mode_shape[0]), dx_n_matrix)
-        else:
-            dx_n_matrix = np.kron(so2_generator(order=order), np.diag(self._wave_vector(self.dx_parameters(),
-                                                                                        order=order).ravel()))
-            _dx_matrix_complete = np.kron(np.eye(self.N), dx_n_matrix)
-        return _dx_matrix_complete
-
     def _jac_nonlin(self):
         """ The nonlinear component of the Jacobian matrix of the Kuramoto-Sivashinsky equation
 
@@ -2370,7 +2234,7 @@ class AntisymmetricOrbitKS(OrbitKS):
         _jac_nonlin_left = self._time_transform_matrix().dot(self._dx_matrix(basis='s_modes'))
         _jac_nonlin_middle = self._space_transform_matrix().dot(np.diag(self.transform(to='field').state.ravel()))
         _jac_nonlin_right = self._inv_spacetime_transform_matrix()
-        _jac_nonlin = np.dot(_jac_nonlin_left, _jac_nonlin_middle, _jac_nonlin_right)
+        _jac_nonlin = _jac_nonlin_left.dot(_jac_nonlin_middle).dot(_jac_nonlin_right)
 
         return _jac_nonlin
 
@@ -2563,71 +2427,6 @@ class ShiftReflectionOrbitKS(OrbitKS):
         """
         super().__init__(state=state, basis=basis, parameters=parameters, **kwargs)
 
-    def dx(self, order=1, return_array=False):
-        """ Overwrite of parent method """
-
-        if np.mod(order, 2):
-            dxn_s_modes = swap_modes(np.multiply(self.elementwise_dxn(self.dx_parameters(), order=order),
-                                                 self.transform(to='s_modes').state), axis=1)
-            # Typically have to keep odd ordered spatial derivatives as spatial modes or field.
-            if return_array:
-                return dxn_s_modes
-            else:
-                return self.__class__(state=dxn_s_modes, basis='s_modes',
-                                      parameters=self.parameters).transform(to=self.basis)
-        else:
-            dxn_modes = np.multiply(self.elementwise_dxn(self.dx_parameters(), order=order),
-                                    self.transform(to='modes').state)
-            if return_array:
-                return dxn_modes
-            else:
-                return self.__class__(state=dxn_modes, basis='modes',
-                                      parameters=self.parameters).transform(to=self.basis)
-
-    @classmethod
-    @lru_cache(maxsize=128)
-    def elementwise_dxn(cls, dx_parameters, order=1):
-        """ Matrix of temporal mode frequencies
-
-        Creates and returns a matrix whose elements
-        are the properly ordered spatial frequencies,
-        which is the same shape as the spatiotemporal
-        Fourier mode state. The elementwise product
-        with a set of spatiotemporal Fourier modes
-        is equivalent to taking a spatial derivative.
-
-        Returns
-        ----------
-        matrix
-            Matrix of spatial frequencies
-        """
-        q = cls._wave_vector(dx_parameters, order=order)
-        # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
-        c1, c2 = so2_coefficients(order=order)
-        # Create elementwise spatial frequency matrix
-        if np.mod(order, 2):
-            # If the order of the derivative is odd, need to apply to spatial modes not spacetime modes.
-            dxn_multipliers = np.tile(np.concatenate((c1*q, c2*q), axis=1), (dx_parameters[-2], 1))
-        else:
-            # if order is even, make the frequencies into an array with same shape as modes; c1 = c2 when power is even.
-            dxn_multipliers = np.tile(c1*q, (dx_parameters[-1], 1))
-        return dxn_multipliers
-
-    def _dx_matrix(self, order=1, **kwargs):
-        """ Overwrite of parent method """
-        basis = kwargs.get('basis', self.basis)
-        # Define spatial wavenumber vector
-        if basis == 's_modes':
-            dx_n_matrix = np.kron(so2_generator(order=order), np.diag(self._wave_vector(self.dx_parameters(),
-                                                                                        order=order).ravel()))
-            _dx_matrix_complete = np.kron(np.eye(self.N), dx_n_matrix)
-        else:
-            _, c = so2_coefficients(order=order)
-            dx_n_matrix = c * np.diag(self._wave_vector(self.dx_parameters(), order=order).ravel())
-            _dx_matrix_complete = np.kron(np.eye(self.mode_shape[0]), dx_n_matrix)
-
-        return _dx_matrix_complete
-
     def from_fundamental_domain(self):
         """ Reconstruct full field from discrete fundamental domain """
         field = np.concatenate((self.reflection().state, self.state), axis=0)
@@ -2706,7 +2505,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
         _jac_nonlin_left = self._time_transform_matrix().dot(self._dx_matrix(basis='s_modes'))
         _jac_nonlin_middle = self._space_transform_matrix().dot(np.diag(self.transform(to='field').state.ravel()))
         _jac_nonlin_right = self._inv_spacetime_transform_matrix()
-        _jac_nonlin = np.dot(_jac_nonlin_left, _jac_nonlin_middle, _jac_nonlin_right)
+        _jac_nonlin = _jac_nonlin_left.dot(_jac_nonlin_middle).dot(_jac_nonlin_right)
 
         return _jac_nonlin
 
@@ -3054,88 +2853,88 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             M = kwargs.get('M', None)
         return N, M
 
-    def _random_initial_condition(self, parameters, **kwargs):
-        """ Initial a set of random spatiotemporal Fourier modes
-        Parameters
-        ----------
-        T : float
-            Time period
-        L : float
-            Space period
-        **kwargs
-            time_scale : int
-                The number of temporal frequencies to keep after truncation.
-            space_scale : int
-                The number of spatial frequencies to get after truncation.
-        Returns
-        -------
-        self :
-            OrbitKS whose state has been modified to be a set of random Fourier modes.
-        Notes
-        -----
-        These are the initial condition generators that I find the most useful. If a different method is
-        desired, simply pass the array as 'state' variable to __init__.
-        """
-
-        spectrum = kwargs.get('spectrum', 'gaussian')
-
-        # also accepts N and M as kwargs
-        self.N, self.M = self.parameter_based_discretization(parameters, N=1)
-        self.n, self.m = 1, int(self.M // 2) - 1
-        xscale = kwargs.get('xscale', int(np.round(self.L / (2*pi*np.sqrt(2)))))
-        xvar = kwargs.get('xvar', np.sqrt(xscale))
-
-        # I think this is the easiest way to get symmetry-dependent Fourier mode arrays' shapes.
-        # power = 2 b.c. odd powers not defined for spacetime modes for discrete symmetries.
-        space_ = np.sqrt((self.L / (2*pi))**2 * np.abs(self.elementwise_dxn(self.dx_parameters(),
-                                                                            order=2))).astype(int)
-
-        # space_, time_ = self.space_time_indices
-        np.random.seed(kwargs.get('seed', None))
-        random_modes = np.random.randn(*self.mode_shape)
-        # piece-wise constant + exponential
-        # linear-component based. multiply by preconditioner?
-        # random modes, no modulation.
-
-        if spectrum == 'gaussian':
-            # spacetime gaussian modulation
-            gaussian_modulator = np.exp(-(space_ - xscale)**2/(2*xvar))
-            modes = np.multiply(gaussian_modulator, random_modes)
-        elif spectrum == 'piecewise-exponential':
-            # space scaling is constant up until certain wave number then exponential decrease
-            # time scaling is static
-            space_[space_ <= xscale] = xscale
-            p_exp_modulator = np.exp(-1.0 * np.abs(space_ - xscale) / xvar)
-            modes = np.multiply(p_exp_modulator, random_modes)
-
-        elif spectrum == 'exponential':
-            # exponential decrease away from selected spatial scale
-            exp_modulator = np.exp(-1.0 * np.abs(space_ - xscale) / xvar)
-            modes = np.multiply(exp_modulator, random_modes)
-        elif spectrum == 'linear':
-            # so we get qk^2 - qk^4
-            mollifier = (self.elementwise_dxn(self.dx_parameters(), order=2)
-                         + self.elementwise_dxn(self.dx_parameters(), order=4))
-            # The sign of the spectrum doesn't matter because modes were random anyway.
-            modes = np.divide(random_modes, mollifier)
-        elif spectrum == 'linear-exponential':
-            # so we get qk^2 - qk^4
-            mollifier = -1.0*np.abs((2*pi*xscale/self.L)**2-(2*pi*xscale/self.L)**4
-                                    - (2*pi*space_ / self.L)**2+(2*pi*space_/self.L)**4)
-            modes = np.multiply(mollifier, random_modes)
-        elif spectrum == 'plateau-linear':
-            plateau = np.where(space_[space_ <= xscale])
-            # so we get qk^2 - qk^4
-            mollifier = (2*pi*space_/self.L)**2 - (2*pi*space_/self.L)**4
-            mollifier[plateau] = 1
-            modes = np.divide(random_modes, np.abs(mollifier))
-        else:
-            modes = random_modes
-
-        self.state = modes
-        self.basis = 'modes'
-        return self.rescale(kwargs.get('magnitude', 3.5),
-                            method=kwargs.get('rescale_method', 'absolute'))
+    # def _random_initial_condition(self, parameters, **kwargs):
+    #     """ Initial a set of random spatiotemporal Fourier modes
+    #     Parameters
+    #     ----------
+    #     T : float
+    #         Time period
+    #     L : float
+    #         Space period
+    #     **kwargs
+    #         time_scale : int
+    #             The number of temporal frequencies to keep after truncation.
+    #         space_scale : int
+    #             The number of spatial frequencies to get after truncation.
+    #     Returns
+    #     -------
+    #     self :
+    #         OrbitKS whose state has been modified to be a set of random Fourier modes.
+    #     Notes
+    #     -----
+    #     These are the initial condition generators that I find the most useful. If a different method is
+    #     desired, simply pass the array as 'state' variable to __init__.
+    #     """
+    #
+    #     spectrum = kwargs.get('spectrum', 'gaussian')
+    #
+    #     # also accepts N and M as kwargs
+    #     self.N, self.M = self.parameter_based_discretization(parameters, N=1)
+    #     self.n, self.m = 1, int(self.M // 2) - 1
+    #     xscale = kwargs.get('xscale', int(np.round(self.L / (2*pi*np.sqrt(2)))))
+    #     xvar = kwargs.get('xvar', np.sqrt(xscale))
+    #
+    #     # I think this is the easiest way to get symmetry-dependent Fourier mode arrays' shapes.
+    #     # power = 2 b.c. odd powers not defined for spacetime modes for discrete symmetries.
+    #     space_ = np.sqrt((self.L / (2*pi))**2 * np.abs(elementwise_dxn(self.dx_parameters(),
+    #                                                                         order=2))).astype(int)
+    #
+    #     # space_, time_ = self.space_time_indices
+    #     np.random.seed(kwargs.get('seed', None))
+    #     random_modes = np.random.randn(*self.mode_shape)
+    #     # piece-wise constant + exponential
+    #     # linear-component based. multiply by preconditioner?
+    #     # random modes, no modulation.
+    #
+    #     if spectrum == 'gaussian':
+    #         # spacetime gaussian modulation
+    #         gaussian_modulator = np.exp(-(space_ - xscale)**2/(2*xvar))
+    #         modes = np.multiply(gaussian_modulator, random_modes)
+    #     elif spectrum == 'piecewise-exponential':
+    #         # space scaling is constant up until certain wave number then exponential decrease
+    #         # time scaling is static
+    #         space_[space_ <= xscale] = xscale
+    #         p_exp_modulator = np.exp(-1.0 * np.abs(space_ - xscale) / xvar)
+    #         modes = np.multiply(p_exp_modulator, random_modes)
+    #
+    #     elif spectrum == 'exponential':
+    #         # exponential decrease away from selected spatial scale
+    #         exp_modulator = np.exp(-1.0 * np.abs(space_ - xscale) / xvar)
+    #         modes = np.multiply(exp_modulator, random_modes)
+    #     elif spectrum == 'linear':
+    #         # so we get qk^2 - qk^4
+    #         mollifier = (elementwise_dxn(self.dx_parameters(), order=2)
+    #                      + elementwise_dxn(self.dx_parameters(), order=4))
+    #         # The sign of the spectrum doesn't matter because modes were random anyway.
+    #         modes = np.divide(random_modes, mollifier)
+    #     elif spectrum == 'linear-exponential':
+    #         # so we get qk^2 - qk^4
+    #         mollifier = -1.0*np.abs((2*pi*xscale/self.L)**2-(2*pi*xscale/self.L)**4
+    #                                 - (2*pi*space_ / self.L)**2+(2*pi*space_/self.L)**4)
+    #         modes = np.multiply(mollifier, random_modes)
+    #     elif spectrum == 'plateau-linear':
+    #         plateau = np.where(space_[space_ <= xscale])
+    #         # so we get qk^2 - qk^4
+    #         mollifier = (2*pi*space_/self.L)**2 - (2*pi*space_/self.L)**4
+    #         mollifier[plateau] = 1
+    #         modes = np.divide(random_modes, np.abs(mollifier))
+    #     else:
+    #         modes = random_modes
+    #
+    #     self.state = modes
+    #     self.basis = 'modes'
+    #     return self.rescale(kwargs.get('magnitude', 3.5),
+    #                         method=kwargs.get('rescale_method', 'absolute'))
 
     def dx_parameters(self):
         return self.L, self.M, self.m, self.N, 1
@@ -3157,24 +2956,6 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
     @property
     def dimensions(self):
         return 0., self.L
-
-    # @classmethod
-    # def glue_parameters(cls, zipped_parameters, glue_shape=(1, 1)):
-    #     """ Subclassed method for handling parameters in gluing; handles T=0 case.
-    #     """
-    #
-    #     L_array = np.array(zipped_parameters[1])
-    #
-    #     if glue_shape[0] > 1:
-    #         raise ValueError('Trying to glue EquilibriumOrbitKS() in time is contradictory.')
-    #     elif glue_shape[0] == 1 and glue_shape[1] > 1:
-    #         glued_parameters = (0, np.sum(L_array), 0.)
-    #     else:
-    #         # Gluing shouldn't really be used if there is literally no gluing occuring, i.e. glue_shape = (1,1),
-    #         # but just for the sake of completeness.
-    #         glued_parameters = (0, float(L_array), 0.)
-    #
-    #     return glued_parameters
 
     def _parse_state(self, state, basis, **kwargs):
         shp = state.shape
@@ -3219,8 +3000,8 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         Often we want to precondition a state derived from a mapping or rmatvec (gradient descent step),
         with respect to ANOTHER orbit's (current state's) parameters.
         """
-        p_multipliers = 1.0 / (np.abs(self.elementwise_dxn(parameters[1], order=2))
-                               + self.elementwise_dxn(parameters[1], order=4))
+        p_multipliers = 1.0 / (np.abs(elementwise_dxn(parameters[1], order=2))
+                               + elementwise_dxn(parameters[1], order=4))
 
         preconditioned_state = np.multiply(self.state, p_multipliers)
         param_powers = kwargs.get('pexp', (0, 4))
@@ -3533,112 +3314,112 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         self.n, self.m = 1, int(self.M // 2) - 1
         return self
 
-    def _random_initial_condition(self, parameters, **kwargs):
-        """ Initial a set of random spatiotemporal Fourier modes
-        Parameters
-        ----------
-        T : float
-            Time period
-        L : float
-            Space period
-        **kwargs
-            time_scale : int
-                The number of temporal frequencies to keep after truncation.
-            space_scale : int
-                The number of spatial frequencies to get after truncation.
-        Returns
-        -------
-        self :
-            OrbitKS whose state has been modified to be a set of random Fourier modes.
-        Notes
-        -----
-        These are the initial condition generators that I find the most useful. If a different method is
-        desired, simply pass the array as 'state' variable to __init__.
-        """
-
-        spectrum = kwargs.get('spectrum', 'gaussian')
-
-        # also accepts N and M as kwargs
-        self.N, self.M = self.parameter_based_discretization(parameters, N=1)
-        self.n, self.m = 1, int(self.M // 2) - 1
-
-        tscale = kwargs.get('tscale', int(np.round(self.T / 20.)))
-        xscale = kwargs.get('xscale', int(np.round(self.L / (2*pi*np.sqrt(2)))))
-        xvar = kwargs.get('xvar', np.sqrt(xscale))
-        tvar = kwargs.get('tvar', np.sqrt(tscale))
-
-        # I think this is the easiest way to get symmetry-dependent Fourier mode arrays' shapes.
-        # power = 2 b.c. odd powers not defined for spacetime modes for discrete symmetries.
-        space_ = np.sqrt((self.L / (2*pi))**2 * np.abs(self.elementwise_dxn(self.dx_parameters(),
-                                                                            order=2))).astype(int)
-        time_ = (self.T / (2*pi)) * np.abs(self.elementwise_dtn(self.dt_parameters()))
-        np.random.seed(kwargs.get('seed', None))
-        random_modes = np.random.randn(*self.mode_shape)
-        # piece-wise constant + exponential
-        # linear-component based. multiply by preconditioner?
-        # random modes, no modulation.
-
-        if spectrum == 'gaussian':
-            # spacetime gaussian modulation
-            gaussian_modulator = np.exp(-((space_ - xscale)**2/(2*xvar)) - ((time_ - tscale)**2 / (2*tvar)))
-            modes = np.multiply(gaussian_modulator, random_modes)
-
-        elif spectrum == 'plateau-exponential':
-            # space scaling is constant up until certain wave number then exponential decrease
-            # time scaling is static
-            time_[time_ > tscale] = 0.
-            time_[time_ != 0.] = 1.
-            space_[space_ <= xscale] = xscale
-            exp_modulator = np.exp(-1.0 * np.abs(space_ - xscale) / xvar)
-            p_exp_modulator = np.multiply(time_, exp_modulator)
-            modes = np.multiply(p_exp_modulator, random_modes)
-
-        elif spectrum == 'exponential':
-            # exponential decrease away from selected spatial scale
-            time_[time_ > tscale] = 0.
-            time_[time_ != 0.] = 1.
-            exp_modulator = np.exp(-1.0 * np.abs(space_ - xscale) / xvar)
-            p_exp_modulator = np.multiply(time_, exp_modulator)
-            modes = np.multiply(p_exp_modulator, random_modes)
-
-        elif spectrum == 'linear':
-            # Modulate the spectrum using the spatial linear operator; equivalent to preconditioning.
-            time_[time_ <= tscale] = 1.
-            time_[time_ != 1.] = 0.
-            # so we get qk^2 - qk^4
-            mollifier = -1.0 * (self.elementwise_dxn(self.dx_parameters(), order=2)
-                                + self.elementwise_dxn(self.dx_parametersself.dx_parameters(), order=4))
-            modulated_modes = np.divide(random_modes, mollifier)
-            modes = np.multiply(time_, modulated_modes)
-
-        elif spectrum == 'linear-exponential':
-            # Modulate the spectrum using the spatial linear operator; equivalent to preconditioning.
-            time_[time_ <= tscale] = 1.
-            time_[time_ != 1.] = 0.
-            # so we get qk^2 - qk^4
-            mollifier = -(((2*pi*xscale/self.L)**2-(2*pi*xscale/self.L)**4)
-                            - ((2*pi*space_/self.L)**2-(2*pi*space_/self.L)**4))
-            modulated_modes = np.divide(random_modes, mollifier)
-            modes = np.multiply(time_, modulated_modes)
-
-        elif spectrum == 'plateau-linear':
-            # Modulate the spectrum using the spatial linear operator; equivalent to preconditioning.
-            time_[time_ <= tscale] = 1.
-            time_[time_ != 1.] = 0.
-            plateau = np.where(space_[space_ <= xscale])
-            # so we get qk^2 - qk^4
-            mollifier = (2*pi*space_/self.L)**2 - (2*pi*space_/self.L)**4
-            mollifier[plateau] = 1
-            modulated_modes = np.divide(random_modes, np.abs(mollifier))
-            modes = np.multiply(time_, modulated_modes)
-
-        else:
-            modes = random_modes
-
-        self.state = modes
-        self.basis = 'modes'
-        return self.rescale(kwargs.get('magnitude', 2.5),
-                            method=kwargs.get('rescale_method', 'absolute'))
+    # def _random_initial_condition(self, parameters, **kwargs):
+    #     """ Initial a set of random spatiotemporal Fourier modes
+    #     Parameters
+    #     ----------
+    #     T : float
+    #         Time period
+    #     L : float
+    #         Space period
+    #     **kwargs
+    #         time_scale : int
+    #             The number of temporal frequencies to keep after truncation.
+    #         space_scale : int
+    #             The number of spatial frequencies to get after truncation.
+    #     Returns
+    #     -------
+    #     self :
+    #         OrbitKS whose state has been modified to be a set of random Fourier modes.
+    #     Notes
+    #     -----
+    #     These are the initial condition generators that I find the most useful. If a different method is
+    #     desired, simply pass the array as 'state' variable to __init__.
+    #     """
+    #
+    #     spectrum = kwargs.get('spectrum', 'gaussian')
+    #
+    #     # also accepts N and M as kwargs
+    #     self.N, self.M = self.parameter_based_discretization(parameters, N=1)
+    #     self.n, self.m = 1, int(self.M // 2) - 1
+    #
+    #     tscale = kwargs.get('tscale', int(np.round(self.T / 20.)))
+    #     xscale = kwargs.get('xscale', int(np.round(self.L / (2*pi*np.sqrt(2)))))
+    #     xvar = kwargs.get('xvar', np.sqrt(xscale))
+    #     tvar = kwargs.get('tvar', np.sqrt(tscale))
+    #
+    #     # I think this is the easiest way to get symmetry-dependent Fourier mode arrays' shapes.
+    #     # power = 2 b.c. odd powers not defined for spacetime modes for discrete symmetries.
+    #     space_ = np.sqrt((self.L / (2*pi))**2 * np.abs(elementwise_dxn(self.L, self.M, self.mode_shape[0], order=2)
+    #                                                    )).astype(int)
+    #     time_ = (self.T / (2*pi)) * np.abs(elementwise_dtn(self.T, self.N, self.mode_shape[1])).astype(int)
+    #     np.random.seed(kwargs.get('seed', None))
+    #     random_modes = np.random.randn(*self.mode_shape)
+    #     # piece-wise constant + exponential
+    #     # linear-component based. multiply by preconditioner?
+    #     # random modes, no modulation.
+    #
+    #     if spectrum == 'gaussian':
+    #         # spacetime gaussian modulation
+    #         gaussian_modulator = np.exp(-((space_ - xscale)**2/(2*xvar)) - ((time_ - tscale)**2 / (2*tvar)))
+    #         modes = np.multiply(gaussian_modulator, random_modes)
+    #
+    #     elif spectrum == 'plateau-exponential':
+    #         # space scaling is constant up until certain wave number then exponential decrease
+    #         # time scaling is static
+    #         time_[time_ > tscale] = 0.
+    #         time_[time_ != 0.] = 1.
+    #         space_[space_ <= xscale] = xscale
+    #         exp_modulator = np.exp(-1.0 * np.abs(space_ - xscale) / xvar)
+    #         p_exp_modulator = np.multiply(time_, exp_modulator)
+    #         modes = np.multiply(p_exp_modulator, random_modes)
+    #
+    #     elif spectrum == 'exponential':
+    #         # exponential decrease away from selected spatial scale
+    #         time_[time_ > tscale] = 0.
+    #         time_[time_ != 0.] = 1.
+    #         exp_modulator = np.exp(-1.0 * np.abs(space_ - xscale) / xvar)
+    #         p_exp_modulator = np.multiply(time_, exp_modulator)
+    #         modes = np.multiply(p_exp_modulator, random_modes)
+    #
+    #     elif spectrum == 'linear':
+    #         # Modulate the spectrum using the spatial linear operator; equivalent to preconditioning.
+    #         time_[time_ <= tscale] = 1.
+    #         time_[time_ != 1.] = 0.
+    #         # so we get qk^2 - qk^4
+    #         mollifier = -1.0 * (elementwise_dxn(self.dx_parameters(), order=2)
+    #                             + elementwise_dxn(self.dx_parametersself.dx_parameters(), order=4))
+    #         modulated_modes = np.divide(random_modes, mollifier)
+    #         modes = np.multiply(time_, modulated_modes)
+    #
+    #     elif spectrum == 'linear-exponential':
+    #         # Modulate the spectrum using the spatial linear operator; equivalent to preconditioning.
+    #         time_[time_ <= tscale] = 1.
+    #         time_[time_ != 1.] = 0.
+    #         # so we get qk^2 - qk^4
+    #         mollifier = -(((2*pi*xscale/self.L)**2-(2*pi*xscale/self.L)**4)
+    #                         - ((2*pi*space_/self.L)**2-(2*pi*space_/self.L)**4))
+    #         modulated_modes = np.divide(random_modes, mollifier)
+    #         modes = np.multiply(time_, modulated_modes)
+    #
+    #     elif spectrum == 'plateau-linear':
+    #         # Modulate the spectrum using the spatial linear operator; equivalent to preconditioning.
+    #         time_[time_ <= tscale] = 1.
+    #         time_[time_ != 1.] = 0.
+    #         plateau = np.where(space_[space_ <= xscale])
+    #         # so we get qk^2 - qk^4
+    #         mollifier = (2*pi*space_/self.L)**2 - (2*pi*space_/self.L)**4
+    #         mollifier[plateau] = 1
+    #         modulated_modes = np.divide(random_modes, np.abs(mollifier))
+    #         modes = np.multiply(time_, modulated_modes)
+    #
+    #     else:
+    #         modes = random_modes
+    #
+    #     self.state = modes
+    #     self.basis = 'modes'
+    #     return self.rescale(kwargs.get('magnitude', 2.5),
+    #                         method=kwargs.get('rescale_method', 'absolute'))
 
     def dae(self, **kwargs):
         """ The Kuramoto-Sivashinsky equation evaluated at the current state.

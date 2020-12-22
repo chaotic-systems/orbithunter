@@ -32,34 +32,6 @@ def _averaging_wrapper(instance_with_state_to_average, average=None):
         return instance_with_state_to_average.state
 
 
-def _dx_spatial_modes(orbit_, order=1):
-    """ Modification of spatial derivative method
-
-    Parameters
-    ----------
-    orbit_
-    power
-
-    Returns
-    -------
-
-    Notes
-    -----
-    Rewritten to accomodate returning spatial modes.
-
-    """
-
-    modes = orbit_.transform(to='s_modes').state
-    # Elementwise multiplication of modes with frequencies, this is the derivative.
-    dxn_modes = np.multiply(orbit_.elementwise_dxn(orbit_.dx_parameters, order=order), modes)
-
-    # If the order of the differentiation is odd, need to swap imaginary and real components.
-    if np.mod(order, 2):
-        dxn_modes = swap_modes(dxn_modes, axis=1)
-
-    return orbit_.__class__(state=dxn_modes, basis='s_modes', parameters=orbit_.parameters)
-
-
 def dissipation(orbit_instance, average=None):
     """ Amount of energy dissipation
     Notes
@@ -222,13 +194,13 @@ def integrate(orbit_, **kwargs):
     if kwargs.get('return_trajectory', True):
         u = np.zeros([nmax, orbit_t_equals_0.field_shape[1]])
     for step in range(1, nmax):
-        Nv = -0.5*_dx_spatial_modes(v.transform(to='field')**2, order=1)
+        Nv = -0.5*(v.transform(to='field')**2).dx(computation_basis='s_modes')
         a = v.statemul(E2) + Nv.statemul(Q)
-        Na = -0.5*_dx_spatial_modes(a.transform(to='field')**2, order=1)
+        Na = -0.5*(a.transform(to='field')**2).dx(computation_basis='s_modes')
         b = v.statemul(E2) + Na.statemul(Q)
-        Nb = -0.5*_dx_spatial_modes(b.transform(to='field')**2, order=1)
+        Nb = -0.5*(b.transform(to='field')**2).dx(computation_basis='s_modes')
         c = a.statemul(E2) + (2.0 * Nb - Nv).statemul(Q)
-        Nc = -0.5*_dx_spatial_modes(c.transform(to='field')**2, order=1)
+        Nc = -0.5*(c.transform(to='field')**2).dx(computation_basis='s_modes')
         v = (v.statemul(E) + Nv.statemul(f1)
              + (2.0 * (Na + Nb)).statemul(f2) + Nc.statemul(f3))
         if kwargs.get('return_trajectory', True):
