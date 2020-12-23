@@ -21,17 +21,17 @@ def swap_modes(modes, axis=1):
     return swapped_modes
 
 
-@lru_cache(maxsize=8)
+@lru_cache()
 def so2_generator(order=1):
     return np.linalg.matrix_power(np.array([[0, -1], [1, 0]]), np.mod(order, 4))
 
 
-@lru_cache(maxsize=8)
+@lru_cache()
 def so2_coefficients(order=1):
     return np.sum(so2_generator(order=order), axis=0)
 
 
-@lru_cache(maxsize=128)
+@lru_cache()
 def spatial_frequencies(L, M, order=1):
     """ Array of spatial frequencies
 
@@ -48,7 +48,7 @@ def spatial_frequencies(L, M, order=1):
     return q_k**order
 
 
-@lru_cache(maxsize=128)
+@lru_cache()
 def temporal_frequencies(T, N, order=1):
     """
     Returns
@@ -62,12 +62,13 @@ def temporal_frequencies(T, N, order=1):
     more details.
 
     """
+    # the parameter 'd' divides the values of rfftfreq s.t. the result is 2 pi N / T * rfftfreq
     w_j = rfftfreq(N, d=-T/(2*pi*N))[1:-1].reshape(-1, 1)
     return w_j**order
 
 
-@lru_cache(maxsize=128)
-def elementwise_dtn(T, N, space_dimension, order=1):
+@lru_cache()
+def elementwise_dtn(T, N, tiling_dimension, order=1):
     """ Matrix of temporal mode frequencies
 
     Creates and returns a matrix whose elements are the properly ordered temporal frequencies,
@@ -76,9 +77,12 @@ def elementwise_dtn(T, N, space_dimension, order=1):
 
     Parameters
     ----------
-    dt_parameters : tuple
-        The tuple of parameters returned by the dx_parameters property. See notes for why this isn't merely
-        referenced.
+    T : float
+
+    N : int
+
+    tiling_dimension :
+
 
     order : int
         The order of the derivative, and the according power of the spatial frequencies.
@@ -94,12 +98,12 @@ def elementwise_dtn(T, N, space_dimension, order=1):
     c1, c2 = so2_coefficients(order=order)
     # The Nyquist frequency is never included, this is how time frequency modes are ordered.
     # Elementwise product of modes with time frequencies is the spectral derivative.
-    dtn_multipliers = np.tile(np.concatenate(([[0]], c1*w, c2*w), axis=0), (1, space_dimension))
+    dtn_multipliers = np.tile(np.concatenate(([[0]], c1*w, c2*w), axis=0), (1, tiling_dimension))
     return dtn_multipliers
 
 
-@lru_cache(maxsize=128)
-def elementwise_dxn(L, M, time_dimension, order=1):
+@lru_cache()
+def elementwise_dxn(L, M, tiling_dimension, order=1):
     """ Matrix of temporal mode frequencies
 
     Parameters
@@ -108,7 +112,7 @@ def elementwise_dxn(L, M, time_dimension, order=1):
 
     M : int
 
-    tile_size : int
+    tiling_dimension : int
         The dimension of the mode te
 
     order : int
@@ -131,11 +135,11 @@ def elementwise_dxn(L, M, time_dimension, order=1):
     # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
     c1, c2 = so2_coefficients(order=order)
     # Create elementwise spatial frequency matrix
-    dxn_multipliers = np.tile(np.concatenate((c1*q, c2*q), axis=1), (time_dimension, 1))
+    dxn_multipliers = np.tile(np.concatenate((c1*q, c2*q), axis=1), (tiling_dimension, 1))
     return dxn_multipliers
 
 
-@lru_cache(maxsize=128)
+@lru_cache()
 def dxn_block(L, M, order=1):
     """
 
@@ -143,7 +147,7 @@ def dxn_block(L, M, order=1):
     ----------
     L
     M
-    time_dimension
+    tiling_dimension
     order
 
     Returns
@@ -153,7 +157,7 @@ def dxn_block(L, M, order=1):
     return np.kron(so2_generator(order=order), np.diag(spatial_frequencies(L, M, order=order).ravel()))
 
 
-@lru_cache(maxsize=128)
+@lru_cache()
 def dtn_block(T, N, order=1):
     """
 
@@ -161,7 +165,7 @@ def dtn_block(T, N, order=1):
     ----------
     L
     M
-    time_dimension
+    tiling_dimension
     order
 
     Returns

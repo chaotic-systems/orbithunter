@@ -4,7 +4,6 @@ from ..core import Orbit
 from scipy.fft import rfft, irfft
 from scipy.linalg import block_diag
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from functools import lru_cache
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -267,6 +266,7 @@ class OrbitKS(Orbit):
         discrete symmetry this does nothing, for those with discrete symmetry, it slices the half that we want.
 
         """
+        # TODO ensure that spatial differentiation works for all subclasses
         if computation_basis == 's_modes':
             modes = self.transform(to='s_modes').state
             # Elementwise multiplication of modes with frequencies, this is the derivative.
@@ -493,18 +493,10 @@ class OrbitKS(Orbit):
                 truncated_modes = np.sqrt(size / modes.M) * np.concatenate((first_half, second_half), axis=1)
         return self.__class__(state=truncated_modes, basis=self.basis, parameters=self.parameters)
 
-    def dt_parameters(self):
-        """ Parameters used in time differentiation; used for caching"""
-        return self.T, self.N, self.n, self.M-2
-
-    def dx_parameters(self):
-        """ Parameters used in space differentiation; used for caching"""
-        return self.L, self.M, self.m, max([self.N-1, 1])
-
     @property
     def parameters(self):
         """ Defining parameters; T, L, S kept for convenience"""
-        return self.T, self.L, 0
+        return self.T, self.L, self.S
 
     @staticmethod
     def dimension_labels():
@@ -528,14 +520,14 @@ class OrbitKS(Orbit):
         return self.N, self.M
 
     @property
-    def mode_shape(self):
-        """ Shape of the mode tensor """
-        return max([self.N-1, 1]), self.M-2
-
-    @property
     def s_mode_shape(self):
         """ Shape of the spatial mode tensor. """
         return self.N, self.M - 2
+
+    @property
+    def mode_shape(self):
+        """ Shape of the mode tensor """
+        return max([self.N-1, 1]), self.M-2
 
     @property
     def dimensions(self):
@@ -545,10 +537,6 @@ class OrbitKS(Orbit):
     def plotting_dimensions(self):
         """ Dimensions according to plot labels; used in clipping. """
         return (0., self.T), (0., self.L / (2 * pi * np.sqrt(2)))
-
-    def preconditioning_parameters(self):
-        """ Parameters used in the preconditioning method """
-        return self.dt_parameters(), self.dx_parameters()
 
     @classmethod
     def parameter_based_discretization(cls, parameters, **kwargs):
@@ -1094,7 +1082,7 @@ class OrbitKS(Orbit):
         Rotation breaks discrete symmetry and destroys the solution. Users encouraged to change to OrbitKS first.
         """
         if axis == 0:
-            thetak = distance*self._frequency_vector(self.dt_parameters())
+            thetak = distance * temporal_frequencies(self.T, self.N, order=1)
             cosinek = np.cos(thetak)
             sinek = np.sin(thetak)
 
@@ -1117,7 +1105,7 @@ class OrbitKS(Orbit):
         else:
             if units == 'wavelength':
                 distance = distance * 2*pi*np.sqrt(2)
-            thetak = distance * spatial_frequencies(self.dx_parameters())
+            thetak = distance * spatial_frequencies(self.L, self.M, order=1)
             cosinek = np.cos(thetak)
             sinek = np.sin(thetak)
 
@@ -1267,11 +1255,11 @@ class OrbitKS(Orbit):
         desired, simply pass the array as 'state' variable to __init__.
 
         By initializing the shape parameters and orbit parameters, the other properties get initialized, so
-        they can be referenced in what follows (self.dx_parameters(), self.dt_parameters()). I am unsure whether or not
+        they can be referenced in what follows (). I am unsure whether or not
         this is bad practice but they could be replaced by the corresponding tuples. The reason why this is avoided
         is so this function generalizes to subclasses.
         """
-
+        # TODO : refactor the subclass _random_initial_conditions
         spectrum = kwargs.get('spectrum', 'gaussian')
         tscale = kwargs.get('tscale', int(np.round(self.T / 25.)))
         xscale = kwargs.get('xscale', int(1 + np.round(self.L / (2*pi*np.sqrt(2)))))
@@ -1417,43 +1405,6 @@ class OrbitKS(Orbit):
             self.L = float(L)
         return None
 
-    # @classmethod
-    # @lru_cache(maxsize=128)
-    # def _wave_vector(cls, dx_parameters, order=1):
-    #     """ Array of spatial frequencies
-    #
-    #     Parameters
-    #     ----------
-    #     dx_parameters :
-    #
-    #     Returns
-    #     -------
-    #     ndarray :
-    #         Array of spatial frequencies of shape (1, m), raised to 'order' power for n-th order derivatives.
-    #     """
-    #     L, M, m = dx_parameters[:3]
-    #     q_m = ((2 * pi * M / L) * np.fft.fftfreq(M)[1:m+1]).reshape(1, -1)
-    #     return q_m**order
-    #
-    # @classmethod
-    # @lru_cache(maxsize=128)
-    # def _frequency_vector(cls, dt_parameters, order=1):
-    #     """
-    #     Returns
-    #     -------
-    #     ndarray
-    #         Temporal frequency array of shape (n, 1)
-    #
-    #     Notes
-    #     -----
-    #     Extra factor of '-1' because of how the state is ordered; see __init__ for
-    #     more details.
-    #
-    #     """
-    #     T, N, n = dt_parameters[:3]
-    #     w_j = (-1.0 * (2 * pi * N / T) * np.fft.fftfreq(N)[1:n+1]).reshape(-1, 1)
-    #     return w_j**order
-
     def _jac_lin(self):
         """ The linear component of the Jacobian matrix of the Kuramoto-Sivashinsky equation"""
         return self._dt_matrix() + self._dx_matrix(order=2) + self._dx_matrix(order=4)
@@ -1551,9 +1502,10 @@ class OrbitKS(Orbit):
             # else use time discretization size.
             spacetime_dxn = np.kron(np.eye(self.N),  dxn_block(self.L, self.M, order=order))
         else:
-            # if spacetime modes, use the corresponding mode shape parameters
-            # This slicing method won't work for odd ordered derivatives with orbits with discrete symmetry, but
-            # that's not an issue because it isn't well defined anyway.
+            # When the dimensions of dxn_block are the same as the mode tensor, the slicing does nothing.
+            # When the dimensions are smaller, i.e. orbits with discrete symmetries, then it will give non-sensical
+            # results for odd ordered derivatives; however, odd ordered derivatives in the modes basis are not
+            # well defined for these orbits anyway, hence, no contradiction is made.
             spacetime_dxn = np.kron(np.eye(self.mode_shape[0]),
                                     dxn_block(self.L, self.M, order=order)[:self.mode_shape[1], :self.mode_shape[1]])
 
@@ -1915,7 +1867,7 @@ class RelativeOrbitKS(OrbitKS):
         time_vector = np.flipud(np.linspace(0, self.T, num=self.N, endpoint=True)).reshape(-1, 1)
         translation_per_period = shift / self.T
         time_dependent_translations = translation_per_period*time_vector
-        thetak = time_dependent_translations.reshape(-1, 1)*spatial_frequencies(self.dx_parameters()).ravel()
+        thetak = time_dependent_translations.reshape(-1, 1)*spatial_frequencies(self.L, self.M, order=1).ravel()
         cosine_block = np.cos(thetak)
         sine_block = np.sin(thetak)
         real_modes = s_modes[:, :-self.m]
@@ -2069,23 +2021,10 @@ class RelativeOrbitKS(OrbitKS):
         assert self.frame == 'comoving', 'Mode truncation requires comoving frame; set padding=False if plotting'
         return super().truncate(size, axis=axis)
 
-    def dt_parameters(self):
-        """ Parameters required for (caching) time differentiation """
-        return self.T, self.N, self.n, self.M-2
-
-    @property
-    def parameters(self):
-        """ Parameters required to define a RelativeOrbitKS"""
-        return self.T, self.L, self.S
-
     @property
     def mode_shape(self):
         """ Parameters required for (caching) time differentiation """
         return max([self.N-1, 1]), self.M-2
-
-    @property
-    def dimensions(self):
-        return self.T, self.L
 
     def _parse_parameters(self, parameters, **kwargs):
         T, L, S = parameters[:3]
@@ -2231,7 +2170,7 @@ class AntisymmetricOrbitKS(OrbitKS):
         with discrete symmetry.
         """
 
-        _jac_nonlin_left = self._time_transform_matrix().dot(self._dx_matrix(basis='s_modes'))
+        _jac_nonlin_left = self._time_transform_matrix().dot(self._dx_matrix(computation_basis='s_modes'))
         _jac_nonlin_middle = self._space_transform_matrix().dot(np.diag(self.transform(to='field').state.ravel()))
         _jac_nonlin_right = self._inv_spacetime_transform_matrix()
         _jac_nonlin = _jac_nonlin_left.dot(_jac_nonlin_middle).dot(_jac_nonlin_right)
@@ -2291,19 +2230,9 @@ class AntisymmetricOrbitKS(OrbitKS):
         else:
             return 0.5 * self.statemul(other).dx(return_array=False).transform(to='modes')
 
-    def dt_parameters(self):
-        return self.T, self.N, self.n, self.m
-
-    def dx_parameters(self):
-        return self.L, self.M, self.m, self.N, max([self.N-1, 1])
-
     @property
     def mode_shape(self):
         return max([self.N-1, 1]), self.m
-
-    @property
-    def dimensions(self):
-        return self.T, self.L
 
     def _parse_state(self, state, basis, **kwargs):
         shp = state.shape
@@ -2338,7 +2267,6 @@ class AntisymmetricOrbitKS(OrbitKS):
         """
         return self._time_transform_matrix().T
 
-    @lru_cache(maxsize=128)
     def selection_rules(self):
         # Apply the pattern to self.m modes
         reflection_selection_rules_integer_flags = np.repeat((np.arange(0, 2*(self.N-1)) % 2).ravel(), self.m)
@@ -2502,14 +2430,13 @@ class ShiftReflectionOrbitKS(OrbitKS):
         with discrete symmetry.
         """
 
-        _jac_nonlin_left = self._time_transform_matrix().dot(self._dx_matrix(basis='s_modes'))
+        _jac_nonlin_left = self._time_transform_matrix().dot(self._dx_matrix(computation_basis='s_modes'))
         _jac_nonlin_middle = self._space_transform_matrix().dot(np.diag(self.transform(to='field').state.ravel()))
         _jac_nonlin_right = self._inv_spacetime_transform_matrix()
         _jac_nonlin = _jac_nonlin_left.dot(_jac_nonlin_middle).dot(_jac_nonlin_right)
 
         return _jac_nonlin
 
-    @lru_cache(maxsize=128)
     def selection_rules(self):
         # equivalent to indices 0 + j from thesis; time indices go like {0, j, j}
         # i = np.arange(0, self.N//2)[:, None]
@@ -2524,19 +2451,9 @@ class ShiftReflectionOrbitKS(OrbitKS):
         # tensor format.
         return shiftreflection_selection_rules_integer_flags
 
-    def dt_parameters(self):
-        return self.T, self.N, self.n, self.m
-
-    def dx_parameters(self):
-        return self.L, self.M, self.m,  self.N, max([self.N-1, 1]),
-
     @property
     def mode_shape(self):
         return max([self.N-1, 1]), self.m
-
-    @property
-    def dimensions(self):
-        return self.T, self.L
 
     def _parse_state(self, state, basis, **kwargs):
         shp = state.shape
@@ -2936,26 +2853,9 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
     #     return self.rescale(kwargs.get('magnitude', 3.5),
     #                         method=kwargs.get('rescale_method', 'absolute'))
 
-    def dx_parameters(self):
-        return self.L, self.M, self.m, self.N, 1
-
-    @property
-    def parameters(self):
-        """
-
-        Returns
-        -------
-        tuple
-        """
-        return 0., self.L, 0.
-
     @property
     def mode_shape(self):
         return 1, self.m
-
-    @property
-    def dimensions(self):
-        return 0., self.L
 
     def _parse_state(self, state, basis, **kwargs):
         shp = state.shape
@@ -2987,7 +2887,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         Parameters
         ----------
         parameters : tuple
-            Pair of tuples of parameters required for differentiation, dt_parameters, dx_parameters.
+            Pair of tuples of parameters required for differentiation
 
 
         Returns
@@ -3271,19 +3171,9 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         return self.__class__(state=truncated_s_modes, basis=self.basis,
                               parameters=self.parameters).transform(to=self.basis)
 
-    def dt_parameters(self):
-        return self.T, self.N, self.n, self.M-2
-
-    def dx_parameters(self):
-        return self.L, self.M, self.m, 1
-
     @property
     def mode_shape(self):
         return 1, self.M-2
-
-    @property
-    def dimensions(self):
-        return self.T, self.L
 
     def _parse_state(self, state, basis, **kwargs):
         # This is the best way I've found for passing modes but also wanting N != 1. without specifying
