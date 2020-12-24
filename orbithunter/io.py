@@ -3,36 +3,97 @@ import numpy as np
 import pandas as pd
 import itertools
 import h5py
-from .ks.orbits import ks_parsing_util, ks_fpo_dictionary
+import importlib
+
+def ks_fpo_dictionary(tileset='default', comoving=False, rescaled=False):
+    """ Template tiles for Kuramoto-Sivashinsky equation.
+
+
+    Parameters
+    ----------
+    tileset : str
+        Which tileset to use: ['default', 'complete', 'extra_padded', 'extra_padded_space', 'original', 'padded',
+                               'padded_space', 'padded_time', 'resized']
+    comoving : bool
+        Whether to use the defect tile in the physical or comoving frame.
+    rescaled : bool
+        Whether to rescale the dictionary to the maximum of all tiles.
+
+    Returns
+    -------
+    tile_dict : dict
+    Dictionary which contains defect, streak, wiggle tiles for use in tiling and gluing.
+
+    Notes
+    -----
+    The dictionary is setup as follows : {0: streak, 1: defect, 2: wiggle}
+    """
+    fpo_filenames = []
+    directory = os.path.abspath(os.path.join(__file__, '../../../data/ks/tiles/', ''.join(['./', tileset])))
+    if rescaled:
+        directory = os.path.abspath(os.path.join(directory, './rescaled/'))
+
+    # streak orbit
+    fpo_filenames.append(os.path.abspath(os.path.join(directory, './OrbitKS_streak.h5')))
+
+    if comoving:
+        # padded defect orbit in physical frame.
+        fpo_filenames.append(os.path.abspath(os.path.join(directory, './OrbitKS_defect_comoving.h5')))
+    else:
+        # padded defect Orbit in comoving frame
+        fpo_filenames.append(os.path.abspath(os.path.join(directory, './OrbitKS_defect.h5')))
+
+    # wiggle orbit
+    fpo_filenames.append(os.path.abspath(os.path.join(directory, './OrbitKS_wiggle.h5')))
+
+    return dict(zip(range(len(fpo_filenames)), fpo_filenames))
+
 
 __all__ = ['read_h5', 'read_fpo_set', 'convergence_log', 'refurbish_log', 'write_symbolic_log',
            'read_symbolic_log', 'to_symbol_string', 'to_symbol_array', 'parse_class']
 
+def read_h5(h5_file, h5_group, basis='field', class_name=None,
+            validate=False, orbithunter_archive=True, **orbitkwargs):
+    """
+    Parameters
+    ----------
+    h5_file
+    h5_group : str
+        The h5py.Group from which field and parameters are imported.
+    basis
+    import_cls
+    validate
+    orbithunter_archive
+    orbitkwargs
 
-def read_h5(filename, directory='local', data_format='orbithunter',
-            basis='field', import_cls=None,  validate=False, equation='ks', **orbitkwargs):
+    Returns
+    -------
 
-    parsing_dictionary, instantiate_orbit = parsing_util(equation=equation)
-    class_generator = parse_class(filename, parsing_dictionary)
-    if directory == 'local':
-        directory = os.path.abspath(os.path.join(__file__, '../../data/local/', str(class_generator.__name__)))
+    """
+    # For ease of use, point to the saved data incorporated into the package itself.
+    if orbithunter_archive:
+        h5_file = os.path.abspath(os.path.join('../../data/', h5_file))
 
-    if import_cls is not None:
-        if isinstance(import_cls, str):
-            class_generator = parse_class(import_cls, parsing_dictionary)
-        else:
-            class_generator = import_cls
+    # The first substring after '/' in h5_group is required to be the equation's abbreviation.
+    # the following loads the module
+    module = importlib.import_module(''.join(['.', h5_group.split('/')[1]]), 'orbithunter')
+    if class_name is None:
+        # If the class generator is not provided, it is assumed to be able to be inferred from the filename.
+        class_ = getattr(module, str(os.path.basename(h5_file).split('.h5')[0]))
+    else:
+        class_ = getattr(module, class_name)
 
-    with h5py.File(os.path.abspath(os.path.join(directory, filename)), 'r') as f:
-        orbit_ = instantiate_orbit(f, class_generator, data_format=data_format,
-                                   **orbitkwargs)
+    with h5py.File(os.path.abspath(h5_file), 'r') as file:
+        orbit_ = class_(state=file[h5_group]['field'][...], parameters=tuple(file[h5_group]['parameters']),
+                        basis='field', **orbitkwargs)
+
     # verify typically returns Orbit, code; just want the orbit instance here
     if validate:
         # The automatic importation attempts to validate symmetry/class type.
-        return orbit_.verify_integrity()[0].transform(to=basis, inplace=True)
+        return orbit_.verify_integrity()[0].transform(to=basis)
     else:
         # If the class name is provided, force it through without verification.
-        return orbit_.transform(to=basis, inplace=True)
+        return orbit_.transform(to=basis)
 
 
 def parse_class(filename, class_dict):
@@ -57,13 +118,6 @@ def read_fpo_set(equation='ks', **kwargs):
     # Require fpos to be in field basis; pop it off kwargs lest it throws an error for multiples
     kwargs.pop('basis', None)
     return {key: read_h5(val, basis='field', **kwargs) for key, val in fpo_dict(**kwargs).items()}
-
-
-def parsing_util(equation='ks'):
-    if equation == 'ks':
-        return ks_parsing_util()
-    else:
-        return None
 
 
 def convergence_log(initial_orbit, converge_result, log_path, spectrum='random', method='hybrid'):

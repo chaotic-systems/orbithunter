@@ -249,10 +249,10 @@ def _adjoint_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
             next_mapping = next_orbit.dae(**kwargs)
             next_residual = next_mapping.residual(dae=False)
         else:
-            orbit_, stats = _check_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
+            orbit_, stats = _parse_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
                                               step_size, min_step, residual, next_residual,
                                               'adj', verbose=verbose,
-                                              log_residual=kwargs.get('log_residual', None))
+                                              residual_logging=kwargs.get('residual_logging', None))
             mapping = next_mapping
             residual = next_residual
     else:
@@ -326,11 +326,11 @@ def _newton_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
                     inner_nit += 1
             # If the trigger that broke the while loop was step_size then
             # assume next_residual < residual was not met.
-            orbit_, stats = _check_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
+            orbit_, stats = _parse_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
                                               step_size, min_step, residual, next_residual,
                                               'newton_descent',
                                               inner_nit=inner_nit,
-                                              log_residual=kwargs.get('log_residual', False),
+                                              residual_logging=kwargs.get('residual_logging', False),
                                               verbose=kwargs.get('verbose', False))
             mapping = next_mapping
             residual = next_residual
@@ -383,10 +383,10 @@ def _lstsq(orbit_, tol, maxiter, min_step=1e-6,  **kwargs):
             next_mapping = next_orbit.dae(**kwargs)
             next_residual = next_mapping.residual(dae=False)
         else:
-            orbit_, stats = _check_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
+            orbit_, stats = _parse_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
                                               step_size, min_step, residual, next_residual,
                                               'lstsq',
-                                              log_residual=kwargs.get('log_residual', False),
+                                              residual_logging=kwargs.get('residual_logging', False),
                                               verbose=kwargs.get('verbose', False))
             mapping = next_mapping
             residual = next_residual
@@ -438,10 +438,10 @@ def _solve(orbit_, tol, maxiter, min_step=1e-6,  **kwargs):
             next_mapping = next_orbit.dae(**kwargs)
             next_residual = next_mapping.residual(dae=False)
         else:
-            orbit_, stats = _check_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
+            orbit_, stats = _parse_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
                                               step_size, min_step, residual, next_residual,
                                               'lstsq',
-                                              log_residual=kwargs.get('log_residual', False),
+                                              residual_logging=kwargs.get('residual_logging', False),
                                               verbose=kwargs.get('verbose', False))
             mapping = next_mapping
             residual = next_residual
@@ -574,9 +574,9 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method='minres', m
             next_residual = next_mapping.residual(dae=False)
         else:
             # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
-            orbit_, stats = _check_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
+            orbit_, stats = _parse_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
                                               1, 0, residual, next_residual,
-                                              method, log_residual=kwargs.get('log_residual', False),
+                                              method, residual_logging=kwargs.get('residual_logging', False),
                                               verbose=kwargs.get('verbose', False))
             residual = next_residual
 
@@ -651,9 +651,9 @@ def _scipy_optimize_minimize_wrapper(orbit_, tol, maxiter, method='l-bfgs-b',  *
         next_orbit = orbit_.from_numpy_array(result.x)
         next_residual = next_orbit.residual()
         # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
-        orbit_, stats = _check_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
+        orbit_, stats = _parse_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
                                           1, 0, residual, next_residual,
-                                          method, log_residual=kwargs.get('log_residual', False),
+                                          method, residual_logging=kwargs.get('residual_logging', False),
                                           verbose=kwargs.get('verbose', False))
         residual = next_residual
     else:
@@ -744,9 +744,9 @@ def _scipy_optimize_root_wrapper(orbit_, tol, maxiter, method='lgmres', **kwargs
         next_orbit = orbit_.from_numpy_array(result_state_vector)
         next_residual = next_orbit.residual()
         # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
-        orbit_, stats = _check_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
+        orbit_, stats = _parse_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
                                           1, 0, residual, next_residual,
-                                          method, log_residual=kwargs.get('log_residual', False),
+                                          method, residual_logging=kwargs.get('residual_logging', False),
                                           verbose=kwargs.get('verbose', False))
         residual = next_residual
     else:
@@ -890,8 +890,8 @@ def _default_maxiter(orbit_, method='adj', comp_time='default'):
     return default_max_iter
 
 
-def _check_correction(orbit_, next_orbit_, stats, tol, maxiter, ftol, step_size, min_step,
-                      residual, next_residual, method, log_residual=False, inner_nit=None, verbose=False):
+def _parse_correction(orbit_, next_orbit_, stats, tol, maxiter, ftol, step_size, min_step,
+                      residual, next_residual, method, residual_logging=False, inner_nit=None, verbose=False):
     # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
     stats['nit'] += 1
     if next_residual <= tol:
@@ -919,7 +919,7 @@ def _check_correction(orbit_, next_orbit_, stats, tol, maxiter, ftol, step_size,
                 elif np.mod(stats['nit'], 100) == 0:
                     print('#', end='')
             # Too many steps elapse for adjoint descent; this would eventually cause dramatic slow down.
-            if log_residual and np.mod(stats['nit'], 1000) == 0:
+            if residual_logging and np.mod(stats['nit'], 1000) == 0:
                 stats['residuals'].append(next_residual)
 
         elif method == 'newton_descent':
@@ -930,10 +930,10 @@ def _check_correction(orbit_, next_orbit_, stats, tol, maxiter, ftol, step_size,
                 print('Residual={} after {} Newton descent steps '.
                       format(next_residual, stats['nit']))
 
-            if log_residual:
+            if residual_logging:
                 stats['residuals'].append(next_residual)
         else:
-            if log_residual:
+            if residual_logging:
                 stats['residuals'].append(next_residual)
             if verbose:
                 if np.mod(stats['nit'], 25) == 0:

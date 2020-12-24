@@ -1,7 +1,5 @@
-from .arrayops import swap_modes
 from math import pi
 import numpy as np
-import itertools
 
 __all__ = ['integrate', 'dissipation', 'energy', 'energy_variation', 'power', 'shadowing']
 

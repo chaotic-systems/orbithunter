@@ -9,12 +9,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 __all__ = ['OrbitKS', 'RelativeOrbitKS', 'ShiftReflectionOrbitKS', 'AntisymmetricOrbitKS', 'EquilibriumOrbitKS',
-           'RelativeEquilibriumOrbitKS', 'ks_parsing_util', 'ks_fpo_dictionary']
+           'RelativeEquilibriumOrbitKS']
 
 
 class OrbitKS(Orbit):
 
-    def __init__(self, state=None, basis='modes', parameters=(0., 0., 0.), **kwargs):
+    def __init__(self, state=None, basis='field', parameters=(0., 0., 0.), **kwargs):
         """ Object that represents invariant 2-torus approximation for the Kuramoto-Sivashinsky equation.
 
         Parameters
@@ -3425,92 +3425,3 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
     def to_fundamental_domain(self):
         return self.change_reference_frame(to='physical')
-
-
-def ks_fpo_dictionary(tileset='default', comoving=False, rescaled=False):
-    """ Template tiles for Kuramoto-Sivashinsky equation.
-
-
-    Parameters
-    ----------
-    tileset : str
-        Which tileset to use: ['default', 'complete', 'extra_padded', 'extra_padded_space', 'original', 'padded',
-                               'padded_space', 'padded_time', 'resized']
-    comoving : bool
-        Whether to use the defect tile in the physical or comoving frame.
-    rescaled : bool
-        Whether to rescale the dictionary to the maximum of all tiles.
-
-    Returns
-    -------
-    tile_dict : dict
-    Dictionary which contains defect, streak, wiggle tiles for use in tiling and gluing.
-
-    Notes
-    -----
-    The dictionary is setup as follows : {0: streak, 1: defect, 2: wiggle}
-    """
-    fpo_filenames = []
-    directory = os.path.abspath(os.path.join(__file__, '../../../data/ks/tiles/', ''.join(['./', tileset])))
-    if rescaled:
-        directory = os.path.abspath(os.path.join(directory, './rescaled/'))
-
-    # streak orbit
-    fpo_filenames.append(os.path.abspath(os.path.join(directory, './OrbitKS_streak.h5')))
-
-    if comoving:
-        # padded defect orbit in physical frame.
-        fpo_filenames.append(os.path.abspath(os.path.join(directory, './OrbitKS_defect_comoving.h5')))
-    else:
-        # padded defect Orbit in comoving frame
-        fpo_filenames.append(os.path.abspath(os.path.join(directory, './OrbitKS_defect.h5')))
-
-    # wiggle orbit
-    fpo_filenames.append(os.path.abspath(os.path.join(directory, './OrbitKS_wiggle.h5')))
-
-    return dict(zip(range(len(fpo_filenames)), fpo_filenames))
-
-
-def _parsing_dictionary():
-    """ Used for parsing filenames into different subclasses
-
-    Returns
-    -------
-    class_dict :
-        dictionary whose keys are conventional or historical prefixes, values are class constructors.
-    """
-    class_dict = {'base': OrbitKS, 'none': OrbitKS, 'full': OrbitKS, 'OrbitKS': OrbitKS,
-                  'anti': AntisymmetricOrbitKS, 'AntisymmetricOrbitKS': AntisymmetricOrbitKS,
-                  'ppo': ShiftReflectionOrbitKS, 'ShiftReflectionOrbitKS': ShiftReflectionOrbitKS,
-                  'rpo': RelativeOrbitKS, 'RelativeOrbitKS': RelativeOrbitKS,
-                  'eqva': EquilibriumOrbitKS, 'EquilibriumOrbitKS': EquilibriumOrbitKS,
-                  'reqva': RelativeEquilibriumOrbitKS, 'RelativeEquilibriumOrbitKS': RelativeEquilibriumOrbitKS}
-
-    return class_dict
-
-
-def _orbit_instantiation(f, class_generator, data_format='orbithunter', **orbitkwargs):
-    """ Ways to import based on historical data formats."""
-    if data_format == 'orbithunter':
-        field = np.array(f['field'])
-        params = tuple(f['parameters'])
-        orbit_ = class_generator(state=field, basis='field', parameters=params, **orbitkwargs)
-    elif data_format == 'orbithunter_old':
-        field = np.array(f['field'])
-        L = float(f['space_period'][()])
-        T = float(f['time_period'][()])
-        S = float(f['spatial_shift'][()])
-        orbit_ = class_generator(state=field, basis='field', parameters=(T, L, S), **orbitkwargs)
-    else:
-        fieldtmp = f['/data/ufield']
-        L = float(f['/data/space'][0])
-        T = float(f['/data/time'][0])
-        field = fieldtmp[:]
-        S = float(f['/data/shift'][0])
-        orbit_ = class_generator(state=field, basis='field', parameters=(T, L, S), **orbitkwargs)
-    return orbit_
-
-
-def ks_parsing_util():
-    """ Two tools needed to read data into correct class, for the KSE."""
-    return _parsing_dictionary(), _orbit_instantiation

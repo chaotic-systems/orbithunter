@@ -236,9 +236,6 @@ class Orbit:
     def preconditioning_parameters(self, **kwargs):
         return self.parameters
 
-    def transform(self, **kwargs):
-        return self
-
     def reshape(self, *new_shape, **kwargs):
         """
 
@@ -280,10 +277,8 @@ class Orbit:
 
         Parameters
         ----------
-        inplace : bool
-        Whether or not to return a new Orbit instance, or overwrite self.
         to : str
-        The basis to transform into.
+        The basis to transform into. If already in said basis, returns self
 
         Returns
         -------
