@@ -5,122 +5,110 @@ import itertools
 import h5py
 import importlib
 
-def ks_fpo_dictionary(tileset='default', comoving=False, rescaled=False):
-    """ Template tiles for Kuramoto-Sivashinsky equation.
+# TODO : tilesets, iterable loading.
 
 
+__all__ = ['read_h5', 'read_tileset', 'convergence_log', 'refurbish_log', 'write_symbolic_log',
+           'read_symbolic_log', 'to_symbol_string', 'to_symbol_array']
+
+
+def read_h5(path, h5_groups, equation, class_name=None, validate=False, **orbitkwargs):
+    """
     Parameters
     ----------
-    tileset : str
-        Which tileset to use: ['default', 'complete', 'extra_padded', 'extra_padded_space', 'original', 'padded',
-                               'padded_space', 'padded_time', 'resized']
-    comoving : bool
-        Whether to use the defect tile in the physical or comoving frame.
-    rescaled : bool
-        Whether to rescale the dictionary to the maximum of all tiles.
+    path : str
+        Absolute or relative path to .h5 file
+    h5_groups : str or tuple of str
+        The h5py.Group (s) of the corresponding .h5 file
+    equation : str
+        The abbreviation for the corresponding equation's module.
+    class_name : str or iterable of str
+        If iterable of str then it needs to be the same length as h5_groups
+    validate : bool
+        Whether or not to access Orbit().verify_integrity, presumably checking the integrity of the imported data.
+    orbitkwargs : dict
+        Any additional keyword arguments relevant for instantiation.
 
     Returns
     -------
-    tile_dict : dict
-    Dictionary which contains defect, streak, wiggle tiles for use in tiling and gluing.
+    Orbit :
+        The imported
 
     Notes
     -----
-    The dictionary is setup as follows : {0: streak, 1: defect, 2: wiggle}
+    h5_group can either be a single string or an iterable; this is to make importation of multiple .h5 files
+    more efficient, i.e. avoiding multiple dynamic imports of the same package.
+
     """
-    fpo_filenames = []
-    directory = os.path.abspath(os.path.join(__file__, '../../../data/ks/tiles/', ''.join(['./', tileset])))
-    if rescaled:
-        directory = os.path.abspath(os.path.join(directory, './rescaled/'))
+    # The following loads the module for the correct equation dynamically when the function is called, to prevent
+    # imports of all equations and possible circular dependencies.
+    module = importlib.import_module(''.join(['.', equation]), 'orbithunter')
 
-    # streak orbit
-    fpo_filenames.append(os.path.abspath(os.path.join(directory, './OrbitKS_streak.h5')))
-
-    if comoving:
-        # padded defect orbit in physical frame.
-        fpo_filenames.append(os.path.abspath(os.path.join(directory, './OrbitKS_defect_comoving.h5')))
+    if isinstance(h5_groups, str):
+        # If string, then place inside a len==1 tuple so that iteration doesn't raise an error
+        h5_groups = (h5_groups,)
+    elif isinstance(h5_groups, tuple) and len(h5_groups) > 1:
+        # If tuple, but len > 1 then this implies that *args were passed separated by commas, i.e. a,b,c as opposed
+        # to (a,b,c)
+        pass
     else:
-        # padded defect Orbit in comoving frame
-        fpo_filenames.append(os.path.abspath(os.path.join(directory, './OrbitKS_defect.h5')))
+        raise TypeError('Incorrect type for hdf5 group names; needs to be str separated by commas or a tuple of str')
 
-    # wiggle orbit
-    fpo_filenames.append(os.path.abspath(os.path.join(directory, './OrbitKS_wiggle.h5')))
+    # With h5_groups now correctly instantiated as an iterable, can open file and iterate.
+    with h5py.File(os.path.abspath(path), 'r') as file:
+        imported_orbits = []
+        for i, orbit_group in enumerate(h5_groups):
+            # class_name needs to be constant (str input) or specified for each group (tuple with len == len(h5_groups))
+            try:
+                if isinstance(class_name, str):
+                    class_ = getattr(module, class_name)
+                elif isinstance(class_name, tuple):
+                    class_ = getattr(module, class_name[i])
+                elif class_name is None:
+                    # If the class generator is not provided, it is assumed to be able to be inferred from the filename.
+                    # This is simply a convenience tool because typically the classes are the best partitions of the
+                    # full data set.
+                    class_ = getattr(module, str(os.path.basename(path).split('.h5')[0]))
+            except (NameError, TypeError, IndexError):
+                print('class_name from read_h5() requires str, None(default), or a tuple the same length as h5_groups')
 
-    return dict(zip(range(len(fpo_filenames)), fpo_filenames))
+            orbit_ = class_(state=file[orbit_group]['field'][...], parameters=tuple(file[orbit_group]['parameters']),
+                            basis='field', **orbitkwargs)
+            if validate:
+                imported_orbits.append(orbit_.verify_integrity()[0])
+            else:
+                imported_orbits.append(orbit_)
+
+    if len(imported_orbits) == 1:
+        # If there is only a single orbit, return as orbit instance not list
+        return imported_orbits[0]
+    else:
+        return imported_orbits
 
 
-__all__ = ['read_h5', 'read_fpo_set', 'convergence_log', 'refurbish_log', 'write_symbolic_log',
-           'read_symbolic_log', 'to_symbol_string', 'to_symbol_array', 'parse_class']
+def read_tileset(path, equation, keys, h5_groups, class_name=None, validate=False, **orbitkwargs):
+    """ Importation of data as tiling dictionary
 
-def read_h5(h5_file, h5_group, basis='field', class_name=None,
-            validate=False, orbithunter_archive=True, **orbitkwargs):
-    """
     Parameters
     ----------
-    h5_file
-    h5_group : str
-        The h5py.Group from which field and parameters are imported.
-    basis
-    import_cls
+    path
+    equation
+    keys
+    h5_groups
+    class_name
     validate
-    orbithunter_archive
     orbitkwargs
 
     Returns
     -------
 
     """
-    # For ease of use, point to the saved data incorporated into the package itself.
-    if orbithunter_archive:
-        h5_file = os.path.abspath(os.path.join('../../data/', h5_file))
-
-    # The first substring after '/' in h5_group is required to be the equation's abbreviation.
-    # the following loads the module
-    module = importlib.import_module(''.join(['.', h5_group.split('/')[1]]), 'orbithunter')
-    if class_name is None:
-        # If the class generator is not provided, it is assumed to be able to be inferred from the filename.
-        class_ = getattr(module, str(os.path.basename(h5_file).split('.h5')[0]))
-    else:
-        class_ = getattr(module, class_name)
-
-    with h5py.File(os.path.abspath(h5_file), 'r') as file:
-        orbit_ = class_(state=file[h5_group]['field'][...], parameters=tuple(file[h5_group]['parameters']),
-                        basis='field', **orbitkwargs)
-
-    # verify typically returns Orbit, code; just want the orbit instance here
-    if validate:
-        # The automatic importation attempts to validate symmetry/class type.
-        return orbit_.verify_integrity()[0].transform(to=basis)
-    else:
-        # If the class name is provided, force it through without verification.
-        return orbit_.transform(to=basis)
+    orbits = read_h5(path, equation, h5_groups, class_name=class_name, validate=validate, **orbitkwargs)
+    # if keys and orbits are not the same length, it will only form a dict with min([len(keys), len(orbits)]) items
+    return dict(zip(keys, orbits))
 
 
-def parse_class(filename, class_dict):
-    name_string = os.path.basename(filename).split('_')[0]
-    keys = np.array(list(class_dict.keys()))
-
-    if name_string in keys:
-        cls_str = name_string
-    else:
-        name_index = np.array([filename.find(cls_str) for cls_str in keys], dtype=float)
-        name_index[name_index < 0] = np.inf
-        cls_str = np.array(keys)[np.argmin(name_index)]
-
-    return class_dict.get(cls_str, class_dict['base'])
-
-
-def read_fpo_set(equation='ks', **kwargs):
-    if equation == 'ks':
-        fpo_dict = ks_fpo_dictionary
-    else:
-        raise ValueError('The function read_fpo_set encountered an unrecognizable equation.')
-    # Require fpos to be in field basis; pop it off kwargs lest it throws an error for multiples
-    kwargs.pop('basis', None)
-    return {key: read_h5(val, basis='field', **kwargs) for key, val in fpo_dict(**kwargs).items()}
-
-
-def convergence_log(initial_orbit, converge_result, log_path, spectrum='random', method='hybrid'):
+def convergence_log(initial_orbit, converge_result, log_path, spectrum='random', method='adj'):
     initial_condition_log_ = pd.read_csv(log_path, index_col=0)
     # To store all relevant info as a row in a Pandas DataFrame, put into a 1-D array first.
     dataframe_row = [[initial_orbit.parameters, initial_orbit.field_shape,
@@ -147,7 +135,7 @@ def refurbish_log(orbit_, filename, log_filename, overwrite=False, **kwargs):
 
 
 def write_symbolic_log(symbol_array, converge_result, log_filename, tileset='default',
-                             comoving=False):
+                       comoving=False):
     symbol_string = to_symbol_string(symbol_array)
     dataframe_row_values = [[symbol_string, converge_result.orbit.parameters, converge_result.orbit.field_shape,
                              converge_result.orbit.residual(),

@@ -1229,6 +1229,22 @@ class OrbitKS(Orbit):
             product = np.multiply(self.state, other.state)
         return self.__class__(state=product, basis=self.basis, parameters=self.parameters)
 
+    def group_orbit(self, discrete_only=False):
+        """ Returns a generator of the orbit's group orbit
+
+        Returns
+        -------
+
+        """
+        if discrete_only:
+            for g in (self, self.reflection(), self.cell_shift(2, axis=1), self.cell_shift(2, axis=1).reflection()):
+                yield g
+        else:
+            for g in [self, self.reflection()]:
+                for N in range(g.field_shape[0]):
+                    for M in range(g.field_shape[1]):
+                        yield g.roll(N, axis=0).roll(M, axis=1)
+
     def _random_initial_condition(self, parameters, **kwargs):
         """ Initial a set of random spatiotemporal Fourier modes
         Parameters
