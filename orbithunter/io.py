@@ -68,11 +68,12 @@ def read_h5(path, h5_groups, equation, class_name=None, validate=False, **orbitk
                     # If the class generator is not provided, it is assumed to be able to be inferred from the filename.
                     # This is simply a convenience tool because typically the classes are the best partitions of the
                     # full data set.
-                    class_ = getattr(module, str(os.path.basename(path).split('.h5')[0]))
+                    class_ = getattr(module, str(os.path.basename(path).split('.h5')[0].split('_')[0]))
             except (NameError, TypeError, IndexError):
                 print('class_name from read_h5() requires str, None(default), or a tuple the same length as h5_groups')
 
-            orbit_ = class_(state=file[orbit_group]['field'][...], parameters=tuple(file[orbit_group]['parameters']),
+            orbit_ = class_(state=file[''.join([orbit_group, '/field'])][...],
+                            parameters=tuple(file[''.join([orbit_group, '/parameters'])]),
                             basis='field', **orbitkwargs)
             if validate:
                 imported_orbits.append(orbit_.verify_integrity()[0])

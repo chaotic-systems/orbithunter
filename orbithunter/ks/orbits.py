@@ -284,7 +284,7 @@ class OrbitKS(Orbit):
             return dxn_modes
         else:
             orbit_dxn = self.__class__(state=dxn_modes, basis=computation_basis, parameters=self.parameters)
-            return orbit_dxn.transform(to=kwargs.get('basis', self.basis))
+            return orbit_dxn.transform(to=kwargs.get('return_basis', self.basis))
 
     def from_fundamental_domain(self):
         """ OrbitKS is always in its 'fundamental domain' """
@@ -2241,10 +2241,11 @@ class AntisymmetricOrbitKS(OrbitKS):
         # Elementwise product, both self and other should be in physical field basis.
         assert (self.basis == 'field') and (other.basis == 'field')
         # to get around the special behavior of discrete symmetries, will return spatial modes without this workaround.
+        nl_orbit = 0.5 * self.statemul(other).dx(computation_basis='s_modes', return_basis='modes')
         if return_array:
-            return 0.5 * self.statemul(other).dx(return_array=False).transform(to='modes').state
+            return nl_orbit.state
         else:
-            return 0.5 * self.statemul(other).dx(return_array=False).transform(to='modes')
+            return nl_orbit
 
     @property
     def mode_shape(self):
@@ -2418,11 +2419,12 @@ class ShiftReflectionOrbitKS(OrbitKS):
         """
         # Elementwise product, both self and other should be in physical field basis.
         assert (self.basis == 'field') and (other.basis == 'field')
-        # to get around the special behavior of discrete symmetries
+        # to get around the special behavior of discrete symmetries, will return spatial modes without this workaround.
+        nl_orbit = 0.5 * self.statemul(other).dx(computation_basis='s_modes', return_basis='modes')
         if return_array:
-            return 0.5 * self.statemul(other).dx(return_array=False).transform(to='modes').state
+            return nl_orbit.state
         else:
-            return 0.5 * self.statemul(other).dx(return_array=False).transform(to='modes')
+            return nl_orbit
 
     def _jac_nonlin(self):
         """ The nonlinear component of the Jacobian matrix of the Kuramoto-Sivashinsky equation
