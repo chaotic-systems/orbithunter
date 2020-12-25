@@ -201,7 +201,7 @@ class Orbit:
         # alias to save space
         dict_ = {'basis': self.basis,
                  'parameters': tuple(str(np.round(p, 4)) for p in self.parameters),
-                 'field_shape': tuple(str(d) for d in self.field_shape)}
+                 'field_shape': tuple(str(d) for d in self.field_shape())}
         # convert the dictionary to a string via json.dumps
         dictstr = dumps(dict_)
         return self.__class__.__name__ + '(' + dictstr + ')'
@@ -259,14 +259,14 @@ class Orbit:
             # to a `parameter based discretization'. If this is not desired then simply do not call reshape.
             new_shape = self.parameter_based_discretization(self.parameters, **kwargs)
 
-        if self.field_shape == new_shape:
+        if self.field_shape() == new_shape:
             # to avoid unintended overwrites, return a copy.
             return self.copy()
         else:
             for i, d in enumerate(new_shape):
-                if d < self.field_shape[i]:
+                if d < self.field_shape()[i]:
                     placeholder_orbit = placeholder_orbit._truncate(d, axis=i)
-                elif d > self.field_shape[i]:
+                elif d > self.field_shape()[i]:
                     placeholder_orbit = placeholder_orbit._pad(d, axis=i)
                 else:
                     pass
@@ -455,6 +455,24 @@ class Orbit:
         return self.state.shape
 
     @property
+    def shapes(self):
+        """ The shapes of the orbit in each of its bases.
+
+        Returns
+        -------
+        tuple :
+            tuple of shape tuples
+
+        Notes
+        -----
+        Tuple of shapes in each basis, ordered such that the field basis is the 0th element, and the current basis
+        is the last element. These may refer to the same element; only need indices 0 and -1 to be well defined for the
+        general case.
+
+        """
+        return self.state.shape
+
+    @property
     def size(self):
         """ Current state's dimensionality
 
@@ -475,7 +493,6 @@ class Orbit:
         """
         return 0., 0., 0., 0.
 
-    @property
     def field_shape(self):
         """ Shape of field
 
@@ -488,7 +505,6 @@ class Orbit:
         """
         return 1, 1, 1, 1, 3
 
-    @property
     def dimensions(self):
         """ Continuous tile dimensions
 

@@ -85,8 +85,8 @@ def shadowing(window_orbit, base_orbit, verbose=False, threshold=0.02, threshold
 
     window_orbit = window_orbit.transform(to='field')
     base_orbit = base_orbit.transform(to='field')
-    twindow, xwindow = window_orbit.field_shape
-    tbase, xbase = base_orbit.field_shape
+    twindow, xwindow = window_orbit.shapes[0]
+    tbase, xbase = base_orbit.shapes[0]
 
     assert twindow < tbase and xwindow < xbase, 'Shadowing window is larger than the base orbit. Reshape first. '
 
@@ -164,7 +164,7 @@ def integrate(orbit_, **kwargs):
     roots_of_unity = np.exp(1.0j*pi*(np.arange(1, n_roots+1, 1)-0.5)/n_roots).reshape(1, n_roots)
 
     # Matrix quantities for exponential time differencing.
-    LR = step_size*np.tile(lin_diag, (1, n_roots)) + np.tile(roots_of_unity, (orbit_t_equals_0.mode_shape[1], 1))
+    LR = step_size*np.tile(lin_diag, (1, n_roots)) + np.tile(roots_of_unity, (orbit_t_equals_0.shapes[2][1], 1))
     Q = step_size*np.real(np.mean((np.exp(LR/2.)-1.0)/LR, axis=1))
     f1 = step_size*np.real(np.mean((-4.0-LR+np.exp(LR)*(4.0-3.0*LR+LR**2))/LR**3, axis=1))
     f2 = step_size*np.real(np.mean((2.0+LR+np.exp(LR)*(-2.0+LR))/LR**3, axis=1))
@@ -190,7 +190,7 @@ def integrate(orbit_, **kwargs):
     if verbose:
         print('Integration progress [', end='')
     if kwargs.get('return_trajectory', True):
-        u = np.zeros([nmax, orbit_t_equals_0.field_shape[1]])
+        u = np.zeros([nmax, orbit_t_equals_0.shapes[0][1]])
     for step in range(1, nmax):
         Nv = -0.5*(v.transform(to='field')**2).dx(computation_basis='s_modes')
         a = v.statemul(E2) + Nv.statemul(Q)

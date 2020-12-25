@@ -105,7 +105,8 @@ class OrbitKS(Orbit):
         """
         # If there are parameters_passed, then they are meant to be added to the state_array (i.e. we're taking
         # values from another orbit instance.
-        mode_shape, mode_size = self.mode_shape, self.state.size
+        # Just so its a little clearer what
+        mode_shape, mode_size = self.shapes[2], self.state.size
         modes = state_vector.ravel()[:mode_size]
         # We slice off the modes and the rest of the list pertains to parameters; note if the state_array had
         # parameters, and parameters were added by
@@ -223,7 +224,7 @@ class OrbitKS(Orbit):
         """
         modes = self.transform(to='modes').state
         # Elementwise multiplication of modes with frequencies, this is the derivative.
-        dtn_modes = np.multiply(elementwise_dtn(self.T, self.N, self.mode_shape[1], order=order), modes)
+        dtn_modes = np.multiply(elementwise_dtn(self.T, self.N, self.shapes[2][1], order=order), modes)
 
         # If the order of the derivative is odd, then imaginary component and real components switch.
         if np.mod(order, 2):
@@ -270,11 +271,11 @@ class OrbitKS(Orbit):
         if computation_basis == 's_modes':
             modes = self.transform(to='s_modes').state
             # Elementwise multiplication of modes with frequencies, this is the derivative.
-            dxn_modes = np.multiply(elementwise_dxn(self.L, self.M, self.s_mode_shape[0],
+            dxn_modes = np.multiply(elementwise_dxn(self.L, self.M, self.shapes[1][0],
                                                     order=order), modes)
         else:
             modes = self.transform(to='modes').state
-            dxn_modes = np.multiply(elementwise_dxn(self.L, self.M, self.mode_shape[0],
+            dxn_modes = np.multiply(elementwise_dxn(self.L, self.M, self.shapes[2][0],
                                                     order=order)[:, :modes.shape[1]], modes)
         # If the order of the differentiation is odd, need to swap imaginary and real components.
         if np.mod(order, 2):
@@ -500,7 +501,7 @@ class OrbitKS(Orbit):
 
     def preconditioning_parameters(self):
         """ Defining parameters; T, L, S kept for convenience"""
-        return (self.T, self.N, self.mode_shape[1]), (self.L, self.M, self.mode_shape[0])
+        return (self.T, self.N, self.shapes[2][1]), (self.L, self.M, self.shapes[2][0])
 
     @staticmethod
     def dimension_labels():
@@ -519,21 +520,15 @@ class OrbitKS(Orbit):
         return 'T', 'L', 'S'
 
     @property
-    def field_shape(self):
-        """ Shape of the physical field tensor """
-        return self.N, self.M
+    def shapes(self):
+        """ Current state's shape
 
-    @property
-    def s_mode_shape(self):
-        """ Shape of the spatial mode tensor. """
-        return self.N, self.M - 2
+        Notes
+        -----
+        Just a convenience to be able to write self.shape
+        """
+        return (self.N, self.M), (self.N, self.M - 2), (max([self.N-1, 1]), self.M-2)
 
-    @property
-    def mode_shape(self):
-        """ Shape of the mode tensor """
-        return max([self.N-1, 1]), self.M-2
-
-    @property
     def dimensions(self):
         """ Tile dimensions. """
         return self.T, self.L
@@ -624,7 +619,7 @@ class OrbitKS(Orbit):
         the current N and M values as defaults.
 
         """
-        if np.product(self.field_shape) >= 256**2:
+        if np.product(self.shapes[0]) >= 256**2:
             padding = kwargs.get('padding', False)
         else:
             padding = kwargs.get('padding', True)
@@ -867,14 +862,14 @@ class OrbitKS(Orbit):
             # to a `parameter based discretization'. If this is not desired then simply do not call reshape.
             new_shape = self.parameter_based_discretization(self.parameters, **kwargs)
 
-        if self.field_shape == new_shape:
+        if self.shapes[0] == new_shape:
             # to avoid unintended overwrites, return a copy.
             return self.copy()
         else:
             for i, d in enumerate(new_shape):
-                if d < self.field_shape[i]:
+                if d < self.shapes[0][i]:
                     placeholder_orbit = placeholder_orbit.truncate(d, axis=i)
-                elif d > self.field_shape[i]:
+                elif d > self.shapes[0][i]:
                     placeholder_orbit = placeholder_orbit.pad(d, axis=i)
                 else:
                     pass
@@ -1056,8 +1051,8 @@ class OrbitKS(Orbit):
 
             orbit_to_rotate = self.transform(to='modes')
             # Refer to rotation matrix in 2-D for reference.
-            cosine_block = np.tile(cosinek.reshape(-1, 1), (1, orbit_to_rotate.mode_shape[1]))
-            sine_block = np.tile(sinek.reshape(-1, 1), (1, orbit_to_rotate.mode_shape[1]))
+            cosine_block = np.tile(cosinek.reshape(-1, 1), (1, orbit_to_rotate.shapes[2][1]))
+            sine_block = np.tile(sinek.reshape(-1, 1), (1, orbit_to_rotate.shapes[2][1]))
 
             modes_timereal = orbit_to_rotate.state[1:-orbit_to_rotate.n, :]
             modes_timeimaginary = orbit_to_rotate.state[-orbit_to_rotate.n:, :]
@@ -1127,7 +1122,7 @@ class OrbitKS(Orbit):
         -------
 
         """
-        return self.roll(np.sign(n_cell)*self.field_shape[axis] // np.abs(n_cell), axis=axis)
+        return self.roll(np.sign(n_cell)*self.shapes[0][axis] // np.abs(n_cell), axis=axis)
 
     def roll(self, shift, axis=0):
         """ Apply numpy roll along specified axis.
@@ -1197,7 +1192,7 @@ class OrbitKS(Orbit):
             product = np.multiply(self.state, other.state)
         return self.__class__(state=product, basis=self.basis, parameters=self.parameters)
 
-    def group_orbit(self, discrete_only=False):
+    def group_orbit(self, discrete_only=False, strides=(1, 1)):
         """ Returns a generator of the orbit's group orbit
 
         Returns
@@ -1205,12 +1200,14 @@ class OrbitKS(Orbit):
 
         """
         if discrete_only:
+            # The discrete symmetry operations which preserve reflection symmetry axis.
             for g in (self, self.reflection(), self.cell_shift(2, axis=1), self.cell_shift(2, axis=1).reflection()):
                 yield g
         else:
+            # Don't need cell shifts, these are within the rotations.
             for g in [self, self.reflection()]:
-                for N in range(g.field_shape[0]):
-                    for M in range(g.field_shape[1]):
+                for N in range(0, g.shapes[0][0], strides[0]):
+                    for M in range(0, g.shapes[0][1], strides[1]):
                         yield g.roll(N, axis=0).roll(M, axis=1)
 
     def _random_initial_condition(self, parameters, **kwargs):
@@ -1257,10 +1254,10 @@ class OrbitKS(Orbit):
 
         # I think this is the easiest way to get symmetry-dependent Fourier mode arrays' shapes.
         # power = 2 b.c. odd powers not defined for spacetime modes for discrete symmetries.
-        space_ = np.sqrt((self.L / (2*pi))**2 * np.abs(elementwise_dxn(self.L, self.M, self.mode_shape[0],
+        space_ = np.sqrt((self.L / (2*pi))**2 * np.abs(elementwise_dxn(self.L, self.M, self.shapes[2][0],
                                                                        order=2))).astype(int)
-        time_ = (self.T / (2*pi)) * np.abs(elementwise_dtn(self.T, self.N, self.mode_shape[1])).astype(int)
-        random_modes = np.random.randn(*self.mode_shape)
+        time_ = (self.T / (2*pi)) * np.abs(elementwise_dtn(self.T, self.N, self.shapes[2][1])).astype(int)
+        random_modes = np.random.randn(*self.shapes[2])
 
         # Pretruncation norm, random normal distribution for modes approximately gives field of "correct" magnitude
         original_mode_norm = np.linalg.norm(random_modes)
@@ -1428,7 +1425,7 @@ class OrbitKS(Orbit):
         Parameters
         ----------
         jac_ : np.ndarray,
-        np.product(self.mode_shape)**2 dimensional array resultant from taking the derivative of the
+        np.product(self.shapes[2])**2 dimensional array resultant from taking the derivative of the
         spatioatemporal mapping with respect to Fourier modes.
         Flags which indicate which parameters are constrained; if unconstrained then need to augment the Jacobian
         with partial derivatives with respect to unconstrained parameters.
@@ -1490,8 +1487,8 @@ class OrbitKS(Orbit):
             # When the dimensions are smaller, i.e. orbits with discrete symmetries, then it will give non-sensical
             # results for odd ordered derivatives; however, odd ordered derivatives in the modes basis are not
             # well defined for these orbits anyway, hence, no contradiction is made.
-            spacetime_dxn = np.kron(np.eye(self.mode_shape[0]),
-                                    dxn_block(self.L, self.M, order=order)[:self.mode_shape[1], :self.mode_shape[1]])
+            spacetime_dxn = np.kron(np.eye(self.shapes[2][0]),
+                                    dxn_block(self.L, self.M, order=order)[:self.shapes[2][1], :self.shapes[2][1]])
 
         return spacetime_dxn
 
@@ -1520,7 +1517,7 @@ class OrbitKS(Orbit):
         # Zeroth frequency was not included in frequency vector.
         dtn_matrix = block_diag([[0]], dtn_block(self.T, self.N, order=order))
         # Take kronecker product to account for the number of spatial modes.
-        spacetime_dtn = np.kron(dtn_matrix, np.eye(self.mode_shape[1]))
+        spacetime_dtn = np.kron(dtn_matrix, np.eye(self.shapes[2][1]))
         return spacetime_dtn
 
     def _inv_spacetime_transform_matrix(self):
@@ -1904,7 +1901,7 @@ class RelativeOrbitKS(OrbitKS):
         Written as a general method that covers all subclasses instead of writing individual methods.
         """
 
-        mode_shape, mode_size = self.mode_shape, self.state.size
+        mode_shape, mode_size = self.shapes[2], self.state.size
         modes = state_array.ravel()[:mode_size]
         # We slice off the modes and the rest of the list pertains to parameters; note if the state_array had
         # parameters, and parameters were added by
@@ -2004,11 +2001,6 @@ class RelativeOrbitKS(OrbitKS):
         """
         assert self.frame == 'comoving', 'Mode truncation requires comoving frame; set padding=False if plotting'
         return super().truncate(size, axis=axis)
-
-    @property
-    def mode_shape(self):
-        """ Parameters required for (caching) time differentiation """
-        return max([self.N-1, 1]), self.M-2
 
     def _parse_parameters(self, parameters, **kwargs):
         T, L, S = parameters[:3]
@@ -2216,8 +2208,14 @@ class AntisymmetricOrbitKS(OrbitKS):
             return nl_orbit
 
     @property
-    def mode_shape(self):
-        return max([self.N-1, 1]), self.m
+    def shapes(self):
+        """ Current state's shape
+
+        Notes
+        -----
+        Just a convenience to be able to write self.shape
+        """
+        return (self.N, self.M), (self.N, self.M - 2), (max([self.N-1, 1]), self.m)
 
     def _parse_state(self, state, basis, **kwargs):
         shp = state.shape
@@ -2256,7 +2254,7 @@ class AntisymmetricOrbitKS(OrbitKS):
         # Apply the pattern to self.m modes
         reflection_selection_rules_integer_flags = np.repeat((np.arange(0, 2*(self.N-1)) % 2).ravel(), self.m)
         # These indices are used for the transform as well as the transform matrices; therefore they are returned
-        # in a format compatible with both; applying .nonzero() yields indices., reshape(self.mode_shape) yields
+        # in a format compatible with both; applying .nonzero() yields indices., reshape(self.shapes[2]) yields
         # tensor format.
         return reflection_selection_rules_integer_flags
 
@@ -2433,13 +2431,19 @@ class ShiftReflectionOrbitKS(OrbitKS):
         # Apply the pattern to self.m modes
         shiftreflection_selection_rules_integer_flags = np.repeat(selection_tensor_pattern.ravel(), self.m)
         # These indices are used for the transform as well as the transform matrices; therefore they are returned
-        # in a format compatible with both; applying .nonzero() yields indices., reshape(self.mode_shape) yields
+        # in a format compatible with both; applying .nonzero() yields indices., reshape(self.shapes[2]) yields
         # tensor format.
         return shiftreflection_selection_rules_integer_flags
 
     @property
-    def mode_shape(self):
-        return max([self.N-1, 1]), self.m
+    def shapes(self):
+        """ Current state's shape
+
+        Notes
+        -----
+        Just a convenience to be able to write self.shape
+        """
+        return (self.N, self.M), (self.N, self.M - 2), (max([self.N-1, 1]), self.m)
 
     def _parse_state(self, state, basis, **kwargs):
         shp = state.shape
@@ -2794,7 +2798,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
     #
     #     # space_, time_ = self.space_time_indices
     #     np.random.seed(kwargs.get('seed', None))
-    #     random_modes = np.random.randn(*self.mode_shape)
+    #     random_modes = np.random.randn(*self.shapes[2])
     #     # piece-wise constant + exponential
     #     # linear-component based. multiply by preconditioner?
     #     # random modes, no modulation.
@@ -2840,8 +2844,14 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
     #                         method=kwargs.get('rescale_method', 'absolute'))
 
     @property
-    def mode_shape(self):
-        return 1, self.m
+    def shapes (self):
+        """ Current state's shape
+
+        Notes
+        -----
+        Just a convenience to be able to write self.shape
+        """
+        return (self.N, self.M), (self.N, self.M - 2), (1, self.m)
 
     def _parse_state(self, state, basis, **kwargs):
         shp = state.shape
@@ -3158,8 +3168,14 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
                               parameters=self.parameters).transform(to=self.basis)
 
     @property
-    def mode_shape(self):
-        return 1, self.M-2
+    def shapes(self):
+        """ Current state's shape
+
+        Notes
+        -----
+        Just a convenience to be able to write self.shape
+        """
+        return (self.N, self.M), (self.N, self.M - 2), (1, self.M-2)
 
     def _parse_state(self, state, basis, **kwargs):
         # This is the best way I've found for passing modes but also wanting N != 1. without specifying
@@ -3226,11 +3242,11 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
     #
     #     # I think this is the easiest way to get symmetry-dependent Fourier mode arrays' shapes.
     #     # power = 2 b.c. odd powers not defined for spacetime modes for discrete symmetries.
-    #     space_ = np.sqrt((self.L / (2*pi))**2 * np.abs(elementwise_dxn(self.L, self.M, self.mode_shape[0], order=2)
+    #     space_ = np.sqrt((self.L / (2*pi))**2 * np.abs(elementwise_dxn(self.L, self.M, self.shapes[2][0], order=2)
     #                                                    )).astype(int)
-    #     time_ = (self.T / (2*pi)) * np.abs(elementwise_dtn(self.T, self.N, self.mode_shape[1])).astype(int)
+    #     time_ = (self.T / (2*pi)) * np.abs(elementwise_dtn(self.T, self.N, self.shapes[2][1])).astype(int)
     #     np.random.seed(kwargs.get('seed', None))
-    #     random_modes = np.random.randn(*self.mode_shape)
+    #     random_modes = np.random.randn(*self.shapes[2])
     #     # piece-wise constant + exponential
     #     # linear-component based. multiply by preconditioner?
     #     # random modes, no modulation.
@@ -3340,7 +3356,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         zero_check = field_orbit.norm()
         if zero_check < 10**-5:
             code = 4
-            return RelativeEquilibriumOrbitKS(state=np.zeros(self.field_shape), basis='field',
+            return RelativeEquilibriumOrbitKS(state=np.zeros(self.shapes[0]), basis='field',
                                               parameters=self.parameters).transform(to=self.basis), code
         else:
             code = 1
