@@ -518,22 +518,6 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method='minres', m
             ATA = LinearOperator(linear_operator_shape, matvec_func, rmatvec=matvec_func, dtype=float)
             ATb = orbit_.rmatvec(-1.0 * orbit_.dae(**kwargs)).state_vector().reshape(-1, 1)
 
-            # Experimental testing of preconditioning of the Normal equations.
-            ############################################################################################################
-            if kwargs.get('preconditioning', False):
-                def p_matvec_func(v):
-                    # _state_vector_to_orbit turns state vector into class object.
-                    v_orbit = orbit_.from_numpy_array(v)
-                    return v_orbit.precondition_matvec(orbit_.preconditioning_parameters,
-                                                       **kwargs).state_vector().reshape(-1, 1)
-
-                def p_rmatvec_func(v):
-                    # _state_vector_to_orbit turns state vector into class object.
-                    v_orbit = orbit_.from_numpy_array(v)
-                    return v_orbit.precondition_rmatvec(orbit_.preconditioning_parameters,
-                                                        **kwargs).state_vector().reshape(-1, 1)
-
-                scipy_kwargs['M'] = LinearOperator(ATA.shape, p_matvec_func, rmatvec=p_rmatvec_func, dtype=float)
             ############################################################################################################
 
             if method == 'minres':

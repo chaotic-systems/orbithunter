@@ -498,6 +498,10 @@ class OrbitKS(Orbit):
         """ Defining parameters; T, L, S kept for convenience"""
         return self.T, self.L, self.S
 
+    def preconditioning_parameters(self):
+        """ Defining parameters; T, L, S kept for convenience"""
+        return (self.T, self.N, self.mode_shape[1]), (self.L, self.M, self.mode_shape[0])
+
     @staticmethod
     def dimension_labels():
         """ Labels of the tile dimensions, time and space periods.
@@ -799,12 +803,12 @@ class OrbitKS(Orbit):
         plt.close()
         return None
 
-    def precondition(self, parameters, **kwargs):
+    def precondition(self, precparams, **kwargs):
         """ Precondition a vector with the inverse (absolute value) of linear spatial terms
 
         Parameters
         ----------
-        parameters : tuple
+        precparams : tuple
 
         Returns
         -------
@@ -819,63 +823,27 @@ class OrbitKS(Orbit):
 
         I never preconditioned the spatial shift for relative periodic solutions so I don't include it here.
         """
-
-        p_multipliers = 1.0 / (np.abs(elementwise_dtn(self.T, self.N, self.mode_shape[1]))
-                               + np.abs(elementwise_dxn(parameters[1], order=2))
-                               + elementwise_dxn(parameters[1], order=4))
+        pmult = kwargs.get('pmult', self.preconditioning_parameters())
+        p_multipliers = 1.0 / (np.abs(elementwise_dtn(*pmult[0]))
+                               + np.abs(elementwise_dxn(*pmult[1], order=2))
+                               + elementwise_dxn(*pmult[1], order=4))
 
         preconditioned_state = np.multiply(self.state, p_multipliers)
         # Precondition the change in T and L
         param_powers = kwargs.get('pexp', (1, 4))
         if not self.constraints['T']:
             # self is the orbit being preconditioned, i.e. the correction orbit; by default this is dT = dT / T
-            T = self.T * (parameters[0][0]**-param_powers[0])
+            T = self.T * (pmult[0][0]**-param_powers[0])
         else:
             T = self.T
 
         if not self.constraints['L']:
             # self is the orbit being preconditioned, i.e. the correction orbit; by default this is dL = dL / L^4
-            L = self.L * (parameters[1][0]**-param_powers[1])
+            L = self.L * (pmult[1][0]**-param_powers[1])
         else:
             L = self.L
 
-        return self.__class__(state=preconditioned_state, parameters=(T, L, 0.), basis='modes')
-
-    def precondition_matvec(self, parameters, **kwargs):
-        """ Preconditioning operation for the normal equations
-
-        Parameters
-        ----------
-        parameters : tuple
-
-        Returns
-        -------
-        target : OrbitKS
-            Return the OrbitKS instance, modified by preconditioning.
-
-        Notes
-        -----
-        Precondition applied twice because it is attempting to approximate the inverse M = (A^T A)^-1 not just A?
-        """
-        return self.precondition(parameters, **kwargs).precondition(parameters, **kwargs)
-
-    def precondition_rmatvec(self, parameters, **kwargs):
-        """ Precondition a vector with the inverse (absolute value) of linear spatial terms
-
-        Parameters
-        ----------
-        parameters : tuple
-
-        Returns
-        -------
-        target : OrbitKS
-            Return the OrbitKS instance, modified by preconditioning.
-
-        Notes
-        -----
-            Diagonal preconditioning implies rmatvec and matvec are the same, by definition.
-        """
-        return self.precondition_matvec(parameters, **kwargs)
+        return self.__class__(state=preconditioned_state, parameters=(T, L, self.S), basis='modes')
 
     def reshape(self, *new_shape, **kwargs):
         """

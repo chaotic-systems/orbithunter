@@ -1,5 +1,7 @@
-Notes on scipy.optimize.minimize numerical methods that require Hessian matrix (or its product H*x)
+1. Inclusion of Hessian based numerical methods 
 
+Notes on scipy.optimize.minimize numerical methods that require Hessian matrix (or its product H*x)
+Right now the Hessian is somewhat annoying to implement so I am avoiding these methods for now 09/07/2020
 From scipy docs:
 ```
 Only for Newton-CG, dogleg, trust-ncg, trust-krylov, trust-exact and trust-constr
@@ -17,4 +19,9 @@ This algorithm requires the gradient and the Hessian (which is not required to b
 It is, in many situations, the Newton method to converge in fewer iteraction and the most recommended for small and medium-size problems.
 ```
 
-Right now the Hessian is somewhat annoying to implement so I am avoiding these methods for now 09/07/2020
+2. Generalizing _correct_aspect_ratio beyond even valued discretizations, biased towards the KSE
+3. "Expensive" (group orbit) gluing
+4. _random_initial_condition
+5. .ks.physics.shadowing() output 
+
+
