@@ -77,45 +77,7 @@ class OrbitKS(Orbit):
                                np.array([[float(self.T)]]),
                                np.array([[float(self.L)]])), axis=0)
 
-    def from_numpy_array(self, state_vector, **kwargs):
-        """ Utility to convert from numpy array to orbithunter format for scipy wrappers.
 
-        Parameters
-        ----------
-        state_vector : ndarray
-            State vector containing state values (modes, typically) and parameters or optimization corrections thereof.
-
-        kwargs :
-            parameters : tuple
-                If parameters from another Orbit instance are to overwrite the values within the state_vector
-            parameter_constraints : dict
-                constraint dictionary, keys are parameter_labels, values are bools
-            OrbitKS or subclass kwargs : dict
-                If special kwargs are required/desired for Orbit instantiation.
-        Returns
-        -------
-        state_orbit : Orbit instance
-            Orbit instance whose state and parameters are extracted from the input state_vector.
-
-        Notes
-        -----
-        Important: If parameters are passed as a keyword argument, they are appended to the numpy array,
-        'state_array', via concatenation. The common usage of this function is to take the output of SciPy
-        optimization functions which are in the form of numpy arrays and cast them as Orbit instances.
-        """
-        # If there are parameters_passed, then they are meant to be added to the state_array (i.e. we're taking
-        # values from another orbit instance.
-        # Just so its a little clearer what
-        mode_shape, mode_size = self.shapes[2], self.state.size
-        modes = state_vector.ravel()[:mode_size]
-        # We slice off the modes and the rest of the list pertains to parameters; note if the state_array had
-        # parameters, and parameters were added by
-
-        params_list = list(kwargs.pop('parameters', state_vector.ravel()[mode_size:].tolist()))
-        parameters = tuple(params_list.pop(0) if not p and params_list else 0 for p in self.constraints.values())
-        state_orbit = self.__class__(state=np.reshape(modes, mode_shape), basis='modes',
-                                     parameters=parameters, **kwargs)
-        return state_orbit
 
     def verify_integrity(self):
         """ Check whether the orbit converged to an equilibrium or close-to-zero solution
@@ -276,7 +238,7 @@ class OrbitKS(Orbit):
         else:
             modes = self.transform(to='modes').state
             dxn_modes = np.multiply(elementwise_dxn(self.L, self.M, self.shapes[2][0],
-                                                    order=order)[:, :modes.shape[1]], modes)
+                                                    order=order)[:, :self.shapes[2][1]], modes)
         # If the order of the differentiation is odd, need to swap imaginary and real components.
         if np.mod(order, 2):
             dxn_modes = swap_modes(dxn_modes, axis=1)
@@ -1244,8 +1206,8 @@ class OrbitKS(Orbit):
         spectrum = kwargs.get('spectrum', 'gaussian')
         tscale = kwargs.get('tscale', int(np.round(self.T / 25.)))
         xscale = kwargs.get('xscale', int(1 + np.round(self.L / (2*pi*np.sqrt(2)))))
-        xvar = kwargs.get('xvar', np.sqrt(xscale))
-        tvar = kwargs.get('tvar', np.sqrt(tscale))
+        xvar = kwargs.get('xvar', np.sqrt(max([xscale, 1])))
+        tvar = kwargs.get('tvar', np.sqrt(max([tscale, 1])))
         np.random.seed(kwargs.get('seed', None))
 
         # also accepts N and M as kwargs
@@ -1254,9 +1216,8 @@ class OrbitKS(Orbit):
 
         # I think this is the easiest way to get symmetry-dependent Fourier mode arrays' shapes.
         # power = 2 b.c. odd powers not defined for spacetime modes for discrete symmetries.
-        space_ = np.sqrt((self.L / (2*pi))**2 * np.abs(elementwise_dxn(self.L, self.M, self.shapes[2][0],
-                                                                       order=2))).astype(int)
-        time_ = (self.T / (2*pi)) * np.abs(elementwise_dtn(self.T, self.N, self.shapes[2][1])).astype(int)
+        space_ = elementwise_dxn(2*pi, self.M, self.shapes[2][0])[:, :self.shapes[2][1]].astype(int)
+        time_ = elementwise_dtn(-2*pi, self.N, self.shapes[2][1]).astype(int)
         random_modes = np.random.randn(*self.shapes[2])
 
         # Pretruncation norm, random normal distribution for modes approximately gives field of "correct" magnitude
@@ -1366,25 +1327,23 @@ class OrbitKS(Orbit):
         is easier to understand than 2 pi / parameters[0].
 
         """
-        self.constraints = kwargs.get('constraints', {'T': False, 'L': False})
-        T, L = parameters[:2]
-        if T == 0. and kwargs.get('nonzero_parameters', False):
+        self.constraints = kwargs.get('constraints', {'T': False, 'L': False, 'S': False})
+        if parameters[0] == 0. and kwargs.get('nonzero_parameters', False):
             if kwargs.get('seed', None) is not None:
                 np.random.seed(kwargs.get('seed', None))
             self.T = (kwargs.get('T_min', 20.)
                       + (kwargs.get('T_max', 180.) - kwargs.get('T_min', 20.))*np.random.rand())
         else:
-            self.T = float(T)
+            self.T = float(parameters[0])
 
-        if L == 0. and kwargs.get('nonzero_parameters', False):
+        if parameters[1] == 0. and kwargs.get('nonzero_parameters', False):
             if kwargs.get('seed', None) is not None:
                 # Just so the periods aren't always the same, when provided a seed.
                 np.random.seed(kwargs.get('seed', None)+1)
             self.L = (kwargs.get('L_min', 22.)
                       + (kwargs.get('L_max', 66.) - kwargs.get('L_min', 22.))*np.random.rand())
         else:
-            self.L = float(L)
-        return None
+            self.L = float(parameters[1])
 
     def _jac_lin(self):
         """ The linear component of the Jacobian matrix of the Kuramoto-Sivashinsky equation"""
@@ -1888,28 +1847,7 @@ class RelativeOrbitKS(OrbitKS):
     def from_fundamental_domain(self):
         return self.change_reference_frame(to='comoving')
 
-    def from_numpy_array(self, state_array, **kwargs):
-        """ Utility to convert from numpy array to orbithunter format for scipy wrappers.
 
-        Parameters
-        ----------
-        state_array : np.ndarray
-            same dimensions as self.state_vector - (# of constrained parameters)
-
-        Notes
-        -----
-        Written as a general method that covers all subclasses instead of writing individual methods.
-        """
-
-        mode_shape, mode_size = self.shapes[2], self.state.size
-        modes = state_array.ravel()[:mode_size]
-        # We slice off the modes and the rest of the list pertains to parameters; note if the state_array had
-        # parameters, and parameters were added by
-
-        params_list = list(kwargs.pop('parameters', state_array.ravel()[mode_size:].tolist()))
-        parameters = tuple(params_list.pop(0) if not p and params_list else 0 for p in self.constraints.values())
-        return self.__class__(state=np.reshape(modes, mode_shape), basis='modes',
-                              parameters=parameters, **kwargs)
 
     def _jacobian_parameter_derivatives_concat(self, jac_):
         """ Concatenate parameter partial derivatives to Jacobian matrix
@@ -2003,30 +1941,28 @@ class RelativeOrbitKS(OrbitKS):
         return super().truncate(size, axis=axis)
 
     def _parse_parameters(self, parameters, **kwargs):
-        T, L, S = parameters[:3]
 
         self.constraints = kwargs.get('constraints', {'T': False, 'L': False, 'S': False})
         self.frame = kwargs.get('frame', 'comoving')
 
-        if T == 0. and kwargs.get('nonzero_parameters', False):
+        if parameters[0] == 0. and kwargs.get('nonzero_parameters', False):
             if kwargs.get('seed', None) is not None:
                 np.random.seed(kwargs.get('seed', None))
             self.T = (kwargs.get('T_min', 20.)
                       + (kwargs.get('T_max', 180.) - kwargs.get('T_min', 20.))*np.random.rand())
         else:
-            self.T = float(T)
+            self.T = float(parameters[0])
 
-        if L == 0. and kwargs.get('nonzero_parameters', False):
+        if parameters[1] == 0. and kwargs.get('nonzero_parameters', False):
             if kwargs.get('seed', None) is not None:
                 np.random.seed(kwargs.get('seed', None)+1)
             self.L = (kwargs.get('L_min', 22.)
                       + (kwargs.get('L_max', 66.) - kwargs.get('L_min', 22.))*np.random.rand())
         else:
-            self.L = float(L)
+            self.L = float(parameters[1])
         # Would like to calculate shift here but we need a state to be initialized first, so this is handled
         # after the super().__init__ call for relative periodic solutions.
-        self.S = S
-        return None
+        self.S = parameters[2]
 
     def rmatvec(self, other, **kwargs):
         """ Extension of the parent method to RelativeOrbitKS
@@ -2591,26 +2527,6 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         return self.__class__(state=np.concatenate((self.reflection().state, self.state), axis=1),
                               basis='field', parameters=(0., 2.0*self.L, 0.))
 
-    def from_numpy_array(self, state_array, **kwargs):
-        """ Utility to convert from numpy array to orbithunter format for scipy wrappers.
-        Parameters
-        ----------
-        state_array : np.ndarray
-            same dimensions as self.state_vector - (# of constrained parameters)
-        Returns
-        -------
-        Orbit subclass instance
-
-        Notes
-        -----
-        Written as a general method that covers all subclasses instead of writing individual methods.
-        """
-        mode_shape, mode_size = self.state.shape, self.state.size
-        modes = state_array.ravel()[:mode_size]
-        params_list = state_array.ravel()[mode_size:].tolist()
-        L = float(tuple(params_list.pop(0) if not p and params_list else 0 for p in self.constraints.values())[0])
-        return self.__class__(state=np.reshape(modes, mode_shape), basis='modes', parameters=(0., L, 0.))
-
     def _jac_lin(self):
         """ Extension of the OrbitKS method that includes the term for spatial translation symmetry"""
         return self._dx_matrix(order=2) + self._dx_matrix(order=4)
@@ -2696,19 +2612,16 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
     def _parse_parameters(self, parameters, **kwargs):
         # New addition, keep track of constraints via attribute instead of passing them around everywhere.
-        self.constraints = kwargs.get('constraints', {'L': False})
-
-        # If parameter dictionary was passed, then unpack that.
-        L = parameters[1]
+        self.constraints = kwargs.get('constraints', {'T': False, 'L': False, 'S': False})
 
         # The default value of nonzero_parameters is False. If its true, assign random value to L
-        if L == 0. and kwargs.get('nonzero_parameters', False):
+        if parameters[1] == 0. and kwargs.get('nonzero_parameters', False):
             if kwargs.get('seed', None) is not None:
                 np.random.seed(kwargs.get('seed', None)+1)
             self.L = (kwargs.get('L_min', 22.)
                       + (kwargs.get('L_max', 66.) - kwargs.get('L_min', 22.))*np.random.rand())
         else:
-            self.L = float(L)
+            self.L = float(parameters[1])
         # for the sake of uniformity of save format, technically 0 will be returned even if not defined because
         # of __getattr__ definition.
         self.T = 0.
@@ -3208,7 +3121,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
     # def _random_initial_condition(self, parameters, **kwargs):
     #     """ Initial a set of random spatiotemporal Fourier modes
-    #     Parameters
+    #     Parame ers
     #     ----------
     #     T : float
     #         Time period

@@ -112,10 +112,10 @@ def read_tileset(path, equation, keys, h5_groups, class_name=None, validate=Fals
 def convergence_log(initial_orbit, converge_result, log_path, spectrum='random', method='adj'):
     initial_condition_log_ = pd.read_csv(log_path, index_col=0)
     # To store all relevant info as a row in a Pandas DataFrame, put into a 1-D array first.
-    dataframe_row = [[initial_orbit.parameters, initial_orbit.field_shape(),
+    dataframe_row = [[initial_orbit.parameters, initial_orbit.shapes[0],
                      np.abs(initial_orbit.transform(to='field').state).max(), converge_result.orbit.residual(),
                      converge_result.status, spectrum, method]]
-    labels = ['parameters', 'field_shape', 'field_magnitude', 'residual', 'status', 'spectrum', 'numerical_method']
+    labels = ['parameters', 'shape', 'field_magnitude', 'residual', 'status', 'spectrum', 'numerical_method']
     new_row = pd.DataFrame(dataframe_row, columns=labels)
     initial_condition_log_ = pd.concat((initial_condition_log_, new_row), axis=0)
     initial_condition_log_.reset_index(drop=True).drop_duplicates().to_csv(log_path)
@@ -138,10 +138,10 @@ def refurbish_log(orbit_, filename, log_filename, overwrite=False, **kwargs):
 def write_symbolic_log(symbol_array, converge_result, log_filename, tileset='default',
                        comoving=False):
     symbol_string = to_symbol_string(symbol_array)
-    dataframe_row_values = [[symbol_string, converge_result.orbit.parameters, converge_result.orbit.field_shape(),
+    dataframe_row_values = [[symbol_string, converge_result.orbit.parameters, converge_result.orbit.shapes[0],
                              converge_result.orbit.residual(),
                              converge_result.status, tileset, comoving, symbol_array.shape]]
-    labels = ['symbol_string', 'parameters', 'field_shape', 'residual', 'status', 'tileset',
+    labels = ['symbol_string', 'parameters', 'shape', 'residual', 'status', 'tileset',
               'comoving', 'tile_shape']
 
     dataframe_row = pd.DataFrame(dataframe_row_values, columns=labels).astype(object)

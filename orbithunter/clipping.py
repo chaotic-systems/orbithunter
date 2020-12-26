@@ -19,7 +19,7 @@ def _slices_from_window(orbit_, window_dimensions, time_ordering='decreasing'):
     -------
 
     """
-    field_shape = orbit_.field_shape()
+    shape = orbit_.shapes[0]
     # Returns the dimensions which would be shown on a plot (easier to eye-ball clipping then), including units.
     # Should be a tuple of tuples (d_min, d_max), one for each dimension.
     plot_dimensions = orbit_.plotting_dimensions
@@ -41,19 +41,19 @@ def _slices_from_window(orbit_, window_dimensions, time_ordering='decreasing'):
             # This makes the d_min value equal to the fraction of the domain.
 
             rescaled_domain_min = (d_min-plot_dimensions[i][0])/(plot_dimensions[i][1]-plot_dimensions[i][0])
-            slice_start = int(field_shape[i] * rescaled_domain_min)
+            slice_start = int(shape[i] * rescaled_domain_min)
 
         if d_max is None:
-            slice_end = field_shape[i]
+            slice_end = shape[i]
         else:
             assert d_max <= plot_dimensions[i][1], 'Trying to clip out of bounds. Please revise clipping domain.'
             rescaled_domain_max = (d_max-plot_dimensions[i][0])/(plot_dimensions[i][1]-plot_dimensions[i][0])
-            slice_end = int(field_shape[i] * rescaled_domain_max)
+            slice_end = int(shape[i] * rescaled_domain_max)
 
         if i == 0 and time_ordering == 'decreasing':
             # From the "top down convention for time.
-            slice_start = field_shape[i] - slice_start
-            slice_end = field_shape[i] - slice_end
+            slice_start = shape[i] - slice_start
+            slice_end = shape[i] - slice_end
             slice_start, slice_end = slice_end, slice_start
 
         if np.mod(slice_end-slice_start, 2):
@@ -63,7 +63,7 @@ def _slices_from_window(orbit_, window_dimensions, time_ordering='decreasing'):
         clipping_slices.append(slice(slice_start, slice_end))
 
         # Find the correct fraction of the length>0 then subtract the minimum to rescale back to original plot units.
-        ith_clipping_dim = (int(np.abs(slice_end - slice_start))/field_shape[i]) * actual_dimensions[i]
+        ith_clipping_dim = (int(np.abs(slice_end - slice_start))/shape[i]) * actual_dimensions[i]
         clipping_dimensions.append(ith_clipping_dim)
 
     return tuple(clipping_slices), tuple(clipping_dimensions)
@@ -125,7 +125,7 @@ def mask_orbit(orbit_, windows, mask_region='exterior'):
 
     """
     # Create boolean mask to manipulate for numpy masked arrays.
-    mask = np.zeros(orbit_.field_shape()).astype(bool)
+    mask = np.zeros(orbit_.shapes[0]).astype(bool)
     if isinstance(windows, list):
         for window in windows:
             # Do not need dimensions, as we are not clipping technically.

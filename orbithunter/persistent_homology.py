@@ -30,7 +30,7 @@ def orbit_complex(orbit_,  **kwargs):
     I do not think orbithunter support vector fields for now, I think each component would have its own cubical complex?
     """
     orbit_ = orbit_.transform(to='field')
-    periodic_dimensions = kwargs.pop('periodic_dimensions', tuple(len(orbit_.field_shape())*[True]))
+    periodic_dimensions = kwargs.pop('periodic_dimensions', tuple(len(orbit_.shapes[0])*[True]))
     cubical_complex = gh.PeriodicCubicalComplex(dimensions=orbit_.state.shape,
                                                 top_dimensional_cells=orbit_.state.ravel(),
                                                 periodic_dimensions=periodic_dimensions)

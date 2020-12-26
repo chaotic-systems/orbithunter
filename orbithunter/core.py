@@ -174,7 +174,6 @@ class Orbit:
         -----
         Returns largest integer smaller or equal to the division of the inputs, of the state. This isn't useful
         but I'm including it because it's a fairly common binary operation and might be useful in some circumstances.
-
         """
         return self.__class__(state=np.floor_divide(self.state, num), basis=self.basis, parameters=self.parameters)
 
@@ -201,7 +200,7 @@ class Orbit:
         # alias to save space
         dict_ = {'basis': self.basis,
                  'parameters': tuple(str(np.round(p, 4)) for p in self.parameters),
-                 'field_shape': tuple(str(d) for d in self.field_shape())}
+                 'shape': tuple(str(d) for d in self.shapes[0])}
         # convert the dictionary to a string via json.dumps
         dictstr = dumps(dict_)
         return self.__class__.__name__ + '(' + dictstr + ')'
@@ -259,14 +258,14 @@ class Orbit:
             # to a `parameter based discretization'. If this is not desired then simply do not call reshape.
             new_shape = self.parameter_based_discretization(self.parameters, **kwargs)
 
-        if self.field_shape() == new_shape:
+        if self.shapes[0] == new_shape:
             # to avoid unintended overwrites, return a copy.
             return self.copy()
         else:
             for i, d in enumerate(new_shape):
-                if d < self.field_shape()[i]:
+                if d < self.shapes[0][i]:
                     placeholder_orbit = placeholder_orbit._truncate(d, axis=i)
-                elif d > self.field_shape()[i]:
+                elif d > self.shapes[0][i]:
                     placeholder_orbit = placeholder_orbit._pad(d, axis=i)
                 else:
                     pass
@@ -345,14 +344,40 @@ class Orbit:
         """ Vector representation of orbit"""
         return np.concatenate((self.state.ravel(), self.parameters), axis=0)
 
-    def from_numpy_array(self, state_array, **kwargs):
+    def from_numpy_array(self, state_vector, **kwargs):
         """ Utility to convert from numpy array to orbithunter format for scipy wrappers.
+
+        Parameters
+        ----------
+        state_vector : ndarray
+            State vector containing state values (modes, typically) and parameters or optimization corrections thereof.
+
+        kwargs :
+            parameters : tuple
+                If parameters from another Orbit instance are to overwrite the values within the state_vector
+            parameter_constraints : dict
+                constraint dictionary, keys are parameter_labels, values are bools
+            OrbitKS or subclass kwargs : dict
+                If special kwargs are required/desired for Orbit instantiation.
+        Returns
+        -------
+        state_orbit : Orbit instance
+            Orbit instance whose state and parameters are extracted from the input state_vector.
 
         Notes
         -----
-        Takes a ndarray of the form of state_vector method and returns Orbit instance.
+        Important: If parameters are passed as a keyword argument, they are appended to the numpy array,
+        'state_array', via concatenation. The common usage of this function is to take the output of SciPy
+        optimization functions (numpy arrays) and store them in Orbit instances.
+
+        This function assumes that the instance calling it is in the "spatiotemporal" basis; the basis in which
+        the optimization occurs. This is why no additional specification for size and shape and basis is required.
+        The spatiotemporal basis is allowed to be named anything, hence usage of self.basis.
         """
-        return None
+        params_list = list(kwargs.pop('parameters', state_vector.ravel()[self.size:].tolist()))
+        parameters = tuple(params_list.pop(0) if not p and params_list else 0 for p in self.constraints.values())
+        return self.__class__(state=np.reshape(state_vector.ravel()[:self.size], self.shape), basis=self.basis,
+                              parameters=parameters, **kwargs)
 
     def increment(self, other, step_size=1, **kwargs):
         """ Incrementally add Orbit instances together
@@ -435,12 +460,6 @@ class Orbit:
 
     def norm(self, order=None):
         """ Norm of spatiotemporal state via numpy.linalg.norm
-
-        Example
-        -------
-        Norm of a state. Should be something like np.linalg.norm(self.state.ravel(), ord=order). The following would
-        return the L_2 distance between two Orbit instances, default of NumPy linalg norm is 2-norm.
-        >>> (self - other).norm()
         """
         return np.linalg.norm(self.state.ravel(), ord=order)
 
@@ -492,18 +511,6 @@ class Orbit:
 
         """
         return 0., 0., 0., 0.
-
-    def field_shape(self):
-        """ Shape of field
-
-        Returns
-        -------
-        tuple :
-            Equivalent to self.transform(to='field').shape, keeping it as a property saves computations
-            the entry '3' corresponds to different 3-d vector field directions; i.e. sort of treating this as
-            a bundle of 3, (3+1) dimensional scalar fields
-        """
-        return 1, 1, 1, 1, 3
 
     def dimensions(self):
         """ Continuous tile dimensions
@@ -569,7 +576,6 @@ class Orbit:
             raise ValueError('Unrecognizable method.')
         return self.__class__(state=rescaled_field, basis='field',
                               parameters=self.parameters).transform(to=self.basis)
-        return None
 
     def to_h5(self, filename=None, directory='local', verbose=False, include_residual=False):
         """ Export current state information to HDF5 file
@@ -585,15 +591,8 @@ class Orbit:
             other modes ['r', 'r+', 'a', 'w-'].
         verbose : If true, prints save messages to std out
         """
-        if filename is None:
-            filename = self.parameter_dependent_filename()
-
-        if directory == 'local':
-            directory = os.path.abspath(os.path.join(__file__, '../../data/local/', str(self)))
-        elif directory == '':
-            pass
-        elif not os.path.isdir(directory):
-            raise OSError('Trying to write to directory that does not exist. {}'.format(directory))
+        # if filename is None, returns the latter.
+        filename = filename or self.parameter_dependent_filename()
 
         save_path = os.path.abspath(os.path.join(directory, filename))
         if verbose:
@@ -616,14 +615,14 @@ class Orbit:
         if self.dimensions is not None:
             dimensional_string = ''.join(['_'+''.join([self.dimension_labels()[i], str(d).split('.')[0],
                                                        'p', str(d).split('.')[1][:decimals]])
-                                          for i, d in enumerate(self.dimensions) if d not in [0., 0]])
+                                          for i, d in enumerate(self.dimensions()) if d not in [0., 0]])
         else:
             dimensional_string = ''
         return ''.join([self.__class__.__name__, dimensional_string, extension])
 
     def verify_integrity(self):
         """ Check the status of a solution, whether or not it converged to the correct orbit type. """
-        return None
+        return self
 
     def _parse_state(self, state, basis, **kwargs):
         """ Determine state shape parameters based on state array and the basis it is in.
@@ -637,20 +636,17 @@ class Orbit:
         kwargs :
             Signature for subclasses.
 
-        Returns
-        -------
-
         """
-        self.state = state
+        # Initialize with the same amount of dimensions as labels; use labels because staticmethod.
+        # The 'and-or' trick; if state is None then latter is used.
+        self.state = state or np.zeros(len(self.dimension_labels()))
         self.basis = basis
-        return None
 
     def _parse_parameters(self, parameters, **kwargs):
         """ Determine the dimensionality and symmetry parameters.
         """
         # default is not to be constrained in any dimension;
-        self.constraints = kwargs.get('constraints', {dim_key: False for dim_key, dim_val
-                                                      in zip(self.dimension_labels(), self.dimensions)})
+        self.constraints = kwargs.get('constraints', {dim_key: False for dim_key in self.dimension_labels()})
         return None
 
     def _random_initial_condition(self, parameters, **kwargs):

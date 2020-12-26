@@ -87,11 +87,11 @@ def _correct_aspect_ratios(array_of_orbits, axis=0):
 
         # The new shapes of each orbit are the new sizes along the gluing axis, and the originals for axes not being
         # glued.
-        new_shapes = [tuple(int(new_discretization_sizes[j]) if i == axis else o.field_shape()[i]
+        new_shapes = [tuple(int(new_discretization_sizes[j]) if i == axis else o.shapes[0][i]
                       for i in range(len(o.shape))) for j, o in enumerate(array_of_orbits.ravel())]
 
     else:
-        new_shapes = [tuple(int(new_discretization_sizes[j]) if i == axis else o.field_shape()[i]
+        new_shapes = [tuple(int(new_discretization_sizes[j]) if i == axis else o.shapes[0][i]
                       for i in range(len(o.shape))) for j, o in enumerate(array_of_orbits.ravel())]
 
     # Return the strip of orbits with corrected proportions.
@@ -151,7 +151,7 @@ def glue(array_of_orbits, class_constructor, stripwise=False, **kwargs):
 
     """
     glue_shape = array_of_orbits.shape
-    tiling_shape = array_of_orbits.ravel()[0].field_shape()
+    tiling_shape = array_of_orbits.ravel()[0].shapes[0]
     gluing_order = kwargs.get('gluing_order', np.argsort(glue_shape))
     # This joins the dictionary of all orbits' dimensions by zipping the values together. i.e.
     # {'T': T_1, 'L': L_1}, {'T': T_2, 'L': L_2}, .....  transforms into  {'T': (T_1, T_2, ...) , 'L': (L_1, L_2, ...)}

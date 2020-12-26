@@ -786,15 +786,15 @@ def _default_tol(orbit_, precision='default'):
     """
     # Introduction of ugly conditional statements for convenience
     if precision == 'machine':
-        default_tol = np.product(orbit_.field_shape()) * 10**-12
+        default_tol = np.product(orbit_.shapes[0]) * 10**-12
     elif precision == 'high':
-        default_tol = np.product(orbit_.field_shape()) * 10**-10
+        default_tol = np.product(orbit_.shapes[0]) * 10**-10
     elif precision == 'medium' or precision == 'default':
-        default_tol = np.product(orbit_.field_shape()) * 10**-7
+        default_tol = np.product(orbit_.shapes[0]) * 10**-7
     elif precision == 'low':
-        default_tol = np.product(orbit_.field_shape()) * 10**-4
+        default_tol = np.product(orbit_.shapes[0]) * 10**-4
     elif precision == 'minimal':
-        default_tol = np.product(orbit_.field_shape()) * 10**-1
+        default_tol = np.product(orbit_.shapes[0]) * 10**-1
     else:
         raise ValueError('If a custom tolerance is desired, use ''tol'' key word instead.')
 
@@ -857,17 +857,17 @@ def _default_maxiter(orbit_, method='adj', comp_time='default'):
     else:
         # Introduction of ugly conditional statements for convenience
         if comp_time == 'excessive':
-            default_max_iter = 512 * int(np.product(orbit_.field_shape()))
+            default_max_iter = 512 * int(np.product(orbit_.shapes[0]))
         elif comp_time == 'thorough':
-            default_max_iter = 128 * int(np.product(orbit_.field_shape()))
+            default_max_iter = 128 * int(np.product(orbit_.shapes[0]))
         elif comp_time == 'long':
-            default_max_iter = 32 * int(np.product(orbit_.field_shape()))
+            default_max_iter = 32 * int(np.product(orbit_.shapes[0]))
         elif comp_time == 'medium' or comp_time == 'default':
-            default_max_iter = 16 * int(np.product(orbit_.field_shape()))
+            default_max_iter = 16 * int(np.product(orbit_.shapes[0]))
         elif comp_time == 'short':
-            default_max_iter = 8 * int(np.product(orbit_.field_shape()))
+            default_max_iter = 8 * int(np.product(orbit_.shapes[0]))
         elif comp_time == 'minimal':
-            default_max_iter = int(np.product(orbit_.field_shape()))
+            default_max_iter = int(np.product(orbit_.shapes[0]))
         else:
             raise ValueError('If a custom number of iterations is desired, use ''maxiter'' key word instead.')
 
