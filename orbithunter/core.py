@@ -15,7 +15,7 @@ technically required to use a spectral method, not doing so may result in awkwar
 the reshape method in spectral space essentially interpolates via zero-padding and truncation. Therefore, other
 interpolation methods would be forced to use _pad and _truncate, unless they specifically overwrite the reshape
 method itself. Another example, The spatiotemporal basis should be labeled as 'modes', the "physical" basis, 
-'field'. There are no assumptions on what "field" and "modes" actually mean, so the physical state space
+'field'. There are no assumptions on what 'field' and "modes" actually mean, so the physical state space
 need not be an actual field.
  
 In order to write the functions rmatvec, matvec, spatiotemporal mapping, one will necessarily have to include
@@ -578,41 +578,37 @@ class Orbit:
         return self.__class__(state=rescaled_field, basis='field',
                               parameters=self.parameters).transform(to=self.basis)
 
-    def to_h5(self, filename=None, directory='local', verbose=False, include_residual=False):
+    def to_h5(self, filename=None, h5_group=None, verbose=False, include_residual=False):
         """ Export current state information to HDF5 file
 
         Parameters
         ----------
         filename : str
             Name for the save file
-        directory :
-            Location to save at
         h5pymode : str
             Mode with which to open the file. Default is a, read/write if exists, create otherwise,
             other modes ['r', 'r+', 'a', 'w-'].
         verbose : If true, prints save messages to std out
         """
-        # if filename is None, returns the latter.
-        filename = filename or self.parameter_dependent_filename()
 
-        save_path = os.path.abspath(os.path.join(directory, filename))
         if verbose:
-            print('Saving data to {}'.format(save_path))
+            print('Saving data to {}'.format(filename))
 
-        with h5py.File(save_path, 'a') as f:
-            # The velocity field.
-            f.create_dataset("field", data=self.transform(to='field').state)
+        with h5py.File(filename, 'a') as f:
+            # Returns h5_group if not None, else, filename method.
+            orbit_group = f.require_group(h5_group or self.filename())
+            orbit_group.create_dataset('field', data=self.transform(to='field').state)
             # The parameters required to exactly specify an orbit.
-            f.create_dataset('parameters', data=tuple(float(p) for p in self.parameters))
+            orbit_group.create_dataset('parameters', data=tuple(float(p) for p in self.parameters))
             if include_residual:
                 # This is included as a conditional statement because it seems strange to make importing/exporting
                 # dependent upon full implementation of the governing equations; i.e. perhaps the equations
                 # are still in development and data is used to test their implementation. In that case you would
                 # not be able to export data which is undesirable.
-                f.create_dataset("residual", data=float(self.residual()))
+                orbit_group.create_dataset('residual', data=float(self.residual()))
         return None
 
-    def parameter_dependent_filename(self, extension='.h5', decimals=3):
+    def filename(self, extension='.h5', decimals=3):
         if self.dimensions() is not None:
             dimensional_string = ''.join(['_'+''.join([self.dimension_labels()[i], str(d).split('.')[0],
                                                        'p', str(d).split('.')[1][:decimals]])

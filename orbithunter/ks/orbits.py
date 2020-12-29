@@ -665,7 +665,7 @@ class OrbitKS(Orbit):
             directory = kwargs.get('directory', 'local')
             # Create save name if one doesn't exist.
             if filename is None:
-                filename = self.parameter_dependent_filename(extension=extension)
+                filename = self.filename(extension=extension)
             elif filename.endswith('.h5'):
                 filename = filename.split('.h5')[0] + extension
 
@@ -733,7 +733,7 @@ class OrbitKS(Orbit):
             directory = kwargs.get('directory', 'local')
             # Create save name if one doesn't exist.
             if filename is None:
-                filename = self.parameter_dependent_filename(extension=extension)
+                filename = self.filename(extension=extension)
             elif filename.endswith('.h5'):
                 filename = filename.split('.h5')[0] + extension
 
