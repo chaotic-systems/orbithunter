@@ -21,6 +21,6 @@ Bug Fixes
 Other
 -----
 1. Lots of notebook work
-2. Defaults changed for _random_initial_condition
+2. Defaults changed for random_state
 3. dimension_continuation bugs w.r.t. constraining parameters. 
 4. Changed kwargs in calculate_spatial_shift

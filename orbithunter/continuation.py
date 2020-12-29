@@ -58,13 +58,13 @@ def _increment_discretization(orbit_, target_size, increment, axis=0):
 
     """
     # increments the target dimension but checks to see if incrementing places us out of bounds.
-    current_size = orbit_.shapes[0][axis]
+    current_size = orbit_.shapes()[0][axis]
     # The affirmative occurs when overshooting the target value of the param.
     if np.sign(target_size - (current_size + increment)) != np.sign(increment):
         next_size = target_size
     else:
         next_size = current_size + increment
-    incremented_shape = tuple(d if i != axis else next_size for i, d in enumerate(orbit_.shapes[0]))
+    incremented_shape = tuple(d if i != axis else next_size for i, d in enumerate(orbit_.shapes()[0]))
     return orbit_.reshape(*incremented_shape)
 
 
@@ -131,11 +131,11 @@ def discretization_continuation(orbit_, target_shape, cycle=False, **kwargs):
         # If the shape along the axis is 1, and the corresponding dimension is 0, then this means we have
         # an equilibrium solution along said axis; this can be handled by simply rediscretizing the field.
         cycle_index = 0 
-        while converge_result.status == -1 and converge_result.orbit.shapes[0] != target_shape:
+        while converge_result.status == -1 and converge_result.orbit.shapes()[0] != target_shape:
 
             # Ensure that we are stepping in correct direction.
             step_size = (np.sign(target_shape[axes_order[cycle_index]] 
-                                 - converge_result.orbit.shapes[0][axes_order[cycle_index]])
+                                 - converge_result.orbit.shapes()[0][axes_order[cycle_index]])
                          * np.abs(step_sizes[axes_order[cycle_index]]))
             incremented_orbit = _increment_discretization(converge_result.orbit, target_shape[axes_order[cycle_index]],
                                                           step_size, axis=axes_order[cycle_index])
@@ -147,13 +147,13 @@ def discretization_continuation(orbit_, target_shape, cycle=False, **kwargs):
         # As long as we keep converging to solutions, we keep stepping towards target value.
         for axis in axes_order:
             # Ensure that we are stepping in correct direction.
-            step_size = (np.sign(target_shape[axis] - converge_result.orbit.shapes[0][axis]) * np.abs(step_sizes[axis]))
+            step_size = (np.sign(target_shape[axis] - converge_result.orbit.shapes()[0][axis]) * np.abs(step_sizes[axis]))
             # While maintaining convergence proceed with continuation. If the shape equals the target, stop.
             # If the shape along the axis is 1, and the corresponding dimension is 0, then this means we have
             # an equilibrium solution along said axis; this can be handled by simply rediscretizing the field.
-            while converge_result.status == -1 and (not converge_result.orbit.shapes[0][axis] == target_shape[axis]
+            while converge_result.status == -1 and (not converge_result.orbit.shapes()[0][axis] == target_shape[axis]
                                                     and
-                                                    not converge_result.orbit.shapes[0][axis] == 1):
+                                                    not converge_result.orbit.shapes()[0][axis] == 1):
                 incremented_orbit = _increment_discretization(converge_result.orbit, target_shape[axis],
                                                               step_size, axis=axis)
                 converge_result = converge(incremented_orbit, **kwargs)

@@ -19,12 +19,12 @@ def _slices_from_window(orbit_, window_dimensions, time_ordering='decreasing'):
     -------
 
     """
-    shape = orbit_.shapes[0]
+    shape = orbit_.shapes()[0]
     # Returns the dimensions which would be shown on a plot (easier to eye-ball clipping then), including units.
     # Should be a tuple of tuples (d_min, d_max), one for each dimension.
     plot_dimensions = orbit_.plotting_dimensions
     # Returns a tuple of the "length" > 0 of each axis.
-    actual_dimensions = orbit_.dimensions
+    actual_dimensions = orbit_.dimensions()
 
     clipping_slices = []
     clipping_dimensions = []
@@ -125,7 +125,7 @@ def mask_orbit(orbit_, windows, mask_region='exterior'):
 
     """
     # Create boolean mask to manipulate for numpy masked arrays.
-    mask = np.zeros(orbit_.shapes[0]).astype(bool)
+    mask = np.zeros(orbit_.shapes()[0]).astype(bool)
     if isinstance(windows, list):
         for window in windows:
             # Do not need dimensions, as we are not clipping technically.

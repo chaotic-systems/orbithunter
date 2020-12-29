@@ -55,7 +55,7 @@ class Orbit:
             Time period, spatial period, spatial shift (unused but kept for uniformity, in case of conversion between
             OrbitKS and RelativeOrbitKS).
         **kwargs :
-            Extra arguments for _parse_parameters and _random_initial_condition
+            Extra arguments for _parse_parameters and random_state
                 See the description of the aforementioned method.
 
         Notes
@@ -72,7 +72,7 @@ class Orbit:
             # either provide
             self._parse_parameters(parameters, nonzero_parameters=kwargs.pop('nonzero_parameters', True), **kwargs)
             # Pass the newly generated parameter values, there are the originals if they were not 0's.
-            self._random_initial_condition(self.parameters, **kwargs)
+            self.random_state(self.parameters, **kwargs)
 
     def __add__(self, other):
         """ Addition of Orbit states
@@ -200,7 +200,7 @@ class Orbit:
         # alias to save space
         dict_ = {'basis': self.basis,
                  'parameters': tuple(str(np.round(p, 4)) for p in self.parameters),
-                 'shape': tuple(str(d) for d in self.shapes[0])}
+                 'shape': tuple(str(d) for d in self.shapes()[0])}
         # convert the dictionary to a string via json.dumps
         dictstr = dumps(dict_)
         return self.__class__.__name__ + '(' + dictstr + ')'
@@ -258,14 +258,14 @@ class Orbit:
             # to a `parameter based discretization'. If this is not desired then simply do not call reshape.
             new_shape = self.parameter_based_discretization(self.parameters, **kwargs)
 
-        if self.shapes[0] == new_shape:
+        if self.shapes()[0] == new_shape:
             # to avoid unintended overwrites, return a copy.
             return self.copy()
         else:
             for i, d in enumerate(new_shape):
-                if d < self.shapes[0][i]:
+                if d < self.shapes()[0][i]:
                     placeholder_orbit = placeholder_orbit._truncate(d, axis=i)
-                elif d > self.shapes[0][i]:
+                elif d > self.shapes()[0][i]:
                     placeholder_orbit = placeholder_orbit._pad(d, axis=i)
                 else:
                     pass
@@ -473,23 +473,24 @@ class Orbit:
         """
         return self.state.shape
 
-    @property
     def shapes(self):
-        """ The shapes of the orbit in each of its bases.
+        """ The different array shapes based on discretization parameters.
 
         Returns
         -------
         tuple :
-            tuple of shape tuples
+            tuple of three tuples corresponding to the shape of the 'state' array in the field, s_modes, modes bases.
 
         Notes
         -----
-        Tuple of shapes in each basis, ordered such that the field basis is the 0th element, and the current basis
+        This is a convenience function for operations which require the shape of the state array in a different basis.
+        These shapes are defined by the transforms, essentially, but it is wasteful to transform simply for the shape.
+        The tuple returned should be field basis is the 0th element, and the current basis
         is the last element. These may refer to the same element; only need indices 0 and -1 to be well defined for the
         general case.
 
         """
-        return self.state.shape
+        return (self.state.shape,)
 
     @property
     def size(self):
@@ -612,10 +613,10 @@ class Orbit:
         return None
 
     def parameter_dependent_filename(self, extension='.h5', decimals=3):
-        if self.dimensions is not None:
+        if self.dimensions() is not None:
             dimensional_string = ''.join(['_'+''.join([self.dimension_labels()[i], str(d).split('.')[0],
                                                        'p', str(d).split('.')[1][:decimals]])
-                                          for i, d in enumerate(self.dimensions()) if d not in [0., 0]])
+                                          for i, d in enumerate(self.dimensions()()) if d not in [0., 0]])
         else:
             dimensional_string = ''
         return ''.join([self.__class__.__name__, dimensional_string, extension])
@@ -649,7 +650,7 @@ class Orbit:
         self.constraints = kwargs.get('constraints', {dim_key: False for dim_key in self.dimension_labels()})
         return None
 
-    def _random_initial_condition(self, parameters, **kwargs):
+    def random_state(self, parameters, **kwargs):
         """ Initial a set of random spatiotemporal Fourier modes
         Parameters
         ----------

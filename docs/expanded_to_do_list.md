@@ -21,7 +21,7 @@ It is, in many situations, the Newton method to converge in fewer iteraction and
 
 2. Generalizing _correct_aspect_ratio beyond even valued discretizations, biased towards the KSE
 3. "Expensive" (group orbit) gluing
-4. _random_initial_condition
+4. random_state
 5. .ks.physics.shadowing() output 
 
 

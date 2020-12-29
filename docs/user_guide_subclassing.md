@@ -11,7 +11,7 @@ Attributes
 --------------------------
 
 state : ndarray or None
-If None type provided, then _random_initial_condition is called. 
+If None type provided, then random_state is called. 
 
 Properties
 ----------
@@ -40,7 +40,7 @@ A manner of processing input for state variable (vector/scalar field typically)
 _parse_parameters :
 A manner of processing input for parameters variable (vector/scalar field typically)
 
-_random_initial_condition :
+random_state :
 Unless all data will be imported, need some manner of creating initial conditions
 
 Dependencies for numerical optimization
