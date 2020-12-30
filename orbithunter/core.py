@@ -1,5 +1,4 @@
 from json import dumps
-import os
 import h5py
 import numpy as np
 
@@ -35,44 +34,43 @@ matvec = J * x, and must be able to construct the Jacobian = J. ***NOTE: the mat
 explicitly construct the Jacobian matrix. In the context of DAE's there is typically no need to write these
 with finite difference approximations of time evolved Jacobians. (Of course if the DAEs are defined
 in terms of finite differences, so should the Jacobian).***
-
 """
 
 
 class Orbit:
+
     def __init__(self, state=None, basis='field', parameters=(0., 0., 0., 0.), **kwargs):
         """ Base/Template class for orbits
 
         Parameters
         ----------
-        state : ndarray(dtype=float, ndim=4) or None
-            If an array, it should contain the state values pertaining to the 'basis' label. E.g. for Navier-stokes
-            this would be all spatiotemporal velocity field values,
+        state : ndarray, default None
+            If an array, it should contain the state values congruent with the 'basis' argument.
         basis : str
-            Which basis the array 'state' is currently in. Takes values
-            'field', 's_modes', 'modes'.
+            Which basis the array 'state' is currently in.
         parameters : tuple
-            Time period, spatial period, spatial shift (unused but kept for uniformity, in case of conversion between
-            OrbitKS and RelativeOrbitKS).
+            Parameters required to uniquely define the Orbit. Set here to be of length 4 because of 3+1 spacetime
+            of the general case. Could be longer if symemtry related parameters exist.
         **kwargs :
             Extra arguments for _parse_parameters and random_state
                 See the description of the aforementioned method.
 
         Notes
         -----
-        Methods listed here are required to have everything work.
+        If the state is not passed, then it will be randomly generated. This will require referencing the
+        dimensions, expected to be nonzero to define the collocation grid. Therefore, if the user
+        does not want randomly generated variables, it is required to either provide a state or a set of
+        non-zero dimensions.
+
+        Random generation of state is (for KSe) performed in the spatiotemporal basis.
 
         """
         if state is not None:
             self._parse_parameters(parameters, nonzero_parameters=kwargs.pop('nonzero_parameters', False), **kwargs)
             self._parse_state(state, basis, **kwargs)
         else:
-            # If the state is not passed, then it will be randomly generated. This will require referencing the
-            # dimensions, expected to be nonzero to define the collocation grid. Therefore, it is required to
-            # either provide
             self._parse_parameters(parameters, nonzero_parameters=kwargs.pop('nonzero_parameters', True), **kwargs)
-            # Pass the newly generated parameter values, there are the originals if they were not 0's.
-            self.random_state(self.parameters, **kwargs)
+            self._random_state(**kwargs)
 
     def __add__(self, other):
         """ Addition of Orbit states
@@ -247,7 +245,9 @@ class Orbit:
         -------
 
         """
-        placeholder_orbit = self.transform(to='field').copy().transform(to='modes')
+        # Padding basis assumed to be the last label, the basis resulting from application of all transforms.
+        # 'First' basis is the field basis, but this allows for different labels.
+        placeholder_orbit = self.transform(to=self.bases()[0]).copy().transform(to=self.bases()[-1])
 
         if len(new_shape) == 1:
             # if passed as tuple, .reshape((a,b)), then need to unpack ((a, b)) into (a, b)
@@ -256,7 +256,7 @@ class Orbit:
             # if nothing passed, then new_shape == () which evaluates to false.
             # The default behavior for this will be to modify the current discretization
             # to a `parameter based discretization'. If this is not desired then simply do not call reshape.
-            new_shape = self.parameter_based_discretization(self.parameters, **kwargs)
+            new_shape = self.parameter_based_discretization(self.dimensions(), **kwargs)
 
         if self.shapes()[0] == new_shape:
             # to avoid unintended overwrites, return a copy.
@@ -264,9 +264,9 @@ class Orbit:
         else:
             for i, d in enumerate(new_shape):
                 if d < self.shapes()[0][i]:
-                    placeholder_orbit = placeholder_orbit._truncate(d, axis=i)
+                    placeholder_orbit = placeholder_orbit.truncate(d, axis=i)
                 elif d > self.shapes()[0][i]:
-                    placeholder_orbit = placeholder_orbit._pad(d, axis=i)
+                    placeholder_orbit = placeholder_orbit.pad(d, axis=i)
                 else:
                     pass
             return placeholder_orbit.transform(to=self.basis)
@@ -404,7 +404,7 @@ class Orbit:
         return self.__class__(state=self.state+step_size*other.state, basis=self.basis,
                               parameters=incremented_params, **kwargs)
 
-    def _pad(self, size, axis=0):
+    def pad(self, size, axis=0):
         """ Increase the size of the discretization along an axis.
 
         Parameters
@@ -428,7 +428,7 @@ class Orbit:
 
         return self
 
-    def _truncate(self, size, axis=0):
+    def truncate(self, size, axis=0):
         """ Decrease the size of the discretization along an axis
 
         Parameters
@@ -524,6 +524,16 @@ class Orbit:
         return 0., 0., 0., 0.
 
     @staticmethod
+    def bases():
+        """ Labels of the different bases generated by different transforms.
+
+        Notes
+        -----
+
+        """
+        return 'field'
+
+    @staticmethod
     def parameter_labels():
         """ Strings to use to label dimensions/periods
         """
@@ -531,9 +541,38 @@ class Orbit:
 
     @staticmethod
     def dimension_labels():
-        """ Strings to use to label dimensions/periods
+        """ Strings to use to label dimensions/periods; seems redundant but typically is not.
         """
         return 'T', 'Lx', 'Ly', 'Lz'
+
+    @classmethod
+    def parameter_based_discretization(cls, dimensions, **kwargs):
+        """ Follow orbithunter conventions for discretization size.
+
+        Parameters
+        ----------
+        parameters : tuple
+            Tuple containing dimensions
+
+        kwargs :
+            resolution : str
+            Takes values 'coarse', 'normal', 'fine', 'power'.
+            These options return the according discretization sizes as described below.
+
+        Returns
+        -------
+        N, M : tuple of ints
+            The new spatiotemporal field discretization; number of time points
+            (rows) and number of space points (columns)
+
+        Notes
+        -----
+        This function should only ever be called by reshape, the returned values can always be accessed by
+        the appropriate attributes of the rediscretized orbit.
+        """
+        resolution = kwargs.get('resolution', 'default')
+
+        return self.shapes()[0]
 
     @classmethod
     def glue_parameters(cls, tuple_of_zipped_dimensions, glue_shape=(1, 1, 1, 1)):
@@ -578,23 +617,28 @@ class Orbit:
         return self.__class__(state=rescaled_field, basis='field',
                               parameters=self.parameters).transform(to=self.basis)
 
-    def to_h5(self, filename=None, h5_group=None, verbose=False, include_residual=False):
+    def to_h5(self, filename=None, h5_group=None, h5pymode='a', verbose=False, include_residual=False):
         """ Export current state information to HDF5 file
 
         Parameters
         ----------
-        filename : str
-            Name for the save file
+        filename : str, default None
+            filename to write/append to.
+        h5_group : str, default None
+            Name of the h5_group wherein to store the Orbit in the h5_file at location filename. Should be
+            HDF5 group name, i.e. '/A/B/C/...'
         h5pymode : str
             Mode with which to open the file. Default is a, read/write if exists, create otherwise,
-            other modes ['r', 'r+', 'a', 'w-'].
-        verbose : If true, prints save messages to std out
+            other modes ['r+', 'a', 'w-', 'w']. See h5py.File for details. 'r' not allowed, because this is a function
+            to write to the file.
+        verbose : bool
+            Whether or not to print save location and group
         """
 
         if verbose:
-            print('Saving data to {}'.format(filename))
+            print('Saving data to {} under group name'.format(filename, h5_group))
 
-        with h5py.File(filename, 'a') as f:
+        with h5py.File(filename, h5pymode) as f:
             # Returns h5_group if not None, else, filename method.
             orbit_group = f.require_group(h5_group or self.filename())
             orbit_group.create_dataset('field', data=self.transform(to='field').state)
@@ -609,10 +653,24 @@ class Orbit:
         return None
 
     def filename(self, extension='.h5', decimals=3):
+        """ Method for consistent/conventional filenaming. High dimensions will yield long filenames.
+
+        Parameters
+        ----------
+        extension : str
+            The extension to append to the filename
+        decimals :
+            The number of decimals to include in the str name of the orbit.
+
+        Returns
+        -------
+        str :
+            The conventional filename.
+        """
         if self.dimensions() is not None:
             dimensional_string = ''.join(['_'+''.join([self.dimension_labels()[i], str(d).split('.')[0],
                                                        'p', str(d).split('.')[1][:decimals]])
-                                          for i, d in enumerate(self.dimensions()()) if d not in [0., 0]])
+                                          for i, d in enumerate(self.dimensions()) if d not in [0., 0]])
         else:
             dimensional_string = ''
         return ''.join([self.__class__.__name__, dimensional_string, extension])
@@ -646,7 +704,7 @@ class Orbit:
         self.constraints = kwargs.get('constraints', {dim_key: False for dim_key in self.dimension_labels()})
         return None
 
-    def random_state(self, parameters, **kwargs):
+    def _random_state(self, **kwargs):
         """ Initial a set of random spatiotemporal Fourier modes
         Parameters
         ----------
@@ -674,7 +732,7 @@ class Orbit:
         -------
         Orbit :
         """
-        return None
+        return self.__class__(state=self.state.copy(), parameters=self.parameters, basis=self.basis)
 
 
 def convert_class(orbit, class_generator, **kwargs):

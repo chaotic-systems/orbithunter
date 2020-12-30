@@ -285,10 +285,8 @@ def generate_symbol_arrays(fpo_dictionary, glue_shape, unique=True):
         return [np.reshape(x, glue_shape) for x in symbol_array_generator]
 
 
-def rediscretize_tileset(tiling_dictionary, **kwargs):
+def rediscretize_tileset(tiling_dictionary, new_shape=None, **kwargs):
     orbits = list(tiling_dictionary.values())
-    new_shape = kwargs.get('new_shape', None)
-
     if new_shape is None:
         # If the user is really lazy this will make the dictionary uniform by
         # changing the discretization sizes based on averages (and class type).
@@ -298,7 +296,8 @@ def rediscretize_tileset(tiling_dictionary, **kwargs):
 
     return {td_key: td_val.reshape(*new_shape) for td_key, td_val in tiling_dictionary.items()}
 
-def pairwise_group_orbit(best_orbit_pair, **kwargs):
+
+def pairwise_group_orbit(orbit_pair, **kwargs):
     """ Generate all pairwise elements from two group orbits. I.e. all symmetry combinations.
 
     Notes
@@ -306,7 +305,9 @@ def pairwise_group_orbit(best_orbit_pair, **kwargs):
     Keeping this as a generator saves a *lot* of time, hence the reason for the function instead of just
     instantiating the itertools product.
     """
-    yield from itertools.product(best_orbit_pair[0].group_orbit(**kwargs), best_orbit_pair[1].group_orbit(**kwargs))
+    yield from itertools.product(orbit_pair.ravel()[0].group_orbit(**kwargs),
+                                 orbit_pair.ravel()[1].group_orbit(**kwargs))
+
 
 def expensive_glue(orbit_pair_array, class_constructor, method='residual', **kwargs):
     """ Gluing that searches group orbit for the best gluing.

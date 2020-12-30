@@ -101,7 +101,7 @@ def shadowing(window_orbit, base_orbit, verbose=False, threshold=0.02, threshold
         for j, x in enumerate(range(0,  xbase-xwindow, stride)):
             trange = np.arange(t, t+twindow)
             xrange = np.arange(x, x+xwindow)
-            # numpy meshgrid returns list but slicing needs a tuple.
+            # numpy meshgrid returns list but when used slicing needs a tuple.
             window_slice_indices = tuple(np.meshgrid(trange, xrange, indexing='ij'))
             norm_matrix[i, j] = np.linalg.norm(base_orbit.state[window_slice_indices]**2 - window_orbit.state**2)
     if threshold_type == 'percentile':

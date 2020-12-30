@@ -18,9 +18,6 @@ class OrbitResult(dict):
     status : int
         Integer which tracks the type of exit from whichever numerical algorithm was applied.
         See Notes for more details.
-    status : int
-        Termination status of the optimizer. Its value depends on the
-        underlying solver. Refer to `message` for details.
     message : str
         Description of the cause of the termination.
     nit : int

@@ -5,11 +5,19 @@ import itertools
 import h5py
 import importlib
 
-# TODO : tilesets, iterable loading.
-
 
 __all__ = ['read_h5', 'read_tileset', 'convergence_log', 'refurbish_log', 'write_symbolic_log',
            'read_symbolic_log', 'to_symbol_string', 'to_symbol_array']
+
+"""
+Functions and utilities corresponding to filenames and input/output. The convention which we hope others
+will abide is to create a .h5 file for each symmetry type for each equation. Within each file, each h5py.Group
+represents an orbit, which in turn contains the state information, parameters, and perhaps additional data (which
+would require overloading the Orbit.to_h5() method). Therefore, general import statements only require the
+filename and the group names, as the group entries for each orbit should be uniform. The downside of this is
+that currently there is no query method for the HDF5 files built in to orbithunter currently. In order to query
+an h5 file, it is required to use the h5py API explicitly.   
+"""
 
 
 def read_h5(path, h5_groups, equation, class_name=None, validate=False, **orbitkwargs):
@@ -31,13 +39,16 @@ def read_h5(path, h5_groups, equation, class_name=None, validate=False, **orbitk
 
     Returns
     -------
-    Orbit :
-        The imported
+    Orbit or list of Orbits.
+        The imported data; either a single orbit instance or a list of orbit instances.
 
     Notes
     -----
     h5_group can either be a single string or an iterable; this is to make importation of multiple .h5 files
     more efficient, i.e. avoiding multiple dynamic imports of the same package.
+
+    The purpose of this function is only to import data whose file and group names are known. To query a HDF5
+    file, use query_h5 instead.
 
     """
     # The following loads the module for the correct equation dynamically when the function is called, to prevent
@@ -68,9 +79,9 @@ def read_h5(path, h5_groups, equation, class_name=None, validate=False, **orbitk
                     # If the class generator is not provided, it is assumed to be able to be inferred from the filename.
                     # This is simply a convenience tool because typically the classes are the best partitions of the
                     # full data set.
-                    class_ = getattr(module, str(os.path.basename(path).split('.h5')[0].split('_')[0]))
+                    class_ = getattr(module, str(os.path.basename(orbit_group).split('/')[0].split('_')[0]))
             except (NameError, TypeError, IndexError):
-                print('class_name from read_h5() requires str, None(default), or a tuple the same length as h5_groups')
+                print('class_name not recognized or unable to be interpreted from h5_group name')
 
             orbit_ = class_(state=file[''.join([orbit_group, '/field'])][...],
                             parameters=tuple(file[''.join([orbit_group, '/parameters'])]),
@@ -87,29 +98,54 @@ def read_h5(path, h5_groups, equation, class_name=None, validate=False, **orbitk
         return imported_orbits
 
 
-def read_tileset(path, equation, keys, h5_groups, class_name=None, validate=False, **orbitkwargs):
+def read_tileset(filename, h5_groups, keys, equation, class_name=None, validate=False, **orbitkwargs):
     """ Importation of data as tiling dictionary
 
     Parameters
     ----------
-    path
-    equation
-    keys
-    h5_groups
-    class_name
-    validate
-    orbitkwargs
+    filename : str
+        The relative/absolute location of the file.
+
+    h5_groups : str
+        The orbit names within the .h5 file
+    keys :
+        The labels to give to the orbits corresponding to h5_groups, respectively.
+    equation : str
+        The module name for the corresponding equation, i.e. 'ks'
+    class_name : str
+        The name of the Orbit class/subclass
+    validate :
+        Whether or not to call verify_integrity method on each imported orbit.
+    orbitkwargs :
+        Keyword arguments that user wants to provide for construction of orbit instances.
 
     Returns
     -------
-
+    dict :
+        Dictionary whose values are given by the orbits specified by h5_groups.
     """
-    orbits = read_h5(path, equation, h5_groups, class_name=class_name, validate=validate, **orbitkwargs)
+    orbits = read_h5(filename, h5_groups, equation, class_name=class_name, validate=validate, **orbitkwargs)
     # if keys and orbits are not the same length, it will only form a dict with min([len(keys), len(orbits)]) items
     return dict(zip(keys, orbits))
 
 
 def convergence_log(initial_orbit, converge_result, log_path, spectrum='random', method='adj'):
+    """ Function to log the results of applying orbithunter.optimize.converge
+
+    Parameters
+    ----------
+    initial_orbit : Orbit
+        The initial guess orbit
+    converge_result :
+        The
+    log_path
+    spectrum
+    method
+
+    Returns
+    -------
+
+    """
     initial_condition_log_ = pd.read_csv(log_path, index_col=0)
     # To store all relevant info as a row in a Pandas DataFrame, put into a 1-D array first.
     dataframe_row = [[initial_orbit.parameters, initial_orbit.shapes()[0],

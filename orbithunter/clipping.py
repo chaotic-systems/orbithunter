@@ -111,18 +111,24 @@ def mask_orbit(orbit_, windows, mask_region='exterior'):
 
     Parameters
     ----------
-    orbit_
-    iterable_of_windows: list of window-tuples
-        `window tuples' are tuples whose elements are d-dimensional tuples
-        indicating the dimensions which define the window. i.e.
-        for window_tuple = ((0, 10), (0, 5)) would mean to mask the values outside the subdomain defined
-        by t=(0,10) x=(0,5) (example for KS equation).
+    orbit_ :
+    windows : list
+
+
     mask_region : str
         takes values 'exterior' or 'interior', masks the corresponding regions relative to the windows.
 
     Returns
     -------
+    Orbit :
+        Orbit instance whose state is a numpy masked array.
+    Notes
+    -----
 
+    `window tuples' are tuples whose elements are d-dimensional tuples
+    indicating the dimensions which define the window. i.e.
+    for window_tuple = ((0, 10), (0, 5)) would mean to mask the values outside the subdomain defined
+    by t=(0,10) x=(0,5) (example for KS equation).
     """
     # Create boolean mask to manipulate for numpy masked arrays.
     mask = np.zeros(orbit_.shapes()[0]).astype(bool)
