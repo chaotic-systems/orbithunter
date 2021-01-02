@@ -10,6 +10,7 @@ Major changes
 - Renaming of many functions 
 - Tileset and importation utilities removed/replaced with importlib & getattr calls
 - Many different/redundant properties and bad design choices removed; much cleaner now.
+
 Minor changes
 -------------
 -Glue parameters now generalized

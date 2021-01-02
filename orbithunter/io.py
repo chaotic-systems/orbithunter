@@ -79,7 +79,7 @@ def read_h5(path, h5_groups, equation, class_name=None, validate=False, **orbitk
                     # If the class generator is not provided, it is assumed to be able to be inferred from the filename.
                     # This is simply a convenience tool because typically the classes are the best partitions of the
                     # full data set.
-                    class_ = getattr(module, str(os.path.basename(orbit_group).split('/')[0].split('_')[0]))
+                    class_ = getattr(module, str(os.path.basename(path).split('_')[0]))
             except (NameError, TypeError, IndexError):
                 print('class_name not recognized or unable to be interpreted from h5_group name')
 

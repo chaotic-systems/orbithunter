@@ -7,8 +7,19 @@ __all__ = ['swap_modes', 'so2_generator', 'so2_coefficients', 'elementwise_dtn',
            'calculate_spatial_shift', 'dxn_block', 'dtn_block', 'spatial_frequencies', 'temporal_frequencies']
 
 
-def swap_modes(modes, axis=1):
-    """ Function which swaps halves of arrays for SO(2) differentiation purposes"""
+def swap_modes(modes, axis=0):
+    """ Function which swaps real, imaginary components of arrays for SO(2) differentiation
+
+    Parameters
+    ----------
+    modes : np.ndarray
+        Array of Fourier modes,
+    axis : int
+        Whether to swap along time (0) or space(1) dimension
+    Notes
+    -----
+        Both real and imaginary components are stored as real numbers. See class transforms for details.
+    """
     if axis == 1:
         m = modes.shape[1]//2
         t_dim = modes.shape[0]
@@ -22,13 +33,35 @@ def swap_modes(modes, axis=1):
 
 @lru_cache()
 def so2_generator(order=1):
-    """ Generator of the SO(2) Lie algebra """
+    """ Powers of the generator of the SO(2) Lie algebra
+
+    Parameters
+    ----------
+    order : int
+        Order of the derivative for which this function is called to produce frequencies for.
+
+    Returns
+    -------
+    np.ndarray : 2x2 array
+        Equal to generator to the n-th power.
+    """
     return np.linalg.matrix_power(np.array([[0, -1], [1, 0]]), np.mod(order, 4))
 
 
 @lru_cache()
 def so2_coefficients(order=1):
-    """ Non-zero elements of the Lie algebra generator to the order-th power"""
+    """ Non-zero elements of the Lie algebra generator to the order-th power
+
+    Parameters
+    ----------
+    order : int
+        Order of the derivative for which this function is called to produce frequencies for.
+
+    Returns
+    -------
+    np.ndarray :
+        (2,) ndarray of correct powers of -1 for differentiation
+    """
     return np.sum(so2_generator(order=order), axis=0)
 
 
@@ -47,7 +80,7 @@ def spatial_frequencies(L, M, order=1):
 
     Returns
     -------
-    ndarray :
+    np.ndarray :
         Array of spatial frequencies of shape (1, m), raised to 'order' power for n-th order derivatives.
     """
     q_k = rfftfreq(M, d=L/(2*pi*M))[1:-1].reshape(1, -1)
@@ -69,7 +102,7 @@ def temporal_frequencies(T, N, order=1):
 
     Returns
     -------
-    ndarray
+    np.ndarray
         Temporal frequency array of shape (n, 1)
 
     Notes
@@ -98,15 +131,14 @@ def elementwise_dtn(T, N, tiling_dimension, order=1):
 
     Returns
     ----------
-    dtn_multipliers : ndarray
+    dtn_multipliers : np.ndarray
         Array of spatial frequencies in the same shape as modes
 
     Notes
     -----
-    Creates and returns a matrix whose elements are the properly ordered temporal frequencies,
+    Creates and returns a rank 2 tensor whose elements are the properly ordered temporal frequencies,
     which is the same shape as the spatiotemporal Fourier mode state. The elementwise product
-    with a set of spatiotemporal Fourier modes (and an addition "mode swap" if the derivative is of odd order)
-    is the temporal derivative.
+    with a set of spatiotemporal Fourier modes.
 
     """
     w = temporal_frequencies(T, N, order=order)
@@ -135,15 +167,14 @@ def elementwise_dxn(L, M, tiling_dimension, order=1):
 
     Returns
     ----------
-    dxn_multipliers : ndarray
+    dxn_multipliers : np.ndarray
         Array of spatial frequencies in the same shape as modes
 
     Notes
     -----
-    Creates and returns a matrix whose elements are the properly ordered spatial frequencies,
+    Creates and returns a rank 2 tensor whose elements are the properly ordered spatial frequencies,
     which is the same shape as the spatiotemporal Fourier mode state. The elementwise product
-    with a set of spatiotemporal Fourier modes (and an addition "mode swap" if the derivative is of odd order)
-    is the spatial derivative.
+    with a set of spatiotemporal Fourier modes.
 
     """
     q = spatial_frequencies(L, M, order=order)
@@ -170,7 +201,7 @@ def dxn_block(L, M, order=1):
     Returns
     -------
     np.ndarray :
-        Two dimensional block diagonal array
+        Two dimensional block diagonal or diagonal array with SO(2) generator for multiple Fourier modes.
     Notes
     -----
     This is the SO(2) generator for multiple Fourier modes. Only used in explicit construction of matrices.
@@ -194,7 +225,7 @@ def dtn_block(T, N, order=1):
     Returns
     -------
     np.ndarray :
-        Two dimensional block diagonal array
+        Two dimensional block diagonal or diagonal array with SO(2) generator for multiple Fourier modes.
     Notes
     -----
     This is the SO(2) generator for multiple Fourier modes. Only used in explicit construction of matrices.
@@ -241,9 +272,10 @@ def calculate_spatial_shift(s_modes, L, **kwargs):
         # Get guess shift from the angle between the vectors
         shift_guess = (L / (2 * pi))*float(np.arccos((np.dot(np.transpose(modes_T), modes_0)
                                            / (np.linalg.norm(modes_T)*np.linalg.norm(modes_0)))))
-        # find shift which minimizes the differences at the boundaries.
-        def fun_(shift):
-            thetak = shift * ((2 * pi) / L) * np.arange(1, m+1)
+
+        def fun_(shift_):
+            # find shift which minimizes the differences at the boundaries.
+            thetak = shift_ * ((2 * pi) / L) * np.arange(1, m+1)
             cosinek = np.cos(thetak)
             sinek = np.sin(thetak)
             rotated_real_modes_T = np.multiply(cosinek,  modes_T[:-m]) + np.multiply(sinek,  modes_T[-m:])

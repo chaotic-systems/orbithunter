@@ -35,7 +35,7 @@ class OrbitKS(Orbit):
 
         See Also
         --------
-        My thesis work :) https://github.com/mgudorf/orbithunter/blob/master/docs/spatiotemporal_tiling_of_the_KSe.pdf
+        Thesis: https://github.com/mgudorf/orbithunter/blob/master/docs/spatiotemporal_tiling_of_the_KSe.pdf
 
         Notes
         -----
@@ -170,6 +170,7 @@ class OrbitKS(Orbit):
             The class instance whose state is the time derivative in
             the spatiotemporal mode basis.
         """
+        # Need mode basis to compute derivatives
         modes = self.transform(to='modes').state
         # Elementwise multiplication of modes with frequencies, this is the derivative.
         dtn_modes = np.multiply(elementwise_dtn(self.T, self.N, self.shapes()[2][1], order=order), modes)
@@ -177,10 +178,11 @@ class OrbitKS(Orbit):
         # If the order of the derivative is odd, then imaginary component and real components switch.
         if np.mod(order, 2):
             dtn_modes = swap_modes(dtn_modes, axis=0)
-
+        # To avoid redundant instantiation of instances, can return ndarray instead.
         if return_array:
             return dtn_modes
         else:
+            # return the derivative in an instance
             orbit_dtn = self.__class__(state=dtn_modes, basis='modes', parameters=self.parameters)
             return orbit_dtn.transform(to=self.basis)
 
@@ -215,8 +217,8 @@ class OrbitKS(Orbit):
         discrete symmetry this does nothing, for those with discrete symmetry, it slices the half that we want.
 
         """
-        # TODO ensure that spatial differentiation works for all subclasses
         if computation_basis == 's_modes':
+            # can compute spatial derivative in spatial mode or spatiotemporal mode basis.
             modes = self.transform(to='s_modes').state
             # Elementwise multiplication of modes with frequencies, this is the derivative.
             dxn_modes = np.multiply(elementwise_dxn(self.L, self.M, self.shapes()[1][0],
@@ -236,7 +238,7 @@ class OrbitKS(Orbit):
             return orbit_dxn.transform(to=kwargs.get('return_basis', self.basis))
 
     def dae(self, **kwargs):
-        """ The Kuramoto-Sivashinsky equation evaluated at the current state.
+        """ Instance whose state is the Kuramoto-Sivashinsky equation evaluated at the current state
 
         kwargs :
             Unused, to match signature of Orbit
@@ -246,35 +248,35 @@ class OrbitKS(Orbit):
         OrbitKS :
             OrbitKS whose state is the spatiotamporal fourier modes resulting from the calculation of the K-S equation:
             OrbitKS.state = u_t + u_xx + u_xxxx + 1/2 (u^2)_x
-        :return:
         """
         # to be efficient, should be in modes basis.
         assert self.basis == 'modes', 'Convert to spatiotemporal Fourier mode basis before computing DAEs.'
 
-        # # to avoid two IFFT calls, convert before nonlinear product
+        # to avoid two IFFT calls, convert before nonlinear product
         orbit_field = self.transform(to='field')
 
-        # # Compute the Kuramoto-sivashinsky equation
+        # Compute the Kuramoto-sivashinsky equation
         mapping_modes = (self.dt(return_array=True) + self.dx(order=2, return_array=True)
                          + self.dx(order=4, return_array=True)
                          + orbit_field.nonlinear(orbit_field, return_array=True))
         return self.__class__(state=mapping_modes, basis='modes', parameters=self.parameters)
 
     def nonlinear(self, other, **kwargs):
-        """ nonlinear computation of the nonlinear term of the Kuramoto-Sivashinsky equation
+        """ Computation of the nonlinear term of the Kuramoto-Sivashinsky equation
 
         Parameters
         ----------
 
         other : OrbitKS
-            The second component of the nonlinear product see Notes for details
-
+            The second component of the nonlinear product.
+        kwargs : dict
+            Keyword arguments relevant for spatial differentiation, see 'dx' method
         Notes
         -----
-        The nonlinear product is the name given to the elementwise product equivalent to the
-        convolution of spatiotemporal Fourier modes. It's faster and more accurate hence why it is used.
+        The nonlinear product is the name given to the elementwise product in the field basis equivalent to the
+        convolution of spatiotemporal Fourier modes, the defining quality of a pseudospectral implementation.
         The matrix vector product takes the form d_x (u * v), but the "normal" usage is d_x (u * u); in the latter
-        case other is the same as self.
+        case 'other' should equal 'self', in the field basis.
 
         """
         # Elementwise product, both self and other should be in physical field basis.
@@ -282,24 +284,26 @@ class OrbitKS(Orbit):
         return 0.5 * self.statemul(other).dx(**kwargs)
 
     def rnonlinear(self, other, return_array=False):
-        """ nonlinear computation of the nonlinear term of the adjoint Kuramoto-Sivashinsky equation
+        """ Computation of the nonlinear term of the adjoint Kuramoto-Sivashinsky equation
 
         Parameters
         ----------
         other : OrbitKS
-            The second component of the nonlinear product see Notes for details
+            The second component of the nonlinear product
         return_array : bool
-            If True then return ndarray
+            If True then return ndarray instead of instance.
+
         Notes
         -----
-        The nonlinear product is the name given to the elementwise product equivalent to the
-        convolution of spatiotemporal Fourier modes. It's faster and more accurate hence why it is used.
-        The matrix vector product takes the form -u * v_x.
+        The matrix-vector product comprised of adjoint Jacobian evaluated at 'self'
+        multiplied with the spatiotemporal modes from another orbit instance (typically the DAE modes)
+        Elementwise/vectorized operation takes the form -u * v_x.
 
         """
         assert self.basis == 'field'
         if return_array:
-            # cannot return modes from derivative because it needs to be a class instance so IFFT can be applied.
+            # cannot return modes from derivative immediately because it needs to be
+            # a class instance so IFFT can be applied.
             return -1.0 * self.statemul(other.dx().transform(to='field')).transform(to='modes').state
         else:
             return -1.0 * self.statemul(other.dx().transform(to='field')).transform(to='modes')
@@ -312,13 +316,16 @@ class OrbitKS(Orbit):
 
         Returns
         -------
-        jac_ : matrix ((N-1)*(M-2), (N-1)*(M-2) + n_params)
+        jac_ : 2-d ndarray
+            Has dimensions dependent on number of spatiotemporal modes and free parameters,
+            (self.shapes()[-1], self.shapes()[-1].size + n_params)
             Jacobian matrix of the KSe where n_params = 2 - sum(parameter_constraints)
         """
 
         self.transform(to='modes')
         # The Jacobian components for the spatiotemporal Fourier modes
         jac_ = self._jac_lin() + self._jac_nonlin()
+        # Augment the jacobian with the partial derivatives with respect to parameters.
         jac_ = self._jacobian_parameter_derivatives_concat(jac_)
         return jac_
 
@@ -345,10 +352,12 @@ class OrbitKS(Orbit):
 
         assert (self.basis == 'modes') and (other.basis == 'modes')
         self_field = self.transform(to='field')
+        # The correct derivative of the vector in the matrix vector product needs the current state parameters;
+        # not the parameters stored in other;
         other_mode_component = other.__class__(state=other.state, parameters=self.parameters)
         other_field = other_mode_component.transform(to='field')
 
-        # factor of two comes from differentiation of nonlinear term.
+        # Factor of two corrects the 1/2 u^2 from differentiation of nonlinear term.
         matvec_modes = (other_mode_component.dt(return_array=True) + other_mode_component.dx(order=2, return_array=True)
                         + other_mode_component.dx(order=4, return_array=True)
                         + 2 * self_field.nonlinear(other_field, return_array=True))
@@ -389,10 +398,9 @@ class OrbitKS(Orbit):
         jacobian is transposed. i.e. Right preconditioning of the Jacobian can include preconditioning of the state
         parameters (which in this case are usually incremental corrections dT, dL, dS);
         this corresponds to LEFT preconditioning of the adjoint.
-
         """
-
         assert (self.basis == 'modes') and (other.basis == 'modes')
+        # store the state in the field basis for the pseudospectral products
         self_field = self.transform(to='field')
         rmatvec_modes = (-1.0 * other.dt(return_array=True) + other.dx(order=2, return_array=True)
                          + other.dx(order=4, return_array=True)
@@ -404,9 +412,23 @@ class OrbitKS(Orbit):
         return self.__class__(state=rmatvec_modes, basis='modes', parameters=rmatvec_params)
 
     def rmatvec_parameters(self, self_field, other):
+        """ Parameter values from product with partial derivatives
+
+        Parameters
+        ----------
+        self_field : OrbitKS
+            The orbit in the field basis; this cuts down on redundant transforms.
+        other : OrbitKS
+            The adjoint/co-state variable Orbit instance.
+
+        Returns
+        -------
+        parameters : tuple
+            Set of parameters resulting from the last rows of the product with adjoint Jacobian.
+        """
         other_modes_in_vector_form = other.state.ravel()
         if not self.constraints['T']:
-            # original
+            # partial derivative with respect to period times the adjoint/co-state variable state.
             rmatvec_T = (-1.0 / self.T) * self.dt(return_array=True).ravel().dot(other_modes_in_vector_form)
         else:
             rmatvec_T = 0
@@ -647,14 +669,14 @@ class OrbitKS(Orbit):
         plt.close()
         return None
 
-    def norm(self, order=None):
+    def norm(self, ord=None):
         """ Norm of spatiotemporal state via numpy.linalg.norm
 
         Example
         -------
         L_2 distance between two states
         """
-        return np.linalg.norm(self.state.ravel(), ord=order)
+        return np.linalg.norm(self.state.ravel(), ord=ord)
 
     def preconditioning_parameters(self):
         """ Defining parameters; T, L, S kept for convenience"""
@@ -665,7 +687,11 @@ class OrbitKS(Orbit):
 
         Parameters
         ----------
-        precparams : tuple
+        kwargs :
+            pmult : tuple of tuples
+                Parameters returned by preconditioning parameters
+            pexp : tuple
+                Exponents for the parameter scaling
 
         Returns
         -------
@@ -707,11 +733,18 @@ class OrbitKS(Orbit):
 
         Parameters
         ----------
-        new_shape : tuple of ints or None
+        new_shape : int or tuple of ints
+
+
         kwargs
 
         Returns
         -------
+
+        Notes
+        -----
+        Technically this isn't reshaping
+
 
         """
         placeholder_orbit = self.transform(to='field').copy().transform(to='modes')
@@ -1755,6 +1788,48 @@ class RelativeOrbitKS(OrbitKS):
             raise ValueError(
                 'Attempting to compute time derivative of '+str(self)+'in physical reference frame.')
 
+    def dae(self, **kwargs):
+        """ Extension of OrbitKS method to include co-moving frame term. """
+        return super().dae() + self.comoving_mapping_component()
+
+    def matvec(self, other, **kwargs):
+        """ Extension of parent class method
+
+        Parameters
+        ----------
+        other : RelativeOrbitKS
+            RelativeOrbitKS instance whose state represents the vector in the matrix-vector multiplication.
+
+        Returns
+        -------
+        RelativeOrbitKS
+            RelativeOrbitKS whose state and other parameters result from the matrix-vector product.
+
+        Notes
+        -----
+        Equivalent to computation of (v_t + v_xx + v_xxxx + phi * v_x) + d_x (u .* v)
+        The additional term phi * v_x is in the linear portion of the equation, meaning that
+        we can calculate it and add it to the rest of the mapping a posteriori.
+        """
+
+        assert (self.basis == 'modes') and (other.basis == 'modes')
+        matvec_orbit = super().matvec(other)
+        matvec_comoving = self.__class__(state=other.state, parameters=self.parameters).comoving_mapping_component()
+        # this is needed unless all parameters are fixed, but that isn't ever a realistic choice.
+        self_dx = self.dx(return_array=True)
+        if not self.constraints['T']:
+            matvec_comoving.state += other.T * (-1.0 / self.T) * (-self.S / self.T) * self_dx
+
+        if not self.constraints['L']:
+            # Derivative of mapping with respect to T is the same as -1/T * u_t
+            matvec_comoving.state += other.L * (-1.0 / self.L) * (-self.S / self.T) * self_dx
+
+        if not self.constraints['S']:
+            # technically could do self_comoving / self.S but this can be numerically unstable when self.S is small
+            matvec_comoving.state += other.S * (-1.0 / self.T) * self_dx
+
+        return matvec_orbit + matvec_comoving
+
     def rmatvec(self, other, **kwargs):
         """ Extension of the parent method to RelativeOrbitKS
 
@@ -1797,10 +1872,6 @@ class RelativeOrbitKS(OrbitKS):
 
         return rmatvec_T, rmatvec_L, rmatvec_S
 
-    def dae(self, **kwargs):
-        """ Extension of OrbitKS method to include co-moving frame term. """
-        return super().dae() + self.comoving_mapping_component()
-
     def comoving_mapping_component(self, return_array=False):
         """ Co-moving frame component of spatiotemporal mapping """
         return (-self.S / self.T)*self.dx(return_array=return_array)
@@ -1808,44 +1879,6 @@ class RelativeOrbitKS(OrbitKS):
     def comoving_matrix(self):
         """ Operator that constitutes the co-moving frame term """
         return (-self.S / self.T)*self._dx_matrix()
-
-    def matvec(self, other, **kwargs):
-        """ Extension of parent class method
-
-        Parameters
-        ----------
-        other : RelativeOrbitKS
-            RelativeOrbitKS instance whose state represents the vector in the matrix-vector multiplication.
-
-        Returns
-        -------
-        RelativeOrbitKS
-            RelativeOrbitKS whose state and other parameters result from the matrix-vector product.
-
-        Notes
-        -----
-        Equivalent to computation of (v_t + v_xx + v_xxxx + phi * v_x) + d_x (u .* v)
-        The additional term phi * v_x is in the linear portion of the equation, meaning that
-        we can calculate it and add it to the rest of the mapping a posteriori.
-        """
-
-        assert (self.basis == 'modes') and (other.basis == 'modes')
-        matvec_orbit = super().matvec(other)
-        matvec_comoving = self.__class__(state=other.state, parameters=self.parameters).comoving_mapping_component()
-        # this is needed unless all parameters are fixed, but that isn't ever a realistic choice.
-        self_dx = self.dx(return_array=True)
-        if not self.constraints['T']:
-            matvec_comoving.state += other.T * (-1.0 / self.T) * (-self.S / self.T) * self_dx
-
-        if not self.constraints['L']:
-            # Derivative of mapping with respect to T is the same as -1/T * u_t
-            matvec_comoving.state += other.L * (-1.0 / self.L) * (-self.S / self.T) * self_dx
-
-        if not self.constraints['S']:
-            # technically could do self_comoving / self.S but this can be numerically unstable when self.S is small
-            matvec_comoving.state += other.S * (-1.0 / self.T) * self_dx
-
-        return matvec_orbit + matvec_comoving
 
     def change_reference_frame(self, to='comoving'):
         """ Transform to (or from) the co-moving frame depending on the current reference frame
@@ -2056,34 +2089,18 @@ class AntisymmetricOrbitKS(OrbitKS):
     def __init__(self, state=None, basis='modes', parameters=(0., 0., 0.), **kwargs):
         super().__init__(state=state, basis=basis, parameters=parameters, **kwargs)
 
-    def _jac_nonlin(self):
-        """ The nonlinear component of the Jacobian matrix of the Kuramoto-Sivashinsky equation
+    def nonlinear(self, other, return_array=False):
+        """ nonlinear computation of the nonlinear term of the Kuramoto-Sivashinsky equation
 
-        Returns
-        -------
-        nonlinear_dx : matrix
-            Matrix which represents the nonlinear component of the Jacobian. The derivative of
-            the nonlinear term, which is
-            (D/DU) 1/2 d_x (u .* u) = (D/DU) 1/2 d_x F (diag(F^-1 u)^2)  = d_x F( diag(F^-1 u) F^-1).
-            See
-            Chu, K.T. A direct matrix method for computing analytical Jacobians of discretized nonlinear
-            integro-differential equations. J. Comp. Phys. 2009
-            for details.
-
-        Notes
-        -----
-        The obvious way of computing this, represented above, is to multiply the linear operators
-        corresponding to d_x F( diag(F^-1 u) F^-1). However, if we slightly rearrange things such that
-        the spatial differential is taken on spatial modes, then this function generalizes to the subclasses
-        with discrete symmetry.
         """
-
-        _jac_nonlin_left = self._time_transform_matrix().dot(self._dx_matrix(computation_basis='s_modes'))
-        _jac_nonlin_middle = self._space_transform_matrix().dot(np.diag(self.transform(to='field').state.ravel()))
-        _jac_nonlin_right = self._inv_spacetime_transform_matrix()
-        _jac_nonlin = _jac_nonlin_left.dot(_jac_nonlin_middle).dot(_jac_nonlin_right)
-
-        return _jac_nonlin
+        # Elementwise product, both self and other should be in physical field basis.
+        assert (self.basis == 'field') and (other.basis == 'field')
+        # to get around the special behavior of discrete symmetries, will return spatial modes without this workaround.
+        nl_orbit = 0.5 * self.statemul(other).dx(computation_basis='s_modes', return_basis='modes')
+        if return_array:
+            return nl_orbit.state
+        else:
+            return nl_orbit
 
     def from_fundamental_domain(self, **kwargs):
         """ Overwrite of parent method """
@@ -2126,23 +2143,18 @@ class AntisymmetricOrbitKS(OrbitKS):
         return self.__class__(state=truncated_modes, basis='modes',
                               parameters=self.parameters).transform(to=self.basis)
 
-    def nonlinear(self, other, return_array=False):
-        """ nonlinear computation of the nonlinear term of the Kuramoto-Sivashinsky equation
-
-        """
-        # Elementwise product, both self and other should be in physical field basis.
-        assert (self.basis == 'field') and (other.basis == 'field')
-        # to get around the special behavior of discrete symmetries, will return spatial modes without this workaround.
-        nl_orbit = 0.5 * self.statemul(other).dx(computation_basis='s_modes', return_basis='modes')
-        if return_array:
-            return nl_orbit.state
-        else:
-            return nl_orbit
-
     def shapes(self):
         """ State array shapes in different bases. See core.py for details.
         """
         return (self.N, self.M), (self.N, self.M - 2), (max([self.N-1, 1]), self.m)
+
+    def selection_rules(self):
+        # Apply the pattern to self.m modes
+        reflection_selection_rules_integer_flags = np.repeat((np.arange(0, 2*(self.N-1)) % 2).ravel(), self.m)
+        # These indices are used for the transform as well as the transform matrices; therefore they are returned
+        # in a format compatible with both; applying .nonzero() yields indices., reshape(self.shapes()[2]) yields
+        # tensor format.
+        return reflection_selection_rules_integer_flags
 
     def _parse_state(self, state, basis, **kwargs):
         shp = state.shape
@@ -2177,13 +2189,34 @@ class AntisymmetricOrbitKS(OrbitKS):
         """
         return self._time_transform_matrix().T
 
-    def selection_rules(self):
-        # Apply the pattern to self.m modes
-        reflection_selection_rules_integer_flags = np.repeat((np.arange(0, 2*(self.N-1)) % 2).ravel(), self.m)
-        # These indices are used for the transform as well as the transform matrices; therefore they are returned
-        # in a format compatible with both; applying .nonzero() yields indices., reshape(self.shapes()[2]) yields
-        # tensor format.
-        return reflection_selection_rules_integer_flags
+    def _jac_nonlin(self):
+        """ The nonlinear component of the Jacobian matrix of the Kuramoto-Sivashinsky equation
+
+        Returns
+        -------
+        nonlinear_dx : matrix
+            Matrix which represents the nonlinear component of the Jacobian. The derivative of
+            the nonlinear term, which is
+            (D/DU) 1/2 d_x (u .* u) = (D/DU) 1/2 d_x F (diag(F^-1 u)^2)  = d_x F( diag(F^-1 u) F^-1).
+            See
+            Chu, K.T. A direct matrix method for computing analytical Jacobians of discretized nonlinear
+            integro-differential equations. J. Comp. Phys. 2009
+            for details.
+
+        Notes
+        -----
+        The obvious way of computing this, represented above, is to multiply the linear operators
+        corresponding to d_x F( diag(F^-1 u) F^-1). However, if we slightly rearrange things such that
+        the spatial differential is taken on spatial modes, then this function generalizes to the subclasses
+        with discrete symmetry.
+        """
+
+        _jac_nonlin_left = self._time_transform_matrix().dot(self._dx_matrix(computation_basis='s_modes'))
+        _jac_nonlin_middle = self._space_transform_matrix().dot(np.diag(self.transform(to='field').state.ravel()))
+        _jac_nonlin_right = self._inv_spacetime_transform_matrix()
+        _jac_nonlin = _jac_nonlin_left.dot(_jac_nonlin_middle).dot(_jac_nonlin_right)
+
+        return _jac_nonlin
 
     def _time_transform(self, return_array=False):
         """ Spatial Fourier transform
@@ -2265,11 +2298,6 @@ class ShiftReflectionOrbitKS(OrbitKS):
         """
         super().__init__(state=state, basis=basis, parameters=parameters, **kwargs)
 
-    def from_fundamental_domain(self):
-        """ Reconstruct full field from discrete fundamental domain """
-        field = np.concatenate((self.reflection().state, self.state), axis=0)
-        return self.__class__(state=field, basis='field', parameters=(2*self.T, self.L, 0.))
-
     def nonlinear(self, other, return_array=False):
         """ nonlinear computation of the nonlinear term of the Kuramoto-Sivashinsky equation
 
@@ -2337,6 +2365,20 @@ class ShiftReflectionOrbitKS(OrbitKS):
         """ State array shapes in different bases. See core.py for details.
         """
         return (self.N, self.M), (self.N, self.M - 2), (max([self.N-1, 1]), self.m)
+
+    def to_fundamental_domain(self, half=0):
+        """ Overwrite of parent method """
+        field = self.transform(to='field').state
+        if half == 0:
+            f_domain = field[-int(self.N // 2):, :]
+        else:
+            f_domain = field[:-int(self.N // 2), :]
+        return self.__class__(state=f_domain, basis='field', parameters=(self.T / 2.0, self.L, 0.))
+
+    def from_fundamental_domain(self):
+        """ Reconstruct full field from discrete fundamental domain """
+        field = np.concatenate((self.reflection().state, self.state), axis=0)
+        return self.__class__(state=field, basis='field', parameters=(2*self.T, self.L, 0.))
 
     def _jac_nonlin(self):
         """ The nonlinear component of the Jacobian matrix of the Kuramoto-Sivashinsky equation
@@ -2458,15 +2500,6 @@ class ShiftReflectionOrbitKS(OrbitKS):
         """
         return self._time_transform_matrix().transpose()
 
-    def to_fundamental_domain(self, half=0):
-        """ Overwrite of parent method """
-        field = self.transform(to='field').state
-        if half == 0:
-            f_domain = field[-int(self.N // 2):, :]
-        else:
-            f_domain = field[:-int(self.N // 2), :]
-        return self.__class__(state=f_domain, basis='field', parameters=(self.T / 2.0, self.L, 0.))
-
 
 class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
@@ -2503,6 +2536,24 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         """
         super().__init__(state=state, basis=basis, parameters=parameters, **kwargs)
 
+    def dae(self, **kwargs):
+        """ The Kuramoto-Sivashinsky equation evaluated at the current state.
+
+        Returns
+        -------
+        OrbitKS :
+            OrbitKS whose state is the spatiotamporal fourier modes resulting from the calculation of the K-S equation:
+            OrbitKS.state = u_t + u_xx + u_xxxx + 1/2 (u^2)_x
+        :return:
+        """
+        assert self.basis == 'modes', 'Convert to spatiotemporal Fourier mode basis before computations.'
+        # to avoid two IFFT calls, convert before nonlinear product
+        orbit_field = self.transform(to='field')
+        mapping_modes = (self.dx(order=2, return_array=True)
+                         + self.dx(order=4, return_array=True)
+                         + orbit_field.nonlinear(orbit_field, return_array=True))
+        return self.__class__(state=mapping_modes, basis='modes', parameters=self.parameters)
+
     def rmatvec(self, other, **kwargs):
         """ Overwrite of parent method """
         assert (self.basis == 'modes') and (other.basis == 'modes')
@@ -2522,24 +2573,6 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             rmatvec_L = 0
 
         return self.__class__(state=rmatvec_modes, basis='modes', parameters=(0., rmatvec_L, 0.))
-
-    def dae(self, **kwargs):
-        """ The Kuramoto-Sivashinsky equation evaluated at the current state.
-
-        Returns
-        -------
-        OrbitKS :
-            OrbitKS whose state is the spatiotamporal fourier modes resulting from the calculation of the K-S equation:
-            OrbitKS.state = u_t + u_xx + u_xxxx + 1/2 (u^2)_x
-        :return:
-        """
-        assert self.basis == 'modes', 'Convert to spatiotemporal Fourier mode basis before computations.'
-        # to avoid two IFFT calls, convert before nonlinear product
-        orbit_field = self.transform(to='field')
-        mapping_modes = (self.dx(order=2, return_array=True)
-                         + self.dx(order=4, return_array=True)
-                         + orbit_field.nonlinear(orbit_field, return_array=True))
-        return self.__class__(state=mapping_modes, basis='modes', parameters=self.parameters)
 
     def rmatvec_parameters(self, self_field, other):
         other_modes_in_vector_form = other.state.ravel()
@@ -2870,9 +2903,24 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
                 'Attempting to compute time derivative of ' + str(self) + ' in physical reference frame.'
                 + 'If this is truly desired, convert to RelativeOrbitKS first.')
 
-    def from_fundamental_domain(self):
-        """ For compatibility purposes with plotting and other utilities """
-        return self.change_reference_frame(to='physical')
+    def dae(self, **kwargs):
+        """ The Kuramoto-Sivashinsky equation evaluated at the current state.
+
+        Returns
+        -------
+        OrbitKS :
+            OrbitKS whose state is the spatiotamporal fourier modes resulting from the calculation of the K-S equation:
+            OrbitKS.state = u_t + u_xx + u_xxxx + 1/2 (u^2)_x
+        :return:
+        """
+        # to avoid two IFFT calls, convert before nonlinear product
+        modes = self.transform(to='modes')
+        field = self.transform(to='field')
+        mapping_modes = (modes.dx(order=2, return_array=True)
+                         + modes.dx(order=4, return_array=True)
+                         + field.nonlinear(field, return_array=True)
+                         + modes.comoving_mapping_component(return_array=True))
+        return self.__class__(state=mapping_modes, basis='modes', parameters=self.parameters)
 
     @classmethod
     def parameter_based_discretization(cls, parameters, **kwargs):
@@ -2901,32 +2949,6 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         """
         return (self.N, self.M), (self.N, self.M - 2), (1, self.M-2)
 
-    def dae(self, **kwargs):
-        """ The Kuramoto-Sivashinsky equation evaluated at the current state.
-
-        Returns
-        -------
-        OrbitKS :
-            OrbitKS whose state is the spatiotamporal fourier modes resulting from the calculation of the K-S equation:
-            OrbitKS.state = u_t + u_xx + u_xxxx + 1/2 (u^2)_x
-        :return:
-        """
-        # to avoid two IFFT calls, convert before nonlinear product
-        modes = self.transform(to='modes')
-        field = self.transform(to='field')
-        mapping_modes = (modes.dx(order=2, return_array=True)
-                         + modes.dx(order=4, return_array=True)
-                         + field.nonlinear(field, return_array=True)
-                         + modes.comoving_mapping_component(return_array=True))
-        return self.__class__(state=mapping_modes, basis='modes', parameters=self.parameters)
-
-    def state_vector(self):
-        """ Vector which completely describes the orbit."""
-        return np.concatenate((self.state.reshape(-1, 1),
-                               np.array([[float(self.T)]]),
-                               np.array([[float(self.L)]]),
-                               np.array([[float(self.S)]])), axis=0)
-
     def verify_integrity(self):
         """ Check whether the orbit converged to an equilibrium or close-to-zero solution """
         # Take the L_2 norm of the field, if uniformly close to zero, the magnitude will be very small.
@@ -2951,6 +2973,10 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             return orbit_, code
 
     def to_fundamental_domain(self):
+        return self.change_reference_frame(to='physical')
+
+    def from_fundamental_domain(self):
+        """ For compatibility purposes with plotting and other utilities """
         return self.change_reference_frame(to='physical')
 
     def pad(self, size, axis=0):

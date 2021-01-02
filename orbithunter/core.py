@@ -234,16 +234,23 @@ class Orbit:
         return self.parameters
 
     def reshape(self, *new_shape, **kwargs):
-        """
+        """ Rediscretization method
 
         Parameters
         ----------
-        new_shape : tuple of ints or None
-        kwargs
+        new_shape : int or tuple of ints
+            New discretization size
+        kwargs : dict
+            keyword arguments for parameter_based_discretization.
 
         Returns
         -------
+        Orbit :
+            Orbit with newly discretized fields.
 
+        Notes
+        -----
+        Technically this isn't "reshaping" in the NumPy sense, it is rediscretizing the current state.
         """
         # Padding basis assumed to be the last label, the basis resulting from application of all transforms.
         # 'First' basis is the field basis, but this allows for different labels.
@@ -277,11 +284,12 @@ class Orbit:
         Parameters
         ----------
         to : str
-        The basis to transform into. If already in said basis, returns self
+            The basis to transform into. If already in said basis, returns self
 
         Returns
         -------
-
+        Orbit :
+            either self or instance in new basis.
         """
         return self
 
