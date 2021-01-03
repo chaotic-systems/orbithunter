@@ -25,13 +25,21 @@ def _correct_aspect_ratios(array_of_orbits, axis=0):
     iterable_of_dims = [o.dimensions()[axis] for o in array_of_orbits.ravel()]
     iterable_of_shapes = [o.shapes()[0][axis] for o in array_of_orbits.ravel()]
 
+    strip_length = len(iterable_of_dims)
     disc_total = np.sum(iterable_of_shapes)
     dim_total = np.sum(iterable_of_dims)
+
     # The absolute minimum is set to the smallest number of points which doesn't completely "contract" the dimension.
     # Whether or not this takes an even (2) or odd (3) value is inferred from the total number of discrete points
-    # along the given axis for the array of orbits provided.
+    # along the given axis for the array of orbits provided. To avoid orbits with small dimension being
+    # undersized, use some minimum fraction based upon the strip length.
 
-    min_fraction = (3 / disc_total if disc_total % 2 else 2 / disc_total)  # returns float
+    # if disc_total % 2:
+    #     min_fraction = min([1./strip_length, strip_length/disc_total])
+    # else:
+    #     min_disc = 2 * len(iterable_of_shapes)
+
+    min_fraction = (5 / disc_total if disc_total % 2 else 4 / disc_total)  # returns float
 
     # cast as numpy array for fancy indexing
     fraction_array = np.array(iterable_of_dims) / dim_total
@@ -100,7 +108,7 @@ def _correct_aspect_ratios(array_of_orbits, axis=0):
     return np.array([o.reshape(shp) for o, shp in zip(array_of_orbits.ravel(), new_shapes)])
 
 
-def glue(array_of_orbits, class_constructor, stripwise=False, **kwargs):
+def glue(array_of_orbits, class_constructor, strip_wise=False, **kwargs):
     """ Function for combining spatiotemporal fields
 
     Parameters
@@ -112,7 +120,8 @@ def glue(array_of_orbits, class_constructor, stripwise=False, **kwargs):
         all be in the physical field basis.
     class_constructor : Orbit class
         i.e. OrbitKS without parentheses
-
+    strip_wise : bool
+        If True, then "strip-wise aspect ratio correction" is applied.
     Returns
     -------
     glued_orbit : Orbit instance
@@ -156,9 +165,13 @@ def glue(array_of_orbits, class_constructor, stripwise=False, **kwargs):
     tiling_shape = array_of_orbits.ravel()[0].shapes()[0]
     gluing_order = kwargs.get('gluing_order', np.argsort(glue_shape))
     # This joins the dictionary of all orbits' dimensions by zipping the values together. i.e.
-    # {'T': T_1, 'L': L_1}, {'T': T_2, 'L': L_2}, .....  transforms into  {'T': (T_1, T_2, ...) , 'L': (L_1, L_2, ...)}
+    #(T_1, L_1, ...), (T_2, L_2, ...) transforms into  ((T_1, T_2, ...) , (L_1, L_2, ...))
+    # Bundle all of the parameters at once, instead of "stripwise"
+    zipped_dimensions = tuple(zip(*(o.dimensions() for o in array_of_orbits.ravel())))
+    # Average tile dimensions
+    glued_parameters = class_constructor.glue_parameters(zipped_dimensions, glue_shape=glue_shape)
 
-    if stripwise:
+    if strip_wise:
         for gluing_axis in gluing_order:
             # Produce the slices that will select the strips of orbits so we can iterate and work with strips.
             gluing_slices = itertools.product(*(range(g) if i != gluing_axis else [slice(None)]
@@ -183,7 +196,7 @@ def glue(array_of_orbits, class_constructor, stripwise=False, **kwargs):
                 glued_strip_state = np.concatenate(tuple(x.state for x in array_of_orbits_corrected),
                                                    axis=gluing_axis)
                 # Put the glued strip's state back into a class instance.
-                glued_strip_orbit = class_constructor(state=glued_strip_state, basis='field',
+                glued_strip_orbit = class_constructor(state=glued_strip_state, basis=class_constructor.bases()[0],
                                                       parameters=glued_parameters, **kwargs)
 
                 # Take the result and store it for futher gluings.
@@ -201,17 +214,15 @@ def glue(array_of_orbits, class_constructor, stripwise=False, **kwargs):
         # the "gluing axis" in this case is always the same, we are just iterating through the gluing shape one
         # axis at a time.
         gluing_axis = len(glue_shape) - 1
-        # Bundle all of the parameters at once, instead of "stripwise"
-        zipped_dimensions = tuple(zip(*(o.dimensions() for o in array_of_orbits.ravel())))
-        glued_parameters = class_constructor.glue_parameters(zipped_dimensions, glue_shape=glue_shape)
+
         # arrange the orbit states into an array of the same shape as the symbol array.
-        orbit_field_list = np.array([o.transform(to='field').state for o in array_of_orbits.ravel()])
+        orbit_field_list = np.array([o.transform(to=class_constructor.bases()[0]).state for o in array_of_orbits.ravel()])
         glued_orbit_state = np.array(orbit_field_list).reshape(*array_of_orbits.shape, *tiling_shape)
         # iterate through and combine all of the axes.
         while len(glued_orbit_state.shape) > len(tiling_shape):
             glued_orbit_state = np.concatenate(glued_orbit_state, axis=gluing_axis)
 
-        glued_orbit = class_constructor(state=glued_orbit_state, basis='field',
+        glued_orbit = class_constructor(state=glued_orbit_state, basis=class_constructor.bases()[0],
                                         parameters=glued_parameters, **kwargs)
 
     return glued_orbit
@@ -291,6 +302,8 @@ def rediscretize_tileset(tiling_dictionary, new_shape=None, **kwargs):
         # If the user is really lazy this will make the dictionary uniform by
         # changing the discretization sizes based on averages (and class type).
         average_dimensions = tuple(np.mean(x) for x in tuple(zip(*(o.dimensions() for o in orbits))))
+        # The new shape will be inferred from the most common class in the tiling dictionary,
+        # as to produce the "best" approximation for the provided dictionary.
         most_common_orbit_class = max(Counter([o.__class__ for o in orbits]))
         new_shape = most_common_orbit_class.parameter_based_discretization(average_dimensions, **kwargs)
 
