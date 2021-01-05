@@ -89,7 +89,7 @@ def shadowing(window_orbit, base_orbit, verbose=False, threshold=0.02, threshold
     twindow, xwindow = window_orbit.shapes()[0]
     tbase, xbase = base_orbit.shapes()[0]
 
-    assert twindow < tbase and xwindow < xbase, 'Shadowing window is larger than the base orbit. Reshape first. '
+    assert twindow < tbase and xwindow < xbase, 'Shadowing window is larger than the base orbit. resize first. '
 
     # First, need to calculate the norm of the window squared and base squared (squared because then it detects
     # the shape rather than the color coded field), for all translations of the window.
@@ -145,12 +145,12 @@ def integrate(orbit_, **kwargs):
     base orbit type first.
     """
     verbose = kwargs.get('verbose', False)
-    orbit_ = orbit_.transform(to='s_modes')
+    orbit_ = orbit_.transform(to='spatial_modes')
     integration_time = kwargs.get('integration_time', orbit_.T)
     start_point = kwargs.get('starting_point', -1)
     # Take the last row (t=0) or first row (t=T) so this works for relative periodic solutions as well.
     orbit_t = orbit_.__class__(state=orbit_.state[start_point, :].reshape(1, -1), basis=orbit_.basis,
-                                        parameters=orbit_.parameters).transform(to='s_modes')
+                                        parameters=orbit_.parameters).transform(to='spatial_modes')
     # stepsize
     step_size = kwargs.get('step_size', 0.01)
 
@@ -186,20 +186,20 @@ def integrate(orbit_, **kwargs):
             E2[:-orbit_t.m, :] = 0
 
     u = orbit_t.transform(to='field').state
-    v = orbit_t.transform(to='s_modes')
+    v = orbit_t.transform(to='spatial_modes')
     nmax = int(integration_time / step_size)
     if verbose:
         print('Integration progress [', end='')
     if kwargs.get('return_trajectory', True):
         u = np.zeros([nmax, orbit_t.shapes()[0][1]])
     for step in range(1, nmax+1):
-        Nv = -0.5*(v.transform(to='field')**2).dx(computation_basis='s_modes', return_basis='s_modes')
+        Nv = -0.5*(v.transform(to='field')**2).dx(computation_basis='spatial_modes', return_basis='spatial_modes')
         a = v.statemul(E2) + Nv.statemul(Q)
-        Na = -0.5*(a.transform(to='field')**2).dx(computation_basis='s_modes', return_basis='s_modes')
+        Na = -0.5*(a.transform(to='field')**2).dx(computation_basis='spatial_modes', return_basis='spatial_modes')
         b = v.statemul(E2) + Na.statemul(Q)
-        Nb = -0.5*(b.transform(to='field')**2).dx(computation_basis='s_modes', return_basis='s_modes')
+        Nb = -0.5*(b.transform(to='field')**2).dx(computation_basis='spatial_modes', return_basis='spatial_modes')
         c = a.statemul(E2) + (2.0 * Nb - Nv).statemul(Q)
-        Nc = -0.5*(c.transform(to='field')**2).dx(computation_basis='s_modes', return_basis='s_modes')
+        Nc = -0.5*(c.transform(to='field')**2).dx(computation_basis='spatial_modes', return_basis='spatial_modes')
         v = (v.statemul(E) + Nv.statemul(f1)
              + (2.0 * (Na + Nb)).statemul(f2) + Nc.statemul(f3))
         if kwargs.get('return_trajectory', True):

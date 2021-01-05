@@ -65,7 +65,7 @@ def _increment_discretization(orbit_, target_size, increment, axis=0):
     else:
         next_size = current_size + increment
     incremented_shape = tuple(d if i != axis else next_size for i, d in enumerate(orbit_.shapes()[0]))
-    return orbit_.reshape(*incremented_shape)
+    return orbit_.resize(*incremented_shape)
 
 
 def dimension_continuation(orbit_, new_size, axis=0, step_size=0.01, **kwargs):
@@ -164,5 +164,5 @@ def discretization_continuation(orbit_, target_shape, cycle=False, **kwargs):
         # a discretization of an equilibrium solution that is brought to the final target shape by rediscretization.
         # In other words, the following rediscretization does not destroy the convergence of the orbit, if it
         # has indeed converged.
-        converge_result.orbit = converge_result.orbit.reshape(*target_shape)
+        converge_result.orbit = converge_result.orbit.resize(*target_shape)
     return converge_result

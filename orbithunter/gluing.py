@@ -105,7 +105,7 @@ def _correct_aspect_ratios(array_of_orbits, axis=0):
                       for i in range(len(o.shape))) for j, o in enumerate(array_of_orbits.ravel())]
 
     # Return the strip of orbits with corrected proportions.
-    return np.array([o.reshape(shp) for o, shp in zip(array_of_orbits.ravel(), new_shapes)])
+    return np.array([o.resize(shp) for o, shp in zip(array_of_orbits.ravel(), new_shapes)])
 
 
 def glue(array_of_orbits, class_constructor, strip_wise=False, **kwargs):
@@ -307,7 +307,7 @@ def rediscretize_tileset(tiling_dictionary, new_shape=None, **kwargs):
         most_common_orbit_class = max(Counter([o.__class__ for o in orbits]))
         new_shape = most_common_orbit_class.parameter_based_discretization(average_dimensions, **kwargs)
 
-    return {td_key: td_val.reshape(*new_shape) for td_key, td_val in tiling_dictionary.items()}
+    return {td_key: td_val.resize(*new_shape) for td_key, td_val in tiling_dictionary.items()}
 
 
 def pairwise_group_orbit(orbit_pair, **kwargs):

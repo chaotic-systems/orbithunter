@@ -233,12 +233,12 @@ def dtn_block(T, N, order=1):
     return np.kron(so2_generator(order=order), np.diag(temporal_frequencies(T, N, order=order).ravel()))
 
 
-def calculate_spatial_shift(s_modes, L, **kwargs):
+def calculate_spatial_shift(spatial_modes, L, **kwargs):
     """ Calculate the phase difference between the spatial modes at t=0 and t=T
 
     Parameters
     ----------
-    s_modes : np.ndarray
+    spatial_modes : np.ndarray
         The array of spatial Fourier modes
     L : float
         Spatial period in "physical units" (i.e. not plotting units)
@@ -251,15 +251,15 @@ def calculate_spatial_shift(s_modes, L, **kwargs):
     shift : float
         The best approximation for physical->comoving shift for relative periodic solutions.
     """
-    m0 = s_modes.shape[1]//2
+    m0 = spatial_modes.shape[1]//2
     modes_included = np.min([kwargs.get('n_modes', m0), m0])
     if -m0 + modes_included == 0:
         space_imag_slice_end = None
     else:
         space_imag_slice_end = -m0 + modes_included
     # slice the spatial modes at t=0 and t=T
-    modes_0 = np.concatenate((s_modes[-1, :modes_included], s_modes[-1, -m0:space_imag_slice_end])).ravel()
-    modes_T = np.concatenate((s_modes[0, :modes_included], s_modes[0, -m0:space_imag_slice_end])).ravel()
+    modes_0 = np.concatenate((spatial_modes[-1, :modes_included], spatial_modes[-1, -m0:space_imag_slice_end])).ravel()
+    modes_T = np.concatenate((spatial_modes[0, :modes_included], spatial_modes[0, -m0:space_imag_slice_end])).ravel()
     m = modes_T.size//2
     # This function is used very sparingly, extra imports kept in this scope only.
     # Warnings come from fsolve not converging; only want approximate guess as exact solution won't generally exist
@@ -267,7 +267,7 @@ def calculate_spatial_shift(s_modes, L, **kwargs):
     import warnings
     # If they are close enough to the same point, then shift equals 0
     if np.linalg.norm(modes_0-modes_T) <= 10**-6:
-        shift = L / s_modes.shape[1]
+        shift = L / spatial_modes.shape[1]
     else:
         # Get guess shift from the angle between the vectors
         shift_guess = (L / (2 * pi))*float(np.arccos((np.dot(np.transpose(modes_T), modes_0)

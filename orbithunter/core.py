@@ -1,4 +1,5 @@
 from json import dumps
+from itertools import zip_longest
 import h5py
 import numpy as np
 
@@ -11,11 +12,11 @@ saving data to disk, and plotting. Of course this is in addition to the dunder m
 
 While not listed here explicitly, this package is fundamentally a (pseudo)spectral method based package; while it is not
 technically required to use a spectral method, not doing so may result in awkwardly named attributes. For example,
-the reshape method in spectral space essentially interpolates via zero-padding and truncation. Therefore, other
-interpolation methods would be forced to use _pad and _truncate, unless they specifically overwrite the reshape
+the resize method in spectral space essentially interpolates via zero-padding and truncation. Therefore, other
+interpolation methods would be forced to use _pad and _truncate, unless they specifically overwrite the resize
 method itself. Previous the labels on the bases were static but now everything is written such that they
 can be accessed by an equation specific staticmethod .bases(). For the KSe this returns the tuple 
-self.bases()--------->('field', 's_modes', 'modes'), for example.
+self.bases()--------->('field', 'spatial_modes', 'modes'), for example.
  
 The implementation of this template class, Orbit, implements all numerical computations trivially; in other words,
 the "associated equation" for this class is the trivial equation f=0, such that for any state the DAEs evaluate
@@ -73,15 +74,14 @@ class Orbit:
         Random generation of state is (for KSe) performed in the spatiotemporal basis.
 
         """
-
-        if state is not None:
-            self._parse_parameters(parameters, nonzero_parameters=kwargs.pop('nonzero_parameters', False), **kwargs)
-            self._parse_state(state, basis, **kwargs)
-        else:
-            self._parse_parameters(parameters, nonzero_parameters=kwargs.pop('nonzero_parameters', True), **kwargs)
-            # Generate a random initial state, whose shape is determined by parameter_based_discretization if
-            # not provided.
-            self._generate_state(**kwargs)
+        # if state is not None:
+        self._parse_parameters(parameters, **kwargs)
+        self._parse_state(state, basis, **kwargs)
+        # else:
+        #     self._parse_parameters(parameters, nonzero_parameters=kwargs.pop('nonzero_parameters', True), **kwargs)
+        #     # Generate a random initial state, whose shape is determined by parameter_based_discretization if
+        #     # not provided.
+        #     self.generate(**kwargs)
 
     def __add__(self, other):
         """ Addition of Orbit states
@@ -94,7 +94,7 @@ class Orbit:
         -----
         Add two spatiotemporal states
         """
-        return self.__class__(state=(self.state + other.state), basis=self.basis, parameters=self.parameters)
+        return self.__class__(state=(self.state+other.state), basis=self.basis, parameters=self.parameters)
 
     def __radd__(self, other):
         """ Addition of Orbit states
@@ -208,7 +208,7 @@ class Orbit:
     def __repr__(self):
         # alias to save space
         dict_ = {'basis': self.basis,
-                 'parameters': tuple(str(np.round(p, 4)) for p in self.parameters),
+                 'parameters': tuple(str(np.round(p, 3)) for p in self.parameters),
                  'shape': tuple(str(d) for d in self.shapes()[0])}
         # convert the dictionary to a string via json.dumps
         dictstr = dumps(dict_)
@@ -235,7 +235,7 @@ class Orbit:
         """
         return self.rmatvec(dae, **kwargs)
 
-    def reshape(self, *new_shape, **kwargs):
+    def resize(self, *new_shape, **kwargs):
         """ Rediscretization method
 
         Parameters
@@ -252,25 +252,23 @@ class Orbit:
 
         Notes
         -----
-        Technically this isn't "reshaping" in the NumPy sense, it is rediscretizing the current state.
+        Technically this isn't "reshaping" in the NumPy sense, it is rediscretizing the current state; was
+        previously called "reshape".
         """
-        # Padding basis assumed to be the last label, the basis resulting from application of all transforms.
-        # 'First' basis is the field basis, but this allows for different labels.
-        placeholder_orbit = self.transform(to=self.bases()[0]).copy().transform(to=self.bases()[-1])
+        # Padding basis assumed to be in the spatiotemporal basis.
+        placeholder_orbit = self.copy().transform(to=self.bases()[-1])
 
+        # if nothing passed, then new_shape == () which evaluates to false.
+        # The default behavior for this will be to modify the current discretization
+        # to a `parameter based discretization'.
+        new_shape = new_shape or self.parameter_based_discretization(self.dimensions(), **kwargs)
+
+        # if passed as iterable, then unpack: i.e. ((a, b, ...)) -> (a, b, ...)
         if len(new_shape) == 1:
-            # if passed as tuple, .reshape((a,b)), then need to unpack ((a, b)) into (a, b)
             new_shape = tuple(*new_shape)
-        elif not new_shape:
-            # if nothing passed, then new_shape == () which evaluates to false.
-            # The default behavior for this will be to modify the current discretization
-            # to a `parameter based discretization'. If this is not desired then simply do not call reshape.
-            new_shape = self.parameter_based_discretization(self.dimensions(), **kwargs)
 
-        if self.shapes()[0] == new_shape:
-            # to avoid unintended overwrites, return a copy.
-            return self.copy()
-        else:
+        # If the current shape is different from the new shape, then resize, else, simply return the copy.
+        if self.shapes()[0] != new_shape:
             # Although this is less efficient than doing every axis at once, it generalizes to cases where bases
             # are different for padding along different dimensions (i.e. transforms implicit in truncate and pad).
             for i, d in enumerate(new_shape):
@@ -280,7 +278,8 @@ class Orbit:
                     placeholder_orbit = placeholder_orbit.pad(d, axis=i)
                 else:
                     pass
-            return placeholder_orbit.transform(to=self.basis)
+
+        return placeholder_orbit.transform(to=self.basis)
 
     def transform(self, to=''):
         """ Method that handles all basis transformations.
@@ -310,8 +309,11 @@ class Orbit:
         -----
         If self.dae().state = 0. at every point (within some numerical tolerance), then 'self' constitutes
         a solution to the governing equation. Of course there is no equation for this class, so zeros are returned.
+        The instance needs to be in spatiotemporal basis prior to computation; this avoids possible mistakes in the
+        optimization process, which would result in a breakdown in performance from redundant transforms.
         """
-        return self.__class__(state=np.zeros(self.shape), basis=self.basis, parameters=self.parameters)
+        assert self.basis == self.bases()[-1], 'Convert to spatiotemporal basis before computing DAEs.'
+        return self.__class__(state=np.zeros(self.shapes()[-1]), basis=self.bases()[-1], parameters=self.parameters)
 
     def residual(self, dae=True):
         """ The value of the cost function
@@ -433,7 +435,7 @@ class Orbit:
         """
         incremented_params = tuple(self_param + step_size * other_param for self_param, other_param
                                    in zip(self.parameters, other.parameters))
-        return self.__class__(state=self.state+step_size*other.state, basis=self.basis,
+        return self.__class__(state=self.state + step_size * other.state, basis=self.basis,
                               parameters=incremented_params, **kwargs)
 
     def pad(self, size, axis=0):
@@ -449,28 +451,33 @@ class Orbit:
         Returns
         -------
         Orbit :
-            Orbit instance with larger discretization.
+            Orbit instance whose state in the physical (self.bases()[0]) basis has a number of discretization
+            points equal to 'size'
 
         Notes
         -----
-        This function for spectral implementations is typically an interpolation method, i.e. Fourier mode
-        zero-padding. However, in this case the best we can do is pad the current basis, in a symmetric fashion.
-        That is, if we have a 4x4 array, then calling this with size=6 and axis=0 would yield a 6x4 array, wherein
+            This function is typically an interpolation method, i.e. Fourier mode zero-padding.
+        However, in the general case when we cannot assume the basis, the best we can do is pad the current basis,
+        which is done in a symmetric fashion when possible.
+            That is, if we have a 4x4 array, then calling this with size=6 and axis=0 would yield a 6x4 array, wherein
         the first and last rows are uniformly zero. I.e. a "border" of zeroes has been added. The choice to make
-        this symmetric when size is even only matters in the case of non-periodic boundary conditions.
+        this symmetric matters in the case of non-periodic boundary conditions.
 
-        Also, when writing this function in conjunction with interpolation methods BE SURE TO ACCOUNT FOR NORMALIZATION
+        When writing this function for spectral interpolation methods BE SURE TO ACCOUNT FOR NORMALIZATION
         of your transforms. Also, in this instance the interpolation basis and the return basis are the same, as there
         is no way of specifying otherwise for the general Orbit class. For the KSe, the padding basis is 'modes'
         and the return basis is whatever the state was originally in. This is the preferred implementation.
+
+        Arguments for modifying the padding type are not included here. If extra functionality is desired then
+        simply overload the method.
         """
-        padding_size = (size-self.shape[axis]) // 2
+        padding_size = (size - self.shape[axis]) // 2
         if int(size) % 2:
             # If odd size then cannot distribute symmetrically, floor divide then add append extra zeros to beginning
             # of the dimension.
-            padding_tuple = ((padding_size + 1, padding_size) if i==axis else (0, 0) for i in range(len(self.shape)))
+            padding_tuple = ((padding_size + 1, padding_size) if i == axis else (0, 0) for i in range(len(self.shape)))
         else:
-            padding_tuple = ((padding_size, padding_size) if i==axis else (0, 0) for i in range(len(self.shape)))
+            padding_tuple = ((padding_size, padding_size) if i == axis else (0, 0) for i in range(len(self.shape)))
 
         return self.__class__(state=np.pad(self.state, padding_tuple), basis=self.basis,
                               parameters=self.parameters).transform(to=self.basis)
@@ -483,15 +490,30 @@ class Orbit:
         size : int
             The new size of the discretization, must be an even integer
             smaller than the current size of the discretization.
-        axis : str
+        axis : int
             Axis to truncate along per numpy conventions.
 
         Returns
         -------
         OrbitKS
-            OrbitKS instance with larger discretization.
+            OrbitKS instance with smaller discretization.
+
+        Notes
+        -----
+        The inverse of pad.
         """
-        return self
+        truncate_size = (self.shape[axis] - size) // 2
+        if int(size) % 2:
+            # If odd size then cannot distribute symmetrically, floor divide then add append extra zeros to beginning
+            # of the dimension.
+            truncate_slice = tuple(slice(truncate_size + 1, -truncate_size) if i == axis else slice(None)
+                                   for i in range(len(self.shape)))
+        else:
+            truncate_slice = tuple(slice(truncate_size, -truncate_size) if i == axis else slice(None)
+                                   for i in range(len(self.shape)))
+
+        return self.__class__(state=self.state[truncate_slice], basis=self.basis,
+                              parameters=self.parameters).transform(to=self.basis)
 
     def jacobian(self, **kwargs):
         """ Jacobian matrix evaluated at the current state.
@@ -526,7 +548,7 @@ class Orbit:
         Returns
         -------
         tuple :
-            tuple of three tuples corresponding to the shape of the 'state' array in the field, s_modes, modes bases.
+            tuple of three tuples corresponding to the shape of the 'state' array in the field, spatial_modes, modes bases.
 
         Notes
         -----
@@ -558,7 +580,7 @@ class Orbit:
         In this setting these will be dimensions of spatiotemporal tiles and any additional equation parameters.
 
         """
-        return tuple(getattr(self, p_label) for p_label in self.parameter_labels())
+        return tuple(getattr(self, p_label, 0.) for p_label in self.parameter_labels())
 
     def dimensions(self):
         """ Continuous tile dimensions
@@ -573,7 +595,7 @@ class Orbit:
         Because this is usually a subset of self.parameters, it does not use the @property decorator. This method
         is purposed for readability.
         """
-        return tuple(getattr(self, d_label) for d_label in self.dimension_labels())
+        return tuple(getattr(self, d_label, 0.) for d_label in self.dimension_labels())
 
     @staticmethod
     def bases():
@@ -581,16 +603,21 @@ class Orbit:
         return ''
 
     @staticmethod
+    def parameter_generation_ranges():
+        """ Ranges to uniformly sample from for parameter generation """
+        return
+
+    @staticmethod
     def parameter_labels():
         """ Strings to use to label dimensions/periods. Generic 3+1 spacetime labels default.
         """
-        return 'T', 'Lx', 'Ly', 'Lz'
+        return 't', 'x', 'y', 'z'
 
     @staticmethod
     def dimension_labels():
         """ Strings to use to label dimensions/periods; this is redundant for Orbit class.
         """
-        return 'T', 'Lx', 'Ly', 'Lz'
+        return 't', 'x', 'y', 'z'
 
     @staticmethod
     def default_shape():
@@ -625,7 +652,7 @@ class Orbit:
 
         Notes
         -----
-        This function should only ever be called by reshape, the returned values can always be accessed by
+        This function should only ever be called by resize, the returned values can always be accessed by
         the appropriate attributes of the rediscretized orbit.
         """
         return cls.default_shape()
@@ -678,13 +705,13 @@ class Orbit:
         if method == 'absolute':
             rescaled_field = ((magnitude * field) / np.max(np.abs(field.ravel())))
         elif method == 'power':
-            rescaled_field = np.sign(field) * np.abs(field)**magnitude
+            rescaled_field = np.sign(field) * np.abs(field) ** magnitude
         else:
             raise ValueError('Unrecognizable method.')
         return self.__class__(state=rescaled_field, basis=self.bases()[0],
                               parameters=self.parameters).transform(to=self.basis)
 
-    def to_h5(self, filename=None, h5_group=None, h5pymode='a', verbose=False, include_residual=False):
+    def to_h5(self, filename=None, h5_group=None, h5py_mode='a', verbose=False, include_residual=False):
         """ Export current state information to HDF5 file
 
         Parameters
@@ -694,7 +721,7 @@ class Orbit:
         h5_group : str, default None
             Name of the h5_group wherein to store the Orbit in the h5_file at location filename. Should be
             HDF5 group name, i.e. '/A/B/C/...'
-        h5pymode : str
+        h5py_mode : str
             Mode with which to open the file. Default is a, read/write if exists, create otherwise,
             other modes ['r+', 'a', 'w-', 'w']. See h5py.File for details. 'r' not allowed, because this is a function
             to write to the file.
@@ -707,7 +734,7 @@ class Orbit:
         if verbose:
             print('Saving data to {} under group name'.format(filename, h5_group))
 
-        with h5py.File(filename, h5pymode) as f:
+        with h5py.File(filename, h5py_mode) as f:
             # Returns h5_group if not None, else, filename method.
             orbit_group = f.require_group(h5_group or self.filename())
             orbit_group.create_dataset(self.bases()[0], data=self.transform(to=self.bases()[0]).state)
@@ -740,8 +767,8 @@ class Orbit:
             The conventional filename.
         """
         if self.dimensions() is not None:
-            dimensional_string = ''.join(['_'+''.join([self.dimension_labels()[i], str(d).split('.')[0],
-                                                       'p', str(d).split('.')[1][:decimals]])
+            dimensional_string = ''.join(['_' + ''.join([self.dimension_labels()[i], str(d).split('.')[0],
+                                                         'p', str(d).split('.')[1][:decimals]])
                                           for i, d in enumerate(self.dimensions()) if d not in [0., 0]])
         else:
             dimensional_string = ''
@@ -760,13 +787,15 @@ class Orbit:
             Numpy array containing state information, can have any number of dimensions.
         basis : str
             The basis that the array 'state' is assumed to be in.
-        kwargs :
-            Signature for subclasses.
 
+        Notes
+        -----
+        This is quite simple for the general case, but left as a method for overloading purposes.
         """
         # Initialize with the same amount of dimensions as labels; use labels because staticmethod.
-        # The 'and-or' trick; if state is None then latter is used.
-        self.state = state or np.zeros(self.default_shape())
+        # The 'and-or' trick; if state is None then latter is used. give empty array the expected number of
+        # dimensions, even though array with 0 size in dimensions will typically be flattened by NumPy anyway.
+        self.state = state or np.array([], dtype=float).reshape(len(self.default_shape()) * [0])
         self.basis = basis
 
     def _parse_parameters(self, parameters, **kwargs):
@@ -774,21 +803,69 @@ class Orbit:
         """
         # default is not to be constrained in any dimension;
         self.constraints = kwargs.get('constraints', {dim_key: False for dim_key in self.dimension_labels()})
-        return None
+        # This will pad parameters with zeros if it is an iterable of smaller length than labels.
+        for label, val in zip_longest(self.parameter_labels(), self.parameters, fillvalue=0.):
+            setattr(self, label, val)
 
-    def _generate_state(self, **kwargs):
-        """ Initialize a random state.
+    def _generate_parameters(self, **kwargs):
+        """ Randomly initialize parameters which are currently zero.
+
         Parameters
         ----------
+        kwargs :
+            p_ranges : dict
+                keys are parameter_labels, values are uniform sampling intervals.
 
         Returns
         -------
-        Orbit :
-        -----
 
         """
-        self.state = np.zeros(self.default_shape())
+        p_ranges = kwargs.get('p_ranges', {p_label: (0, 1) for p_label in self.parameter_labels()})
+        # seeding takes a non-trivial amount of time, only run if provided.
+        if type(kwargs.get('seed', None)) is int:
+            np.random.seed(kwargs.get('seed', None))
+
+        # This will pad parameters with zeros if it is an iterable of smaller length than labels.
+        for label, val in zip_longest(self.parameter_labels(), self.parameters, fillvalue=0.):
+            if val == 0.:
+                #
+                pmin, pmax = p_ranges[label]
+                val = pmin + (pmax - pmin) * np.random.rand()
+                setattr(self, label, val)
+
+    def _generate_state(self, **kwargs):
+        # Just generate a random array; more intricate strategies should be written into subclasses.
+        # Using standard normal distribution
+        if type(kwargs.get('seed', None)) is int:
+            np.random.seed(kwargs.get('seed', None))
+        self.state = np.random.randn(self.parameter_based_discretization())
         self.basis = self.bases()[0]
+
+
+    def generate(self, attr='all', **kwargs):
+        """ Initialize a random state.
+        Parameters
+        ----------
+        attr : str
+            Takes values 'state', 'parameters' or 'all'.
+
+
+        Notes
+        -----
+        This should mimic the behavior of __init__ in the sense that
+        the "solution" to not providing anything to __init__ is to set attr='all'. If you do not provide a state,
+        then generate attr='state', if you do not provide parameters (and you do not want them to take the default
+        values), then attr='parameters'.
+        """
+        #
+        if attr in ['all', 'parameters']:
+            self._generate_parameters(**kwargs)
+
+        if attr in ['all', 'state']:
+            # If generating a random st
+            self._generate_state(**kwargs)
+
+        return None
 
     def to_fundamental_domain(self, **kwargs):
         """ Placeholder for symmetry subclassees"""
