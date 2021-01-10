@@ -226,8 +226,8 @@ def _adjoint_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
         print('Initial guess : {}'.format(repr(orbit_)))
         print('-------------------------------------------------------------------------------------------------')
         sys.stdout.flush()
-    mapping = orbit_.dae(**kwargs)
-    residual = mapping.residual(dae=False)
+    mapping = orbit_.eqn(**kwargs)
+    residual = mapping.residual(eqn=False)
     step_size = 1
     stats = {'nit': 0, 'residuals': [residual], 'maxiter': maxiter, 'tol': tol, 'status': 1}
     while residual > tol and stats['status'] == 1:
@@ -236,15 +236,15 @@ def _adjoint_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
         # Negative sign -> 'descent'
         next_orbit = orbit_.increment(gradient, step_size=-1.0*step_size)
         # Calculate the mapping and store; need it for next step and to compute residual.
-        next_mapping = next_orbit.dae(**kwargs)
+        next_mapping = next_orbit.eqn(**kwargs)
         # Compute residual to see if step succeeded
-        next_residual = next_mapping.residual(dae=False)
+        next_residual = next_mapping.residual(eqn=False)
         while next_residual >= residual and step_size > min_step:
             # reduce the step size until minimum is reached or residual decreases.
             step_size /= 2
             next_orbit = orbit_.increment(gradient, step_size=-1.0*step_size)
-            next_mapping = next_orbit.dae(**kwargs)
-            next_residual = next_mapping.residual(dae=False)
+            next_mapping = next_orbit.eqn(**kwargs)
+            next_residual = next_mapping.residual(eqn=False)
         else:
             orbit_, stats = _parse_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
                                               step_size, min_step, residual, next_residual,
@@ -285,23 +285,23 @@ def _newton_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
         print('Initial guess : {}'.format(repr(orbit_)))
         print('-------------------------------------------------------------------------------------------------')
         sys.stdout.flush()
-    mapping = orbit_.dae(**kwargs)
-    residual = mapping.residual(dae=False)
+    mapping = orbit_.eqn(**kwargs)
+    residual = mapping.residual(eqn=False)
     while residual > tol and stats['status'] == 1:
         # Solve A dx = b <--> J dx = - f, for dx.
         A, b = orbit_.jacobian(), -1*mapping.state.ravel()
         inv_A = pinv(A)
         dx = orbit_.from_numpy_array(np.dot(inv_A, b))
         next_orbit = orbit_.increment(dx, step_size=step_size)
-        next_mapping = next_orbit.dae(**kwargs)
-        next_residual = next_mapping.residual(dae=False)
+        next_mapping = next_orbit.eqn(**kwargs)
+        next_residual = next_mapping.residual(eqn=False)
         # This modifies the step size if too large; i.e. its a very crude way of handling curvature.
         while next_residual > residual and step_size > min_step:
             # Continues until either step is too small or residual decreases
             step_size /= 2.0
             next_orbit = orbit_.increment(dx, step_size=step_size)
-            next_mapping = next_orbit.dae(**kwargs)
-            next_residual = next_mapping.residual(dae=False)
+            next_mapping = next_orbit.eqn(**kwargs)
+            next_residual = next_mapping.residual(eqn=False)
         else:
             inner_nit = 1
             if kwargs.get('approximation', True):
@@ -309,8 +309,8 @@ def _newton_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
                 b = -1 * next_mapping.state.ravel()
                 dx = orbit_.from_numpy_array(np.dot(inv_A, b))
                 inner_orbit = next_orbit.increment(dx, step_size=step_size)
-                inner_mapping = inner_orbit.dae(**kwargs)
-                inner_residual = inner_mapping.residual(dae=False)
+                inner_mapping = inner_orbit.eqn(**kwargs)
+                inner_residual = inner_mapping.residual(eqn=False)
                 while inner_residual < next_residual:
                     next_orbit = inner_orbit
                     next_mapping = inner_mapping
@@ -318,8 +318,8 @@ def _newton_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
                     b = -1 * next_mapping.state.ravel()
                     dx = orbit_.from_numpy_array(np.dot(inv_A, b))
                     inner_orbit = next_orbit.increment(dx, step_size=step_size)
-                    inner_mapping = inner_orbit.dae(**kwargs)
-                    inner_residual = inner_mapping.residual(dae=False)
+                    inner_mapping = inner_orbit.eqn(**kwargs)
+                    inner_residual = inner_mapping.residual(eqn=False)
                     inner_nit += 1
             # If the trigger that broke the while loop was step_size then
             # assume next_residual < residual was not met.
@@ -353,8 +353,8 @@ def _lstsq(orbit_, tol, maxiter, min_step=1e-6,  **kwargs):
     """
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
     ftol = kwargs.get('ftol', np.product(orbit_.shape) * 10**-10)
-    mapping = orbit_.dae(**kwargs)
-    residual = mapping.residual(dae=False)
+    mapping = orbit_.eqn(**kwargs)
+    residual = mapping.residual(eqn=False)
     stats = {'nit': 0, 'residuals': [residual], 'maxiter': maxiter, 'tol': tol, 'status': 1}
     if kwargs.get('verbose', False):
         print('\n-------------------------------------------------------------------------------------------------')
@@ -371,14 +371,14 @@ def _lstsq(orbit_, tol, maxiter, min_step=1e-6,  **kwargs):
         b = -1.0 * mapping.state.reshape(-1, 1)
         dx = orbit_.from_numpy_array(lstsq(A, b)[0], **kwargs)
         next_orbit = orbit_.increment(dx, step_size=step_size)
-        next_mapping = next_orbit.dae(**kwargs)
-        next_residual = next_mapping.residual(dae=False)
+        next_mapping = next_orbit.eqn(**kwargs)
+        next_residual = next_mapping.residual(eqn=False)
         while next_residual > residual and step_size > min_step:
             # Continues until either step is too small or residual decreases
             step_size /= 2.0
             next_orbit = orbit_.increment(dx, step_size=step_size)
-            next_mapping = next_orbit.dae(**kwargs)
-            next_residual = next_mapping.residual(dae=False)
+            next_mapping = next_orbit.eqn(**kwargs)
+            next_residual = next_mapping.residual(eqn=False)
         else:
             orbit_, stats = _parse_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
                                               step_size, min_step, residual, next_residual,
@@ -408,8 +408,8 @@ def _solve(orbit_, tol, maxiter, min_step=1e-6,  **kwargs):
     """
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
     ftol = kwargs.get('ftol', np.product(orbit_.shape) * 10**-10)
-    mapping = orbit_.dae(**kwargs)
-    residual = mapping.residual(dae=False)
+    mapping = orbit_.eqn(**kwargs)
+    residual = mapping.residual(eqn=False)
     stats = {'nit': 0, 'residuals': [residual], 'maxiter': maxiter, 'tol': tol, 'status': 1}
     if kwargs.get('verbose', False):
         print('\n-------------------------------------------------------------------------------------------------')
@@ -426,14 +426,14 @@ def _solve(orbit_, tol, maxiter, min_step=1e-6,  **kwargs):
         b = -1.0 * mapping.state.reshape(-1, 1)
         dx = orbit_.from_numpy_array(solve(A, b)[0], **kwargs)
         next_orbit = orbit_.increment(dx, step_size=step_size)
-        next_mapping = next_orbit.dae(**kwargs)
-        next_residual = next_mapping.residual(dae=False)
+        next_mapping = next_orbit.eqn(**kwargs)
+        next_residual = next_mapping.residual(eqn=False)
         while next_residual > residual and step_size > min_step:
             # Continues until either step is too small or residual decreases
             step_size /= 2.0
             next_orbit = orbit_.increment(dx, step_size=step_size)
-            next_mapping = next_orbit.dae(**kwargs)
-            next_residual = next_mapping.residual(dae=False)
+            next_mapping = next_orbit.eqn(**kwargs)
+            next_residual = next_mapping.residual(eqn=False)
         else:
             orbit_, stats = _parse_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
                                               step_size, min_step, residual, next_residual,
@@ -494,7 +494,7 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method='minres', m
 
             linear_operator_shape = (orbit_.state.size, orbit_.state_vector().size)
             A = LinearOperator(linear_operator_shape, matvec_func, rmatvec=rmatvec_func, dtype=float)
-            b = -1.0 * orbit_.dae(**kwargs).state.reshape(-1, 1)
+            b = -1.0 * orbit_.eqn(**kwargs).state.reshape(-1, 1)
             if method == 'lsmr':
                 result_tuple = lsmr(A, b, **scipy_kwargs)
             else:
@@ -513,7 +513,7 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method='minres', m
             # Currently only allows solving of the normal equations. A^T A x = A^T b
             linear_operator_shape = (orbit_.state_vector().size, orbit_.state_vector().size)
             ATA = LinearOperator(linear_operator_shape, matvec_func, rmatvec=matvec_func, dtype=float)
-            ATb = orbit_.rmatvec(-1.0 * orbit_.dae(**kwargs)).state_vector().reshape(-1, 1)
+            ATb = orbit_.rmatvec(-1.0 * orbit_.eqn(**kwargs)).state_vector().reshape(-1, 1)
 
             ############################################################################################################
 
@@ -545,14 +545,14 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method='minres', m
 
         dx = orbit_.from_numpy_array(x, **kwargs)
         next_orbit = orbit_.increment(dx)
-        next_mapping = next_orbit.dae(**kwargs)
-        next_residual = next_mapping.residual(dae=False)
+        next_mapping = next_orbit.eqn(**kwargs)
+        next_residual = next_mapping.residual(eqn=False)
         while next_residual > residual and step_size > min_step:
             # Continues until either step is too small or residual decreases
             step_size /= 2.0
             next_orbit = orbit_.increment(dx, step_size=step_size)
-            next_mapping = next_orbit.dae(**kwargs)
-            next_residual = next_mapping.residual(dae=False)
+            next_mapping = next_orbit.eqn(**kwargs)
+            next_residual = next_mapping.residual(eqn=False)
         else:
             # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
             orbit_, stats = _parse_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
@@ -621,7 +621,7 @@ def _scipy_optimize_minimize_wrapper(orbit_, tol, maxiter, method='l-bfgs-b',  *
         """
 
         x_orbit = orbit_.from_numpy_array(x)
-        return x_orbit.cost_function_gradient(x_orbit.dae(**kwargs), **kwargs).state_vector().ravel()
+        return x_orbit.cost_function_gradient(x_orbit.eqn(**kwargs), **kwargs).state_vector().ravel()
 
     scipy_kwargs = kwargs.get('scipy_kwargs', {'tol': tol})
     while residual > tol and stats['status'] == 1:
@@ -679,7 +679,7 @@ def _scipy_optimize_root_wrapper(orbit_, tol, maxiter, method='lgmres', **kwargs
         Note that passing Class as a function avoids dangerous statements using eval()
         '''
         x_orbit = orbit_.from_numpy_array(x, **kwargs)
-        xvec = x_orbit.dae(**kwargs).state_vector().ravel()
+        xvec = x_orbit.eqn(**kwargs).state_vector().ravel()
         xvec[-(x_orbit.state_vector().size - len(x_orbit.parameters)):] = 0
         return xvec
 
@@ -701,7 +701,7 @@ def _scipy_optimize_root_wrapper(orbit_, tol, maxiter, method='lgmres', **kwargs
         """
 
         x_orbit = orbit_.from_numpy_array(x)
-        return x_orbit.cost_function_gradient(x_orbit.dae(**kwargs), **kwargs).state_vector().ravel()
+        return x_orbit.cost_function_gradient(x_orbit.eqn(**kwargs), **kwargs).state_vector().ravel()
 
     while residual > tol and stats['status'] == 1:
         if method == 'newton_krylov':

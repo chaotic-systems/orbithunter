@@ -95,14 +95,7 @@ class Orbit:
         Parameters
         ----------
         other : Orbit
-        Should have same class as self. Should be in same basis as self.
-        Notes
-        -----
-        Adding two spatiotemporal velocity fields u(t, x) + v(t, x)
 
-        Notes
-        -----
-        This is the same as __add__ by Python makes the distinction between where the operator is, i.e. x + vs. + x.
         """
         return self.__class__(state=(self.state+other.state), basis=self.basis, parameters=self.parameters)
 
@@ -199,14 +192,14 @@ class Orbit:
         return self.__class__.__name__
 
     def __repr__(self):
-        # parameters should be an iterable.
+
         if self.parameters is not None:
+            # parameters should be an iterable, but this allows for singletons.
             try:
                 pretty_params = tuple(round(x, 3) if isinstance(x, float)
                                       else x for x in self.parameters)
             except TypeError:
                 pretty_params = self.parameters
-                print('"parameters" attribute was not iterable')
         else:
             pretty_params = None
 
@@ -225,32 +218,33 @@ class Orbit:
             print('Attribute is not of readable type')
 
         if attr in self.parameter_labels():
-            # Note that this breaks down if parameter_labels are not unique.
+            # parameters must be cast as tuple, (p,) if singleton.
             if isinstance(self.parameters, tuple):
+                # breaks down for non-unique labels; there is no reason for non-unique labels.
                 return self.parameters[self.parameter_labels().index(attr)]
             else:
                 return None
-        if attr in self.discretization_labels():
+        elif attr in self.discretization_labels():
             # Note that this breaks down if discretization_labels are not unique.
             if isinstance(self.discretization, tuple):
-                return self.discretization[self.discretization().index(attr)]
+                return self.discretization[self.discretization_labels().index(attr)]
             else:
                 return None
         elif attr in ['state', 'basis']:
             return None
         elif attr in ['shape', 'size']:
             if not isinstance(self.state, np.ndarray):
-                raise AttributeError('"shape" and "size" only defined for instances whose "state" is NumPy ndarray')
+                raise AttributeError('"shape" and "size" only defined for instances whose "state" is NumPy ndarray.')
         else:
             error_message = ' '.join([self.__class__.__name__, 'has no attribute\'{}\''.format(attr)])
             raise AttributeError(error_message)
 
-    def cost_function_gradient(self, dae, **kwargs):
+    def cost_function_gradient(self, eqn, **kwargs):
         """ Derivative of 1/2 |F|^2
 
         Parameters
         ----------
-        dae : Orbit
+        eqn : Orbit
             Orbit instance whose state equals DAE evaluated with respect to current state, i.e. F(v)
         kwargs
 
@@ -264,14 +258,14 @@ class Orbit:
         Withing optimization routines, the DAE orbit is used for other calculations and hence should not be
         recalculated
         """
-        return self.rmatvec(dae, **kwargs)
+        return self.rmatvec(eqn, **kwargs)
 
-    def resize(self, *new_shape, **kwargs):
+    def resize(self, *new_discretization, **kwargs):
         """ Rediscretization method
 
         Parameters
         ----------
-        new_shape : int or tuple of ints
+        new_discretization : int or tuple of ints
             New discretization size
         kwargs : dict
             keyword arguments for parameter_based_discretization.
@@ -292,14 +286,13 @@ class Orbit:
         # if nothing passed, then new_shape == () which evaluates to false.
         # The default behavior for this will be to modify the current discretization
         # to a `parameter based discretization'.
-        new_shape = new_shape or self.parameter_based_discretization(self.dimensions(), **kwargs)
+        new_shape = new_discretization or self.parameter_based_discretization(self.parameters, **kwargs)
 
-        # if passed as iterable, then unpack: i.e. ((a, b, ...)) -> (a, b, ...)
-
+        # unpacking unintended nested tuples i.e. ((a, b, ...)) -> (a, b, ...); leaves unnested tuples invariant.
         if isinstance(*new_shape, tuple) and len(new_shape) == 1:
             new_shape = tuple(*new_shape)
 
-        # If the current shape is different from the new shape, then resize, else, simply return the copy.
+        # If the current shape is discretization size (not current shape) differs from shape then resize
         if self.discretization != new_shape:
             # Although this is less efficient than doing every axis at once, it generalizes to cases where bases
             # are different for padding along different dimensions (i.e. transforms implicit in truncate and pad).
@@ -329,7 +322,7 @@ class Orbit:
         """
         return self
 
-    def dae(self, *args, **kwargs):
+    def eqn(self, *args, **kwargs):
         """ The governing equations evaluated using the current state.
 
         Returns
@@ -339,7 +332,7 @@ class Orbit:
 
         Notes
         -----
-        If self.dae().state = 0. at every point (within some numerical tolerance), then 'self' constitutes
+        If self.eqn().state = 0. at every point (within some numerical tolerance), then 'self' constitutes
         a solution to the governing equation. Of course there is no equation for this class, so zeros are returned.
         The instance needs to be in spatiotemporal basis prior to computation; this avoids possible mistakes in the
         optimization process, which would result in a breakdown in performance from redundant transforms.
@@ -347,7 +340,7 @@ class Orbit:
         assert self.basis == self.bases()[-1], 'Convert to spatiotemporal basis before computing DAEs.'
         return self.__class__(state=np.zeros(self.shapes()[-1]), basis=self.bases()[-1], parameters=self.parameters)
 
-    def residual(self, dae=True):
+    def residual(self, eqn=True):
         """ The value of the cost function
 
         Returns
@@ -363,8 +356,8 @@ class Orbit:
         residual functions other than, for instance, the L_2 norm of the DAEs; although in this case there is no
         difference.
         """
-        if dae:
-            v = self.transform(to=self.bases()[-1]).dae().state.ravel()
+        if eqn:
+            v = self.transform(to=self.bases()[-1]).eqn().state.ravel()
         else:
             v = self.state.ravel()
 
@@ -378,7 +371,8 @@ class Orbit:
         Because the general Orbit template doesn't have an associated equation
 
         """
-        return self.__class__(state=np.zeros(self.shape), basis=self.basis, parameters=self.parameters)
+        return self.__class__(state=np.zeros(self.shape), basis=self.basis,
+                              parameters=np.zeros(len(self.parameter_labels())))
 
     def rmatvec(self, other, **kwargs):
         """ Matrix-vector product of a vector with the adjoint of the Jacobian of the current state.
@@ -397,7 +391,8 @@ class Orbit:
         The adjoint vector product in this case is defined as J^T * v,  where J is the jacobian matrix.
         """
 
-        return self.__class__(state=np.zeros(self.shape), basis=self.basis, parameters=self.parameters)
+        return self.__class__(state=np.zeros(self.shape), basis=self.basis,
+                              parameters=np.zeros(len(self.parameter_labels())))
 
     def state_vector(self):
         """ Vector representation of orbit
@@ -440,7 +435,10 @@ class Orbit:
         the optimization occurs. This is why no additional specification for size and shape and basis is required.
         The spatiotemporal basis is allowed to be named anything, hence usage of self.basis.
         """
+        # slice out the parameters; cast as list to gain access to pop
         params_list = list(kwargs.pop('parameters', state_vector.ravel()[self.size:].tolist()))
+        # The usage of this function is to convert a vector of corrections to an orbit instance;
+        # while default parameter values may be None, default corrections are 0.
         parameters = tuple(params_list.pop(0) if not p and params_list else 0 for p in self.constraints.values())
         return self.__class__(state=np.reshape(state_vector.ravel()[:self.size], self.shape), basis=self.basis,
                               parameters=parameters, **kwargs)
@@ -465,8 +463,12 @@ class Orbit:
         This is used primarily in optimization methods, e.g. adding a gradient descent step using class instances
         instead of simply arrays.
         """
-        incremented_params = tuple(self_param + step_size * other_param for self_param, other_param
-                                   in zip(self.parameters, other.parameters))
+        incremented_params = tuple(
+                                   self_param + step_size * other_param
+                                   if other_param is not None else self_param # assumed to be constrained if None
+                                   for self_param, other_param in zip(self.parameters, other.parameters)
+                                   )
+
         return self.__class__(state=self.state + step_size * other.state, basis=self.basis,
                               parameters=incremented_params, **kwargs)
 
@@ -610,7 +612,7 @@ class Orbit:
         Because this is usually a subset of self.parameters, it does not use the property decorator. This method
         is purposed for readability.
         """
-        return tuple(getattr(self, d_label, None) for d_label in self.dimension_labels())
+        return tuple(getattr(self, d_label) for d_label in self.dimension_labels())
 
     @staticmethod
     def bases():
@@ -618,9 +620,9 @@ class Orbit:
 
         Notes
         -----
-        Defaults to 'data' and not None or empty string because it is used for writing .h5 files.
+        Defaults to 'physical' and not None or empty string because it is used as a data group for writing .h5 files.
         """
-        return 'data'
+        return 'physical'
 
     @staticmethod
     def parameter_labels():
@@ -655,8 +657,25 @@ class Orbit:
         """
         return 1, 1, 1, 1
 
+    @staticmethod
+    def minimal_shape():
+        """ The smallest possible compatible discretization
+
+        Returns
+        -------
+        tuple of int :
+            The default array shape when dimensions are not specified.
+
+        Notes
+        -----
+        Often symmetry constraints reduce the dimensionality; if too small this reduction may leave the state empty,
+        used for aspect ratio correction and possibly other gluing applications.
+
+        """
+        return 1, 1, 1, 1
+
     @classmethod
-    def parameter_based_discretization(cls, dimensions, **kwargs):
+    def parameter_based_discretization(cls, parameters, **kwargs):
         """ Follow orbithunter conventions for discretization size.
 
         Parameters
@@ -672,7 +691,7 @@ class Orbit:
         Returns
         -------
         N, M : tuple of ints
-            The new spatiotemporal field discretization; number of time points
+            The new spatiotemporal state discretization; number of time points
             (rows) and number of space points (columns)
 
         Notes
@@ -718,25 +737,29 @@ class Orbit:
         """
         return None
 
-    def rescale(self, magnitude, method='absolute'):
+    def rescale(self, magnitude, method='infty'):
         """ Scalar multiplication
 
         Notes
         -----
-        This rescales the physical field such that the absolute value of the max/min takes on a new value
+        This rescales the physical state such that the absolute value of the max/min takes on a new value
         of magnitude
         """
-        field = self.transform(to=self.bases()[0]).state
-        if method == 'absolute':
-            rescaled_field = ((magnitude * field) / np.max(np.abs(field.ravel())))
+        state = self.transform(to=self.bases()[0]).state
+        if method == 'infty':
+            rescaled_state = magnitude * state / np.max(np.abs(state.ravel()))
+        elif method == 'l1':
+            rescaled_state = magnitude * state / np.linalg.norm(state, ord=1)
+        elif method == 'l2':
+            rescaled_state = magnitude * state / np.linalg.norm(state)
         elif method == 'power':
-            rescaled_field = np.sign(field) * np.abs(field) ** magnitude
+            rescaled_state = np.sign(state) * np.abs(state) ** magnitude
         else:
             raise ValueError('Unrecognizable method.')
-        return self.__class__(state=rescaled_field, basis=self.bases()[0],
+        return self.__class__(state=rescaled_state, basis=self.bases()[0],
                               parameters=self.parameters).transform(to=self.basis)
 
-    def to_h5(self, filename=None, orbit_name=None, h5py_mode='a', verbose=False, include_residual=False):
+    def to_h5(self, filename=None, orbit_name=None, h5py_mode='r+', verbose=False, include_residual=False):
         """ Export current state information to HDF5 file
 
         Parameters
@@ -749,7 +772,7 @@ class Orbit:
         h5py_mode : str
             Mode with which to open the file. Default is a, read/write if exists, create otherwise,
             other modes ['r+', 'a', 'w-', 'w']. See h5py.File for details. 'r' not allowed, because this is a function
-            to write to the file.
+            to write to the file. Defaults to r+ to prevent overwrites.
         verbose : bool
             Whether or not to print save location and group
         include_residual : bool
@@ -837,7 +860,15 @@ class Orbit:
             self.basis = None
 
     def _parse_parameters(self, parameters, **kwargs):
-        """ Determine the dimensionality and symmetry parameters.
+        """ Parse and initialize the set of parameters
+
+        Notes
+        -----
+        Parameters are required to be numerical in type. If there are categorical parameters then they
+        should be assigned to a different attribute. The reason for this is that for numerical optimization,
+        the state_vector; the concatenation of self.state and self.parameters is sent to the various algorithms.
+        Cannot send categoricals to these algorithms.
+
         """
         # default is not to be constrained in any dimension;
         self.constraints = kwargs.get('constraints', {dim_key: False for dim_key in self.parameter_labels()})
@@ -869,7 +900,7 @@ class Orbit:
                 if isinstance(val_generator, tuple) and len(val_generator) == 2:
                     pmin, pmax = val_generator
                     val = pmin + (pmax - pmin) * np.random.rand()
-                # Everything else treated as categorical
+                # Everything else treated as distribution to sample from
                 else:
                     val = np.random.choice(val_generator)
             return val
@@ -887,12 +918,26 @@ class Orbit:
                            in zip_longest(self.parameter_labels(), parameter_iterable))
         setattr(self, 'parameters', parameters)
 
-    def _generate_state(self, seed=None):
+    def _generate_state(self, **kwargs):
+        """ Populate the 'state' attribute
+
+        Parameters
+        ----------
+        kwargs
+
+        Notes
+        -----
+        Must generate and set attributes 'state' and 'discretization'. The state is required to be a numpy
+        array, the discretization is required to be its shape (tuple) in the basis specified by self.bases()[0].
+        Discretization is coupled to the state, hence why it is generated here and not on its own.
+        """
         # Just generate a random array; more intricate strategies should be written into subclasses.
         # Using standard normal distribution
-        if isinstance(seed, int):
-            np.random.seed(seed)
-        self.state = np.random.randn(self.parameter_based_discretization(self.dimensions()))
+        numpy_seed = kwargs.get('seed', None)
+        if isinstance(numpy_seed, int):
+            np.random.seed(numpy_seed)
+        self.discretization = self.parameter_based_discretization(self.parameters(), **kwargs)
+        self.state = np.random.randn(*self.discretization)
         self.basis = self.bases()[0]
 
     def generate(self, attr='all', **kwargs):
@@ -909,13 +954,15 @@ class Orbit:
         the "solution" to not providing anything to __init__ is to set attr='all'. If you do not provide a state,
         then generate attr='state', if you do not provide parameters (and you do not want them to take the default
         values), then attr='parameters'.
+
+        If extra values / variables not in the optimization parameters or state need to be declared then it is
+        recommended to call super and then do extra operations after
         """
         #
         if attr in ['all', 'parameters']:
             self._generate_parameters(**kwargs)
 
         if attr in ['all', 'state']:
-            # If generating a random st
             self._generate_state(**kwargs)
 
     def to_fundamental_domain(self, **kwargs):

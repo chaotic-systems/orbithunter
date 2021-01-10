@@ -6,12 +6,12 @@ from collections import Counter
 __all__ = ['tile', 'glue', 'generate_symbol_arrays', 'rediscretize_tileset']
 
 
-def _correct_aspect_ratios(array_of_orbits, axis=0):
+def _correct_aspect_ratios(orbit_array, glued_parameters, axis=0, conserve_parity=True):
     """ Correct aspect ratios of a one-dimensional strip of orbits.
 
     Parameters
     ----------
-    array_of_orbits
+    orbit_array
     axis
 
     Returns
@@ -19,35 +19,51 @@ def _correct_aspect_ratios(array_of_orbits, axis=0):
 
     Notes
     -----
-    Currently heavily biased to work properly only for the KSe.
+    Note that this *will* allow equilibria tiles to become very distorted; this can be managed by gluing
+    order but typically when including equilibria, strip-wise corrections cause too much distortion to be useful.
 
     """
-    iterable_of_dims = [o.dimensions()[axis] for o in array_of_orbits.ravel()]
-    iterable_of_shapes = [o.shapes()[0][axis] for o in array_of_orbits.ravel()]
+    iterable_of_dims = np.array([o.dimensions()[axis] for o in orbit_array])
+    iterable_of_shapes = np.array([o.shapes()[0][axis] for o in orbit_array])
 
     strip_length = len(iterable_of_dims)
     disc_total = np.sum(iterable_of_shapes)
     dim_total = np.sum(iterable_of_dims)
+
 
     # The absolute minimum is set to the smallest number of points which doesn't completely "contract" the dimension.
     # Whether or not this takes an even (2) or odd (3) value is inferred from the total number of discrete points
     # along the given axis for the array of orbits provided. To avoid orbits with small dimension being
     # undersized, use some minimum fraction based upon the strip length.
 
-    # if disc_total % 2:
-    #     min_fraction = min([1./strip_length, strip_length/disc_total])
-    # else:
-    #     min_disc = 2 * len(iterable_of_shapes)
+    # If dimensions are all zero (dimensions taken to be non-negative), then no resizing can be inferred.
+    if dim_total == 0.:
+        return orbit_array
 
-    min_fraction = (5 / disc_total if disc_total % 2 else 4 / disc_total)  # returns float
+    # the minimum discretization total is dependent on parity; this should be built into the static method.
+    min_disc_sizes = tuple(o.minimal_shape()[axis] for o in orbit_array)
+    # the sum has to be non-negative, because otherwise an orbit is smaller than its allowed limit.
+    remaining_discretization_to_distribute = disc_total - np.sum(min_disc_sizes)
 
-    # cast as numpy array for fancy indexing
-    fraction_array = np.array(iterable_of_dims) / dim_total
-    # replace any fractions smaller than the minimum with the minimum
-    fraction_array[fraction_array < min_fraction] = min_fraction
-    # renormalize so that the result returns the correct total
-    fraction_array /= fraction_array.sum()
-    #
+    # from smallest to largest, increase the share of the discretization
+    new_discretization_sizes = np.zeros(len(orbit_array))
+    # can't use fancy indexing because this has to be done sequentially, or at least that is the simplest manner.
+    # If we simply round the fractions then we may have a case where we cannot get the total and conserve parity
+    # of the last term.
+    for sorted_index in np.argsort(iterable_of_dims):
+        orbits_share = int(remaining_discretization_to_distribute * (iterable_of_dims[sorted_index] / dim_total))
+        new_size = orbits_share + min_disc_sizes[sorted_index]
+        # Often it can be essential to have an odd numbered or even number of points for each orbit.
+        # Ensure that this is constrained if told to do so.
+        if conserve_parity and (new_size % 2) != (iterable_of_shapes[sorted_index] % 2):
+
+            pass
+        # The minima have already been subtracted out.
+        remaining_discretization_to_distribute -= orbits_share
+        new_discretization_sizes[sorted_index] = orbits_share + min_disc_sizes[sorted_index]
+
+
+
     new_discretization_sizes = (2 * np.round((fraction_array * disc_total) / 2)).astype(int)
     number_of_dimensionless_orbits = np.sum(fraction_array == 0)
     number_of_dimensionful_orbits = len(new_discretization_sizes) - number_of_dimensionless_orbits
@@ -69,13 +85,7 @@ def _correct_aspect_ratios(array_of_orbits, axis=0):
 
     fraction_array = np.array(new_discretization_sizes) / np.sum(new_discretization_sizes)
 
-    # Can't have orbits with 0 discretization but don't want them too large because they have no inherent scale.
-    # If there are only orbits of this type however we need to return the original sizes.
-    if number_of_dimensionless_orbits == len(iterable_of_shapes):
-        # if gluing all equilibria in time, don't change anything.
-        new_shapes = [o.shape for o in array_of_orbits.ravel()]
-
-    elif number_of_dimensionless_orbits > 0 and number_of_dimensionful_orbits >= 1:
+    if number_of_dimensionless_orbits > 0 and number_of_dimensionful_orbits >= 1:
         # The following is the most convoluted piece of code perhaps in the entire package. It attempts to find the
         # best minimum discretization size for the dimensionless orbits; simply having them take the literal minimum
         # size is essentially throwing them out for large interpolations.
@@ -98,22 +108,22 @@ def _correct_aspect_ratios(array_of_orbits, axis=0):
         # The new shapes of each orbit are the new sizes along the gluing axis, and the originals for axes not being
         # glued.
         new_shapes = [tuple(int(new_discretization_sizes[j]) if i == axis else o.shapes()[0][i]
-                      for i in range(len(o.shape))) for j, o in enumerate(array_of_orbits.ravel())]
+                      for i in range(len(o.shape))) for j, o in enumerate(orbit_array)]
 
     else:
         new_shapes = [tuple(int(new_discretization_sizes[j]) if i == axis else o.shapes()[0][i]
-                      for i in range(len(o.shape))) for j, o in enumerate(array_of_orbits.ravel())]
+                      for i in range(len(o.shape))) for j, o in enumerate(orbit_array)]
 
     # Return the strip of orbits with corrected proportions.
-    return np.array([o.resize(shp) for o, shp in zip(array_of_orbits.ravel(), new_shapes)])
+    return np.array([o.resize(shp) for o, shp in zip(orbit_array, new_shapes)])
 
 
-def glue(array_of_orbits, class_constructor, strip_wise=False, **kwargs):
+def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
     """ Function for combining spatiotemporal fields
 
     Parameters
     ----------
-    array_of_orbits : ndarray of Orbit instances
+    orbit_array : ndarray of Orbit instances
         A NumPy array wherein each element is an orbit. i.e. a tensor of Orbit instances. The shape should be
         representative to how the orbits are going to be glued. See notes for more details. The orbits must all
         have the same discretization size if gluing is occuring along more than one axis. The orbits should
@@ -134,7 +144,7 @@ def glue(array_of_orbits, class_constructor, strip_wise=False, **kwargs):
 
     Because of how the concatenation of fields works, wherein the discretization must match along the boundaries. It
     is quite complicated to write a generalized code that glues all dimensions together at once, so instead this is
-    designed to iterate through the axes of the array_of_orbits.
+    designed to iterate through the axes of the orbit_array.
 
     To prevent confusion, there are many different "shapes" and discretizations that are possibly floating around.
     There are three main array shapes or dimensions that are involved in this function. The first is the array
@@ -161,13 +171,14 @@ def glue(array_of_orbits, class_constructor, strip_wise=False, **kwargs):
     axis=3, 4 times in a row. I believe that this generalizes for all equations but it's hard to test
 
     """
-    glue_shape = array_of_orbits.shape
-    tiling_shape = array_of_orbits.ravel()[0].shapes()[0]
+    glue_shape = orbit_array.shape
+    tiling_shape = orbit_array.ravel()[0].shapes()[0]
     gluing_order = kwargs.get('gluing_order', np.argsort(glue_shape))
     # This joins the dictionary of all orbits' dimensions by zipping the values together. i.e.
     #(T_1, L_1, ...), (T_2, L_2, ...) transforms into  ((T_1, T_2, ...) , (L_1, L_2, ...))
+
     # Bundle all of the parameters at once, instead of "stripwise"
-    zipped_dimensions = tuple(zip(*(o.dimensions() for o in array_of_orbits.ravel())))
+    zipped_dimensions = tuple(zip(*(o.dimensions() for o in orbit_array.ravel())))
     # Average tile dimensions
     glued_parameters = class_constructor.glue_parameters(zipped_dimensions, glue_shape=glue_shape)
 
@@ -181,32 +192,33 @@ def glue(array_of_orbits, class_constructor, strip_wise=False, **kwargs):
             for gs in gluing_slices:
                 # The strip shape is 1-d but need a d-dimensional tuple filled with 1's to keep track of axes.
                 # i.e. (3,1,1,1) instead of just (3,).
-                strip_shape = tuple(len(array_of_orbits[gs]) if n == gluing_axis else 1
-                                    for n in range(len(array_of_orbits.shape)))
+                strip_shape = tuple(len(orbit_array[gs]) if n == gluing_axis else 1
+                                    for n in range(len(orbit_array.shape)))
 
                 # For each strip, need to know how to combine the dimensions of the orbits. Bundle, then combine.
-                tuple_of_zipped_dimensions = tuple(zip(*(o.dimensions() for o in array_of_orbits[gs].ravel())))
-                glued_parameters = class_constructor.glue_parameters(tuple_of_zipped_dimensions, glue_shape=strip_shape)
+                tuple_of_zipped_dimensions = tuple(zip(*(o.dimensions() for o in orbit_array[gs].ravel())))
+                strip_parameters = class_constructor.glue_parameters(tuple_of_zipped_dimensions, glue_shape=strip_shape)
                 # Slice the orbit array to get the strip, reshape to maintain its d-dimensional form.
-                strip_of_orbits = array_of_orbits[gs].reshape(strip_shape)
+                strip_of_orbits = orbit_array[gs].ravel()
 
                 # Correct the proportions of the dimensions along the current gluing axis.
-                array_of_orbits_corrected = _correct_aspect_ratios(strip_of_orbits, axis=gluing_axis)
+                orbit_array_corrected = _correct_aspect_ratios(strip_of_orbits, strip_parameters, glued_parameters,
+                                                                   axis=gluing_axis)
                 # Concatenate the states with corrected proportions.
-                glued_strip_state = np.concatenate(tuple(x.state for x in array_of_orbits_corrected),
+                glued_strip_state = np.concatenate(tuple(x.state for x in orbit_array_corrected),
                                                    axis=gluing_axis)
                 # Put the glued strip's state back into a class instance.
                 glued_strip_orbit = class_constructor(state=glued_strip_state, basis=class_constructor.bases()[0],
-                                                      parameters=glued_parameters, **kwargs)
+                                                      parameters=strip_parameters, **kwargs)
 
                 # Take the result and store it for futher gluings.
                 glued_orbit_strips.append(glued_strip_orbit)
             # We combined along the gluing axis meaning that that axis has a new shape of 1. For symbol arrays
             # with more dimensions, we need to repeat the gluing along each axis, update with the newly glued strips.
             glue_shape = tuple(glue_shape[i] if i != gluing_axis else 1 for i in range(len(glue_shape)))
-            array_of_orbits = np.array(glued_orbit_strips).reshape(glue_shape)
-            if array_of_orbits.size == 1:
-                glued_orbit = array_of_orbits.ravel()[0]
+            orbit_array = np.array(glued_orbit_strips).reshape(glue_shape)
+            if orbit_array.size == 1:
+                glued_orbit = orbit_array.ravel()[0]
     else:
         # If we want a much simpler method of gluing, we can do "arraywise" which simply concatenates everything at
         # once. I would say this is the better option if all orbits in the tile dictionary are approximately equal
@@ -216,8 +228,8 @@ def glue(array_of_orbits, class_constructor, strip_wise=False, **kwargs):
         gluing_axis = len(glue_shape) - 1
 
         # arrange the orbit states into an array of the same shape as the symbol array.
-        orbit_field_list = np.array([o.transform(to=class_constructor.bases()[0]).state for o in array_of_orbits.ravel()])
-        glued_orbit_state = np.array(orbit_field_list).reshape(*array_of_orbits.shape, *tiling_shape)
+        orbit_field_list = np.array([o.transform(to=class_constructor.bases()[0]).state for o in orbit_array.ravel()])
+        glued_orbit_state = np.array(orbit_field_list).reshape(*orbit_array.shape, *tiling_shape)
         # iterate through and combine all of the axes.
         while len(glued_orbit_state.shape) > len(tiling_shape):
             glued_orbit_state = np.concatenate(glued_orbit_state, axis=gluing_axis)
@@ -252,9 +264,9 @@ def tile(symbol_array, tiling_dictionary, class_constructor,  **kwargs):
 
     """
     symbol_array_shape = symbol_array.shape
-    array_of_orbits = np.array([tiling_dictionary[symbol] for symbol in symbol_array.ravel()]
+    orbit_array = np.array([tiling_dictionary[symbol] for symbol in symbol_array.ravel()]
                                         ).reshape(*symbol_array_shape)
-    glued_orbit = glue(array_of_orbits, class_constructor, **kwargs)
+    glued_orbit = glue(orbit_array, class_constructor, **kwargs)
     return glued_orbit
 
 
