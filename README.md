@@ -7,7 +7,7 @@ Framework for solving chaotic nonlinear PDEs in spatiotemporal manner.
 This package enables the layman to solve nonlinear chaotic partial differential equations
 by finding unstable periodic orbits by solving the spatiotemporal boundary value problem.
 Currently there is only implementations of all techniques for the Kuramoto-Sivashinsky equation (KSE);
-***HOWEVER***, the package was designed to maximize user-friendlinessl, generalizability and modularity. The
+***HOWEVER***, the package was designed to maximize user-friendliness, generalizability and modularity. The
 spatiotemporal techniques are supposively agnostic of equation; this has not been tested thoroughly for
 arbitrary equations (preliminary testing via the spatiotemporal Henon map branch).
 

@@ -20,12 +20,12 @@ def _averaging_wrapper(instance_with_state_to_average, average=None):
     """
 
     if average == 'space':
-        return (1.0 / instance_with_state_to_average.L) * instance_with_state_to_average.state.mean(axis=1)
+        return (1.0 / instance_with_state_to_average.x) * instance_with_state_to_average.state.mean(axis=1)
     elif average == 'time':
-        return (1.0 / instance_with_state_to_average.T) * instance_with_state_to_average.state.mean(axis=0)
+        return (1.0 / instance_with_state_to_average.t) * instance_with_state_to_average.state.mean(axis=0)
     elif average == 'spacetime':
         # numpy average is over flattened array by default
-        return ((1.0 / instance_with_state_to_average.T) * (1.0 / instance_with_state_to_average.L)
+        return ((1.0 / instance_with_state_to_average.t) * (1.0 / instance_with_state_to_average.x)
                 * instance_with_state_to_average.state.mean())
     else:
         return instance_with_state_to_average.state
@@ -116,6 +116,7 @@ def shadowing(window_orbit, base_orbit, verbose=False, threshold=0.02, threshold
         # numpy meshgrid returns list but slicing needs a tuple.
         mask[tuple(np.meshgrid(trange, xrange, indexing='ij'))] = True
 
+    # TODO : Look at the mask returned and ensure it is the correct region
     masked_orbit = base_orbit.copy()
     if mask_region == 'exterior':
         mask = np.invert(mask)
@@ -146,7 +147,7 @@ def integrate(orbit_, **kwargs):
     """
     verbose = kwargs.get('verbose', False)
     orbit_ = orbit_.transform(to='spatial_modes')
-    integration_time = kwargs.get('integration_time', orbit_.T)
+    integration_time = kwargs.get('integration_time', orbit_.t)
     start_point = kwargs.get('starting_point', -1)
     # Take the last row (t=0) or first row (t=T) so this works for relative periodic solutions as well.
     orbit_t = orbit_.__class__(state=orbit_.state[start_point, :].reshape(1, -1), basis=orbit_.basis,
@@ -155,8 +156,8 @@ def integrate(orbit_, **kwargs):
     step_size = kwargs.get('step_size', 0.01)
 
     # Because N = 1, this is just the spatial matrices, negative sign b.c. other side of equation.
-    lin_diag = -1.0*(elementwise_dxn(orbit_t.L, orbit_t.M, orbit_t.shapes()[1][0], order=2)
-                     + elementwise_dxn(orbit_t.L, orbit_t.M, orbit_t.shapes()[1][0], order=4)).reshape(-1, 1)
+    lin_diag = -1.0*(elementwise_dxn(orbit_t.x, orbit_t.M, orbit_t.shapes()[1][0], order=2)
+                     + elementwise_dxn(orbit_t.x, orbit_t.M, orbit_t.shapes()[1][0], order=4)).reshape(-1, 1)
 
     E = np.exp(step_size*lin_diag)
     E2 = np.exp(step_size*lin_diag/2.0)
@@ -212,8 +213,8 @@ def integrate(orbit_, **kwargs):
         print(']', end='')
     # By default do not assign spatial shift S.
     if kwargs.get('return_trajectory', True):
-        return orbit_.__class__(state=u.reshape(nmax, -1), basis='field', parameters=(integration_time, orbit_.L, 0))
+        return orbit_.__class__(state=u.reshape(nmax, -1), basis='field', parameters=(integration_time, orbit_.x, 0))
     else:
-        return orbit_.__class__(state=u.reshape(1, -1), basis='field', parameters=(integration_time, orbit_.L, 0))
+        return orbit_.__class__(state=u.reshape(1, -1), basis='field', parameters=(integration_time, orbit_.x, 0))
 
 

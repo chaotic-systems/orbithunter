@@ -20,18 +20,18 @@ an h5 file, it is required to use the h5py API explicitly.
 """
 
 
-def read_h5(path, h5_groups, equation, class_name=None, validate=False, **orbitkwargs):
+def read_h5(path, orbit_names, equation, class_name=None, validate=False, **orbitkwargs):
     """
     Parameters
     ----------
     path : str
         Absolute or relative path to .h5 file
-    h5_groups : str or tuple of str
+    orbit_names : str or tuple of str
         The h5py.Group (s) of the corresponding .h5 file
     equation : str
         The abbreviation for the corresponding equation's module.
     class_name : str or iterable of str
-        If iterable of str then it needs to be the same length as h5_groups
+        If iterable of str then it needs to be the same length as orbit_names
     validate : bool
         Whether or not to access Orbit().verify_integrity, presumably checking the integrity of the imported data.
     orbitkwargs : dict
@@ -44,7 +44,7 @@ def read_h5(path, h5_groups, equation, class_name=None, validate=False, **orbitk
 
     Notes
     -----
-    h5_group can either be a single string or an iterable; this is to make importation of multiple .h5 files
+    orbit_name can either be a single string or an iterable; this is to make importation of multiple .h5 files
     more efficient, i.e. avoiding multiple dynamic imports of the same package.
 
     The purpose of this function is only to import data whose file and group names are known. To query a HDF5
@@ -55,21 +55,21 @@ def read_h5(path, h5_groups, equation, class_name=None, validate=False, **orbitk
     # imports of all equations and possible circular dependencies.
     module = importlib.import_module(''.join(['.', equation]), 'orbithunter')
 
-    if isinstance(h5_groups, str):
+    if isinstance(orbit_names, str):
         # If string, then place inside a len==1 tuple so that iteration doesn't raise an error
-        h5_groups = (h5_groups,)
-    elif isinstance(h5_groups, tuple) and len(h5_groups) > 1:
+        orbit_names = (orbit_names,)
+    elif isinstance(orbit_names, tuple) and len(orbit_names) > 1:
         # If tuple, but len > 1 then this implies that *args were passed separated by commas, i.e. a,b,c as opposed
         # to (a,b,c)
         pass
     else:
         raise TypeError('Incorrect type for hdf5 group names; needs to be str separated by commas or a tuple of str')
 
-    # With h5_groups now correctly instantiated as an iterable, can open file and iterate.
+    # With orbit_names now correctly instantiated as an iterable, can open file and iterate.
     with h5py.File(os.path.abspath(path), 'r') as file:
         imported_orbits = []
-        for i, orbit_group in enumerate(h5_groups):
-            # class_name needs to be constant (str input) or specified for each group (tuple with len == len(h5_groups))
+        for i, orbit_group in enumerate(orbit_names):
+            # class_name needs to be constant (str input) or specified for each group (tuple with len == len(orbit_names))
             try:
                 if isinstance(class_name, str):
                     class_ = getattr(module, class_name)
@@ -81,7 +81,7 @@ def read_h5(path, h5_groups, equation, class_name=None, validate=False, **orbitk
                     # full data set.
                     class_ = getattr(module, str(os.path.basename(path).split('_')[0]))
             except (NameError, TypeError, IndexError):
-                print('class_name not recognized or unable to be interpreted from h5_group name')
+                print('class_name not recognized or unable to be interpreted from orbit_name name')
 
             orbit_ = class_(state=file[''.join([orbit_group, '/field'])][...],
                             parameters=tuple(file[''.join([orbit_group, '/parameters'])]),
@@ -98,7 +98,7 @@ def read_h5(path, h5_groups, equation, class_name=None, validate=False, **orbitk
         return imported_orbits
 
 
-def read_tileset(filename, h5_groups, keys, equation, class_name=None, validate=False, **orbitkwargs):
+def read_tileset(filename, orbit_names, keys, equation, class_name=None, validate=False, **orbitkwargs):
     """ Importation of data as tiling dictionary
 
     Parameters
@@ -106,10 +106,10 @@ def read_tileset(filename, h5_groups, keys, equation, class_name=None, validate=
     filename : str
         The relative/absolute location of the file.
 
-    h5_groups : str
+    orbit_names : str
         The orbit names within the .h5 file
     keys :
-        The labels to give to the orbits corresponding to h5_groups, respectively.
+        The labels to give to the orbits corresponding to orbit_names, respectively.
     equation : str
         The module name for the corresponding equation, i.e. 'ks'
     class_name : str
@@ -122,9 +122,9 @@ def read_tileset(filename, h5_groups, keys, equation, class_name=None, validate=
     Returns
     -------
     dict :
-        Dictionary whose values are given by the orbits specified by h5_groups.
+        Dictionary whose values are given by the orbits specified by orbit_names.
     """
-    orbits = read_h5(filename, h5_groups, equation, class_name=class_name, validate=validate, **orbitkwargs)
+    orbits = read_h5(filename, orbit_names, equation, class_name=class_name, validate=validate, **orbitkwargs)
     # if keys and orbits are not the same length, it will only form a dict with min([len(keys), len(orbits)]) items
     return dict(zip(keys, orbits))
 

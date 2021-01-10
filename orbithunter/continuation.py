@@ -1,14 +1,7 @@
 from .optimize import converge
 import numpy as np
 
-__all__ = ['dimension_continuation', 'discretization_continuation']
-
-
-def _constrain(orbit_, axis=0):
-    constraints = {key: (val if key != orbit_.parameter_labels()[axis] else True)
-                   for key, val in orbit_.constraints.items()}
-    return orbit_.__class__(state=orbit_.state, basis=orbit_.basis,
-                            parameters=orbit_.parameters, constraints=constraints)
+__all__ = ['parameter_continuation', 'discretization_continuation']
 
 
 def _extent_equals_target(orbit_, target_extent, axis=0):
@@ -68,7 +61,7 @@ def _increment_discretization(orbit_, target_size, increment, axis=0):
     return orbit_.resize(*incremented_shape)
 
 
-def dimension_continuation(orbit_, new_size, axis=0, step_size=0.01, **kwargs):
+def parameter_continuation(orbit_, new_size, axis=0, step_size=0.01, **kwargs):
     """
 
     Parameters
@@ -87,7 +80,7 @@ def dimension_continuation(orbit_, new_size, axis=0, step_size=0.01, **kwargs):
     # Use list to get the correct count, then convert to tuple as expected.
     # Check that the orbit_ is converged prior to any constraints
 
-    converge_result = converge(_constrain(orbit_, axis=axis), **kwargs)
+    converge_result = converge(orbit_.constrain(axis=axis), **kwargs)
     # check that the orbit_ instance is converged when having constraints, otherwise performance takes a big hit.
     # The constraints are applied but orbit_ can also be passed with the correct constrains.
 
@@ -97,11 +90,6 @@ def dimension_continuation(orbit_, new_size, axis=0, step_size=0.01, **kwargs):
     while converge_result.status == -1 and not _extent_equals_target(converge_result.orbit, new_size, axis=axis):
         incremented_orbit = _increment_dimension(converge_result.orbit, new_size, step_size, axis=axis)
         converge_result = converge(incremented_orbit, **kwargs)
-        # If we want to save all states in the family else save the returned orbit from converge_result
-        # outside the function
-        if kwargs.get('save', False):
-            converge_result.orbit.to_h5(directory=kwargs.get('directory', ''), verbose=kwargs.get('verbose', False),
-                                        include_residual=kwargs.get('include_residual', False))
 
     return converge_result
 
@@ -141,8 +129,6 @@ def discretization_continuation(orbit_, target_shape, cycle=False, **kwargs):
                                                           step_size, axis=axes_order[cycle_index])
             converge_result = converge(incremented_orbit, **kwargs)
             cycle_index = np.mod(cycle_index+1, len(axes_order))
-            if kwargs.get('save', False):
-                converge_result.orbit.to_h5(**kwargs)
     else:
         # As long as we keep converging to solutions, we keep stepping towards target value.
         for axis in axes_order:
@@ -157,8 +143,7 @@ def discretization_continuation(orbit_, target_shape, cycle=False, **kwargs):
                 incremented_orbit = _increment_discretization(converge_result.orbit, target_shape[axis],
                                                               step_size, axis=axis)
                 converge_result = converge(incremented_orbit, **kwargs)
-                if kwargs.get('save', False):
-                    converge_result.orbit.to_h5(**kwargs)
+
     if converge_result.status == -1:
         # At the very end, we are either at the correct shape, such that the next line does nothing OR we have
         # a discretization of an equilibrium solution that is brought to the final target shape by rediscretization.

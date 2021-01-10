@@ -66,14 +66,14 @@ def so2_coefficients(order=1):
 
 
 @lru_cache()
-def spatial_frequencies(L, M, order=1):
+def spatial_frequencies(x, m, order=1):
     """ Array of spatial frequencies that the corresponding Fourier modes represent
 
     Parameters
     ----------
-    L : float
+    x : float
         Spatial dimension
-    M : int
+    m : int
         Spatial discretization size
     order : int
         Order of the derivative
@@ -83,19 +83,19 @@ def spatial_frequencies(L, M, order=1):
     np.ndarray :
         Array of spatial frequencies of shape (1, m), raised to 'order' power for n-th order derivatives.
     """
-    q_k = rfftfreq(M, d=L/(2*pi*M))[1:-1].reshape(1, -1)
+    q_k = rfftfreq(m, d=x/(2*pi*m))[1:-1].reshape(1, -1)
     return q_k**order
 
 
 @lru_cache()
-def temporal_frequencies(T, N, order=1):
+def temporal_frequencies(t, n, order=1):
     """ Array of time frequencies that the corresponding Fourier modes represent
 
     Parameters
     ----------
-    T : float
+    t : float
         Temporal dimension
-    N : int
+    n : int
         Temporal discretization size
     order : int
         Order of the derivative
@@ -109,20 +109,20 @@ def temporal_frequencies(T, N, order=1):
     -----
     Extra factor of '-1' because of how the state is ordered, 0th row corresponds to t=T, last row t=0.
     """
-    # the parameter 'd' divides the values of rfftfreq s.t. the result is 2 pi N / T * rfftfreq
-    w_j = rfftfreq(N, d=-T/(2*pi*N))[1:-1].reshape(-1, 1)
+    # the parameter 'd' divides the values of rfftfreq s.t. the result is 2 pi n / t * rfftfreq
+    w_j = rfftfreq(n, d=-t/(2*pi*n))[1:-1].reshape(-1, 1)
     return w_j**order
 
 
 @lru_cache()
-def elementwise_dtn(T, N, tiling_dimension, order=1):
+def elementwise_dtn(t, n, tiling_dimension, order=1):
     """ Matrix/rank 2 tensor of temporal mode frequencies
 
     Parameters
     ----------
-    T : float
+    t : float
         Temporal period
-    N : int
+    n : int
         Temporal discretization size
     tiling_dimension : int
         Number of "copies" of the frequencies so that frequency tensor is the same dimension as mode tensor.
@@ -141,7 +141,7 @@ def elementwise_dtn(T, N, tiling_dimension, order=1):
     with a set of spatiotemporal Fourier modes.
 
     """
-    w = temporal_frequencies(T, N, order=order)
+    w = temporal_frequencies(t, n, order=order)
     # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
     c1, c2 = so2_coefficients(order=order)
     # The Nyquist frequency is never included, this is how time frequency modes are ordered.
@@ -151,14 +151,14 @@ def elementwise_dtn(T, N, tiling_dimension, order=1):
 
 
 @lru_cache()
-def elementwise_dxn(L, M, tiling_dimension, order=1):
+def elementwise_dxn(x, m, tiling_dimension, order=1):
     """ Matrix/rank 2 tensor of spatial mode frequencies
 
     Parameters
     ----------
-    L : float
+    x : float
         Spatial period
-    M : int
+    m : int
         Spatial discretization size
     tiling_dimension : int
         Number of "copies" of the frequencies so that frequency tensor is the same dimension as mode tensor.
@@ -177,7 +177,7 @@ def elementwise_dxn(L, M, tiling_dimension, order=1):
     with a set of spatiotemporal Fourier modes.
 
     """
-    q = spatial_frequencies(L, M, order=order)
+    q = spatial_frequencies(x, m, order=order)
     # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
     c1, c2 = so2_coefficients(order=order)
     # Create elementwise spatial frequency matrix
@@ -186,14 +186,14 @@ def elementwise_dxn(L, M, tiling_dimension, order=1):
 
 
 @lru_cache()
-def dxn_block(L, M, order=1):
+def dxn_block(x, m, order=1):
     """ Block diagonal matrix of spatial frequencies
 
     Parameters
     ----------
-    L : float
+    x : float
         spatial period
-    M : int
+    m : int
         spatial discretization size.
     order : int
         Order of the desired derivative.
@@ -206,18 +206,18 @@ def dxn_block(L, M, order=1):
     -----
     This is the SO(2) generator for multiple Fourier modes. Only used in explicit construction of matrices.
     """
-    return np.kron(so2_generator(order=order), np.diag(spatial_frequencies(L, M, order=order).ravel()))
+    return np.kron(so2_generator(order=order), np.diag(spatial_frequencies(x, m, order=order).ravel()))
 
 
 @lru_cache()
-def dtn_block(T, N, order=1):
+def dtn_block(t, n, order=1):
     """ Block diagonal matrix of temporal frequencies
 
     Parameters
     ----------
-    T : float
+    t : float
         Temporal period
-    N : int
+    n : int
         Temporal discretization size.
     order : int
         Order of the desired derivative.
@@ -230,17 +230,17 @@ def dtn_block(T, N, order=1):
     -----
     This is the SO(2) generator for multiple Fourier modes. Only used in explicit construction of matrices.
     """
-    return np.kron(so2_generator(order=order), np.diag(temporal_frequencies(T, N, order=order).ravel()))
+    return np.kron(so2_generator(order=order), np.diag(temporal_frequencies(t, n, order=order).ravel()))
 
 
-def calculate_spatial_shift(spatial_modes, L, **kwargs):
+def calculate_spatial_shift(spatial_modes, x, **kwargs):
     """ Calculate the phase difference between the spatial modes at t=0 and t=T
 
     Parameters
     ----------
     spatial_modes : np.ndarray
         The array of spatial Fourier modes
-    L : float
+    x : float
         Spatial period in "physical units" (i.e. not plotting units)
     kwargs :
         n_modes : int
@@ -267,15 +267,15 @@ def calculate_spatial_shift(spatial_modes, L, **kwargs):
     import warnings
     # If they are close enough to the same point, then shift equals 0
     if np.linalg.norm(modes_0-modes_T) <= 10**-6:
-        shift = L / spatial_modes.shape[1]
+        shift = x / spatial_modes.shape[1]
     else:
         # Get guess shift from the angle between the vectors
-        shift_guess = (L / (2 * pi))*float(np.arccos((np.dot(np.transpose(modes_T), modes_0)
+        shift_guess = (x / (2 * pi))*float(np.arccos((np.dot(np.transpose(modes_T), modes_0)
                                            / (np.linalg.norm(modes_T)*np.linalg.norm(modes_0)))))
 
         def fun_(shift_):
             # find shift which minimizes the differences at the boundaries.
-            thetak = shift_ * ((2 * pi) / L) * np.arange(1, m+1)
+            thetak = shift_ * ((2 * pi) / x) * np.arange(1, m+1)
             cosinek = np.cos(thetak)
             sinek = np.sin(thetak)
             rotated_real_modes_T = np.multiply(cosinek,  modes_T[:-m]) + np.multiply(sinek,  modes_T[-m:])
@@ -288,6 +288,6 @@ def calculate_spatial_shift(spatial_modes, L, **kwargs):
         shift = fsolve(fun_, np.array(shift_guess))[0]
         warnings.resetwarnings()
         # because periodic boundary conditions take modulo; "overstretching" doesn't occur from physical limits.
-        shift = np.sign(shift) * np.mod(np.abs(shift), L)
+        shift = np.sign(shift) * np.mod(np.abs(shift), x)
     return shift
 
