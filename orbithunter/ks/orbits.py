@@ -117,27 +117,29 @@ class OrbitKS(Orbit):
 
         if to == 'field':
             if self.basis == 'spatial_modes':
-                return self._inv_space_transform()
+                transformed_orbit = self._inv_space_transform()
             elif self.basis == 'modes':
-                return self._inv_spacetime_transform()
+                transformed_orbit = self._inv_spacetime_transform()
             else:
-                return self
+                transformed_orbit = self
         elif to == 'spatial_modes':
             if self.basis == 'field':
-                return self._space_transform()
+                transformed_orbit = self._space_transform()
             elif self.basis == 'modes':
-                return self._inv_time_transform()
+                transformed_orbit = self._inv_time_transform()
             else:
-                return self
+                transformed_orbit = self
         elif to == 'modes':
             if self.basis == 'spatial_modes':
-                return self._time_transform()
+                transformed_orbit = self._time_transform()
             elif self.basis == 'field':
-                return self._spacetime_transform()
+                transformed_orbit = self._spacetime_transform()
             else:
-                return self
+                transformed_orbit = self
         else:
             raise ValueError('Trying to transform to unrecognized basis.')
+
+        return transformed_orbit
 
     def dt(self, order=1, return_array=False):
         """ Time derivatives of the current state.
@@ -528,31 +530,31 @@ class OrbitKS(Orbit):
         # to font size) Default label tick size is 10 for time and the fundamental frequency, 2 pi sqrt(2) for space.
 
         # Create time ticks, with the separation
-        if plot_orbit.T > 10:
-            timetick_step = np.max([np.min([100, (5 * 2**(np.max([int(np.log2(plot_orbit.T//2)) - 3,  1])))]), 5])
-            yticks = np.arange(0, plot_orbit.T, timetick_step)
+        if plot_orbit.t > 10:
+            timetick_step = np.max([np.min([100, (5 * 2**(np.max([int(np.log2(plot_orbit.t//2)) - 3,  1])))]), 5])
+            yticks = np.arange(0, plot_orbit.t, timetick_step)
             ylabels = np.array([str(int(y)) for y in yticks])
-        elif 0 < plot_orbit.T <= 10:
-            scaled_T = np.round(plot_orbit.T, 1)
-            yticks = np.array([0, plot_orbit.T])
+        elif 0 < plot_orbit.t <= 10:
+            scaled_T = np.round(plot_orbit.t, 1)
+            yticks = np.array([0, plot_orbit.t])
             ylabels = np.array(['0', str(scaled_T)])
         else:
-            plot_orbit.T = np.min([plot_orbit.L, 1])
-            yticks = np.array([0, plot_orbit.T])
+            plot_orbit.t = np.min([plot_orbit.x, 1])
+            yticks = np.array([0, plot_orbit.t])
             ylabels = np.array(['0', '$\\infty$'])
 
-        if plot_orbit.L > 2*pi*np.sqrt(2):
-            xmult = (plot_orbit.L // 64) + 1
+        if plot_orbit.x > 2*pi*np.sqrt(2):
+            xmult = (plot_orbit.x // 64) + 1
             xscale = xmult * 2*pi*np.sqrt(2)
-            xticks = np.arange(0, plot_orbit.L, xscale)
-            xlabels = [str((xmult*x) // xscale) for x in xticks]
+            xticks = np.arange(0, plot_orbit.x, xscale)
+            xlabels = [str(int((xmult*x) // xscale)) for x in xticks]
         else:
-            scaled_L = np.round(plot_orbit.L / (2*pi*np.sqrt(2)), 1)
-            xticks = np.array([0, plot_orbit.L])
+            scaled_L = np.round(plot_orbit.x / (2*pi*np.sqrt(2)), 1)
+            xticks = np.array([0, plot_orbit.x])
             xlabels = np.array(['0', str(scaled_L)])
 
-        default_figsize = (min([max([0.25, 0.15*plot_orbit.L**0.7]), 20]),
-                           min([max([0.25, 0.15*plot_orbit.T**0.7]), 20]))
+        default_figsize = (min([max([0.25, 0.15*plot_orbit.x**0.7]), 20]),
+                           min([max([0.25, 0.15*plot_orbit.t**0.7]), 20]))
 
         figsize = kwargs.get('figsize', default_figsize)
         extentL, extentT = np.min([15, figsize[0]]), np.min([15, figsize[1]])
@@ -563,8 +565,8 @@ class OrbitKS(Orbit):
         image = ax.imshow(plot_orbit.state, extent=[0, extentL, 0, extentT],
                           cmap='jet', interpolation='none', aspect='auto')
 
-        xticks = (xticks/plot_orbit.L) * extentL
-        yticks = (yticks/plot_orbit.T) * extentT
+        xticks = (xticks/plot_orbit.x) * extentL
+        yticks = (yticks/plot_orbit.t) * extentT
 
         # Include custom ticks and tick labels
         ax.set_xticks(xticks)
@@ -840,8 +842,8 @@ class OrbitKS(Orbit):
 
             orbit_to_rotate = self.transform(to='spatial_modes')
             # Refer to rotation matrix in 2-D for reference.
-            cosine_block = np.tile(cosinek.reshape(1, -1), (orbit_to_rotate.N, 1))
-            sine_block = np.tile(sinek.reshape(1, -1), (orbit_to_rotate.N, 1))
+            cosine_block = np.tile(cosinek.reshape(1, -1), (orbit_to_rotate.n, 1))
+            sine_block = np.tile(sinek.reshape(1, -1), (orbit_to_rotate.n, 1))
 
             # Rotation performed on spatial modes because otherwise rotation is ill-defined for Antisymmetric and
             # Shift-reflection symmetric Orbits.
@@ -967,36 +969,37 @@ class OrbitKS(Orbit):
         the appropriate attributes of the rediscretized orbit.
         """
         resolution = kwargs.get('resolution', 'default')
-        T, L = parameters
+        t, x = parameters
         N, M = kwargs.get('N', None), kwargs.get('M', None)
         if N is None:
-            if T == 0:
+            if t == 0:
                 N = cls.default_shape()[0]
             elif isinstance(resolution, tuple):
-                N = np.max([2**(int(np.log2(T)+resolution[0])), 16])
+                N = np.max([2**(int(np.log2(t)+resolution[0])), 16])
             elif resolution == 'coarse':
-                N = np.max([2**(int(np.log2(T)-2)), 16])
+                N = np.max([2**(int(np.log2(t)-2)), 16])
             elif resolution == 'fine':
-                N = np.max([2**(int(np.log2(T)+1)), 32])
+                N = np.max([2**(int(np.log2(t)+1)), 32])
             elif resolution == 'power':
-                N = np.max([2*(int(4*T**(1./2.))//2), 32])
+                N = np.max([2*(int(4*t**(1./2.))//2), 32])
             else:
-                N = np.max([2**(int(np.log2(T)-1)), 32])
-
+                N = np.max([2**(int(np.log2(t)-1)), 32])
+            N = max(N, cls.minimal_shape()[0])
+            
         if M is None:
-            if L == 0:
+            if x == 0:
                 M = cls.default_shape()[1]
             elif isinstance(resolution, tuple):
-                M = np.max([2**(int(np.log2(L)+resolution[1])), 16])
+                M = np.max([2**(int(np.log2(x)+resolution[1])), 16])
             elif resolution == 'coarse':
-                M = np.max([2**(int(np.log2(L)-1)), 16])
+                M = np.max([2**(int(np.log2(x)-1)), 16])
             elif resolution == 'fine':
-                M = np.max([2**(int(np.log2(L)+2)), 32])
+                M = np.max([2**(int(np.log2(x)+2)), 32])
             elif resolution == 'power':
-                M = np.max([2*(int(4*L**(1./2.))//2), 32])
+                M = np.max([2*(int(4*x**(1./2.))//2), 32])
             else:
-                M = np.max([2**(int(np.log2(L)+0.5)), 32])
-
+                M = np.max([2**(int(np.log2(x)+0.5)), 32])
+            M = max(M, cls.minimal_shape()[1])
         return N, M
 
     def copy(self):
@@ -1039,17 +1042,17 @@ class OrbitKS(Orbit):
             raise ValueError('New discretization size must be an even number, preferably a power of 2')
         else:
             if axis == 0:
-                padding = (size-modes.N) // 2
+                padding = (size-modes.n) // 2
                 padding_tuple = ((padding, padding), (0, 0))
-                padded_modes = np.concatenate((modes.state[:-modes.n, :],
-                                               np.pad(modes.state[-modes.n:, :], padding_tuple)), axis=0)
-                padded_modes *= np.sqrt(size / modes.N)
+                padded_modes = np.concatenate((modes.state[:-(modes.n//2-1), :],
+                                               np.pad(modes.state[-(modes.n//2-1):, :], padding_tuple)), axis=0)
+                padded_modes *= np.sqrt(size / modes.n)
             else:
-                padding = (size-modes.M) // 2
+                padding = (size-modes.m) // 2
                 padding_tuple = ((0, 0), (padding, padding))
-                padded_modes = np.concatenate((modes.state[:, :-modes.m],
-                                               np.pad(modes.state[:, -modes.m:], padding_tuple)), axis=1)
-                padded_modes *= np.sqrt(size / modes.M)
+                padded_modes = np.concatenate((modes.state[:, :-(modes.m//2-1)],
+                                               np.pad(modes.state[:, -(modes.m//2-1):], padding_tuple)), axis=1)
+                padded_modes *= np.sqrt(size / modes.m)
         return self.__class__(state=padded_modes, basis='modes',
                               parameters=self.parameters).transform(to=self.basis)
 
@@ -1082,14 +1085,14 @@ class OrbitKS(Orbit):
                 truncate_number = int(size // 2) - 1
                 # Split into real and imaginary components, truncate separately.
                 first_half = modes.state[:truncate_number+1, :]
-                second_half = modes.state[-modes.n:-modes.n+truncate_number, :]
-                truncated_modes = np.sqrt(size / modes.N) * np.concatenate((first_half, second_half), axis=0)
+                second_half = modes.state[-(modes.n//2-1):-(modes.n//2-1)+truncate_number, :]
+                truncated_modes = np.sqrt(size / modes.n) * np.concatenate((first_half, second_half), axis=0)
             else:
                 truncate_number = int(size // 2) - 1
                 # Split into real and imaginary components, truncate separately.
                 first_half = self.state[:, :truncate_number]
                 second_half = self.state[:, -(int(self.m // 2) - 1):-(int(self.m // 2) - 1) + truncate_number]
-                truncated_modes = np.sqrt(size / modes.M) * np.concatenate((first_half, second_half), axis=1)
+                truncated_modes = np.sqrt(size / modes.m) * np.concatenate((first_half, second_half), axis=1)
         return self.__class__(state=truncated_modes, basis=self.basis, parameters=self.parameters)
 
     def verify_integrity(self):
@@ -1242,9 +1245,11 @@ class OrbitKS(Orbit):
         np.random.seed(kwargs.get('seed', None))
 
         # also accepts N and M as kwargs
-        self.discretization = self.parameter_based_discretization(self.dimensions(), **kwargs)
-        # self.n, (int(self.m // 2) - 1) = int(self.n // 2) - 1, int(self.m // 2) - 1
-
+        n, m = self.parameter_based_discretization(self.dimensions(), **kwargs)
+        if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
+            raise ValueError('discretization size does not satisfy minimum requirements. See class.minimal_shape()')
+        else:
+            self.discretization = n, m
         # I think this is the easiest way to get symmetry-dependent Fourier mode arrays' shapes.
         # power = 2 b.c. odd powers not defined for spacetime modes for discrete symmetries.
         space_ = np.abs(elementwise_dxn(2*pi, self.m, self.shapes()[2][0])[:, :self.shapes()[2][1]]).astype(int)
@@ -1335,6 +1340,8 @@ class OrbitKS(Orbit):
         """ Instantiate state and infer shape of collocation grid from numpy array and basis
         """
         if isinstance(state, np.ndarray):
+            if len(state.shape) != 2:
+                raise ValueError('"state" array must have two dimensions')
             self.state = state
         else:
             self.state = np.array([], dtype=float).reshape(0, 0)
@@ -1353,8 +1360,13 @@ class OrbitKS(Orbit):
                 # N, M - 2
                 n, m = self.shape[0], self.shape[1] + 2
             else:
-                raise ValueError('basis parameter equal "field" or "spatial_modes", or "modes"')
-            self.discretization = n, m
+                raise ValueError('basis not recognized; must equal "field" or "spatial_modes", or "modes"')
+            
+            if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
+                raise ValueError('discretization size does not satisfy minimum requirements. See class.minimal_shape()')
+            else:
+                self.discretization = n, m
+                
             self.basis = basis
         else:
             self.discretization = None
@@ -1792,15 +1804,15 @@ class RelativeOrbitKS(OrbitKS):
         # this is needed unless all parameters are fixed, but that isn't ever a realistic choice.
         self_dx = self.dx(return_array=True)
         if not self.constraints['t']:
-            matvec_comoving.state += other.T * (-1.0 / self.t) * (-self.s / self.t) * self_dx
+            matvec_comoving.state += other.t * (-1.0 / self.t) * (-self.s / self.t) * self_dx
 
         if not self.constraints['x']:
             # Derivative of mapping with respect to T is the same as -1/T * u_t
-            matvec_comoving.state += other.L * (-1.0 / self.x) * (-self.s / self.t) * self_dx
+            matvec_comoving.state += other.x * (-1.0 / self.x) * (-self.s / self.t) * self_dx
 
         if not self.constraints['s']:
             # technically could do self_comoving / self.s but this can be numerically unstable when self.s is small
-            matvec_comoving.state += other.S * (-1.0 / self.t) * self_dx
+            matvec_comoving.state += other.s * (-1.0 / self.t) * self_dx
 
         return matvec_orbit + matvec_comoving
 
@@ -1919,7 +1931,7 @@ class RelativeOrbitKS(OrbitKS):
     def verify_integrity(self):
         """ Check whether the orbit converged to an equilibrium or close-to-zero solution """
         orbit_with_inverted_shift = self.copy()
-        orbit_with_inverted_shift.S = -self.s
+        orbit_with_inverted_shift.s = -self.s
         residual_imported_S = self.residual()
         residual_negated_S = orbit_with_inverted_shift.residual()
         if residual_imported_S > residual_negated_S:
@@ -2013,6 +2025,8 @@ class RelativeOrbitKS(OrbitKS):
             parameters_with_shift = tuple(shift if label == 's' else val for label, val in zip(self.parameter_labels(),
                                                                                                self.parameters))
             setattr(self, 'parameters', parameters_with_shift)
+        # For chaining operations.
+        return self
 
     def _jacobian_parameter_derivatives_concat(self, jac_):
         """ Concatenate parameter partial derivatives to Jacobian matrix
@@ -2058,9 +2072,6 @@ class RelativeOrbitKS(OrbitKS):
 
 class AntisymmetricOrbitKS(OrbitKS):
 
-    # def __init__(self, state=None, basis=None, parameters=None, **kwargs):
-    #     super().__init__(state=state, basis=basis, parameters=parameters, **kwargs)
-
     def nonlinear(self, other, return_array=False):
         """ nonlinear computation of the nonlinear term of the Kuramoto-Sivashinsky equation
 
@@ -2087,14 +2098,14 @@ class AntisymmetricOrbitKS(OrbitKS):
         else:
             if axis == 0:
                 # Split into real and imaginary components, pad separately.
-                padding = (size-modes.N) // 2
+                padding = (size-modes.n) // 2
                 padding_tuple = ((padding, padding), (0, 0))
-                padded_modes = np.concatenate((modes.state[:-modes.n, :],
-                                               np.pad(modes.state[-modes.n:, :], padding_tuple)), axis=0)
-                padded_modes *= np.sqrt(size / modes.N)
+                padded_modes = np.concatenate((modes.state[:-(modes.n//2-1), :],
+                                               np.pad(modes.state[-(modes.n//2-1):, :], padding_tuple)), axis=0)
+                padded_modes *= np.sqrt(size / modes.n)
             else:
-                padding_number = (size-modes.M) // 2
-                padded_modes = np.sqrt(size / modes.M) * np.pad(modes.state, ((0, 0), (0, padding_number)))
+                padding_number = (size-modes.m) // 2
+                padded_modes = np.sqrt(size / modes.m) * np.pad(modes.state, ((0, 0), (0, padding_number)))
         return self.__class__(state=padded_modes, basis='modes',
                               parameters=self.parameters).transform(to=self.basis)
 
@@ -2107,16 +2118,16 @@ class AntisymmetricOrbitKS(OrbitKS):
             if axis == 0:
                 truncate_number = int(size // 2) - 1
                 first_half = modes.state[:truncate_number+1, :]
-                second_half = modes.state[-modes.n:-modes.n+truncate_number, :]
-                truncated_modes = np.sqrt(size / modes.N) * np.concatenate((first_half, second_half), axis=0)
+                second_half = modes.state[-(modes.n//2-1):-(modes.n//2-1)+truncate_number, :]
+                truncated_modes = np.sqrt(size / modes.n) * np.concatenate((first_half, second_half), axis=0)
             else:
                 truncate_number = int(size // 2) - 1
-                truncated_modes = np.sqrt(size / modes.M) * modes.state[:, :truncate_number]
+                truncated_modes = np.sqrt(size / modes.m) * modes.state[:, :truncate_number]
         return self.__class__(state=truncated_modes, basis='modes',
                               parameters=self.parameters).transform(to=self.basis)
 
     @classmethod
-    def _default_parameter_ranges(cls):
+    def default_parameter_ranges(cls):
         # L=38.5 based on Yueheng Lan and Cvitanovic investigations
         return {'t': (20., 200.), 'x': (38.5, 100.), 's': (0., 0.)}
 
@@ -2141,10 +2152,12 @@ class AntisymmetricOrbitKS(OrbitKS):
 
     def _parse_state(self, state, basis, **kwargs):
         if isinstance(state, np.ndarray):
+            if len(state.shape) != 2:
+                raise ValueError('"state" array must have two dimensions')
             self.state = state
         else:
             self.state = np.array([], dtype=float).reshape(0, 0)
-            
+
         if self.size > 0:
             if basis is None:
                 raise ValueError('basis must be provided when state is provided')
@@ -2155,8 +2168,11 @@ class AntisymmetricOrbitKS(OrbitKS):
             elif basis == 'spatial_modes':
                 n, m = self.shape[0], self.shape[1]+2
             else:
-                raise ValueError('basis parameter equal "field" or "spatial_modes", or "modes"')
-            self.discretization = n, m
+                raise ValueError('basis not recognized; must equal "field" or "spatial_modes", or "modes"')
+            if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
+                raise ValueError('discretization size does not satisfy minimum requirements. See class.minimal_shape()')
+            else:
+                self.discretization = n, m
             self.basis = basis
             # self.n, (int(self.m // 2) - 1) = max([int(self.n // 2) - 1, 1]), int(self.m // 2) - 1
         else:
@@ -2270,26 +2286,6 @@ class AntisymmetricOrbitKS(OrbitKS):
 
 class ShiftReflectionOrbitKS(OrbitKS):
 
-    # def __init__(self, state=None, basis=None, parameters=None, **kwargs):
-    #     """ Orbit subclass for solutions with spatiotemporal shift-reflect symmetry
-    #
-    #
-    #
-    #     Parameters
-    #     ----------
-    #     state
-    #     basis
-    #     T
-    #     L
-    #     kwargs
-    #
-    #     Notes
-    #     -----
-    #     Technically could inherit some functions from AntisymmetricOrbitKS but in regards to the Physics
-    #     going on it is more coherent to have it as a subclass of OrbitKS only.
-    #     """
-    #     super().__init__(state=state, basis=basis, parameters=parameters, **kwargs)
-
     def nonlinear(self, other, return_array=False):
         """ nonlinear computation of the nonlinear term of the Kuramoto-Sivashinsky equation
 
@@ -2310,14 +2306,14 @@ class ShiftReflectionOrbitKS(OrbitKS):
             raise ValueError('New discretization size must be an even number, preferably a power of 2')
         else:
             if axis == 0:
-                padding = (size-modes.N) // 2
+                padding = (size-modes.n) // 2
                 padding_tuple = ((padding, padding), (0, 0))
-                padded_modes = np.concatenate((modes.state[:-modes.n, :],
-                                               np.pad(modes.state[-modes.n:, :], padding_tuple)), axis=0)
-                padded_modes *= np.sqrt(size / modes.N)
+                padded_modes = np.concatenate((modes.state[:-(modes.n//2-1), :],
+                                               np.pad(modes.state[-(modes.n//2-1):, :], padding_tuple)), axis=0)
+                padded_modes *= np.sqrt(size / modes.n)
             else:
-                padding_number = (size-modes.M) // 2
-                padded_modes = np.sqrt(size / modes.M) * np.pad(modes.state, ((0, 0), (0, padding_number)))
+                padding_number = (size-modes.m) // 2
+                padded_modes = np.sqrt(size / modes.m) * np.pad(modes.state, ((0, 0), (0, padding_number)))
 
         return self.__class__(state=padded_modes, basis='modes',
                               parameters=self.parameters).transform(to=self.basis)
@@ -2331,11 +2327,11 @@ class ShiftReflectionOrbitKS(OrbitKS):
             if axis == 0:
                 truncate_number = int(size // 2) - 1
                 first_half = modes.state[:truncate_number+1, :]
-                second_half = modes.state[-modes.n:-modes.n+truncate_number, :]
-                truncated_modes = np.sqrt(size / modes.N) * np.concatenate((first_half, second_half), axis=0)
+                second_half = modes.state[-(modes.n//2-1):-(modes.n//2-1)+truncate_number, :]
+                truncated_modes = np.sqrt(size / modes.n) * np.concatenate((first_half, second_half), axis=0)
             else:
                 truncate_number = int(size // 2) - 1
-                truncated_modes = np.sqrt(size / modes.M) * modes.state[:, :truncate_number]
+                truncated_modes = np.sqrt(size / modes.m) * modes.state[:, :truncate_number]
         return self.__class__(state=truncated_modes, basis='modes',
                               parameters=self.parameters).transform(to=self.basis)
 
@@ -2403,6 +2399,8 @@ class ShiftReflectionOrbitKS(OrbitKS):
 
     def _parse_state(self, state, basis, **kwargs):
         if isinstance(state, np.ndarray):
+            if len(state.shape) != 2:
+                raise ValueError('"state" array must have two dimensions')
             self.state = state
         else:
             self.state = np.array([], dtype=float).reshape(0, 0)
@@ -2416,8 +2414,11 @@ class ShiftReflectionOrbitKS(OrbitKS):
             elif basis == 'spatial_modes':
                 n, m = self.shape[0], self.shape[1]+2
             else:
-                raise ValueError('basis parameter equal "field" or "spatial_modes", or "modes"')
-            self.discretization = n, m
+                raise ValueError('basis not recognized; must equal "field" or "spatial_modes", or "modes"')
+            if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
+                raise ValueError('discretization size does not satisfy minimum requirements. See class.minimal_shape()')
+            else:
+                self.discretization = n, m
             self.basis = basis
             # self.n, (int(self.m // 2) - 1) = max([int(self.n // 2) - 1,  1]), int(self.m // 2) - 1
         else:
@@ -2502,39 +2503,27 @@ class ShiftReflectionOrbitKS(OrbitKS):
 
 
 class EquilibriumOrbitKS(AntisymmetricOrbitKS):
+    """ Class for temporal equilibria
 
-    # def __init__(self, state=None, basis=None, parameters=None, **kwargs):
-    #     """ Subclass for equilibrium solutions (all of which are antisymmetric w.r.t. space).
-    #     Parameters
-    #     ----------
-    #     state
-    #     basis
-    #     T
-    #     L
-    #     S
-    #     kwargs
-    #
-    #     Notes
-    #     -----
-    #     For convenience, this subclass accepts any (even) value for the time discretization. Only a single time point
-    #     is required however to fully represent the solution and therefore perform any computations. If the
-    #     discretization size is greater than 1 then then different bases will have the following shapes: field (N, M).
-    #     spatial modes = (N, m), spatiotemporal modes (1, m). In other words, discretizations
-    #     of this type can still be used in the optimization codes but will be much more inefficient.
-    #     The reason for this choice is because it is possible
-    #     to start with a spatiotemporal orbit with no symmetry (i.e. OrbitKS) and still end up at an equilibrium
-    #     solution. Therefore, I am accommodating transformations from other orbit types to EquilibriumOrbitKS. To
-    #     make the computations more efficient all that is required is usage of the method
-    #     self.optimize_for_calculations(), which converts N -> 1, making the shape of the state (1, M) in the
-    #     physical field basis. Also can inherit more methods with this choice.
-    #     More details are included in the thesis and in the documentation.
-    #     While only the imaginary components of the spatial modes are non-zero, both real and imaginary components are
-    #     kept to allow for odd order spatial derivatives, required for the nonlinear term. Other allowed operations such
-    #     as rotation are preferably performed after converting to a different symmetry type such as AntisymmetricOrbitKS
-    #     or OrbitKS.
-    #
-    #     """
-    #     super().__init__(state=state, basis=basis, parameters=parameters, **kwargs)
+    Notes
+    -----
+    For convenience, this subclass accepts any (even) value for the time discretization. Only a single time point
+    is required however to fully represent the solution and therefore perform any computations. If the
+    discretization size is greater than 1 then then different bases will have the following shapes: field (N, M).
+    spatial modes = (N, m), spatiotemporal modes (1, m). In other words, discretizations
+    of this type can still be used in the optimization codes but will be much more inefficient.
+    The reason for this choice is because it is possible
+    to start with a spatiotemporal orbit with no symmetry (i.e. OrbitKS) and still end up at an equilibrium
+    solution. Therefore, I am accommodating transformations from other orbit types to EquilibriumOrbitKS. To
+    make the computations more efficient all that is required is usage of the method
+    self.optimize_for_calculations(), which converts N -> 1, making the shape of the state (1, M) in the
+    physical field basis. Also can inherit more methods with this choice.
+    More details are included in the thesis and in the documentation.
+    While only the imaginary components of the spatial modes are non-zero, both real and imaginary components are
+    kept to allow for odd order spatial derivatives, required for the nonlinear term. Other allowed operations such
+    as rotation are preferably performed after converting to a different symmetry type such as AntisymmetricOrbitKS
+    or OrbitKS.
+    """
 
     def eqn(self, **kwargs):
         """ The Kuramoto-Sivashinsky equation evaluated at the current state.
@@ -2622,11 +2611,11 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
                                   parameters=self.parameters, N=size).transform(to=self.basis)
         else:
             # Split into real and imaginary components, pad separately.
-            complex_modes = spatial_modes.state[:, -spatial_modes.m:]
+            complex_modes = spatial_modes.state[:, -spatial_modes.m//2-1:]
             real_modes = np.zeros(complex_modes.shape)
-            padding_number = (size-spatial_modes.M) // 2
+            padding_number = (size-spatial_modes.m) // 2
             padding = np.zeros([spatial_modes.state.shape[0], padding_number])
-            padded_modes = np.sqrt(size / spatial_modes.M) * np.concatenate((real_modes, padding,
+            padded_modes = np.sqrt(size / spatial_modes.m) * np.concatenate((real_modes, padding,
                                                                        complex_modes, padding), axis=1)
             return self.__class__(state=padded_modes, basis='spatial_modes',
                                   parameters=self.parameters).transform(to=self.basis)
@@ -2646,7 +2635,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
                                   parameters=self.parameters, N=self.n).transform(to=self.basis)
 
     @classmethod
-    def _default_parameter_ranges(cls):
+    def default_parameter_ranges(cls):
         # minimum L=2*pi based on fundamental orbit.
         return {'t': (20., 200.), 'x': (2*pi, 100.), 's': (0., 0.)}
 
@@ -2658,7 +2647,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         Parameters
         ----------
         parameters : tuple
-            tuple containing (T, L, S) i.e. OrbitKS().parameters
+            tuple containing (t, L, S) i.e. OrbitKS().parameters
 
         kwargs :
             resolution : str
@@ -2757,6 +2746,8 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
     def _parse_state(self, state, basis, **kwargs):
         if isinstance(state, np.ndarray):
+            if len(state.shape) != 2:
+                raise ValueError('"state" array must have two dimensions')
             self.state = state
         else:
             self.state = np.array([], dtype=float).reshape(0, 0)
@@ -2775,29 +2766,16 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             elif basis == 'spatial_modes':
                 n, m = self.shape[0], self.shape[1] + 2
             else:
-                raise ValueError('basis parameter equal "field" or "spatial_modes", or "modes"')
-            self.discretization = n, m
+                raise ValueError('basis not recognized; must equal "field" or "spatial_modes", or "modes"')
+            if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
+                raise ValueError('discretization size does not satisfy minimum requirements. See class.minimal_shape()')
+            else:
+                self.discretization = n, m
             self.basis = basis
         else:
             self.discretization = None
             self.basis = None
 
-    # def _parse_parameters(self, parameters, **kwargs):
-    #     # New addition, keep track of constraints via attribute instead of passing them around everywhere.
-    #     self.constraints = kwargs.get('constraints', {'t': False, 'x': False, 's': False})
-    #
-    #     # The default value of nonzero_parameters is False. If its true, assign random value to L
-    #     if parameters[1] == 0. and kwargs.get('nonzero_parameters', False):
-    #         if kwargs.get('seed', None) is not None:
-    #             np.random.seed(kwargs.get('seed', None)+1)
-    #         self.x = (kwargs.get('L_min', 22.)
-    #                   + (kwargs.get('L_max', 66.) - kwargs.get('L_min', 22.))*np.random.rand())
-    #     else:
-    #         self.x = float(parameters[1])
-    #     # for the sake of uniformity of save format, technically 0 will be returned even if not defined because
-    #     # of __getattr__ definition.
-    #     self.t = 0.
-    #     self.s = 0.
 
     def _jac_lin(self):
         """ Extension of the OrbitKS method that includes the term for spatial translation symmetry"""
@@ -2886,9 +2864,6 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
 class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
-    # def __init__(self, state=None, basis=None, parameters=None, frame='comoving', **kwargs):
-    #     super().__init__(state=state, basis=basis, parameters=parameters, frame=frame, **kwargs)
-
     def dt(self, order=1, return_array=False):
         """ A time derivative of the current state.
 
@@ -2972,7 +2947,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         """ Check whether the orbit converged to an equilibrium or close-to-zero solution """
         # Take the L_2 norm of the field, if uniformly close to zero, the magnitude will be very small.
         orbit_with_inverted_shift = self.copy()
-        orbit_with_inverted_shift.S = -self.s
+        orbit_with_inverted_shift.s = -self.s
         residual_imported_S = self.residual()
         residual_negated_S = orbit_with_inverted_shift.residual()
         if residual_imported_S > residual_negated_S:
@@ -3021,11 +2996,11 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
                                       parameters=self.parameters).transform(to=self.basis)
             else:
                 modes = self.transform(to='modes')
-                padding = (size-modes.M) // 2
+                padding = (size-modes.m) // 2
                 padding_tuple = ((0, 0), (padding, padding))
-                padded_modes = np.concatenate((modes.state[:, :-modes.m],
-                                               np.pad(modes.state[:, -modes.m:], padding_tuple)), axis=1)
-                padded_modes *= np.sqrt(size / modes.M)
+                padded_modes = np.concatenate((modes.state[:, :-modes.m//2-1],
+                                               np.pad(modes.state[:, -modes.m//2-1:], padding_tuple)), axis=1)
+                padded_modes *= np.sqrt(size / modes.m)
                 return self.__class__(state=padded_modes, basis='modes',
                                       parameters=self.parameters).transform(to=self.basis)
 
@@ -3042,8 +3017,8 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             # Split into real and imaginary components, truncate separately.
             spatial_modes = self.transform(to='spatial_modes')
             first_half = spatial_modes.state[:, :truncate_number]
-            second_half = spatial_modes.state[:, -spatial_modes.m:-spatial_modes.m + truncate_number]
-            truncated_spatial_modes = np.sqrt(size / spatial_modes.M) * np.concatenate((first_half, second_half), axis=1)
+            second_half = spatial_modes.state[:, -spatial_modes.m//2-1:-spatial_modes.m//2-1 + truncate_number]
+            truncated_spatial_modes = np.sqrt(size / spatial_modes.m) * np.concatenate((first_half, second_half), axis=1)
         return self.__class__(state=truncated_spatial_modes, basis=self.basis,
                               parameters=self.parameters).transform(to=self.basis)
 
@@ -3051,6 +3026,8 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         # This is the best way I've found for passing modes but also wanting N != 1. without specifying
         # the keyword argument.
         if isinstance(state, np.ndarray):
+            if len(state.shape) != 2:
+                raise ValueError('"state" array must have two dimensions')
             self.state = state
         else:
             self.state = np.array([], dtype=float).reshape(0, 0)
@@ -3069,9 +3046,12 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             elif basis == 'spatial_modes':
                 n, m = self.shape[0], self.shape[1] + 2
             else:
-                raise ValueError('basis parameter equal "field" or "spatial_modes", or "modes"')
+                raise ValueError('basis not recognized; must equal "field" or "spatial_modes", or "modes"')
             # To allow for multiple time point fields and spatial modes, for plotting purposes.
-            self.discretization = n, m
+            if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
+                raise ValueError('discretization size does not satisfy minimum requirements. See class.minimal_shape()')
+            else:
+                self.discretization = n, m
             self.basis = basis
         else:
             self.discretization = None

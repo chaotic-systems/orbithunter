@@ -20,7 +20,7 @@ an h5 file, it is required to use the h5py API explicitly.
 """
 
 
-def read_h5(path, orbit_names, equation, class_name=None, validate=False, **orbitkwargs):
+def read_h5(path, orbit_names, equation, class_name, validate=False, **orbitkwargs):
     """
     Parameters
     ----------
@@ -58,12 +58,10 @@ def read_h5(path, orbit_names, equation, class_name=None, validate=False, **orbi
     if isinstance(orbit_names, str):
         # If string, then place inside a len==1 tuple so that iteration doesn't raise an error
         orbit_names = (orbit_names,)
-    elif isinstance(orbit_names, tuple) and len(orbit_names) > 1:
-        # If tuple, but len > 1 then this implies that *args were passed separated by commas, i.e. a,b,c as opposed
-        # to (a,b,c)
+    elif isinstance(orbit_names, tuple):
         pass
     else:
-        raise TypeError('Incorrect type for hdf5 group names; needs to be str separated by commas or a tuple of str')
+        raise TypeError('Incorrect type for hdf5 group names; needs to be str or a tuple of str')
 
     # With orbit_names now correctly instantiated as an iterable, can open file and iterate.
     with h5py.File(os.path.abspath(path), 'r') as file:
@@ -83,9 +81,9 @@ def read_h5(path, orbit_names, equation, class_name=None, validate=False, **orbi
             except (NameError, TypeError, IndexError):
                 print('class_name not recognized or unable to be interpreted from orbit_name name')
 
-            orbit_ = class_(state=file[''.join([orbit_group, '/field'])][...],
+            orbit_ = class_(state=file[''.join([orbit_group, '/', class_.bases()[0]])][...],
                             parameters=tuple(file[''.join([orbit_group, '/parameters'])]),
-                            basis='field', **orbitkwargs)
+                            basis=class_.bases()[0], **orbitkwargs)
             if validate:
                 imported_orbits.append(orbit_.verify_integrity()[0])
             else:
@@ -98,15 +96,14 @@ def read_h5(path, orbit_names, equation, class_name=None, validate=False, **orbi
         return imported_orbits
 
 
-def read_tileset(filename, orbit_names, keys, equation, class_name=None, validate=False, **orbitkwargs):
+def read_tileset(filename, orbit_names, keys, equation, class_name, validate=False, **orbitkwargs):
     """ Importation of data as tiling dictionary
 
     Parameters
     ----------
     filename : str
         The relative/absolute location of the file.
-
-    orbit_names : str
+    orbit_names : str or tuple of str
         The orbit names within the .h5 file
     keys :
         The labels to give to the orbits corresponding to orbit_names, respectively.
@@ -124,7 +121,7 @@ def read_tileset(filename, orbit_names, keys, equation, class_name=None, validat
     dict :
         Dictionary whose values are given by the orbits specified by orbit_names.
     """
-    orbits = read_h5(filename, orbit_names, equation, class_name=class_name, validate=validate, **orbitkwargs)
+    orbits = read_h5(filename, orbit_names, equation, class_name, validate=validate, **orbitkwargs)
     # if keys and orbits are not the same length, it will only form a dict with min([len(keys), len(orbits)]) items
     return dict(zip(keys, orbits))
 
@@ -149,9 +146,11 @@ def convergence_log(initial_orbit, converge_result, log_path, spectrum='random',
     initial_condition_log_ = pd.read_csv(log_path, index_col=0)
     # To store all relevant info as a row in a Pandas DataFrame, put into a 1-D array first.
     dataframe_row = [[initial_orbit.parameters, initial_orbit.shapes()[0],
-                     np.abs(initial_orbit.transform(to='field').state).max(), converge_result.orbit.residual(),
+                     np.abs(initial_orbit.transform(to=initial_orbit.bases()[0]).state).max(),
+                      converge_result.orbit.residual(),
                      converge_result.status, spectrum, method]]
-    labels = ['parameters', 'shape', 'field_magnitude', 'residual', 'status', 'spectrum', 'numerical_method']
+    labels = ['parameters', 'shape', ''.join([initial_orbit.bases()[0], '_magnitude']),
+              'residual', 'status', 'spectrum', 'numerical_method']
     new_row = pd.DataFrame(dataframe_row, columns=labels)
     initial_condition_log_ = pd.concat((initial_condition_log_, new_row), axis=0)
     initial_condition_log_.reset_index(drop=True).drop_duplicates().to_csv(log_path)
@@ -181,7 +180,7 @@ def write_symbolic_log(symbol_array, converge_result, log_filename, tileset='def
               'comoving', 'tile_shape']
 
     dataframe_row = pd.DataFrame(dataframe_row_values, columns=labels).astype(object)
-    log_path = os.path.abspath(os.path.join(__file__, '../../data/logs/', log_filename))
+    log_path = os.path.abspath(log_filename)
 
     if not os.path.isfile(log_path):
         file_ = dataframe_row.copy()
@@ -214,7 +213,7 @@ def read_symbolic_log(symbol_array, log_filename, overwrite=False, retry=False):
     for rotation in all_rotations:
         equivariant_str.append(to_symbol_string(np.roll(symbol_array, rotation, axis=axes)))
 
-    log_path = os.path.abspath(os.path.join(__file__, '../../data/logs/', log_filename))
+    log_path = os.path.abspath(log_filename)
     if not os.path.isfile(log_path):
         return False
     else:

@@ -69,7 +69,7 @@ def _slices_from_window(orbit_, window_dimensions, time_ordering='decreasing'):
     return tuple(clipping_slices), tuple(clipping_dimensions)
 
 
-def clip(orbit_, window_dimensions, clipping_class=None, **kwargs):
+def clip(orbit_, window_dimensions, **kwargs):
     """ Take subdomain of field from Orbit instance. Aperiodic by definition.
     Parameters
     ----------
@@ -91,9 +91,7 @@ def clip(orbit_, window_dimensions, clipping_class=None, **kwargs):
     just iterate outside the function. I think that is more reasonable and cleaner.
 
     """
-    if clipping_class is None:
-        clipping_class = orbit_.__class__
-
+    clipping_class = kwargs.get('clipping_class', orbit_.__class__)
     slices, dimensions = _slices_from_window(orbit_, window_dimensions)
 
     # It of course is better to get the dimensions/parameters from the clipping directly, but if the user wants to
@@ -101,7 +99,7 @@ def clip(orbit_, window_dimensions, clipping_class=None, **kwargs):
     parameters = kwargs.pop('parameters',
                             tuple(dimensions[i] if i < len(dimensions) else p for i, p in enumerate(orbit_.parameters)))
 
-    clipped_orbit = clipping_class(state=orbit_.transform(to='field').state[slices], basis='field',
+    clipped_orbit = clipping_class(state=orbit_.transform(to=orbit_.bases()[0]).state[slices], basis=orbit_.bases()[0],
                                    parameters=parameters, **kwargs)
     return clipped_orbit
 
@@ -144,5 +142,5 @@ def mask_orbit(orbit_, windows, mask_region='exterior'):
 
     if mask_region == 'exterior':
         mask = np.invert(mask)
-    masked_field = np.ma.masked_array(orbit_.transform(to='field').state, mask=mask)
-    return orbit_.__class__(state=masked_field, basis='field', parameters=orbit_.parameters)
+    masked_field = np.ma.masked_array(orbit_.transform(to=orbit_.bases()[0]).state, mask=mask)
+    return orbit_.__class__(state=masked_field, basis=orbit_.bases()[0], parameters=orbit_.parameters)

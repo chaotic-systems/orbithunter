@@ -6,7 +6,7 @@ from collections import Counter
 __all__ = ['tile', 'glue', 'generate_symbol_arrays', 'rediscretize_tileset']
 
 
-def _correct_aspect_ratios(orbit_array, glued_parameters, axis=0, conserve_parity=True):
+def _correct_aspect_ratios(orbit_array, axis=0, conserve_parity=True):
     """ Correct aspect ratios of a one-dimensional strip of orbits.
 
     Parameters
@@ -23,13 +23,11 @@ def _correct_aspect_ratios(orbit_array, glued_parameters, axis=0, conserve_parit
     order but typically when including equilibria, strip-wise corrections cause too much distortion to be useful.
 
     """
-    iterable_of_dims = np.array([o.dimensions()[axis] for o in orbit_array])
-    iterable_of_shapes = np.array([o.shapes()[0][axis] for o in orbit_array])
+    dims = np.array([o.dimensions()[axis] for o in orbit_array])
+    sizes = np.array([o.shapes()[0][axis] for o in orbit_array])
 
-    strip_length = len(iterable_of_dims)
-    disc_total = np.sum(iterable_of_shapes)
-    dim_total = np.sum(iterable_of_dims)
-
+    disc_total = np.sum(sizes)
+    dim_total = np.sum(dims)
 
     # The absolute minimum is set to the smallest number of points which doesn't completely "contract" the dimension.
     # Whether or not this takes an even (2) or odd (3) value is inferred from the total number of discrete points
@@ -40,79 +38,41 @@ def _correct_aspect_ratios(orbit_array, glued_parameters, axis=0, conserve_parit
     if dim_total == 0.:
         return orbit_array
 
-    # the minimum discretization total is dependent on parity; this should be built into the static method.
-    min_disc_sizes = tuple(o.minimal_shape()[axis] for o in orbit_array)
-    # the sum has to be non-negative, because otherwise an orbit is smaller than its allowed limit.
-    remaining_discretization_to_distribute = disc_total - np.sum(min_disc_sizes)
-
-    # from smallest to largest, increase the share of the discretization
     new_discretization_sizes = np.zeros(len(orbit_array))
-    # can't use fancy indexing because this has to be done sequentially, or at least that is the simplest manner.
-    # If we simply round the fractions then we may have a case where we cannot get the total and conserve parity
-    # of the last term.
-    for sorted_index in np.argsort(iterable_of_dims):
-        orbits_share = int(remaining_discretization_to_distribute * (iterable_of_dims[sorted_index] / dim_total))
-        new_size = orbits_share + min_disc_sizes[sorted_index]
-        # Often it can be essential to have an odd numbered or even number of points for each orbit.
-        # Ensure that this is constrained if told to do so.
-        if conserve_parity and (new_size % 2) != (iterable_of_shapes[sorted_index] % 2):
 
-            pass
-        # The minima have already been subtracted out.
-        remaining_discretization_to_distribute -= orbits_share
-        new_discretization_sizes[sorted_index] = orbits_share + min_disc_sizes[sorted_index]
-
-
-
-    new_discretization_sizes = (2 * np.round((fraction_array * disc_total) / 2)).astype(int)
-    number_of_dimensionless_orbits = np.sum(fraction_array == 0)
-    number_of_dimensionful_orbits = len(new_discretization_sizes) - number_of_dimensionless_orbits
-
-    # Due to how the fractions and rounding can work out the following is a safety measure to ensure the
-    # new discretization sizes add up to the original; this is a requirement in order to glue strips together.
-    while np.sum(new_discretization_sizes) != disc_total:
-        new_discretization_sizes[np.mod(np.sum(new_discretization_sizes), 2) == 1] += 1
-        if np.sum(new_discretization_sizes) < disc_total:
-            # Add points to the first instance of the minimum discretization size not equal to 0.
-            non_zero_minimum = new_discretization_sizes[new_discretization_sizes > 16].min()
-            new_discretization_sizes[np.min(np.where(new_discretization_sizes == non_zero_minimum)[0])] += 2
-        else:
-            # non_zero_maximum is same as maximum, just a precaution and consistency with minimum
-            non_zero_maximum = new_discretization_sizes[new_discretization_sizes > 16].max()
-            # Using np.argmin here would return the index relative to the sliced disc_size array, not the original as
-            # we desire.
-            new_discretization_sizes[np.min(np.where(new_discretization_sizes == non_zero_maximum)[0])] -= 2
-
-    fraction_array = np.array(new_discretization_sizes) / np.sum(new_discretization_sizes)
-
-    if number_of_dimensionless_orbits > 0 and number_of_dimensionful_orbits >= 1:
-        # The following is the most convoluted piece of code perhaps in the entire package. It attempts to find the
-        # best minimum discretization size for the dimensionless orbits; simply having them take the literal minimum
-        # size is essentially throwing them out for large interpolations.
-        # If the number of elements in the strip is large, then it is possible that the previous defaults will result
-        # in 0's.
-        half_dimless_disc = np.min([np.max([2 * (iterable_of_shapes[0] // (2*number_of_dimensionless_orbits
-                                                                           * number_of_dimensionful_orbits)),
-                                    disc_total // (len(iterable_of_shapes)*number_of_dimensionless_orbits),
-                                    2*int((np.round(1.0 / np.min(fraction_array[fraction_array != 0]))+1) // 2)]),
-                                    iterable_of_shapes[0]//2])
-
-        # Find the number of points to take from each orbit. Multiply by two to get an even total.
-        how_much_to_take_away_for_each = 2 * np.round(half_dimless_disc * fraction_array)
-        # Subtract the number of points to take away from each per dimensionless
-        new_discretization_sizes = (new_discretization_sizes
-                                             - (number_of_dimensionless_orbits * how_much_to_take_away_for_each))
-        # The size of the dimensionless orbits is of course how much we took from the other orbits.
-        new_discretization_sizes[new_discretization_sizes == 0] = np.sum(how_much_to_take_away_for_each).astype(int)
-
-        # The new shapes of each orbit are the new sizes along the gluing axis, and the originals for axes not being
-        # glued.
-        new_shapes = [tuple(int(new_discretization_sizes[j]) if i == axis else o.shapes()[0][i]
-                      for i in range(len(o.shape))) for j, o in enumerate(orbit_array)]
-
+    if conserve_parity:
+        # the values returned by minimal shape are the absolute minimum. If the parity is wrong, then the practical
+        # minimum must be one greater.
+        min_disc_sizes = []
+        for i, min_size in enumerate(o.minimal_shape()[axis] for o in orbit_array):
+            if (min_size % 2) != (sizes[i] % 2):
+                min_disc_sizes.append(min_size+1)
+            else:
+                min_disc_sizes.append(min_size)
+        min_disc_sizes = np.array(min_disc_sizes)
+        # Once the minimum discretization sizes are stored with the correct parity, then to maintain the parity
+        # we need to add even numbers only; can accomplish this by using units of 2.
+        disc_remainder = disc_total - np.sum(min_disc_sizes)
+        disc_remainder //= 2
+        dim_remainder = dim_total
+        for sorted_index in np.argsort(dims):
+            orbits_share = int(disc_remainder * (dims[sorted_index] / dim_remainder))
+            new_discretization_sizes[sorted_index] = min_disc_sizes[sorted_index] + (2 * orbits_share)
+            dim_remainder -= dims[sorted_index]
+            disc_remainder -= orbits_share
     else:
-        new_shapes = [tuple(int(new_discretization_sizes[j]) if i == axis else o.shapes()[0][i]
-                      for i in range(len(o.shape))) for j, o in enumerate(orbit_array)]
+        min_disc_sizes = np.array([o.minimal_shape()[axis] for o in orbit_array])
+        disc_remainder = disc_total - np.sum(min_disc_sizes)
+        dim_remainder = dim_total
+
+        for sorted_index in np.argsort(dims):
+            orbits_share = int(disc_remainder * (dims[sorted_index] / dim_remainder))
+            new_discretization_sizes[sorted_index] = min_disc_sizes[sorted_index] + orbits_share
+            dim_remainder -= dims[sorted_index]
+            disc_remainder -= orbits_share
+    # from smallest to largest, increase the share of the discretization
+    new_shapes = [tuple(int(new_discretization_sizes[j]) if i == axis else o.shapes()[0][i]
+                  for i in range(len(o.shape))) for j, o in enumerate(orbit_array)]
 
     # Return the strip of orbits with corrected proportions.
     return np.array([o.resize(shp) for o, shp in zip(orbit_array, new_shapes)])
@@ -203,7 +163,7 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
 
                 # Correct the proportions of the dimensions along the current gluing axis.
                 orbit_array_corrected = _correct_aspect_ratios(strip_of_orbits, strip_parameters, glued_parameters,
-                                                                   axis=gluing_axis)
+                                                               axis=gluing_axis)
                 # Concatenate the states with corrected proportions.
                 glued_strip_state = np.concatenate(tuple(x.state for x in orbit_array_corrected),
                                                    axis=gluing_axis)
@@ -371,5 +331,3 @@ def expensive_glue(orbit_pair_array, class_constructor, method='residual', **kwa
                 smallest_residual_so_far = residual
 
     return best_glued_orbit
-
-#TODO : "Expensive" (pair-wise) gluing.

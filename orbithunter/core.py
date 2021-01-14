@@ -289,7 +289,7 @@ class Orbit:
         new_shape = new_discretization or self.parameter_based_discretization(self.parameters, **kwargs)
 
         # unpacking unintended nested tuples i.e. ((a, b, ...)) -> (a, b, ...); leaves unnested tuples invariant.
-        if isinstance(*new_shape, tuple) and len(new_shape) == 1:
+        if isinstance(new_shape, tuple) and len(new_shape) == 1:
             new_shape = tuple(*new_shape)
 
         # If the current shape is discretization size (not current shape) differs from shape then resize
@@ -612,7 +612,14 @@ class Orbit:
         Because this is usually a subset of self.parameters, it does not use the property decorator. This method
         is purposed for readability.
         """
-        return tuple(getattr(self, d_label) for d_label in self.dimension_labels())
+        # collect dimensions
+        dims = tuple(getattr(self, d_label) for d_label in self.dimension_labels())
+        # check if all NoneType, if so, simply return NoneType; this allows future comparison
+        # without having to know number of dimensions
+        if len(dims) == dims.count(None):
+            return None
+        else:
+            return dims
 
     @staticmethod
     def bases():
@@ -637,7 +644,7 @@ class Orbit:
         return 'n', 'i', 'j', 'k'
 
     @classmethod
-    def _default_parameter_ranges(cls):
+    def default_parameter_ranges(cls):
         return {p_label: (0, 1) for p_label in cls.parameter_labels()}
 
     @staticmethod
@@ -737,7 +744,7 @@ class Orbit:
         """
         return None
 
-    def rescale(self, magnitude, method='infty'):
+    def rescale(self, magnitude, method='inf'):
         """ Scalar multiplication
 
         Notes
@@ -746,7 +753,7 @@ class Orbit:
         of magnitude
         """
         state = self.transform(to=self.bases()[0]).state
-        if method == 'infty':
+        if method == 'inf':
             rescaled_state = magnitude * state / np.max(np.abs(state.ravel()))
         elif method == 'l1':
             rescaled_state = magnitude * state / np.linalg.norm(state, ord=1)
@@ -785,6 +792,7 @@ class Orbit:
         with h5py.File(filename, h5py_mode) as f:
             # Returns orbit_name if not None, else, filename method.
             orbit_group = f.require_group(orbit_name or self.filename(extension=''))
+            # State may be empty, but can still save.
             orbit_group.create_dataset(self.bases()[0], data=self.transform(to=self.bases()[0]).state)
             # The parameters required to exactly specify an orbit.
             orbit_group.create_dataset('parameters', data=tuple(float(p) for p in self.parameters))
@@ -797,7 +805,6 @@ class Orbit:
                     orbit_group.create_dataset('residual', data=float(self.residual()))
                 except (ZeroDivisionError, ValueError):
                     print('Unable to compute residual for {}'.format(repr(self)))
-        return None
 
     def filename(self, extension='.h5', decimals=3):
         """ Method for consistent/conventional filenaming. High dimensions will yield long filenames.
@@ -817,7 +824,7 @@ class Orbit:
         if self.dimensions() is not None:
             dimensional_string = ''.join(['_' + ''.join([self.dimension_labels()[i], str(d).split('.')[0],
                                                          'p', str(d).split('.')[1][:decimals]])
-                                          for i, d in enumerate(self.dimensions()) if d not in [0., 0]])
+                                          for i, d in enumerate(self.dimensions()) if (d != 0) and (d is not None)])
         else:
             dimensional_string = ''
         return ''.join([self.__class__.__name__, dimensional_string, extension])
@@ -825,120 +832,6 @@ class Orbit:
     def verify_integrity(self):
         """ Check the status of a solution, whether or not it converged to the correct orbit type. """
         return self
-
-    def _parse_state(self, state, basis, **kwargs):
-        """ Determine state shape parameters based on state array and the basis it is in.
-
-        Parameters
-        ----------
-        state : ndarray
-            Numpy array containing state information, can have any number of dimensions.
-        basis : str
-            The basis that the array 'state' is assumed to be in.
-
-        Notes
-        -----
-        This is quite simple for the general case, but left as a method for overloading purposes.
-        """
-        # Initialize with the same amount of dimensions as labels; use labels because staticmethod.
-        # The 'and-or' trick; if state is None then latter is used. give empty array the expected number of
-        # dimensions, even though array with 0 size in dimensions will typically be flattened by NumPy anyway.
-        if isinstance(state, np.ndarray):
-            self.state = state
-        else:
-            self.state = np.array([], dtype=float).reshape(0, 0).reshape(len(self.default_shape()) * [0])
-
-        if self.size > 0:
-            # This seems redundant but typically the discretization needs to be inferred from the state
-            # and the basis; as the number of variables is apt to change when taking symmetries into account.
-            self.basis = basis
-            self.discretization = self.state.shape
-            if basis is None:
-                raise ValueError('basis must be provided when state is provided')
-        else:
-            self.discretization = None
-            self.basis = None
-
-    def _parse_parameters(self, parameters, **kwargs):
-        """ Parse and initialize the set of parameters
-
-        Notes
-        -----
-        Parameters are required to be numerical in type. If there are categorical parameters then they
-        should be assigned to a different attribute. The reason for this is that for numerical optimization,
-        the state_vector; the concatenation of self.state and self.parameters is sent to the various algorithms.
-        Cannot send categoricals to these algorithms.
-
-        """
-        # default is not to be constrained in any dimension;
-        self.constraints = kwargs.get('constraints', {dim_key: False for dim_key in self.parameter_labels()})
-        if isinstance(parameters, tuple) or parameters is None:
-            self.parameters = parameters
-        else:
-            # A number of methods require parameters to be an iterable, hence the tuple requirement.
-            raise TypeError('"parameters" is required to be a tuple or None. '
-                            'singleton parameters need to be cast as tuple (p,).')
-
-    def _generate_parameters(self, **kwargs):
-        """ Randomly initialize parameters which are currently zero.
-
-        Parameters
-        ----------
-        kwargs :
-            p_ranges : dict
-                keys are parameter_labels, values are uniform sampling intervals or iterables to sample from
-
-        Returns
-        -------
-
-        """
-        # helper function so comprehension can be used later on.
-        def sample_from_generator(val, val_generator):
-            if val is None:
-                # for numerical parameter generators we're going to use uniform distribution to generate values
-                # If the generator is "interval like" then use uniform distribution.
-                if isinstance(val_generator, tuple) and len(val_generator) == 2:
-                    pmin, pmax = val_generator
-                    val = pmin + (pmax - pmin) * np.random.rand()
-                # Everything else treated as distribution to sample from
-                else:
-                    val = np.random.choice(val_generator)
-            return val
-
-        # seeding takes a non-trivial amount of time, only set if explicitly provided.
-        if isinstance(kwargs.get('seed', None), int):
-            np.random.seed(kwargs.get('seed', None))
-
-        # Can be useful to override default sample spaces to get specific cases.
-        p_ranges = kwargs.get('parameter_ranges', self._default_parameter_ranges())
-        # If *some* of the parameters were initialized, we want to save those values; iterate over the current
-        # parameters if not None, else,
-        parameter_iterable = self.parameters or len(self.parameter_labels()) * [None]
-        parameters = tuple(sample_from_generator(val, p_ranges[label]) for label, val
-                           in zip_longest(self.parameter_labels(), parameter_iterable))
-        setattr(self, 'parameters', parameters)
-
-    def _generate_state(self, **kwargs):
-        """ Populate the 'state' attribute
-
-        Parameters
-        ----------
-        kwargs
-
-        Notes
-        -----
-        Must generate and set attributes 'state' and 'discretization'. The state is required to be a numpy
-        array, the discretization is required to be its shape (tuple) in the basis specified by self.bases()[0].
-        Discretization is coupled to the state, hence why it is generated here and not on its own.
-        """
-        # Just generate a random array; more intricate strategies should be written into subclasses.
-        # Using standard normal distribution
-        numpy_seed = kwargs.get('seed', None)
-        if isinstance(numpy_seed, int):
-            np.random.seed(numpy_seed)
-        self.discretization = self.parameter_based_discretization(self.parameters(), **kwargs)
-        self.state = np.random.randn(*self.discretization)
-        self.basis = self.bases()[0]
 
     def generate(self, attr='all', **kwargs):
         """ Initialize a random state.
@@ -964,6 +857,8 @@ class Orbit:
 
         if attr in ['all', 'state']:
             self._generate_state(**kwargs)
+        # For chaining operations.
+        return self
 
     def to_fundamental_domain(self, **kwargs):
         """ Placeholder for symmetry subclassees"""
@@ -998,6 +893,122 @@ class Orbit:
                        for key, val in self.constraints.items()}
         setattr(self, 'constraints', constraints)
 
+    def _parse_state(self, state, basis, **kwargs):
+        """ Determine state shape parameters based on state array and the basis it is in.
+
+        Parameters
+        ----------
+        state : ndarray
+            Numpy array containing state information, can have any number of dimensions.
+        basis : str
+            The basis that the array 'state' is assumed to be in.
+
+        Notes
+        -----
+        This is quite simple for the general case, but left as a method for overloading purposes.
+        """
+        # Initialize with the same amount of dimensions as labels; use labels because staticmethod.
+        # The 'and-or' trick; if state is None then latter is used. give empty array the expected number of
+        # dimensions, even though array with 0 size in dimensions will typically be flattened by NumPy anyway.
+        if isinstance(state, np.ndarray):
+            self.state = state
+        else:
+            self.state = np.array([], dtype=float).reshape(len(self.default_shape()) * [0])
+
+        if self.size > 0:
+            # This seems redundant but typically the discretization needs to be inferred from the state
+            # and the basis; as the number of variables is apt to change when taking symmetries into account.
+            self.basis = basis
+            self.discretization = self.state.shape
+            if basis is None:
+                raise ValueError('basis must be provided when state is provided')
+        else:
+            self.discretization = None
+            self.basis = None
+
+    def _parse_parameters(self, parameters, **kwargs):
+        """ Parse and initialize the set of parameters
+
+        Notes
+        -----
+        Parameters are required to be numerical in type. If there are categorical parameters then they
+        should be assigned to a different attribute. The reason for this is that for numerical optimization,
+        the state_vector; the concatenation of self.state and self.parameters is sent to the various algorithms.
+        Cannot send categoricals to these algorithms.
+
+        """
+        # default is not to be constrained in any dimension;
+        self.constraints = kwargs.get('constraints', {dim_key: False for dim_key in self.parameter_labels()})
+        if parameters is None:
+            self.parameters = parameters
+        elif isinstance(parameters, tuple):
+            # This ensures all parameters are filled, even if NoneType
+            self.parameters = tuple(val for label, val in zip_longest(self.parameter_labels(), parameters))
+        else:
+            # A number of methods require parameters to be an iterable, hence the tuple requirement.
+            raise TypeError('"parameters" is required to be a tuple or None. '
+                            'singleton parameter "p" needs to be cast as tuple (p,).')
+
+    def _generate_parameters(self, **kwargs):
+        """ Randomly initialize parameters which are currently zero.
+
+        Parameters
+        ----------
+        kwargs :
+            p_ranges : dict
+                keys are parameter_labels, values are uniform sampling intervals or iterables to sample from
+
+        Returns
+        -------
+
+        """
+        # helper function so comprehension can be used later on.
+        def sample_from_generator(val, val_generator):
+            if val is None:
+                # for numerical parameter generators we're going to use uniform distribution to generate values
+                # If the generator is "interval like" then use uniform distribution.
+                if isinstance(val_generator, tuple) and len(val_generator) == 2:
+                    pmin, pmax = val_generator
+                    val = pmin + (pmax - pmin) * np.random.rand()
+                # Everything else treated as distribution to sample from
+                else:
+                    val = np.random.choice(val_generator)
+            return val
+
+        # seeding takes a non-trivial amount of time, only set if explicitly provided.
+        if isinstance(kwargs.get('seed', None), int):
+            np.random.seed(kwargs.get('seed', None))
+
+        # Can be useful to override default sample spaces to get specific cases.
+        p_ranges = kwargs.get('parameter_ranges', self.default_parameter_ranges())
+        # If *some* of the parameters were initialized, we want to save those values; iterate over the current
+        # parameters if not None, else,
+        parameter_iterable = self.parameters or len(self.parameter_labels()) * [0]
+        parameters = tuple(sample_from_generator(val, p_ranges[label]) for label, val
+                           in zip_longest(self.parameter_labels(), parameter_iterable))
+        setattr(self, 'parameters', parameters)
+
+    def _generate_state(self, **kwargs):
+        """ Populate the 'state' attribute
+
+        Parameters
+        ----------
+        kwargs
+
+        Notes
+        -----
+        Must generate and set attributes 'state' and 'discretization'. The state is required to be a numpy
+        array, the discretization is required to be its shape (tuple) in the basis specified by self.bases()[0].
+        Discretization is coupled to the state, hence why it is generated here and not on its own.
+        """
+        # Just generate a random array; more intricate strategies should be written into subclasses.
+        # Using standard normal distribution
+        numpy_seed = kwargs.get('seed', None)
+        if isinstance(numpy_seed, int):
+            np.random.seed(numpy_seed)
+        self.discretization = self.parameter_based_discretization(self.parameters, **kwargs)
+        self.state = np.random.randn(*self.discretization)
+        self.basis = self.bases()[0]
 
 def convert_class(orbit, class_generator, **kwargs):
     """ Utility for converting between different classes.
