@@ -63,10 +63,6 @@ def test_dunder_methods(fixed_orbit_data):
     assert oh.Orbit().state.shape == tuple(len(orbit_.default_shape()) * [0])
     assert oh.Orbit().basis is None
     with pytest.raises(AttributeError):
-        _ = oh.Orbit().shape
-    with pytest.raises(AttributeError):
-        _ = oh.Orbit().size
-    with pytest.raises(AttributeError):
         _ = oh.Orbit().fakeattr
 
 def test_equation_methods(fixed_orbit_data, fixed_kwarg_dict):
@@ -93,11 +89,11 @@ def test_properties(fixed_orbit_data):
     _ = orbit_.minimal_shape()
     _ = orbit_.default_parameter_ranges()
 
-# def test_discretization_methods():
-#     orbit_ = test_orbit(fixed_orbit_data)
-#     large = orbit_.resize(16, 16, 16, 16)
-#     original = orbit_.resize(orbit_.shape)
-
+def test_discretization_methods(fixed_orbit_data):
+    orbit_ = test_orbit(fixed_orbit_data)
+    large = orbit_.resize(16, 16, 16, 16)
+    original = orbit_.resize(orbit_.shape)
+    assert (original.state - orbit_.state).norm() == 0.
 # def test_numerical_manipulations():
 #     # constrain
 #     # rescale

@@ -627,9 +627,11 @@ class Orbit:
         if int(size) % 2:
             # If odd size then cannot distribute symmetrically, floor divide then add append extra zeros to beginning
             # of the dimension.
-            padding_tuple = ((padding_size + 1, padding_size) if i == axis else (0, 0) for i in range(len(self.shape)))
+            padding_tuple = tuple((padding_size + 1, padding_size) if i == axis else (0, 0)
+                                  for i in range(len(self.shape)))
         else:
-            padding_tuple = ((padding_size, padding_size) if i == axis else (0, 0) for i in range(len(self.shape)))
+            padding_tuple = tuple((padding_size, padding_size) if i == axis else (0, 0)
+                                  for i in range(len(self.shape)))
 
         return self.__class__(state=np.pad(self.state, padding_tuple), basis=self.basis,
                               parameters=self.parameters).transform(to=self.basis)
