@@ -483,16 +483,16 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method='minres', m
             # Solving least-squares equations, A x = b
 
             def matvec_func(v):
-                # _state_vector_to_orbit turns state vector into class object.
+                # _orbit_vector_to_orbit turns state vector into class object.
                 v_orbit = orbit_.from_numpy_array(v)
                 return orbit_.matvec(v_orbit, **kwargs).state.reshape(-1, 1)
 
             def rmatvec_func(v):
-                # _state_vector_to_orbit turns state vector into class object.
+                # _orbit_vector_to_orbit turns state vector into class object.
                 v_orbit = orbit_.from_numpy_array(v, parameters=orbit_.parameters)
-                return orbit_.rmatvec(v_orbit, **kwargs).state_vector().reshape(-1, 1)
+                return orbit_.rmatvec(v_orbit, **kwargs).orbit_vector().reshape(-1, 1)
 
-            linear_operator_shape = (orbit_.state.size, orbit_.state_vector().size)
+            linear_operator_shape = (orbit_.state.size, orbit_.orbit_vector().size)
             A = LinearOperator(linear_operator_shape, matvec_func, rmatvec=rmatvec_func, dtype=float)
             b = -1.0 * orbit_.eqn(**kwargs).state.reshape(-1, 1)
             if method == 'lsmr':
@@ -506,14 +506,14 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method='minres', m
 
             # Solving `normal equations, A^T A x = A^T b. A^T A is its own transpose hence matvec_func=rmatvec_func
             def matvec_func(v):
-                # _state_vector_to_orbit turns state vector into class object.
+                # _orbit_vector_to_orbit turns state vector into class object.
                 v_orbit = orbit_.from_numpy_array(v)
-                return orbit_.rmatvec(orbit_.matvec(v_orbit, **kwargs), **kwargs).state_vector().reshape(-1, 1)
+                return orbit_.rmatvec(orbit_.matvec(v_orbit, **kwargs), **kwargs).orbit_vector().reshape(-1, 1)
 
             # Currently only allows solving of the normal equations. A^T A x = A^T b
-            linear_operator_shape = (orbit_.state_vector().size, orbit_.state_vector().size)
+            linear_operator_shape = (orbit_.orbit_vector().size, orbit_.orbit_vector().size)
             ATA = LinearOperator(linear_operator_shape, matvec_func, rmatvec=matvec_func, dtype=float)
-            ATb = orbit_.rmatvec(-1.0 * orbit_.eqn(**kwargs)).state_vector().reshape(-1, 1)
+            ATb = orbit_.rmatvec(-1.0 * orbit_.eqn(**kwargs)).orbit_vector().reshape(-1, 1)
 
             ############################################################################################################
 
@@ -621,11 +621,11 @@ def _scipy_optimize_minimize_wrapper(orbit_, tol, maxiter, method='l-bfgs-b',  *
         """
 
         x_orbit = orbit_.from_numpy_array(x)
-        return x_orbit.cost_function_gradient(x_orbit.eqn(**kwargs), **kwargs).state_vector().ravel()
+        return x_orbit.cost_function_gradient(x_orbit.eqn(**kwargs), **kwargs).orbit_vector().ravel()
 
     scipy_kwargs = kwargs.get('scipy_kwargs', {'tol': tol})
     while residual > tol and stats['status'] == 1:
-        result = minimize(_cost_function_scipy_minimize, orbit_.state_vector(),
+        result = minimize(_cost_function_scipy_minimize, orbit_.orbit_vector(),
                           method=method, jac=_cost_function_jac_scipy_minimize, **scipy_kwargs)
         scipy_kwargs['tol'] /= 10.
 
@@ -679,8 +679,8 @@ def _scipy_optimize_root_wrapper(orbit_, tol, maxiter, method='lgmres', **kwargs
         Note that passing Class as a function avoids dangerous statements using eval()
         '''
         x_orbit = orbit_.from_numpy_array(x, **kwargs)
-        xvec = x_orbit.eqn(**kwargs).state_vector().ravel()
-        xvec[-(x_orbit.state_vector().size - len(x_orbit.parameters)):] = 0
+        xvec = x_orbit.eqn(**kwargs).orbit_vector().ravel()
+        xvec[-(x_orbit.orbit_vector().size - len(x_orbit.parameters)):] = 0
         return xvec
 
     def _cost_function_jac_scipy_root(x):
@@ -701,28 +701,28 @@ def _scipy_optimize_root_wrapper(orbit_, tol, maxiter, method='lgmres', **kwargs
         """
 
         x_orbit = orbit_.from_numpy_array(x)
-        return x_orbit.cost_function_gradient(x_orbit.eqn(**kwargs), **kwargs).state_vector().ravel()
+        return x_orbit.cost_function_gradient(x_orbit.eqn(**kwargs), **kwargs).orbit_vector().ravel()
 
     while residual > tol and stats['status'] == 1:
         if method == 'newton_krylov':
             scipy_kwargs = dict({'f_tol': 1e-6}, **kwargs.get('scipy_kwargs', {}))
-            result_state_vector = newton_krylov(_cost_function_scipy_root, orbit_.state_vector(),
+            result_orbit_vector = newton_krylov(_cost_function_scipy_root, orbit_.orbit_vector(),
                                                 **scipy_kwargs)
         elif method == 'anderson':
             scipy_kwargs = dict({'f_tol': 1e-6}, **kwargs.get('scipy_kwargs', {}))
-            result_state_vector = anderson(_cost_function_scipy_root, orbit_.state_vector().ravel(),
+            result_orbit_vector = anderson(_cost_function_scipy_root, orbit_.orbit_vector().ravel(),
                                            **scipy_kwargs)
 
         elif method in ['root_anderson', 'linearmixing', 'diagbroyden',
                         'excitingmixing', 'krylov',' df-sane']:
             scipy_kwargs = dict({'tol': 1e-6}, **kwargs.get('scipy_kwargs', {}))
-            result_state_vector = root(_cost_function_scipy_root, orbit_.state_vector().ravel(),
+            result_orbit_vector = root(_cost_function_scipy_root, orbit_.orbit_vector().ravel(),
                                        method=method, jac=_cost_function_jac_scipy_root,
                                        **scipy_kwargs)
         else:
             stats['residuals'].append(orbit_.residual())
             return orbit_, stats
-        next_orbit = orbit_.from_numpy_array(result_state_vector)
+        next_orbit = orbit_.from_numpy_array(result_orbit_vector)
         next_residual = next_orbit.residual()
         # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
         orbit_, stats = _parse_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,

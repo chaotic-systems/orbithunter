@@ -65,7 +65,7 @@ def energy_variation(orbit_instance, average=None):
     -------
     Field equivalent to u_t * u. Spatial average, <u_t * u> should equal <power> - <dissipation> = <u_x**2> - <u_xx**2>
     """
-    return _averaging_wrapper(orbit_instance.transform(to='field').statemul(orbit_instance.dt().transform(to='field')),
+    return _averaging_wrapper(orbit_instance.transform(to='field') * orbit_instance.dt().transform(to='field'),
                               average=average)
 
 
@@ -195,14 +195,13 @@ def integrate(orbit_, **kwargs):
         u = np.zeros([nmax, orbit_t.shapes()[0][1]])
     for step in range(1, nmax+1):
         Nv = -0.5*(v.transform(to='field')**2).dx(computation_basis='spatial_modes', return_basis='spatial_modes')
-        a = v.statemul(E2) + Nv.statemul(Q)
+        a = v * E2 + Nv * Q
         Na = -0.5*(a.transform(to='field')**2).dx(computation_basis='spatial_modes', return_basis='spatial_modes')
-        b = v.statemul(E2) + Na.statemul(Q)
+        b = v * E2 + Na * Q
         Nb = -0.5*(b.transform(to='field')**2).dx(computation_basis='spatial_modes', return_basis='spatial_modes')
-        c = a.statemul(E2) + (2.0 * Nb - Nv).statemul(Q)
+        c = a * E2 + (2 * Nb - Nv) * Q
         Nc = -0.5*(c.transform(to='field')**2).dx(computation_basis='spatial_modes', return_basis='spatial_modes')
-        v = (v.statemul(E) + Nv.statemul(f1)
-             + (2.0 * (Na + Nb)).statemul(f2) + Nc.statemul(f3))
+        v = v * E + Nv * f1 + (2 * (Na + Nb)) * f2 + Nc * f3
         if kwargs.get('return_trajectory', True):
             u[-step, :] = v.transform(to='field').state.ravel()
         else:
