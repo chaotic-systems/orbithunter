@@ -1,11 +1,6 @@
 import pytest
 import numpy as np
 import orbithunter as oh
-from math import pi
-
-@pytest.fixture()
-def example_orbit_data():
-    return np.ones([32, 32])
 
 @pytest.fixture()
 def fixed_orbit_data():
@@ -40,16 +35,78 @@ def fixed_eqn_norm_dict():
     return dict(zip(names, norms))
 
 @pytest.fixture()
+def fixed_derivative_norms():
+    test_orbit_norms = np.array([1.11206823, 1.07142601, 0.28925289, 0.29652498, 0.08045879,
+                                   0.08399731, 0.02282276, 0.02394005, 0.40029903, 1.25836395,
+                                   1.10417144])
+    test_rpo_norms = np.array([31.63701272,  9.37819755, 31.63947896,  5.11209024, 36.77213848,
+                                4.82539334, 51.14116224,  6.45371111, 31.44907051,  0.        ,
+                               31.44907051])
+    return test_orbit_norms, test_rpo_norms
+
+@pytest.fixture()
 def fixed_orbit_parameters():
     # Parameter tuples and incorrect input scalar
     return (44, 44, 0.), (44, 44), (44,), 44, None
 
-@pytest.fixture()
 def kse_classes():
     return dict([(name, cls) for name, cls in oh.ks.__dict__.items() if isinstance(cls, type)])
 
-def test_orbit(fixed_orbit_data):
-    return oh.Orbit(state=fixed_orbit_data, basis='field', parameters=(36, 36))
+def class_generator():
+    for name, cls in kse_classes():
+        yield cls(state=fixed_orbit_data, basis='field', parameters=fixed_orbit_parameters[0])
+
+
+def test_ks_derivatives(fixed_orbit_data, fixed_derivative_norms, fixed_orbit_parameters):
+    # parameters = (44.30438636668926, 33.28035979609304, -5.809692922307713)
+    # x = oh.OrbitKS(state=fixed_orbit_data, parameters=x.parameters, basis='field').transform(to='modes')
+    # y = oh.RelativeOrbitKS(state=fixed_orbit_data, parameters=y.parameters, basis='field').transform(to='modes')
+    orbit_ = oh.OrbitKS(state=fixed_orbit_data,
+                        parameters=fixed_orbit_parameters[0], basis='field').transform(to='modes')
+    norms = []
+    for order in range(1, 5):
+        norms.append(orbit_.dx(order).norm())
+        norms.append(orbit_.dt(order).norm())
+    orbitf = orbit_.transform(to='field')
+    norms.append(orbitf.nonlinear(orbitf).norm())
+    norms.append(orbit_.eqn().norm())
+    norms.append(orbit_._eqn_linear_component().norm())
+    assert np.equal(np.array(norms).round(8), fixed_derivative_norms[0].round(8)).all()
+
+def test_ks_derivatives_relativeorbitks(fixed_derivative_norms):
+    norms = []
+    relorbit_ = oh.read_h5('../../data/ks/RelativeOrbitKS.h5', 'T44p304_L33p280',
+                           'ks', 'RelativeOrbitKS').transform(to='modes')
+    for order in range(1, 5):
+        norms.append(relorbit_.dx(order).norm())
+        norms.append(relorbit_.dt(order).norm())
+    orbitf = relorbit_.transform(to='field')
+    norms.append(orbitf.nonlinear(orbitf).norm())
+    norms.append(relorbit_.eqn().norm())
+    norms.append(relorbit_._eqn_linear_component().norm())
+    assert np.equal(np.array(norms).round(8), fixed_derivative_norms[1].round(8)).all()
+
+def test_rmatvec(fixed_orbit_data, fixed_orbit_parameters):
+    relorbit_ = oh.read_h5('../../data/ks/RelativeOrbitKS.h5', 'T44p304_L33p280',
+                           'ks', 'RelativeOrbitKS').transform(to='modes')
+    assert pytest.approx(relorbit_.rmatvec(relorbit_).norm(), 60.18805016)
+    assert pytest.approx(relorbit_.cost_function_gradient(relorbit_).norm(), 0.)
+
+    orbit_ = oh.OrbitKS(state=fixed_orbit_data,
+                        parameters=fixed_orbit_parameters[0], basis='field').transform(to='modes')
+    assert pytest.approx(orbit_.rmatvec(orbit_).norm(), 1.295386)
+    assert pytest.approx(orbit_.cost_function_gradient(orbit_.eqn()).norm(), 1.0501956)
+
+def test_matvec(fixed_orbit_data, fixed_orbit_parameters):
+    relorbit_ = oh.read_h5('../../data/ks/RelativeOrbitKS.h5', 'T44p304_L33p280',
+                           'ks', 'RelativeOrbitKS').transform(to='modes')
+    orbit_ = oh.OrbitKS(state=fixed_orbit_data,
+                        parameters=fixed_orbit_parameters[0], basis='field').transform(to='modes')
+
+    assert pytest.approx(relorbit_.matvec(relorbit_).norm(), 0.3641827310989932)
+    assert pytest.approx(orbit_.matvec(orbit_).norm(), 155.86156902189782)
+
+
 
 def instance_generator(fixed_orbit_data, kse_classes, fixed_orbit_parameters):
     for (name, cls) in kse_classes.items():

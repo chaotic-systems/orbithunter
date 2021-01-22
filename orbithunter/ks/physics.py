@@ -1,5 +1,5 @@
 from math import pi
-from .arrayops import elementwise_dxn
+from .orbits import elementwise_dxn
 import numpy as np
 
 __all__ = ['integrate', 'dissipation', 'energy', 'energy_variation', 'power', 'shadowing']

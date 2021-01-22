@@ -284,17 +284,17 @@ class Orbit:
         """
         return ('t', 'x', 'y', 'z')[:cls.ndim]
 
-    @staticmethod
-    def dimension_labels():
+    @classmethod
+    def dimension_labels(cls):
         """ Strings to use to label dimensions/periods; this is redundant for Orbit class.
         """
-        return 't', 'x', 'y', 'z'
+        return ('t', 'x', 'y', 'z')[:cls.ndim]
 
-    @staticmethod
-    def discretization_labels():
+    @classmethod
+    def discretization_labels(cls):
         """ Strings to use to label discretization variables. Generic 3+1 spacetime labels default.
         """
-        return 'n', 'i', 'j', 'k'
+        return ('n', 'i', 'j', 'k')[:cls.ndim]
 
     @classmethod
     def default_parameter_ranges(cls):
@@ -309,7 +309,7 @@ class Orbit:
     @staticmethod
     def default_shape():
         """ The default array shape when dimensions are not specified. """
-        return 1, 1, 1, 1
+        return 4, 4, 4, 4
 
     @staticmethod
     def minimal_shape():
@@ -960,6 +960,7 @@ class Orbit:
         if parameters is None:
             self.parameters = parameters
         elif isinstance(parameters, tuple):
+            # This does not check each tuple element; they can be whatever the user desires.
             # This ensures all parameters are filled. If unequal in length, zip truncates
             # If more parameters than labels then we do not know what to call them by; truncate.
             if len(self.parameter_labels()) < len(parameters):
