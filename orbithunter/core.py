@@ -1,6 +1,7 @@
 from json import dumps
 import h5py
 import numpy as np
+from itertools import zip_longest
 
 __all__ = ['Orbit', 'convert_class']
 
@@ -265,6 +266,17 @@ class Orbit:
         Defaults to 'physical' and not None or empty string because it is used as a data group for writing .h5 files.
         """
         return ('physical',)
+
+    @staticmethod
+    def ndim():
+        """ Number of expected dimensions of state array
+
+        Notes
+        -----
+        Auxiliary usage is to use inherit default labels; that is, so the labels defined as staticmethods do not
+        have to be repeated for derived classes.
+        """
+        return 4
 
     @staticmethod
     def parameter_labels():
@@ -949,7 +961,13 @@ class Orbit:
             self.parameters = parameters
         elif isinstance(parameters, tuple):
             # This ensures all parameters are filled. If unequal in length, zip truncates
-            self.parameters = tuple(val for label, val in zip(self.parameter_labels(), parameters))
+            # If more parameters than labels then we do not know what to call them by; truncate.
+            if len(self.parameter_labels()) < len(parameters):
+                self.parameters = tuple(val for label, val in zip(self.parameter_labels(), parameters))
+            else:
+                # if more labels than parameters, simply fill with the default missing value, 0.
+                self.parameters = tuple(val for label, val in zip_longest(self.parameter_labels(), parameters,
+                                                                          fillvalue=0))
         else:
             # A number of methods require parameters to be an iterable, hence the tuple requirement.
             raise TypeError('"parameters" is required to be a tuple or None. '
@@ -967,8 +985,8 @@ class Orbit:
         """
         # helper function so comprehension can be used later on; each orbit type typically has a default
         # range of good parameters; however, it is often the case that using a user-defined range is desired.
-        def sample_from_generator(val, val_generator):
-            if val == 0:
+        def sample_from_generator(val, val_generator, overwrite=False):
+            if val == 0 or overwrite:
                 # for numerical parameter generators we're going to use uniform distribution to generate values
                 # If the generator is "interval like" then use uniform distribution.
                 if isinstance(val_generator, tuple) and len(val_generator) == 2:
@@ -988,8 +1006,14 @@ class Orbit:
         # If *some* of the parameters were initialized, we want to save those values; iterate over the current
         # parameters if not None, else,
         parameter_iterable = self.parameters or len(self.parameter_labels()) * [0]
-        parameters = tuple(sample_from_generator(val, p_ranges[label]) for label, val
-                           in zip(self.parameter_labels(), parameter_iterable))
+        if len(self.parameter_labels()) < len(parameter_iterable):
+            # If more values than labels, then truncate and discard the additional values
+            parameters = tuple(sample_from_generator(val, p_ranges[label], overwrite=kwargs.get('overwrite', False))
+                               for label, val in zip(self.parameter_labels(), parameter_iterable))
+        else:
+            # If more labels than parameters, fill the missing parameters with default
+            parameters = tuple(sample_from_generator(val, p_ranges[label], overwrite=kwargs.get('overwrite', False))
+                               for label, val in zip_longest(self.parameter_labels(), parameter_iterable, fillvalue=0))
         setattr(self, 'parameters', parameters)
 
     def _generate_state(self, **kwargs):

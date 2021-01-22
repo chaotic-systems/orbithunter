@@ -21,9 +21,14 @@ def fixed_orbit_data():
     return state
 
 @pytest.fixture()
-def fixed_mode_norm_dict():
-    norms = [5.050390311315469, 5.050390311315469, 3.635581670379944,
-             3.821906904088631, 1.159165311191572, 2.384651938236806]
+def fixed_data_transform_norms_dict():
+    orbitks_norms = [6.783718210674288, 5.2245770410096055, 5.050390311315469, 5.050390311315469, 5.050390311315469]
+    rel_norms = [6.783718210674288, 5.2245770410096055, 5.050390311315469, 5.050390311315469, 5.050390311315469]
+    sr_norms = [6.783718210674288, 5.2245770410096055, 3.635581670379944, 3.6355816703799446, 3.6355816703799437]
+    anti_norms = [6.783718210674288, 5.2245770410096055, 3.821906904088631, 3.821906904088631, 3.821906904088631]
+    eqv_norms = [6.783718210674288, 5.2245770410096055, 1.159165311191572, 2.8393635399538266, 2.8393635399538266]
+    reqv_norms = [6.783718210674288, 5.2245770410096055, 2.384651938236806, 5.841180462819081, 5.8411804628190795]
+    norms = [orbitks_norms, rel_norms, sr_norms, anti_norms, eqv_norms, reqv_norms]
     names = [name for name, cls in oh.__dict__.items() if isinstance(cls, type)]
     return dict(zip(names, norms))
 
@@ -41,10 +46,10 @@ def fixed_orbit_parameters():
 
 @pytest.fixture()
 def kse_classes():
-    return dict([(name, cls) for name, cls in oh.__dict__.items() if isinstance(cls, type)])
+    return dict([(name, cls) for name, cls in oh.ks.__dict__.items() if isinstance(cls, type)])
 
 def test_orbit(fixed_orbit_data):
-    return oh.Orbit(state=fixed_orbit_data, basis='physical', parameters=(36, 36))
+    return oh.Orbit(state=fixed_orbit_data, basis='field', parameters=(36, 36))
 
 def instance_generator(fixed_orbit_data, kse_classes, fixed_orbit_parameters):
     for (name, cls) in kse_classes.items():
@@ -55,10 +60,10 @@ def test_binary_operations(fixed_orbit_data, kse_classes, fixed_orbit_parameters
     for orbit_instance in instance_generator(fixed_orbit_data, kse_classes, fixed_orbit_parameters):
         # orbit instance is one of the 6 OrbitKS types, all in the 'field' basis.
         save_signage = np.sign(orbit_instance.state)
-        assert np.abs((((((2*orbit_instance)**2)**0.5)/2).statemul(save_signage) - orbit_instance).state).sum() == 0.
+        assert np.abs((((((2*orbit_instance)**2)**0.5)/2)*(save_signage) - orbit_instance).state).sum() == 0.
 
 
-def test_transforms(fixed_orbit_data, kse_classes, fixed_mode_norm_dict, fixed_orbit_parameters):
+def test_transforms(fixed_orbit_data, kse_classes, fixed_data_transform_norms_dict, fixed_orbit_parameters):
     """ Testing the transforms by comparing norms
 
     Returns
@@ -78,15 +83,15 @@ def test_transforms(fixed_orbit_data, kse_classes, fixed_mode_norm_dict, fixed_o
         orbit_in_mode_basis = orbit_in_spatial_mode_basis.transform(to='modes')
 
         # Using the fixed data, all initial norms and spatial norms should be the same, agnostic of type
-        assert pytest.approx(orbit_in_field_basis.norm(), rel=1e-6) == 6.783718210674288
-        assert pytest.approx(orbit_in_spatial_mode_basis.norm(), rel=1e-6) == 5.2245770410096055
-        assert pytest.approx(orbit_in_mode_basis.norm(), rel=1e-6) == fixed_mode_norm_dict[name]
+        assert pytest.approx(orbit_in_field_basis.norm(), rel=1e-6) == fixed_data_transform_norms_dict[name][0]
+        assert pytest.approx(orbit_in_spatial_mode_basis.norm(), rel=1e-6) == fixed_data_transform_norms_dict[name][1]
+        assert pytest.approx(orbit_in_mode_basis.norm(), rel=1e-6) == fixed_data_transform_norms_dict[name][2]
 
         # Apply inverse transforms
         spatial_modes_from_inverse = orbit_in_mode_basis.transform(to='spatial_modes')
         field_from_inverse = spatial_modes_from_inverse.transform(to='field')
-        assert pytest.approx(spatial_modes_from_inverse.norm(), rel=1e-6) == fixed_mode_norm_dict[name]
-        assert pytest.approx(field_from_inverse.norm(), rel=1e-6) == fixed_mode_norm_dict[name]
+        assert pytest.approx(spatial_modes_from_inverse.norm(), rel=1e-6) == fixed_data_transform_norms_dict[name][3]
+        assert pytest.approx(field_from_inverse.norm(), rel=1e-6) == fixed_data_transform_norms_dict[name][4]
 
 def test_seeding():
     """
@@ -97,7 +102,7 @@ def test_seeding():
     """
     return None
 
-def test_instantiation():
+def test_instantiation(kse_classes):
     """
 
     Returns
@@ -112,7 +117,9 @@ def test_instantiation():
         _ = cls(state=np.ones(cls.minimal_shape()), basis='field', parameters=(100, 100, 0))
     return None
 
+
 def test_minimize():
+    pass
 
 
 def test_continuation():
@@ -124,6 +131,7 @@ def test_continuation():
     """
     pass
 
+
 def test_glue():
     """
 
@@ -133,7 +141,8 @@ def test_glue():
     """
     pass
 
-def test_clipping():
+
+def test_clipping(fixed_orbit_data):
     """
 
     Returns
@@ -141,8 +150,9 @@ def test_clipping():
 
     """
     orbit_ = test_orbit(fixed_orbit_data)
-    test_clipping = oh.clip(orbit_, )
+    # test_clipping = oh.clip(orbit_, )
     pass
+
 
 def test_io():
     pass
