@@ -13,22 +13,8 @@ __all__ = ['OrbitKS', 'RelativeOrbitKS', 'ShiftReflectionOrbitKS', 'Antisymmetri
 
 
 class OrbitKS(Orbit):
-    """ Object that represents invariant 2-torus approximation for the Kuramoto-Sivashinsky equation.
+    """ Object that represents an orbit for the Kuramoto-Sivashinsky equation. See core.py for details.
 
-    Parameters
-    ----------
-    state : ndarray(dtype=float, ndim=2), default None
-        Array which contains one of the following: velocity field,
-        spatial Fourier modes, or spatiotemporal Fourier modes; should match the 'basis' keyword.
-        If None then a randomly generated set of spatiotemporal modes will be produced.
-    basis : str, default None
-        Which basis the array 'state' is currently in. Takes values
-        'field', 'spatial_modes', 'modes'.
-    parameters : tuple, default None
-        Time period, spatial period, spatial shift (unused but kept for uniformity, in case of conversion between
-        OrbitKS and RelativeOrbitKS).
-    **kwargs :
-        Extra arguments for _parse_parameters and _parse_state
 
     See Also
     --------
@@ -56,12 +42,13 @@ class OrbitKS(Orbit):
 
     @staticmethod
     def default_shape():
-        """ The shape of a generic state, not based on any dimensions.
+        """ The default array shape when dimensions are not specified.
 
         Returns
         -------
         tuple of int :
-            The default array shape when dimensions are not specified.
+            Tuple containing the default shape.
+
 
         Notes
         -----
@@ -111,8 +98,9 @@ class OrbitKS(Orbit):
 
     @staticmethod
     def parameter_labels():
-        """ Labels of all parameters."""
-        return 't', 'x', 's'
+        """ Labels of all parameters
+        """
+        return 't', 'x'
 
     @staticmethod
     def discretization_labels():
@@ -390,7 +378,7 @@ class OrbitKS(Orbit):
         if not self.constraints['t']:
             # Compute the product of the partial derivative with respect to T with the vector's value of T.
             # This is typically an incremental value dT.
-            matvec_modes += other.parameters[0] * (-1.0 / self.t) * self.dt(return_array=True)
+            matvec_modes += other.t * (-1.0 / self.t) * self.dt(return_array=True)
 
         if not self.constraints['x']:
             # Compute the product of the partial derivative with respect to L with the vector's value of L.
@@ -398,7 +386,7 @@ class OrbitKS(Orbit):
             dfdl = ((-2.0/self.x)*self.dx(order=2, return_array=True)
                     + (-4.0/self.x)*self.dx(order=4, return_array=True)
                     + (-1.0/self.x) * self_field.nonlinear(self_field, return_array=True))
-            matvec_modes += other.parameters[1] * dfdl
+            matvec_modes += other.x * dfdl
 
         return self.__class__(state=matvec_modes, basis='modes', parameters=self.parameters)
 
@@ -1172,7 +1160,7 @@ class OrbitKS(Orbit):
 
     @classmethod
     def default_parameter_ranges(cls):
-        return {'t': (20, 200), 'x': (20, 100), 's': (0, 0)}
+        return {'t': (20, 200), 'x': (20, 100)}
 
     def _generate_state(self, **kwargs):
         """ Initial a set of random spatiotemporal Fourier modes
@@ -1204,7 +1192,6 @@ class OrbitKS(Orbit):
         this is bad practice but they could be replaced by the corresponding tuples. The reason why this is avoided
         is so this function generalizes to subclasses.
         """
-        # TODO : refactor the subclass random_states
         spectrum = kwargs.get('spectrum', 'gtes')
         tscale = kwargs.get('tscale', int(np.round(self.t / 25.)))
         xscale = kwargs.get('xscale', int(1 + np.round(self.x / (2*pi*np.sqrt(2)))))
@@ -1258,7 +1245,6 @@ class OrbitKS(Orbit):
                                     - ((2*pi*space_ / self.x)**2+(2*pi*space_/self.x)**4))
             modulated_modes = np.multiply(np.exp(mollifier), random_modes)
             modes = np.multiply(time_, modulated_modes)
-
         elif spectrum == 'linear':
             # Modulate the spectrum using the spatial linear operator; equivalent to preconditioning.
             truncate_indices = np.where(time_ > tscale)
@@ -1294,11 +1280,9 @@ class OrbitKS(Orbit):
             modes = np.multiply(time_, random_modes)
         else:
             modes = random_modes
-
         # Rescale
         self.state = (original_mode_norm / np.linalg.norm(modes)) * modes
         self.basis = 'modes'
-        return None
 
     def _parse_state(self, state, basis, **kwargs):
         """ Instantiate state and infer shape of collocation grid from numpy array and basis
@@ -1716,6 +1700,11 @@ class RelativeOrbitKS(OrbitKS):
         self.frame = frame
         super().__init__(state=state, basis=basis, parameters=parameters, **kwargs)
 
+    @staticmethod
+    def parameter_labels():
+        """ Labels of all parameters."""
+        return 't', 'x', 's'
+
     def dt(self, order=1, return_array=False):
         """ A time derivative of the current state.
 
@@ -1895,6 +1884,10 @@ class RelativeOrbitKS(OrbitKS):
 
         Parameters
         ----------
+
+        attr : str
+            Takes values 'all', 'parameters', or 'state'. Determines what is generated.
+
         kwargs :
             p_ranges : dict
                 keys are parameter_labels, values are uniform sampling intervals or iterables to sample from
@@ -1906,7 +1899,7 @@ class RelativeOrbitKS(OrbitKS):
         # This will first replace any None valued parameters (or if parameters itself is None)
         super().generate(attr=attr, **kwargs)
         # Can only initialize spatial shift if both the shift and the parameters have been instantiated.
-        if attr == 'all' and self.size > 0 and self.s == 0. and self.frame == 'physical':
+        if attr in ['all', 'parameters'] and self.size > 0 and self.s == 0. and self.frame == 'physical':
             shift = calculate_spatial_shift(self.transform(to='spatial_modes').state, self.x, **kwargs)
         else:
             shift = 0
@@ -2115,7 +2108,7 @@ class AntisymmetricOrbitKS(OrbitKS):
     @classmethod
     def default_parameter_ranges(cls):
         # L=38.5 based on Yueheng Lan and Cvitanovic investigations
-        return {'t': (20., 200.), 'x': (38.5, 100.), 's': (0., 0.)}
+        return {'t': (20., 200.), 'x': (38.5, 100.)}
 
     def _parse_state(self, state, basis, **kwargs):
         if isinstance(state, np.ndarray):
@@ -2493,6 +2486,11 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
     """
 
     @staticmethod
+    def parameter_labels():
+        """ Labels of all parameters."""
+        return 'x',
+
+    @staticmethod
     def minimal_shape():
         """ The smallest possible compatible discretization
 
@@ -2510,6 +2508,10 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         """
 
         return 1, 4
+
+    def dimensions(self):
+        """ Tile dimensions. """
+        return (self.x,)
 
     def eqn(self, **kwargs):
         """ The Kuramoto-Sivashinsky equation evaluated at the current state.
@@ -2676,7 +2678,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
     @classmethod
     def default_parameter_ranges(cls):
         # minimum L=2*pi based on fundamental orbit.
-        return {'t': (20., 200.), 'x': (2*pi, 100.), 's': (0., 0.)}
+        return {'x': (2*pi, 100.)}
 
     @classmethod
     def parameter_based_discretization(cls, parameters, **kwargs):

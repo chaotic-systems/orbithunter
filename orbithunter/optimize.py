@@ -5,7 +5,7 @@ from scipy.sparse.linalg import (LinearOperator, bicg, bicgstab, gmres, lgmres,
 import sys
 import numpy as np
 
-__all__ = ['converge']
+__all__ = ['minimize']
 
 
 class OrbitResult(dict):
@@ -69,7 +69,7 @@ class OrbitResult(dict):
         return list(self.keys())
 
 
-def converge(orbit_, method='adj', precision='default', comp_time='default', **kwargs):
+def minimize(orbit_, method='adj', precision='default', comp_time='default', **kwargs):
     """ Main optimization function for orbithunter
 
     Parameters

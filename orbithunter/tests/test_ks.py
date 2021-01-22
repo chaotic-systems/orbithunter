@@ -112,7 +112,7 @@ def test_instantiation():
         _ = cls(state=np.ones(cls.minimal_shape()), basis='field', parameters=(100, 100, 0))
     return None
 
-def test_converge():
+def test_minimize():
 
 
 def test_continuation():

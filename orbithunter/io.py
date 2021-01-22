@@ -126,14 +126,14 @@ def read_tileset(filename, orbit_names, keys, equation, class_name, validate=Fal
     return dict(zip(keys, orbits))
 
 
-def convergence_log(initial_orbit, converge_result, log_path, spectrum='random', method='adj'):
-    """ Function to log the results of applying orbithunter.optimize.converge
+def convergence_log(initial_orbit, minimize_result, log_path, spectrum='random', method='adj'):
+    """ Function to log the results of applying orbithunter.optimize.minimize
 
     Parameters
     ----------
     initial_orbit : Orbit
         The initial guess orbit
-    converge_result :
+    minimize_result :
         The
     log_path
     spectrum
@@ -147,8 +147,8 @@ def convergence_log(initial_orbit, converge_result, log_path, spectrum='random',
     # To store all relevant info as a row in a Pandas DataFrame, put into a 1-D array first.
     dataframe_row = [[initial_orbit.parameters, initial_orbit.shapes()[0],
                      np.abs(initial_orbit.transform(to=initial_orbit.bases()[0]).state).max(),
-                      converge_result.orbit.residual(),
-                     converge_result.status, spectrum, method]]
+                      minimize_result.orbit.residual(),
+                     minimize_result.status, spectrum, method]]
     labels = ['parameters', 'shape', ''.join([initial_orbit.bases()[0], '_magnitude']),
               'residual', 'status', 'spectrum', 'numerical_method']
     new_row = pd.DataFrame(dataframe_row, columns=labels)
@@ -170,12 +170,12 @@ def refurbish_log(orbit_, filename, log_filename, overwrite=False, **kwargs):
         refurbish_log_.reset_index(drop=True).drop_duplicates().to_csv(log_filename)
 
 
-def write_symbolic_log(symbol_array, converge_result, log_filename, tileset='default',
+def write_symbolic_log(symbol_array, minimize_result, log_filename, tileset='default',
                        comoving=False):
     symbol_string = to_symbol_string(symbol_array)
-    dataframe_row_values = [[symbol_string, converge_result.orbit.parameters, converge_result.orbit.shapes()[0],
-                             converge_result.orbit.residual(),
-                             converge_result.status, tileset, comoving, symbol_array.shape]]
+    dataframe_row_values = [[symbol_string, minimize_result.orbit.parameters, minimize_result.orbit.shapes()[0],
+                             minimize_result.orbit.residual(),
+                             minimize_result.status, tileset, comoving, symbol_array.shape]]
     labels = ['symbol_string', 'parameters', 'shape', 'residual', 'status', 'tileset',
               'comoving', 'tile_shape']
 
