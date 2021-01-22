@@ -1,4 +1,4 @@
-from .optimize import minimize
+from .optimize import minimize_orbit
 from .io import read_h5, read_tileset
 from .ks import (OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS, AntisymmetricOrbitKS, EquilibriumOrbitKS,
                  RelativeEquilibriumOrbitKS)
@@ -9,7 +9,7 @@ from .core import convert_class, Orbit
 
 __all__ = ['OrbitKS', 'RelativeOrbitKS', 'ShiftReflectionOrbitKS', 'AntisymmetricOrbitKS', 'EquilibriumOrbitKS',
            'RelativeEquilibriumOrbitKS']
-__all__ += ['minimize']
+__all__ += ['minimize_orbit']
 __all__ += ['read_h5', 'read_tileset']
 __all__ += ['glue', 'tile']
 __all__ += ['clip', 'mask_orbit']

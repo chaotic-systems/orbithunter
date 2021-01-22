@@ -20,7 +20,7 @@ an h5 file, it is required to use the h5py API explicitly.
 """
 
 
-def read_h5(path, orbit_names, equation, class_name, validate=False, **orbitkwargs):
+def read_h5(path, orbit_names, equation, class_name=None, validate=False, **orbitkwargs):
     """
     Parameters
     ----------
@@ -66,7 +66,7 @@ def read_h5(path, orbit_names, equation, class_name, validate=False, **orbitkwar
     # With orbit_names now correctly instantiated as an iterable, can open file and iterate.
     with h5py.File(os.path.abspath(path), 'r') as file:
         imported_orbits = []
-        for i, orbit_group in enumerate(orbit_names):
+        for i, orbit_group_name in enumerate(orbit_names):
             # class_name needs to be constant (str input) or specified for each group (tuple with len == len(orbit_names))
             try:
                 if isinstance(class_name, str):
@@ -77,23 +77,26 @@ def read_h5(path, orbit_names, equation, class_name, validate=False, **orbitkwar
                     # If the class generator is not provided, it is assumed to be able to be inferred from the filename.
                     # This is simply a convenience tool because typically the classes are the best partitions of the
                     # full data set.
-                    class_ = getattr(module, str(os.path.basename(path).split('_')[0]))
+                    try:
+                        class_ = getattr(module, str(orbit_group_name.split('_')[0]))
+                    except ValueError('orbit class was unable to be determined during import of .h5 data'):
+                        break
             except (NameError, TypeError, IndexError):
                 print('class_name not recognized or unable to be interpreted from orbit_name name')
 
-            orbit_ = class_(state=file[''.join([orbit_group, '/', class_.bases()[0]])][...],
-                            parameters=tuple(file[''.join([orbit_group, '/parameters'])]),
+            orbit_ = class_(state=file[''.join([orbit_group_name, '/', class_.bases()[0]])][...],
+                            parameters=tuple(file[''.join([orbit_group_name, '/parameters'])]),
                             basis=class_.bases()[0], **orbitkwargs)
-            if validate:
+            if validate and len(orbit_names)==1:
+                return orbit_.verify_integrity()[0]
+            elif len(orbit_names)==1:
+                return orbit_
+            elif validate:
                 imported_orbits.append(orbit_.verify_integrity()[0])
             else:
                 imported_orbits.append(orbit_)
 
-    if len(imported_orbits) == 1:
-        # If there is only a single orbit, return as orbit instance not list
-        return imported_orbits[0]
-    else:
-        return imported_orbits
+    return imported_orbits
 
 
 def read_tileset(filename, orbit_names, keys, equation, class_name, validate=False, **orbitkwargs):

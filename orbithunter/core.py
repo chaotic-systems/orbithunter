@@ -278,11 +278,11 @@ class Orbit:
         """
         return 4
 
-    @staticmethod
-    def parameter_labels():
+    @classmethod
+    def parameter_labels(cls):
         """ Strings to use to label dimensions. Generic 3+1 spacetime labels default.
         """
-        return 't', 'x', 'y', 'z'
+        return ('t', 'x', 'y', 'z')[:cls.ndim]
 
     @staticmethod
     def dimension_labels():
@@ -500,9 +500,9 @@ class Orbit:
             # with new; this prevents accidentally
             for i, d in enumerate(self.discretization):
                 if new_shape[i] < d:
-                    placeholder_orbit = placeholder_orbit.truncate(d, axis=i)
+                    placeholder_orbit = placeholder_orbit.truncate(new_shape[i], axis=i)
                 elif new_shape[i] > d:
-                    placeholder_orbit = placeholder_orbit.pad(d, axis=i)
+                    placeholder_orbit = placeholder_orbit.pad(new_shape[i], axis=i)
                 else:
                     pass
 

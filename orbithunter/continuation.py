@@ -1,4 +1,4 @@
-from .optimize import minimize
+from .optimize import minimize_orbit
 import numpy as np
 
 __all__ = ['continuation', 'discretization_continuation']
@@ -56,7 +56,7 @@ def continuation(orbit_, target_value, constraint_label, *extra_constraints,  st
     # Use list to get the correct count, then convert to tuple as expected.
     # Check that the orbit_ is converged prior to any constraints
 
-    minimize_result = minimize(orbit_.constrain((constraint_label, *extra_constraints), **kwargs))
+    minimize_result = minimize_orbit(orbit_.constrain((constraint_label, *extra_constraints), **kwargs))
     # check that the orbit_ instance is converged when having constraints, otherwise performance takes a big hit.
     # The constraints are applied but orbit_ can also be passed with the correct constrains.
 
@@ -66,7 +66,7 @@ def continuation(orbit_, target_value, constraint_label, *extra_constraints,  st
     # We need to be incrementing in the correct direction. i.e. to get smaller we need to have a negative increment.
     while minimize_result.status == -1 and not _equals_target(minimize_result.orbit, target_value, parameter_label):
         incremented_orbit = _increment_orbit_parameter(minimize_result.orbit, target_value, step_size, parameter_label)
-        minimize_result = minimize(incremented_orbit, **kwargs)
+        minimize_result = minimize_orbit(incremented_orbit, **kwargs)
     return minimize_result
 
 
@@ -120,7 +120,7 @@ def discretization_continuation(orbit_, target_discretization, cycle=False, **kw
 
     """
     # check that we are starting from converged solution, first of all.
-    minimize_result = minimize(orbit_, **kwargs)
+    minimize_result = minimize_orbit(orbit_, **kwargs)
     axes_order = kwargs.get('axes_order', np.argsort(target_discretization)[::-1])
     # Use list to get the correct count, then convert to tuple as expected.
     step_sizes = kwargs.get('step_sizes', tuple(1 if min_dim % 2 else 2 for min_dim
@@ -141,7 +141,7 @@ def discretization_continuation(orbit_, target_discretization, cycle=False, **kw
             incremented_orbit = _increment_discretization(minimize_result.orbit,
                                                           target_discretization[axes_order[cycle_index]],
                                                           step_size, axis=axes_order[cycle_index])
-            minimize_result = minimize(incremented_orbit, **kwargs)
+            minimize_result = minimize_orbit(incremented_orbit, **kwargs)
             cycle_index = np.mod(cycle_index+1, len(axes_order))
     else:
         # As long as we keep converging to solutions, we keep stepping towards target value.
@@ -157,6 +157,6 @@ def discretization_continuation(orbit_, target_discretization, cycle=False, **kw
                    and not minimize_result.orbit.shapes()[0][axis] == target_discretization[axis]):
                 incremented_orbit = _increment_discretization(minimize_result.orbit, target_discretization[axis],
                                                               step_size, axis=axis)
-                minimize_result = minimize(incremented_orbit, **kwargs)
+                minimize_result = minimize_orbit(incremented_orbit, **kwargs)
 
     return minimize_result
