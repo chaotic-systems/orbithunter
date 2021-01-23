@@ -87,27 +87,16 @@ class OrbitKS(Orbit):
         return 'field', 'spatial_modes', 'modes'
 
     @staticmethod
-    def dimension_labels():
-        """ Labels of the tile dimensions, time and space periods.
-
-        Notes
-        -----
-        This seems redundant in the context of parameter_labels staticmethod. It is used in the spatiotemporal
-        techniques for readability and also for generalization to other equations.
-        """
-        return 't', 'x'
-
-    @staticmethod
-    def parameter_labels():
-        """ Labels of all parameters
-        """
-        return 't', 'x'
-
-    @staticmethod
     def discretization_labels():
         """ Strings to use to label dimensions/periods. Generic 3+1 spacetime labels default.
         """
         return 'n', 'm'
+
+    @staticmethod
+    def ndims():
+        """ Strings to use to label dimensions/periods. Generic 3+1 spacetime labels default.
+        """
+        return 2
 
     def orbit_vector(self):
         """ Vector which completely specifies the orbit, contains state information and parameters. """
@@ -196,9 +185,8 @@ class OrbitKS(Orbit):
         # Need mode basis to compute derivatives
         modes = self.transform(to='modes', array=True)
         # Elementwise multiplication of modes with frequencies, this is the derivative.
-        # dtn_modes = np.multiply(elementwise_dtn(self.t, self.n, modes.shape[1], order), modes)
-        deriv_factor = (2*pi*self.t/self.n)**order
-        dtn_modes = deriv_factor * temporal_rfftfreq(self.n, modes.shape[1], order)[:, :modes.shape[1]] * modes
+        # dtn_modes = np.multiply(temporal_frequencies(self.t, self.n, modes.shape[1], order), modes)
+        dtn_modes = temporal_frequencies(self.t, self.n, modes.shape[1], order)[:, :modes.shape[1]] * modes
 
         # If the order of the derivative is odd, then imaginary component and real components switch.
         if np.mod(order, 2):
@@ -236,22 +224,21 @@ class OrbitKS(Orbit):
         instances prior to differentiation. In cases where forgetting to do so would cause dramatic slow downs,
         i.e. optimization, errors are raised.
 
-        The general case returned by the function elementwise_dxn is an array of spatial frequencies of the shape
+        The general case returned by the function spatial_frequencies is an array of spatial frequencies of the shape
         [N-1, M-2]. The columns are comprised of two repeats of an array of dimension [N-1, M//2-1]; for orbits
         with discrete symmetry, we only want this array for the differentiation in the mode basis, simply due
         to how the selection rules work. Therefore, we can slice by the shape of the mode tensor; for orbits without
         discrete symmetry this does nothing, for those with discrete symmetry, it slices the half that we want.
 
         """
-        deriv_factor = ((2*pi*self.m)/self.x)**order
         if computation_basis == 'spatial_modes':
             # can compute spatial derivative in spatial mode or spatiotemporal mode basis.
             modes = self.transform(to='spatial_modes', array=True)
             # Elementwise multiplication of modes with frequencies, this is the derivative.
-            dxn_modes = deriv_factor * spatial_rfftfreq(self.m, modes.shape[0], order) * modes
+            dxn_modes = spatial_frequencies(self.x, self.m, modes.shape[0], order) * modes
         elif computation_basis == 'modes':
             modes = self.transform(to='modes', array=True)
-            dxn_modes = deriv_factor * spatial_rfftfreq(self.m, modes.shape[0], order)[:, :modes.shape[1]] * modes
+            dxn_modes = spatial_frequencies(self.x, self.m, modes.shape[0], order)[:, :modes.shape[1]] * modes
         else:
             raise ValueError('spatial spectral derivatives can only be computed in spatial or spacetime mode bases.')
 
@@ -433,7 +420,6 @@ class OrbitKS(Orbit):
 
         # parameters are derived by multiplying partial derivatives w.r.t. parameters with the other orbit.
         rmatvec_params = self.rmatvec_parameters(self_field, other)
-
         return self.__class__(state=rmatvec_modes, basis='modes', parameters=rmatvec_params)
 
     def rmatvec_parameters(self, self_field, other):
@@ -754,9 +740,9 @@ class OrbitKS(Orbit):
         I never preconditioned the spatial shift for relative periodic solutions so I don't include it here.
         """
         pmult = kwargs.get('pmult', self.preconditioning_parameters())
-        p_multipliers = 1.0 / (np.abs(elementwise_dtn(*pmult[0]))
-                               + np.abs(elementwise_dxn(*pmult[1], order=2))
-                               + elementwise_dxn(*pmult[1], order=4))
+        p_multipliers = 1.0 / (np.abs(temporal_frequencies(*pmult[0]))
+                               + np.abs(spatial_frequencies(*pmult[1], order=2))
+                               + spatial_frequencies(*pmult[1], order=4))
 
         preconditioned_state = np.multiply(self.state, p_multipliers)
         # Precondition the change in T and L
@@ -846,7 +832,7 @@ class OrbitKS(Orbit):
         Rotation breaks discrete symmetry and destroys the solution. Users encouraged to change to OrbitKS first.
         """
         if axis == 0:
-            thetak = distance * elementwise_dtn(self.t, self.n, 1, 1)
+            thetak = distance * temporal_frequencies(self.t, self.n, 1, 1)
             cosinek = np.cos(thetak)
             sinek = np.sin(thetak)
 
@@ -869,7 +855,7 @@ class OrbitKS(Orbit):
         else:
             if units == 'wavelength':
                 distance = distance * 2*pi*np.sqrt(2)
-            thetak = distance * elementwise_dxn(self.x, self.m, 1, 1).ravel()
+            thetak = distance * spatial_frequencies(self.x, self.m, 1, 1).ravel()
             cosinek = np.cos(thetak)
             sinek = np.sin(thetak)
 
@@ -1222,8 +1208,8 @@ class OrbitKS(Orbit):
             self.discretization = n, m
         # I think this is the easiest way to get symmetry-dependent Fourier mode arrays' shapes.
         # power = 2 b.c. odd powers not defined for spacetime modes for discrete symmetries.
-        space_ = np.abs(elementwise_dxn(2*pi, self.m, self.shapes()[2][0])[:, :self.shapes()[2][1]]).astype(int)
-        time_ = np.abs(elementwise_dtn(2*pi, self.n, self.shapes()[2][1])).astype(int)
+        space_ = np.abs(spatial_frequencies(2*pi, self.m, self.shapes()[2][0], 1)[:, :self.shapes()[2][1]]).astype(int)
+        time_ = np.abs(temporal_frequencies(2*pi, self.n, self.shapes()[2][1], 1)).astype(int)
         random_modes = np.random.randn(*self.shapes()[2])
 
         # Pretruncation norm, random normal distribution for modes approximately gives field of "correct" magnitude
@@ -1361,7 +1347,6 @@ class OrbitKS(Orbit):
         the spatial differential is taken on spatial modes, then this function generalizes to the subclasses
         with discrete symmetry.
         """
-
         _jac_nonlin_left = self._dx_matrix().dot(self._time_transform_matrix())
         _jac_nonlin_middle = self._space_transform_matrix().dot(np.diag(self.transform(to='field').state.ravel()))
         _jac_nonlin_right = self._inv_spacetime_transform_matrix()
@@ -1856,7 +1841,7 @@ class RelativeOrbitKS(OrbitKS):
         time_vector = np.flipud(np.linspace(0, self.t, num=self.n, endpoint=True)).reshape(-1, 1)
         translation_per_period = shift / self.t
         time_dependent_translations = translation_per_period*time_vector
-        thetak = time_dependent_translations.reshape(-1, 1) * elementwise_dxn(self.x, self.m, 1, 1).ravel()
+        thetak = time_dependent_translations.reshape(-1, 1) * spatial_frequencies(self.x, self.m, 1, 1).ravel()
         cosine_block = np.cos(thetak)
         sine_block = np.sin(thetak)
         real_modes = spatial_modes[:, :-(int(self.m // 2) - 1)]
@@ -2300,13 +2285,11 @@ class ShiftReflectionOrbitKS(OrbitKS):
 
     def selection_rules(self):
         # equivalent to indices 0 + j from thesis; time indices go like {0, j, j}
-        # i = np.arange(0, self.n//2)[:, None]
-        i = np.repeat(np.arange(1, self.n//2) % 2, 2)
-        # Use of np.block is essentially equivalent to two concatenate calls. This gets the correct pattern.
-        selection_tensor_pattern = np.concatenate(([0], i, [0], i[1:], [0]))
-        # selection_tensor_pattern = np.block([[i % 2, (i+1) % 2], [i[1:] % 2, (i[1:]+1) % 2]])
-        # Apply the pattern to (int(self.m // 2) - 1) modes
-        shiftreflection_selection_rules_integer_flags = np.repeat(selection_tensor_pattern.ravel(), (int(self.m // 2) - 1))
+        i = np.arange(0, self.n//2).reshape(-1, 1)
+        selection_tensor_pattern = np.block([[i % 2, (i+1) % 2], [i[1:] % 2, (i[1:]+1) % 2]])
+        # Apply the pattern to (int(orbit_.m // 2) - 1) modes
+        shiftreflection_selection_rules_integer_flags = np.repeat(selection_tensor_pattern.ravel(),
+                                                                  (int(self.m // 2) - 1))
         # These indices are used for the transform as well as the transform matrices; therefore they are returned
         # in a format compatible with both; applying .nonzero() yields indices., resize(self.shapes()[2]) yields
         # tensor format.
@@ -2357,7 +2340,6 @@ class ShiftReflectionOrbitKS(OrbitKS):
         _jac_nonlin_middle = self._space_transform_matrix().dot(np.diag(self.transform(to='field').state.ravel()))
         _jac_nonlin_right = self._inv_spacetime_transform_matrix()
         _jac_nonlin = _jac_nonlin_left.dot(_jac_nonlin_middle).dot(_jac_nonlin_right)
-
         return _jac_nonlin
 
     def _parse_state(self, state, basis, **kwargs):
@@ -2620,8 +2602,8 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         """
         pmult = kwargs.get('pmult', self.preconditioning_parameters())
         pexp = kwargs.get('pexp', (0, 4))
-        p_multipliers = 1.0 / (np.abs(elementwise_dxn(*pmult[1], order=2))
-                               + elementwise_dxn(*pmult[1], order=4))
+        p_multipliers = 1.0 / (np.abs(spatial_frequencies(*pmult[1], order=2))
+                               + spatial_frequencies(*pmult[1], order=4))
         preconditioned_state = np.multiply(self.state, p_multipliers)
 
         # Precondition the change in T and L so that they do not dominate
@@ -3067,7 +3049,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         """
         # If period is not fixed, need to include dF/dT in jacobian matrix
         if not self.constraints['t']:
-            time_period_derivative = (-1.0 / self.t) * (-self.s / self.t)*self.dx(array=True).reshape(-1, 1)
+            time_period_derivative = (-1.0 / self.t) * (-self.s / self.t) * self.dx(array=True).reshape(-1, 1)
             jac_ = np.concatenate((jac_, time_period_derivative), axis=1)
 
         # If spatial period is not fixed, need to include dF/dL in jacobian matrix
@@ -3108,7 +3090,6 @@ def swap_modes(modes, axis=0):
         swapped_modes = np.concatenate((modes[0, :].reshape(1, -1), modes[-n:, :], modes[1:-n, :]), axis=0)
     return swapped_modes
 
-
 @lru_cache()
 def so2_generator(order):
     """ Powers of the generator of the SO(2) Lie algebra
@@ -3142,7 +3123,7 @@ def so2_coefficients(order):
     return np.sum(so2_generator(order), axis=0)
 
 @lru_cache()
-def temporal_rfftfreq(n, tiling_dimension, order):
+def temporal_frequencies(t, n, tiling_dimension, order):
     """ Matrix/rank 2 tensor of temporal mode frequencies
 
     Parameters
@@ -3169,46 +3150,15 @@ def temporal_rfftfreq(n, tiling_dimension, order):
 
     """
     # Extra factor of -1 because of time ordering in array.
-    w = -1 * rfftfreq(n)[1:-1].reshape(-1, 1)**order
+    w = (-1 * (2*pi*n / t) * rfftfreq(n)[1:-1].reshape(-1, 1))**order
     # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
     c1, c2 = so2_coefficients(order)
     # The Nyquist frequency is never included, this is how time frequency modes are ordered.
     # Elementwise product of modes with time frequencies is the spectral derivative.
     return np.tile(np.concatenate(([[0]], c1*w, c2*w), axis=0), (1, tiling_dimension))
 
-
 @lru_cache()
-def elementwise_dtn(t, n, tiling_dimension, order):
-    """ Matrix/rank 2 tensor of temporal mode frequencies
-
-    Parameters
-    ----------
-    t : float
-        Temporal period
-    n : int
-        Temporal discretization size
-    tiling_dimension : int
-        Number of "copies" of the frequencies so that frequency tensor is the same dimension as mode tensor.
-    order : int
-        The order of the derivative/power of the frequencies desired.
-
-    Returns
-    ----------
-    dtn_multipliers : np.ndarray
-        Array of spatial frequencies in the same shape as modes
-
-    Notes
-    -----
-    Creates and returns a rank 2 tensor whose elements are the properly ordered temporal frequencies,
-    which is the same shape as the spatiotemporal Fourier mode state. The elementwise product
-    with a set of spatiotemporal Fourier modes.
-
-    """
-    return ((2*pi*n / t)**order) * temporal_rfftfreq(n, tiling_dimension, order)
-
-
-@lru_cache()
-def spatial_rfftfreq(m, tiling_dimension, order):
+def spatial_frequencies(x, m, tiling_dimension, order):
     """ Matrix/rank 2 tensor of spatial mode frequencies
 
     Parameters
@@ -3234,43 +3184,13 @@ def spatial_rfftfreq(m, tiling_dimension, order):
     with a set of spatiotemporal Fourier modes.
 
     """
-    q = rfftfreq(m)[1:-1].reshape(1, -1)**order
+    q = ((2*pi*m/x) * rfftfreq(m)[1:-1].reshape(1, -1))**order
     # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
     c1, c2 = so2_coefficients(order)
     # Create elementwise spatial frequency matrix
     return np.tile(np.concatenate((c1*q, c2*q), axis=1), (tiling_dimension, 1))
 
-
 @lru_cache()
-def elementwise_dxn(m, tiling_dimension, order):
-    """ Matrix/rank 2 tensor of spatial mode frequencies
-
-    Parameters
-    ----------
-    x : float
-        Spatial period
-    m : int
-        Spatial discretization size
-    tiling_dimension : int
-        Number of "copies" of the frequencies so that frequency tensor is the same dimension as mode tensor.
-    order : int
-        The order of the derivative/power of the frequencies desired.
-
-    Returns
-    ----------
-    dxn_multipliers : np.ndarray
-        Array of spatial frequencies in the same shape as modes
-
-    Notes
-    -----
-    Creates and returns a rank 2 tensor whose elements are the properly ordered spatial frequencies,
-    which is the same shape as the spatiotemporal Fourier mode state. The elementwise product
-    with a set of spatiotemporal Fourier modes.
-
-    """
-    return spatial_rfftfreq(m, tiling_dimension, order)
-
-
 def dxn_block(x, m, order):
     """ Block diagonal matrix of spatial frequencies
 
@@ -3291,10 +3211,10 @@ def dxn_block(x, m, order):
     -----
     This is the SO(2) generator for multiple Fourier modes. Only used in explicit construction of matrices.
     """
-    qkn = ((2*pi*x / m) * rfftfreq(m)[1:-1].reshape(1, -1))**order
+    qkn = ((2*pi*m / x) * rfftfreq(m)[1:-1].reshape(1, -1))**order
     return np.kron(so2_generator(order), np.diag(qkn.ravel()))
 
-
+@lru_cache()
 def dtn_block(t, n, order):
     """ Block diagonal matrix of temporal frequencies
 
@@ -3315,7 +3235,7 @@ def dtn_block(t, n, order):
     -----
     This is the SO(2) generator for multiple Fourier modes. Only used in explicit construction of matrices.
     """
-    wjn = ((2*pi*t/n) * rfftfreq(n)[1:-1].reshape(-1, 1))**order
+    wjn = (-(2*pi*n/t) * rfftfreq(n)[1:-1].reshape(-1, 1))**order
     return np.kron(so2_generator(order), np.diag(wjn.ravel()))
 
 
@@ -3337,7 +3257,7 @@ def calculate_spatial_shift(spatial_modes, x, **kwargs):
     shift : float
         The best approximation for physical->comoving shift for relative periodic solutions.
     """
-    m0 = spatial_modes.shape[1]//2
+    m0 = spatial_modes.shape[1] // 2
     modes_included = np.min([kwargs.get('n_modes', m0), m0])
     if -m0 + modes_included == 0:
         space_imag_slice_end = None

@@ -1,5 +1,5 @@
 from math import pi
-from .orbits import elementwise_dxn
+from .orbits import spatial_frequencies
 import numpy as np
 
 __all__ = ['integrate', 'dissipation', 'energy', 'energy_variation', 'power', 'shadowing']
@@ -156,8 +156,8 @@ def integrate(orbit_, **kwargs):
     step_size = kwargs.get('step_size', 0.01)
 
     # Because N = 1, this is just the spatial matrices, negative sign b.c. other side of equation.
-    lin_diag = -1.0*(elementwise_dxn(orbit_t.x, orbit_t.M, orbit_t.shapes()[1][0], order=2)
-                     + elementwise_dxn(orbit_t.x, orbit_t.M, orbit_t.shapes()[1][0], order=4)).reshape(-1, 1)
+    lin_diag = -1.0*(spatial_frequencies(orbit_t.x, orbit_t.M, orbit_t.shapes()[1][0], order=2)
+                     + spatial_frequencies(orbit_t.x, orbit_t.M, orbit_t.shapes()[1][0], order=4)).reshape(-1, 1)
 
     E = np.exp(step_size*lin_diag)
     E2 = np.exp(step_size*lin_diag/2.0)

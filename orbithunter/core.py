@@ -282,19 +282,19 @@ class Orbit:
     def parameter_labels(cls):
         """ Strings to use to label dimensions. Generic 3+1 spacetime labels default.
         """
-        return ('t', 'x', 'y', 'z')[:cls.ndim]
+        return ('t', 'x', 'y', 'z')[:cls.ndim()]
 
     @classmethod
     def dimension_labels(cls):
         """ Strings to use to label dimensions/periods; this is redundant for Orbit class.
         """
-        return ('t', 'x', 'y', 'z')[:cls.ndim]
+        return ('t', 'x', 'y', 'z')[:cls.ndim()]
 
     @classmethod
     def discretization_labels(cls):
         """ Strings to use to label discretization variables. Generic 3+1 spacetime labels default.
         """
-        return ('n', 'i', 'j', 'k')[:cls.ndim]
+        return ('n', 'i', 'j', 'k')[:cls.ndim()]
 
     @classmethod
     def default_parameter_ranges(cls):
