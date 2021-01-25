@@ -110,7 +110,10 @@ class OrbitKS(Orbit):
         Parameters
         ----------
         to : str
-            One of the following: 'field', 'spatial_modes', 'modes'. Specifies the basis which the orbit will be converted to.
+            One of the following: 'field', 'spatial_modes', 'modes'. Specifies the basis which the orbit will be
+            converted to.
+        array : bool
+            Whether to return ndarray or Orbit instance
 
         Raises
         ----------
@@ -166,7 +169,7 @@ class OrbitKS(Orbit):
             raise ValueError('Trying to transform to unrecognized basis.')
 
     def dt(self, order=1, array=False):
-        """ Time derivatives of the current state.
+        """ Time derivative of the current state.
 
         Parameters
         ----------
@@ -185,7 +188,6 @@ class OrbitKS(Orbit):
         # Need mode basis to compute derivatives
         modes = self.transform(to='modes', array=True)
         # Elementwise multiplication of modes with frequencies, this is the derivative.
-        # dtn_modes = np.multiply(temporal_frequencies(self.t, self.n, modes.shape[1], order), modes)
         dtn_modes = temporal_frequencies(self.t, self.n, modes.shape[1], order)[:, :modes.shape[1]] * modes
 
         # If the order of the derivative is odd, then imaginary component and real components switch.
@@ -253,6 +255,17 @@ class OrbitKS(Orbit):
             return orbit_dxn.transform(to=kwargs.get('return_basis', self.basis))
 
     def _eqn_linear_component(self, array=False):
+        """ Linear component of the KSE 
+        
+        Parameters
+        ----------
+        array : bool
+            Whether to return ndarray or not. 
+
+        Returns
+        -------
+        ndarray or class instance. 
+        """
         return self.dt(array=array) + self.dx(order=2, array=array) + self.dx(order=4, array=array)
 
     def eqn(self, **kwargs):
@@ -446,7 +459,6 @@ class OrbitKS(Orbit):
 
         if not self.constraints['x']:
             # change in L, dL, equal to DF/DL * v
-            # original
             rmatvec_L = ((-2.0 / self.x) * self.dx(order=2, array=True)
                          + (-4.0 / self.x) * self.dx(order=4, array=True)
                          + (-1.0 / self.x) * self_field.nonlinear(self_field, array=True)
@@ -457,6 +469,17 @@ class OrbitKS(Orbit):
         return rmatvec_T, rmatvec_L
 
     def _rmatvec_linear_component(self, array=False):
+        """ Linear component of the adjoint Jacobian-vector product
+
+        Parameters
+        ----------
+        array : bool
+            Whether or not to return ndarray
+
+        Returns
+        -------
+        ndarray or Orbit.
+        """
         return -1.0 * self.dt(array=array) + self.dx(order=2, array=array) + self.dx(order=4, array=array)
 
     def cost_function_gradient(self, eqn, **kwargs):
@@ -761,33 +784,6 @@ class OrbitKS(Orbit):
 
         return self.__class__(state=preconditioned_state, parameters=(T, L, self.s), basis='modes')
 
-    def rescale(self, magnitude=3., method='absolute'):
-        """ Scalar multiplication
-
-        Parameters
-        ----------
-        magnitude : float
-            Scalar value which controls rescaling based on method.
-        method : str
-            power or absolute; absolute rescales the L_infty norm to a value equal to magnitude; power simply
-            uses a power law rescaling.
-
-        Returns
-        -------
-        OrbitKS
-            rescaled Orbit instance
-        """
-
-        field = self.transform(to='field').state
-        if method == 'absolute':
-            rescaled_field = ((magnitude * field) / np.max(np.abs(field.ravel())))
-        elif method == 'power':
-            rescaled_field = np.sign(field) * np.abs(field)**magnitude
-        else:
-            raise ValueError('Unrecognizable method.')
-        return self.__class__(state=rescaled_field, basis='field',
-                              parameters=self.parameters).transform(to=self.basis)
-
     def reflection(self):
         """ Reflect the velocity field about the spatial midpoint
 
@@ -809,7 +805,7 @@ class OrbitKS(Orbit):
         distance : float
             The rotation / translation amount, in dimensionless units of time or space.
         axis : int
-            The axis of the ndarray (state) that will be padded.
+            The axis of the ndarray (state) that rotations
         units : str
             Determines the spatial units of the provided rotation
 
@@ -820,7 +816,7 @@ class OrbitKS(Orbit):
 
         Notes
         -----
-        Due to periodic boundary conditions, translation is equivalent to rotation on a fundemantal level here.
+        Due to periodic boundary conditions, translation is equivalent to rotation on a fundamental level here.
         Hence the use of 'distance' instead of 'angle'. This can be negative. Also due to the periodic boundary
         conditions, a distance equaling the entire domain length is equivalent to no rotation. I.e.
         the rotation is always modulo L or modulo T.
@@ -832,6 +828,7 @@ class OrbitKS(Orbit):
         Rotation breaks discrete symmetry and destroys the solution. Users encouraged to change to OrbitKS first.
         """
         if axis == 0:
+            # angle to rotate by
             thetak = distance * temporal_frequencies(self.t, self.n, 1, 1)
             cosinek = np.cos(thetak)
             sinek = np.sin(thetak)
@@ -841,6 +838,7 @@ class OrbitKS(Orbit):
             cosine_block = np.tile(cosinek.reshape(-1, 1), (1, orbit_to_rotate.shapes()[2][1]))
             sine_block = np.tile(sinek.reshape(-1, 1), (1, orbit_to_rotate.shapes()[2][1]))
 
+            # Splitting into real and imaginary components of temporal modes
             modes_timereal = orbit_to_rotate.state[1:-orbit_to_rotate.n, :]
             modes_timeimaginary = orbit_to_rotate.state[-orbit_to_rotate.n:, :]
             # Elementwise product to account for matrix product with "2-D" rotation matrix
@@ -848,13 +846,16 @@ class OrbitKS(Orbit):
                             + np.multiply(sine_block, modes_timeimaginary))
             rotated_imag = (-np.multiply(sine_block, modes_timereal)
                             + np.multiply(cosine_block, modes_timeimaginary))
+
             time_rotated_modes = np.concatenate((orbit_to_rotate.state[0, :].reshape(1, -1),
                                                  rotated_real, rotated_imag), axis=0)
             return self.__class__(state=time_rotated_modes, basis='modes',
                                   parameters=self.parameters).transform(to=self.basis)
         else:
             if units == 'wavelength':
+                # conversion from plotting units.
                 distance = distance * 2*pi*np.sqrt(2)
+            # angles to rotate by
             thetak = distance * spatial_frequencies(self.x, self.m, 1, 1).ravel()
             cosinek = np.cos(thetak)
             sinek = np.sin(thetak)
@@ -907,7 +908,8 @@ class OrbitKS(Orbit):
 
         Returns
         -------
-
+        OrbitKS :
+            Instance with rolled state
         """
         return self.roll(np.sign(n_cell)*self.discretization[axis] // np.abs(n_cell), axis=axis)
 
@@ -923,7 +925,7 @@ class OrbitKS(Orbit):
 
         Returns
         -------
-        Orbit :
+        OrbitKS :
             Instance with rolled state
         """
         field = self.transform(to='field').state
@@ -931,11 +933,11 @@ class OrbitKS(Orbit):
                               parameters=self.parameters).transform(to=self.basis)
 
     def group_orbit(self, **kwargs):
-        """ Returns a generator of the orbit's group orbit
+        """ Group orbit generator
 
-        Returns
-        -------
-
+        Yields
+        ------
+        An instance which is an element of the (discrete or continuous) group orbit of the current instance.
         """
         if kwargs.get('discrete_only', False):
             # The discrete symmetry operations which preserve reflection symmetry axis.
@@ -1002,6 +1004,8 @@ class OrbitKS(Orbit):
             raise ValueError('New discretization size must be an even number, preferably a power of 2')
         else:
             if axis == 0:
+                # Due to formatting, can prepend and append zeros to second half as opposed to appending
+                # to first and second halves.
                 padding = (size-modes.n) // 2
                 padding_tuple = ((padding, padding), (0, 0))
                 padded_modes = np.concatenate((modes.state[:-(modes.n//2-1), :],
@@ -1026,12 +1030,12 @@ class OrbitKS(Orbit):
             smaller than the current size of the discretization (handled by resize method).
 
         axis : int
-            The dimension of the state that will be padded.
+            The dimension of the state that will be truncated.
 
         Returns
         -------
         OrbitKS :
-            OrbitKS instance with larger discretization.
+            OrbitKS instance with smaller discretization.
 
         Notes
         -----
@@ -1082,16 +1086,21 @@ class OrbitKS(Orbit):
         else:
             return self, 1
 
-    def to_h5(self, filename=None, orbit_name=None, h5py_mode='a', verbose=False, include_residual=True):
+    def to_h5(self, filename=None, orbit_name=None, h5py_mode='r+', verbose=False, include_residual=True):
         """ Export current state information to HDF5 file. See core.py for more details
 
         Parameters
         ----------
-        filename
-        orbit_name
-        h5py_mode
-        verbose
-        include_residual
+        filename : str or None
+            If None then filename method will be called.
+        orbit_name : str or None
+            h5py group name for
+        h5py_mode : str
+            The writing mode, see core.py for details
+        verbose : bool
+            Whether or not to print save destination.
+        include_residual :
+            Whether to save residual to h5 file.
 
         Notes
         -----
@@ -1159,12 +1168,13 @@ class OrbitKS(Orbit):
             M = max(M, cls.minimal_shape()[1])
         return N, M
 
-    @staticmethod
-    def default_parameter_ranges():
+    @classmethod
+    def default_parameter_ranges(cls):
         return {'t': (20, 200), 'x': (20, 100)}
 
     def _generate_state(self, **kwargs):
-        """ Initial a set of random spatiotemporal Fourier modes
+        """ Initialize a set of random spatiotemporal Fourier modes
+
         Parameters
         ----------
         parameters : tuple of floats
@@ -1331,7 +1341,7 @@ class OrbitKS(Orbit):
 
         Returns
         -------
-        nonlinear_dx : matrix
+        _jac_nonlin : matrix
             Matrix which represents the nonlinear component of the Jacobian. The derivative of
             the nonlinear term, which is
             (D/DU) 1/2 d_x (u .* u) = (D/DU) 1/2 d_x F (diag(F^-1 u)^2)  = d_x F( diag(F^-1 u) F^-1).
@@ -1696,12 +1706,17 @@ class OrbitKS(Orbit):
 class RelativeOrbitKS(OrbitKS):
 
     def __init__(self, state=None, basis=None, parameters=None, frame='comoving', **kwargs):
-        # For uniform save format
         self.frame = frame
         super().__init__(state=state, basis=basis, parameters=parameters, **kwargs)
 
-    @staticmethod
-    def default_parameter_ranges():
+    @classmethod
+    def default_parameter_ranges(cls):
+        """ Default parameter ranges.
+
+        Notes
+        -----
+        The shift parameter is included so that it can be iterated over; clearly only s=0 is allowed. 
+        """
         return {'t': (20, 200), 'x': (20, 100), 's': (0, 0)}
 
     @staticmethod
@@ -1722,8 +1737,7 @@ class RelativeOrbitKS(OrbitKS):
         Returns
         ----------
         orbit_dtn : OrbitKS or subclass instance
-            The class instance whose state is the time derivative in
-            the spatiotemporal mode basis.
+            The class instance whose state is the time derivative in the spatiotemporal mode basis.
         """
         if self.frame == 'comoving':
             return super().dt(order, array=array)
@@ -1732,6 +1746,17 @@ class RelativeOrbitKS(OrbitKS):
                 'Attempting to compute time derivative of '+str(self)+'in physical reference frame.')
 
     def _eqn_linear_component(self, array=False):
+        """ Linear component of the KSE 
+        
+        Parameters
+        ----------
+        array : bool
+            Whether to return ndarray or not. 
+
+        Returns
+        -------
+        ndarray or class instance. 
+        """
         return (self.dt(array=array) + self.dx(order=2, array=array)
                 + self.dx(order=4, array=array) - (self.s / self.t)*self.dx(array=array))
 
@@ -1801,6 +1826,17 @@ class RelativeOrbitKS(OrbitKS):
         return rmatvec_T, rmatvec_L, rmatvec_S
 
     def _rmatvec_linear_component(self, array=False):
+        """ Linear component of the adjoint Jacobian-vector product
+
+        Parameters
+        ----------
+        array : bool
+            Whether or not to return ndarray
+
+        Returns
+        -------
+        ndarray or Orbit.
+        """
         return (-1.0 * self.dt(array=array) + self.dx(order=2, array=array) + self.dx(order=4, array=array)
                 + (self.s / self.t)*self.dx(array=array))
 
@@ -2499,6 +2535,17 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         return (self.x,)
 
     def _eqn_linear_component(self, array=False):
+        """ Linear component of the KSE 
+        
+        Parameters
+        ----------
+        array : bool
+            Whether to return ndarray or not. 
+
+        Returns
+        -------
+        ndarray or class instance. 
+        """
         return self.dx(order=2, array=array) + self.dx(order=4, array=array)
 
     def rmatvec_parameters(self, self_field, other):
@@ -2515,6 +2562,17 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         return (rmatvec_L,)
 
     def _rmatvec_linear_component(self, array=False):
+        """ Linear component of the adjoint Jacobian-vector product
+
+        Parameters
+        ----------
+        array : bool
+            Whether or not to return ndarray
+
+        Returns
+        -------
+        ndarray or Orbit.
+        """
         return self._eqn_linear_component(array=array)
 
     def orbit_vector(self):
@@ -2832,10 +2890,32 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
                 + 'If this is truly desired, convert to RelativeOrbitKS first.')
 
     def _eqn_linear_component(self, array=False):
+        """ Linear component of the KSE 
+        
+        Parameters
+        ----------
+        array : bool
+            Whether to return ndarray or not. 
+
+        Returns
+        -------
+        ndarray or class instance. 
+        """
         return (self.dx(order=2, array=array) + self.dx(order=4, array=array)
                 - (self.s / self.t)*self.dx(array=array))
 
     def _rmatvec_linear_component(self, array=False):
+        """ Linear component of the adjoint Jacobian-vector product
+
+        Parameters
+        ----------
+        array : bool
+            Whether or not to return ndarray
+
+        Returns
+        -------
+        ndarray or Orbit.
+        """
         return (self.dx(order=2, array=array) + self.dx(order=4, array=array)
                 + (self.s / self.t)*self.dx(array=array))
 
