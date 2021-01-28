@@ -810,15 +810,15 @@ class Orbit:
         return self.__class__(state=rescaled_state, basis=self.bases()[0],
                               parameters=self.parameters).transform(to=self.basis)
 
-    def to_h5(self, filename=None, orbit_name=None, h5py_mode='r+', verbose=False, include_residual=False):
+    def to_h5(self, filename=None, h5_group=None, h5py_mode='r+', verbose=False, include_residual=False):
         """ Export current state information to HDF5 file
 
         Parameters
         ----------
         filename : str, default None
             filename to write/append to.
-        orbit_name : str, default None
-            Name of the orbit_name wherein to store the Orbit in the h5_file at location filename. Should be
+        h5_group : str, default None
+            Name of the h5_group wherein to store the Orbit in the h5_file at location filename. Should be
             HDF5 group name, i.e. '/A/B/C/...'
         h5py_mode : str
             Mode with which to open the file. Default is a, read/write if exists, create otherwise,
@@ -827,15 +827,15 @@ class Orbit:
         verbose : bool
             Whether or not to print save location and group
         include_residual : bool
-            Whether or not to include residual as a dataset; requires equation to be well-defined for current instance.
+            Whether or not to include residual as metadata; requires equation to be well-defined for current instance.
         """
         if verbose:
-            print('Saving data to {} under group name'.format(filename, orbit_name))
+            print('Saving data to {} under group name'.format(filename, h5_group))
 
         try:
             with h5py.File(filename, h5py_mode) as f:
-                # Returns orbit_name if not None, else, filename method.
-                orbit_group = f.require_group(orbit_name or self.filename(extension=''))
+                # Returns h5_group if not None, else, filename method.
+                orbit_group = f.require_group(h5_group or self.filename(extension=''))
                 # State may be empty, but can still save.
                 orbit_group.create_dataset(self.bases()[0], data=self.transform(to=self.bases()[0]).state)
                 # The parameters required to exactly specify an orbit.
@@ -846,11 +846,11 @@ class Orbit:
                     # are still in development and data is used to test their implementation. In that case you would
                     # not be able to export data which is undesirable.
                     try:
-                        orbit_group.create_dataset('residual', data=float(self.residual()))
+                        orbit_group.attrs['residual'] = float(self.residual())
                     except (ZeroDivisionError, ValueError):
                         print('Unable to compute residual for {}'.format(repr(self)))
         except (OSError, IOError):
-            print('unable to write orbit data to .h5 file.')
+            print('Unable to write orbit data {} to {}.'.format(repr(self), filename))
 
     def filename(self, extension='.h5', decimals=3):
         """ Method for consistent/conventional filenaming
@@ -884,7 +884,7 @@ class Orbit:
             dimensional_string = ''
         return ''.join([self.__class__.__name__, dimensional_string, extension])
 
-    def verify_integrity(self):
+    def preprocess(self):
         """ Check the status of a solution, whether or not it converged to the correct orbit type. """
         return self
 

@@ -5,7 +5,7 @@ from scipy.sparse.linalg import (LinearOperator, bicg, bicgstab, gmres, lgmres,
 import sys
 import numpy as np
 
-__all__ = ['minimize_orbit']
+__all__ = ['hunt']
 
 
 class OrbitResult(dict):
@@ -69,7 +69,7 @@ class OrbitResult(dict):
         return list(self.keys())
 
 
-def minimize_orbit(orbit_, method='adj', precision='default', comp_time='default', **kwargs):
+def hunt(orbit_, method='adj', precision='default', comp_time='default', **kwargs):
     """ Main optimization function for orbithunter
 
     Parameters

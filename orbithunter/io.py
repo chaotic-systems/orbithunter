@@ -19,8 +19,18 @@ that currently there is no query method for the HDF5 files built in to orbithunt
 an h5 file, it is required to use the h5py API explicitly.   
 """
 
+def _find_parent_class_in_module(module):
+    classes = [cls for name, cls in module.__dict__.items() if isinstance(cls, type)]
+    # Recursively search for the root class of the module
+    for cls in classes:
+        # For each class, count how many subclasses it has. The "parent" class is only its own
+        # subclass; therefore if the count equals 1 then we are done.
+        subclass_count = np.sum([int(issubclass(cls, cls2)) for cls2 in classes])
+        if subclass_count == 1:
+            return cls
 
-def read_h5(path, orbit_names, equation, class_name=None, validate=False, **orbitkwargs):
+
+def read_h5(path, orbit_group, equation, class_names=None, validate=False, **orbitkwargs):
     """
     Parameters
     ----------
@@ -30,10 +40,10 @@ def read_h5(path, orbit_names, equation, class_name=None, validate=False, **orbi
         The h5py.Group (s) of the corresponding .h5 file
     equation : str
         The abbreviation for the corresponding equation's module.
-    class_name : str or iterable of str
+    class_namess : str or iterable of str
         If iterable of str then it needs to be the same length as orbit_names
     validate : bool
-        Whether or not to access Orbit().verify_integrity, presumably checking the integrity of the imported data.
+        Whether or not to access Orbit().preprocess, presumably checking the integrity of the imported data.
     orbitkwargs : dict
         Any additional keyword arguments relevant for instantiation.
 
@@ -55,10 +65,10 @@ def read_h5(path, orbit_names, equation, class_name=None, validate=False, **orbi
     # imports of all equations and possible circular dependencies.
     module = importlib.import_module(''.join(['.', equation]), 'orbithunter')
 
-    if isinstance(orbit_names, str):
+    if isinstance(orbit_group, str):
         # If string, then place inside a len==1 tuple so that iteration doesn't raise an error
-        orbit_names = (orbit_names,)
-    elif isinstance(orbit_names, tuple):
+        orbit_names = (orbit_group,)
+    elif isinstance(orbit_group, tuple):
         pass
     else:
         raise TypeError('Incorrect type for hdf5 group names; needs to be str or a tuple of str')
@@ -67,39 +77,38 @@ def read_h5(path, orbit_names, equation, class_name=None, validate=False, **orbi
     with h5py.File(os.path.abspath(path), 'r') as file:
         imported_orbits = []
         for i, orbit_group_name in enumerate(orbit_names):
-            # class_name needs to be constant (str input) or specified for each group (tuple with len == len(orbit_names))
+            # class_names needs to be constant (str input) or specified for each group (tuple with len == len(orbit_names))
             try:
-                if isinstance(class_name, str):
-                    class_ = getattr(module, class_name)
-                elif isinstance(class_name, tuple):
-                    class_ = getattr(module, class_name[i])
-                elif class_name is None:
+                if isinstance(class_names, str):
+                    class_ = getattr(module, class_names)
+                elif isinstance(class_names, tuple):
+                    class_ = getattr(module, class_names[i])
+                elif class_names is None:
                     # If the class generator is not provided, it is assumed to be able to be inferred from the filename.
                     # This is simply a convenience tool because typically the classes are the best partitions of the
                     # full data set.
-                    try:
-                        class_ = getattr(module, str(orbit_group_name.split('_')[0]))
-                    except ValueError('orbit class was unable to be determined during import of .h5 data'):
-                        break
-            except (NameError, TypeError, IndexError):
-                print('class_name not recognized or unable to be interpreted from orbit_name name')
+                    class_ = getattr(module, str(orbit_group_name.split('_')[0]))
+                else:
+                    raise AttributeError
+            except AttributeError:
+                class_ = _find_parent_class_in_module(module)
 
             orbit_ = class_(state=file[''.join([orbit_group_name, '/', class_.bases()[0]])][...],
                             parameters=tuple(file[''.join([orbit_group_name, '/parameters'])]),
                             basis=class_.bases()[0], **orbitkwargs)
-            if validate and len(orbit_names)==1:
-                return orbit_.verify_integrity()[0]
-            elif len(orbit_names)==1:
+            if validate and len(orbit_names) == 1:
+                return orbit_.preprocess()[0]
+            elif len(orbit_names) == 1:
                 return orbit_
             elif validate:
-                imported_orbits.append(orbit_.verify_integrity()[0])
+                imported_orbits.append(orbit_.preprocess()[0])
             else:
                 imported_orbits.append(orbit_)
 
     return imported_orbits
 
 
-def read_tileset(filename, orbit_names, keys, equation, class_name, validate=False, **orbitkwargs):
+def read_tileset(filename, orbit_names, keys, equation, class_names, validate=False, **orbitkwargs):
     """ Importation of data as tiling dictionary
 
     Parameters
@@ -112,10 +121,10 @@ def read_tileset(filename, orbit_names, keys, equation, class_name, validate=Fal
         The labels to give to the orbits corresponding to orbit_names, respectively.
     equation : str
         The module name for the corresponding equation, i.e. 'ks'
-    class_name : str
+    class_names : str
         The name of the Orbit class/subclass
     validate :
-        Whether or not to call verify_integrity method on each imported orbit.
+        Whether or not to call preprocess method on each imported orbit.
     orbitkwargs :
         Keyword arguments that user wants to provide for construction of orbit instances.
 
@@ -124,7 +133,7 @@ def read_tileset(filename, orbit_names, keys, equation, class_name, validate=Fal
     dict :
         Dictionary whose values are given by the orbits specified by orbit_names.
     """
-    orbits = read_h5(filename, orbit_names, equation, class_name, validate=validate, **orbitkwargs)
+    orbits = read_h5(filename, orbit_names, equation, class_names, validate=validate, **orbitkwargs)
     # if keys and orbits are not the same length, it will only form a dict with min([len(keys), len(orbits)]) items
     return dict(zip(keys, orbits))
 

@@ -98,6 +98,11 @@ class OrbitKS(Orbit):
         """
         return 2
 
+    @staticmethod
+    def parameter_labels():
+        """ Labels of all parameters."""
+        return 't', 'x', 's'
+
     def orbit_vector(self):
         """ Vector which completely specifies the orbit, contains state information and parameters. """
         return np.concatenate((self.state.reshape(-1, 1),
@@ -1059,25 +1064,25 @@ class OrbitKS(Orbit):
                 truncated_modes = np.sqrt(size / modes.m) * np.concatenate((first_half, second_half), axis=1)
         return self.__class__(state=truncated_modes, basis=self.basis, parameters=self.parameters)
 
-    def verify_integrity(self):
+    def preprocess(self):
         """ Check whether the orbit converged to an equilibrium or close-to-zero solution
         """
         # Take the L_2 norm of the field, if uniformly close to zero, the magnitude will be very small.
         field_orbit = self.transform(to='field')
-
-        # See if the L_2 norm is beneath a threshold value, if so, replace with zeros.
-        if field_orbit.norm() < 10**-5:
-            code = 4
-            return EquilibriumOrbitKS(state=np.zeros(self.discretization), basis='field',
-                                      parameters=self.parameters).transform(to=self.basis), code
         # Equilibrium is defined by having no temporal variation, i.e. time derivative is a uniformly zero.
-        elif self.t == 0.:
+        if self.t == 0.:
             # If there is sufficient evidence that solution is an equilibrium, change its class
             code = 3
             # store T just in case we want to refer to what the period was before conversion to EquilibriumOrbitKS
             return EquilibriumOrbitKS(state=field_orbit.state, basis='field',
                                       parameters=self.parameters).transform(to=self.basis), code
-        elif field_orbit.dt().transform(to='field').norm() < 10**-5:
+        # See if the L_2 norm is beneath a threshold value, if so, replace with zeros.
+        elif field_orbit.norm() < field_orbit.size * 10**-9:
+            code = 4
+            return EquilibriumOrbitKS(state=np.zeros(self.discretization), basis='field',
+                                      parameters=self.parameters).transform(to=self.basis), code
+
+        elif field_orbit.dt().transform(to='field').norm() < field_orbit.size * 10**-9:
             # If there is sufficient evidence that solution is an equilibrium, change its class
             code = 3
             # store T just in case we want to refer to what the period was before conversion to EquilibriumOrbitKS
@@ -1086,15 +1091,15 @@ class OrbitKS(Orbit):
         else:
             return self, 1
 
-    def to_h5(self, filename=None, orbit_name=None, h5py_mode='r+', verbose=False, include_residual=True):
+    def to_h5(self, filename=None, h5_group=None, h5py_mode='r+', verbose=False, include_residual=False):
         """ Export current state information to HDF5 file. See core.py for more details
 
         Parameters
         ----------
         filename : str or None
             If None then filename method will be called.
-        orbit_name : str or None
-            h5py group name for
+        h5_group : str or None
+            h5py group name for orbit
         h5py_mode : str
             The writing mode, see core.py for details
         verbose : bool
@@ -1106,7 +1111,7 @@ class OrbitKS(Orbit):
         -----
         Mainly an overload simply to get a different default behavior for include_residual.
         """
-        super().to_h5(filename=filename, orbit_name=orbit_name, h5py_mode=h5py_mode, verbose=verbose,
+        super().to_h5(filename=filename, h5_group=h5_group, h5py_mode=h5py_mode, verbose=verbose,
                       include_residual=include_residual)
 
     @classmethod
@@ -1719,11 +1724,6 @@ class RelativeOrbitKS(OrbitKS):
         """
         return {'t': (20, 200), 'x': (20, 100), 's': (0, 0)}
 
-    @staticmethod
-    def parameter_labels():
-        """ Labels of all parameters."""
-        return 't', 'x', 's'
-
     def dt(self, order=1, array=False):
         """ A time derivative of the current state.
 
@@ -1877,7 +1877,8 @@ class RelativeOrbitKS(OrbitKS):
         time_vector = np.flipud(np.linspace(0, self.t, num=self.n, endpoint=True)).reshape(-1, 1)
         translation_per_period = shift / self.t
         time_dependent_translations = translation_per_period*time_vector
-        thetak = time_dependent_translations.reshape(-1, 1) * spatial_frequencies(self.x, self.m, 1, 1).ravel()
+        thetak = (time_dependent_translations.reshape(-1, 1)
+                  * spatial_frequencies(self.x, self.m, 1, 1)[:, :-(int(self.m // 2) - 1)].ravel())
         cosine_block = np.cos(thetak)
         sine_block = np.sin(thetak)
         real_modes = spatial_modes[:, :-(int(self.m // 2) - 1)]
@@ -1930,7 +1931,7 @@ class RelativeOrbitKS(OrbitKS):
         setattr(self, 'parameters', parameters_with_shift)
         return self
 
-    def verify_integrity(self):
+    def preprocess(self):
         """ Check whether the orbit converged to an equilibrium or close-to-zero solution """
         orbit_with_inverted_shift = self.copy()
         orbit_with_inverted_shift.s = -self.s
@@ -2158,7 +2159,6 @@ class AntisymmetricOrbitKS(OrbitKS):
             else:
                 self.discretization = n, m
             self.basis = basis
-            # self.n, (int(self.m // 2) - 1) = max([int(self.n // 2) - 1, 1]), int(self.m // 2) - 1
         else:
             self.discretization = None
             self.basis = None
@@ -2401,7 +2401,6 @@ class ShiftReflectionOrbitKS(OrbitKS):
             else:
                 self.discretization = n, m
             self.basis = basis
-            # self.n, (int(self.m // 2) - 1) = max([int(self.n // 2) - 1,  1]), int(self.m // 2) - 1
         else:
             self.discretization = None
             self.basis = None
@@ -2506,10 +2505,6 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
     or OrbitKS.
     """
 
-    @staticmethod
-    def parameter_labels():
-        """ Labels of all parameters."""
-        return 'x',
 
     @staticmethod
     def minimal_shape():
@@ -2673,7 +2668,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         return self.__class__(state=preconditioned_state, parameters=(0., x, 0.), basis='modes')
 
-    def verify_integrity(self):
+    def preprocess(self):
         """ Check whether the orbit converged to an equilibrium or close-to-zero solution """
         # Take the L_2 norm of the field, if uniformly close to zero, the magnitude will be very small.
         field_orbit = self.transform(to='field')
@@ -2924,7 +2919,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         """
         return (self.n, self.m), (self.n, self.m - 2), (1, self.m-2)
 
-    def verify_integrity(self):
+    def preprocess(self):
         """ Check whether the orbit converged to an equilibrium or close-to-zero solution """
         # Take the L_2 norm of the field, if uniformly close to zero, the magnitude will be very small.
         orbit_with_inverted_shift = self.copy()
