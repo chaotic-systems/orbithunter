@@ -220,8 +220,11 @@ class OrbitKS(Orbit):
             return dtn_modes
         else:
             # return the derivative in an instance
-            orbit_dtn = self.__class__(state=dtn_modes, basis='modes', parameters=self.parameters)
+            orbit_dtn = self.__class__(**{**vars(self), 'state': dtn_modes, 'basis': 'modes'})
             return orbit_dtn.transform(to=self.basis)
+
+
+
 
     def dx(self, order=1, computation_basis='modes', array=False, **kwargs):
         """ Spatial derivative of the current state.
@@ -272,7 +275,7 @@ class OrbitKS(Orbit):
         if array:
             return dxn_modes
         else:
-            orbit_dxn = self.__class__(state=dxn_modes, basis=computation_basis, parameters=self.parameters)
+            orbit_dxn = self.__class__(**{**vars(self), 'state': dxn_modes, 'basis':computation_basis})
             return orbit_dxn.transform(to=kwargs.get('return_basis', self.basis))
 
     def _eqn_linear_component(self, array=False):
@@ -310,7 +313,7 @@ class OrbitKS(Orbit):
         # Compute the Kuramoto-sivashinsky equation; linear components differ between subclasses.
         mapping_modes = (self._eqn_linear_component(array=True) + orbit_field.nonlinear(orbit_field, array=True))
 
-        return self.__class__(state=mapping_modes, basis='modes', parameters=self.parameters)
+        return self.__class__(**{**vars(self), 'state': mapping_modes, 'basis':'modes'})
 
     def nonlinear(self, other, array=False):
         """ Computation of the nonlinear term of the Kuramoto-Sivashinsky equation
@@ -403,7 +406,7 @@ class OrbitKS(Orbit):
         self_field = self.transform(to='field')
         # The correct derivative of the vector in the matrix vector product needs the current state parameters;
         # not the parameters stored in other;
-        other_mode_component = other.__class__(state=other.state, basis=other.basis, parameters=self.parameters)
+        other_mode_component = other.__class__(**{**vars(self), 'state': other.state, 'basis': other.basis})
         other_field = other_mode_component.transform(to='field')
 
         # Factor of two corrects the 1/2 u^2 from differentiation of nonlinear term.
@@ -423,7 +426,7 @@ class OrbitKS(Orbit):
                     + (-1.0/self.x) * self_field.nonlinear(self_field, array=True))
             matvec_modes += other.x * dfdl
 
-        return self.__class__(state=matvec_modes, basis='modes', parameters=self.parameters)
+        return self.__class__(**{**vars(self), 'state': matvec_modes, 'basis':'modes'})
 
     def rmatvec(self, other, **kwargs):
         """ Matrix-vector product with the adjoint of the Jacobian
@@ -454,7 +457,7 @@ class OrbitKS(Orbit):
 
         # parameters are derived by multiplying partial derivatives w.r.t. parameters with the other orbit.
         rmatvec_params = self.rmatvec_parameters(self_field, other)
-        return self.__class__(state=rmatvec_modes, basis='modes', parameters=rmatvec_params)
+        return self.__class__(**{**vars(self), 'state': rmatvec_modes, 'basis': 'modes', 'parameters': rmatvec_params})
 
     def rmatvec_parameters(self, self_field, other):
         """ Parameter values from product with partial derivatives
@@ -530,27 +533,6 @@ class OrbitKS(Orbit):
         else:
             gradient = self.rmatvec(eqn, **kwargs)
         return gradient
-
-    def increment(self, other, step_size=1, **kwargs):
-        """ Add optimization correction to current state.
-
-        Parameters
-        ----------
-        other : OrbitKS
-            Represents the values to increment by.
-        step_size : float
-            Multiplicative factor which decides the step length of the correction.
-
-        Returns
-        -------
-        OrbitKS
-            New instance which results from adding an optimization correction to self.
-        """
-        orbit_params = tuple(self_param + step_size * other_param for self_param, other_param
-                             in zip(self.parameters, other.parameters))
-        return self.__class__(state=self.state+step_size*other.state, basis=self.basis,
-                              parameters=orbit_params,
-                              constraints=self.constraints, **kwargs)
 
     def plot(self, show=True, save=False, fundamental_domain=False, **kwargs):
         """ Plot the velocity field as a 2-d density plot using matplotlib's imshow
@@ -793,17 +775,18 @@ class OrbitKS(Orbit):
         pexp = kwargs.get('pexp', (1, 4))
         if not self.constraints['t']:
             # self is the orbit being preconditioned, i.e. the correction orbit; by default this is dT = dT / T
-            T = self.t * (pmult[0][0]**-pexp[0])
+            t = self.t * (pmult[0][0]**-pexp[0])
         else:
-            T = self.t
+            t = self.t
 
         if not self.constraints['x']:
             # self is the orbit being preconditioned, i.e. the correction orbit; by default this is dL = dL / L^4
-            L = self.x * (pmult[1][0]**-pexp[1])
+            x = self.x * (pmult[1][0]**-pexp[1])
         else:
-            L = self.x
+            x = self.x
 
-        return self.__class__(state=preconditioned_state, parameters=(T, L, self.s), basis='modes')
+        return self.__class__(**{**vars(self), 'state': preconditioned_state,
+                                 'basis': 'modes', 'parameters': (t, x, self.s)})
 
     def reflection(self):
         """ Reflect the velocity field about the spatial midpoint
@@ -815,8 +798,8 @@ class OrbitKS(Orbit):
         """
         # Different points in space represented by columns of the state array
         reflected_field = -1.0*np.roll(np.fliplr(self.transform(to='field').state), 1, axis=1)
-        return self.__class__(state=reflected_field, basis='field',
-                              parameters=(self.t, self.x, -1.0*self.s)).transform(to=self.basis)
+        return self.__class__(**{**vars(self), 'state': reflected_field,
+                                 'basis': 'field', 'parameters': (self.t, self.x, -1*self.s)}).transform(to=self.basis)
 
     def rotate(self, distance, axis=0, units='plotting'):
         """ Rotate the velocity field in either space or time.
@@ -870,8 +853,7 @@ class OrbitKS(Orbit):
 
             time_rotated_modes = np.concatenate((orbit_to_rotate.state[0, :].reshape(1, -1),
                                                  rotated_real, rotated_imag), axis=0)
-            return self.__class__(state=time_rotated_modes, basis='modes',
-                                  parameters=self.parameters).transform(to=self.basis)
+            return self.__class__(**{**vars(self), 'state': time_rotated_modes, 'basis': 'modes'}).transform(to=self.basis)
         else:
             if units == 'wavelength':
                 # conversion from plotting units.
@@ -896,8 +878,8 @@ class OrbitKS(Orbit):
                             + np.multiply(cosine_block, spatial_modes_imaginary))
             rotated_spatial_modes = np.concatenate((rotated_real, rotated_imag), axis=1)
 
-            return self.__class__(state=rotated_spatial_modes, basis='spatial_modes',
-                                  parameters=self.parameters).transform(to=self.basis)
+            return self.__class__(**{**vars(self), 'state': rotated_spatial_modes,
+                                     'basis': 'spatial_modes'}).transform(to=self.basis)
 
     def shift_reflection(self):
         """ Return a OrbitKS with shift-reflected velocity field
@@ -914,8 +896,8 @@ class OrbitKS(Orbit):
         """
         shift_reflected_field = np.roll(-1.0*np.roll(np.fliplr(self.transform(to='field').state),
                                                      1, axis=1), self.n // 2, axis=0)
-        return self.__class__(state=shift_reflected_field, basis='field',
-                              parameters=self.parameters).transform(to=self.basis)
+        return self.__class__(**{**vars(self), 'state': shift_reflected_field,
+                                 'basis': 'field'}).transform(to=self.basis)
 
     def cell_shift(self, n_cell, axis=0):
         """ Rotate by period/n_cell in either axis.
@@ -950,8 +932,8 @@ class OrbitKS(Orbit):
             Instance with rolled state
         """
         field = self.transform(to='field').state
-        return self.__class__(state=np.roll(field, shift, axis=axis), basis='field',
-                              parameters=self.parameters).transform(to=self.basis)
+        return self.__class__(**{**vars(self), 'state': np.roll(field, shift, axis=axis),
+                                 'basis': 'field'}).transform(to=self.basis)
 
     def group_orbit(self, **kwargs):
         """ Group orbit generator
@@ -984,10 +966,6 @@ class OrbitKS(Orbit):
     def plotting_dimensions(self):
         """ Dimensions according to plot labels; used in clipping. """
         return (0., self.t), (0., self.x / (2 * pi * np.sqrt(2)))
-
-    def copy(self):
-        """ Create another Orbit instance with a copied state array"""
-        return self.__class__(state=self.state.copy(), basis=self.basis, parameters=self.parameters)
 
     def dot(self, other):
         """ Return the L_2 inner product of two orbits
@@ -1038,8 +1016,7 @@ class OrbitKS(Orbit):
                 padded_modes = np.concatenate((modes.state[:, :-(modes.m//2-1)],
                                                np.pad(modes.state[:, -(modes.m//2-1):], padding_tuple)), axis=1)
                 padded_modes *= np.sqrt(size / modes.m)
-        return self.__class__(state=padded_modes, basis='modes',
-                              parameters=self.parameters).transform(to=self.basis)
+        return self.__class__(**{**vars(self), 'state': padded_modes, 'basis': 'modes'}).transform(to=self.basis)
 
     def truncate(self, size, axis=0):
         """ Decrease the size of the discretization via truncation
@@ -1078,7 +1055,7 @@ class OrbitKS(Orbit):
                 first_half = self.state[:, :truncate_number]
                 second_half = self.state[:, -(int(self.m // 2) - 1):-(int(self.m // 2) - 1) + truncate_number]
                 truncated_modes = np.sqrt(size / modes.m) * np.concatenate((first_half, second_half), axis=1)
-        return self.__class__(state=truncated_modes, basis=self.basis, parameters=self.parameters)
+        return self.__class__(**{**vars(self), 'state': truncated_modes, 'basis': 'modes'})
 
     def preprocess(self):
         """ Check whether the orbit converged to an equilibrium or close-to-zero solution
@@ -1531,7 +1508,7 @@ class OrbitKS(Orbit):
         if array:
             return spacetime_modes
         else:
-            return self.__class__(state=spacetime_modes, basis='modes', parameters=self.parameters)
+            return self.__class__(**{**vars(self), 'state': spacetime_modes, 'basis': 'modes'})
 
     def _inv_time_transform(self, array=False):
         """ Temporal Fourier transform
@@ -1558,7 +1535,7 @@ class OrbitKS(Orbit):
         if array:
             return space_modes
         else:
-            return self.__class__(state=space_modes, basis='spatial_modes', parameters=self.parameters)
+            return self.__class__(**{**vars(self), 'state': space_modes, 'basis': 'spatial_modes'})
 
     def _space_transform(self, array=False):
         """ Spatial Fourier transform
@@ -1579,7 +1556,7 @@ class OrbitKS(Orbit):
         if array:
             return spatial_modes
         else:
-            return self.__class__(state=spatial_modes, basis='spatial_modes', parameters=self.parameters)
+            return self.__class__(**{**vars(self), 'state': spatial_modes, 'basis': 'spatial_modes'})
 
     def _inv_space_transform(self, array=False):
         """ Spatial Fourier transform
@@ -1602,7 +1579,7 @@ class OrbitKS(Orbit):
         if array:
             return field
         else:
-            return self.__class__(state=field, basis='field', parameters=self.parameters)
+            return self.__class__(**{**vars(self), 'state': field, 'basis': 'field'})
 
     def _time_transform_matrix(self):
         """ Inverse Time Fourier transform operator
@@ -1902,8 +1879,8 @@ class RelativeOrbitKS(OrbitKS):
         frame_rotated_spatial_modes = np.concatenate((frame_rotated_spatial_modes_real,
                                                       frame_rotated_spatial_modes_imag), axis=1)
 
-        rotated_orbit = self.__class__(state=frame_rotated_spatial_modes, basis='spatial_modes',
-                                       parameters=(self.t, self.x, self.s), frame=to)
+        rotated_orbit = self.__class__(**{**vars(self), 'state': frame_rotated_spatial_modes, 'basis': 'spatial_modes',
+                                          'frame': to})
         return rotated_orbit.transform(to=self.basis)
 
     def orbit_vector(self):
@@ -2022,9 +1999,6 @@ class RelativeOrbitKS(OrbitKS):
             transformed_orbit.frame = self.frame
             return transformed_orbit
 
-    def copy(self):
-        return self.__class__(state=self.state.copy(), basis=self.basis, parameters=self.parameters, frame=self.frame)
-
     def _jacobian_parameter_derivatives_concat(self, jac_):
         """ Concatenate parameter partial derivatives to Jacobian matrix
 
@@ -2090,8 +2064,9 @@ class AntisymmetricOrbitKS(OrbitKS):
 
     def from_fundamental_domain(self, **kwargs):
         """ Overwrite of parent method """
-        return self.__class__(state=np.concatenate((self.reflection().state, self.state), axis=1),
-                              basis='field', parameters=(self.t, 2*self.x, 0.))
+        field = self.transform(to='field')
+        return self.__class__(**{**vars(self), 'state': np.concatenate((field.reflection().state, field.state), axis=1),
+                                 'basis': 'field', 'parameters': (self.t, 2*self.x, 0.)}).transform(to=self.basis)
 
     def pad(self, size, axis=0):
         """ Overwrite of parent method """
@@ -2109,8 +2084,7 @@ class AntisymmetricOrbitKS(OrbitKS):
             else:
                 padding_number = (size-modes.m) // 2
                 padded_modes = np.sqrt(size / modes.m) * np.pad(modes.state, ((0, 0), (0, padding_number)))
-        return self.__class__(state=padded_modes, basis='modes',
-                              parameters=self.parameters).transform(to=self.basis)
+        return self.__class__(**{**vars(self), 'state': padded_modes, 'basis': 'modes'}).transform(to=self.basis)
 
     def truncate(self, size, axis=0):
         """ Overwrite of parent method """
@@ -2126,8 +2100,7 @@ class AntisymmetricOrbitKS(OrbitKS):
             else:
                 truncate_number = int(size // 2) - 1
                 truncated_modes = np.sqrt(size / modes.m) * modes.state[:, :truncate_number]
-        return self.__class__(state=truncated_modes, basis='modes',
-                              parameters=self.parameters).transform(to=self.basis)
+        return self.__class__(**{**vars(self), 'state': truncated_modes, 'basis': 'modes'}).transform(to=self.basis)
 
     def shapes(self):
         """ State array shapes in different bases.
@@ -2242,7 +2215,8 @@ class AntisymmetricOrbitKS(OrbitKS):
         if array:
             return spacetime_modes
         else:
-            return self.__class__(state=spacetime_modes, basis='modes', parameters=self.parameters)
+            return self.__class__(**{**vars(self), 'state': spacetime_modes,
+                                     'basis': 'modes'}).transform(to=self.basis)
 
     def _inv_time_transform(self, array=False):
         """ Spatial Fourier transform
@@ -2269,7 +2243,8 @@ class AntisymmetricOrbitKS(OrbitKS):
         if array:
             return space_modes
         else:
-            return self.__class__(state=space_modes, basis='spatial_modes', parameters=self.parameters)
+            return self.__class__(**{**vars(self), 'state': space_modes,
+                                     'basis': 'spatial_modes'}).transform(to=self.basis)
 
     def to_fundamental_domain(self, half=0, **kwargs):
         """ Overwrite of parent method """
@@ -2278,7 +2253,8 @@ class AntisymmetricOrbitKS(OrbitKS):
         else:
             f_domain = self.transform(to='field').state[:, -int(self.m//2):]
 
-        return self.__class__(state=f_domain, basis='field', parameters=(self.t, self.x / 2.0, 0.))
+        return self.__class__(**{**vars(self), 'state': f_domain, 'basis': 'field',
+                                 'parameters': (self.t, self.x / 2.0, 0.)}).transform(to=self.basis)
 
 
 class ShiftReflectionOrbitKS(OrbitKS):
@@ -2312,8 +2288,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
                 padding_number = (size-modes.m) // 2
                 padded_modes = np.sqrt(size / modes.m) * np.pad(modes.state, ((0, 0), (0, padding_number)))
 
-        return self.__class__(state=padded_modes, basis='modes',
-                              parameters=self.parameters).transform(to=self.basis)
+        return self.__class__(**{**vars(self), 'state': padded_modes, 'basis': 'modes'}).transform(to=self.basis)
 
     def truncate(self, size, axis=0):
         """ Overwrite of parent method """
@@ -2329,8 +2304,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
             else:
                 truncate_number = int(size // 2) - 1
                 truncated_modes = np.sqrt(size / modes.m) * modes.state[:, :truncate_number]
-        return self.__class__(state=truncated_modes, basis='modes',
-                              parameters=self.parameters).transform(to=self.basis)
+        return self.__class__(**{**vars(self), 'state': truncated_modes, 'basis': 'modes'}).transform(to=self.basis)
 
     def selection_rules(self):
         # equivalent to indices 0 + j from thesis; time indices go like {0, j, j}
@@ -2356,12 +2330,14 @@ class ShiftReflectionOrbitKS(OrbitKS):
             f_domain = field[-int(self.n // 2):, :]
         else:
             f_domain = field[:-int(self.n // 2), :]
-        return self.__class__(state=f_domain, basis='field', parameters=(self.t / 2.0, self.x, 0.))
+        return self.__class__(**{**vars(self), 'state': f_domain, 'basis': 'field',
+                                 'parameters': (self.t / 2.0, self.x, 0.)}).transform(to=self.basis)
 
     def from_fundamental_domain(self):
         """ Reconstruct full field from discrete fundamental domain """
         field = np.concatenate((self.reflection().state, self.state), axis=0)
-        return self.__class__(state=field, basis='field', parameters=(2*self.t, self.x, 0.))
+        return self.__class__(**{**vars(self), 'state': field, 'basis': 'field',
+                                 'parameters': (2*self.t, self.x, 0.)}).transform(to=self.basis)
 
     def _jac_nonlin(self):
         """ The nonlinear component of the Jacobian matrix of the Kuramoto-Sivashinsky equation
@@ -2446,7 +2422,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
         if array:
             return spacetime_modes
         else:
-            return self.__class__(state=spacetime_modes, basis='modes', parameters=self.parameters)
+            return self.__class__(**{**vars(self), 'state': spacetime_modes, 'basis': 'modes'}).transform(to=self.basis)
 
     def _inv_time_transform(self, array=False):
         """ Spatial Fourier transform
@@ -2476,7 +2452,8 @@ class ShiftReflectionOrbitKS(OrbitKS):
         if array:
             return spatial_modes
         else:
-            return self.__class__(state=spatial_modes, basis='spatial_modes', parameters=self.parameters)
+            return self.__class__(**{**vars(self), 'state': spatial_modes,
+                                     'basis': 'spatial_modes'}).transform(to=self.basis)
 
     def _time_transform_matrix(self):
         """
@@ -2592,8 +2569,9 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
     def from_fundamental_domain(self, **kwargs):
         """ Overwrite of parent method """
-        return self.__class__(state=np.concatenate((self.reflection().state, self.state), axis=1),
-                              basis='field', parameters=(0., 2.0*self.x, 0.))
+        field = self.transform(to='field')
+        return self.__class__(**{**vars(self), 'state': np.concatenate((field.reflection().state, field.state), axis=1),
+                                 'basis': 'field', 'parameters': (0., 2.0*self.x, 0.)}).transform(to=self.basis)
 
     def to_fundamental_domain(self, half=0, **kwargs):
         """ Overwrite of parent method """
@@ -2601,7 +2579,9 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             f_domain = self.transform(to='field').state[:, :-int(self.m//2)]
         else:
             f_domain = self.transform(to='field').state[:, -int(self.m//2):]
-        return self.__class__(state=f_domain, basis='field', parameters=(0., self.x / 2.0, 0.))
+
+        return self.__class__(**{**vars(self), 'state': f_domain, 'basis': 'field',
+                                 'parameters': (0., self.x / 2.0, 0.)})
 
     def pad(self, size, axis=0):
         """ Overwrite of parent method
@@ -2611,38 +2591,37 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         If starting and ending in the spatiotemporal modes basis, this will only create an instance with a different
         value of time dimensionality attribute 'N'.
         """
-        spatial_modes = self.transform(to='spatial_modes').state
+        spatial_modes = self.transform(to='spatial_modes')
         if axis == 0:
 
             # Not technically zero-padding, just copying. Just can't be in temporal mode basis
             # because it is designed to only represent the zeroth modes.
-            padded_spatial_modes = np.tile(spatial_modes[0, :].reshape(1, -1), (size, 1))
-            return self.__class__(state=padded_spatial_modes, basis='spatial_modes',
-                                  parameters=self.parameters).transform(to=self.basis)
+            padded_spatial_modes = np.tile(spatial_modes.state[0, :].reshape(1, -1), (size, 1))
+            return self.__class__(**{**vars(self), 'state': padded_spatial_modes,
+                                     'basis': 'spatial_modes'}).transform(to=self.basis)
         else:
             # Split into real and imaginary components, pad separately.
             padding = (size-self.m) // 2
             padding_tuple = ((0, 0), (padding, padding))
-            padded_modes = np.concatenate((spatial_modes[:, :-(self.m//2-1)],
-                                           np.pad(spatial_modes[:, -(self.m//2-1):], padding_tuple)), axis=1)
+            padded_modes = np.concatenate((spatial_modes.state[:, :-(self.m//2-1)],
+                                           np.pad(spatial_modes.state[:, -(self.m//2-1):], padding_tuple)), axis=1)
             padded_modes *= np.sqrt(size / self.m)
-            return self.__class__(state=padded_modes, basis='spatial_modes',
-                                  parameters=self.parameters).transform(to=self.basis)
+            return self.__class__(**{**vars(self), 'state': padded_modes,
+                                     'basis': 'spatial_modes'}).transform(to=self.basis)
 
     def truncate(self, size, axis=0):
         """ Overwrite of parent method """
+        spatial_modes = self.transform(to='spatial_modes')
         if axis == 0:
-            spatial_modes = self.transform(to='spatial_modes')
             truncated_spatial_modes = spatial_modes.state[-size:, :]
-            return self.__class__(state=truncated_spatial_modes, basis='spatial_modes',
-                                  parameters=self.parameters).transform(to=self.basis)
+            return self.__class__(**{**vars(self), 'state': truncated_spatial_modes,
+                                     'basis': 'spatial_modes'}).transform(to=self.basis)
         else:
-            modes = self.transform(to='modes')
             truncate_number = int(size // 2) - 1
-            truncated_modes = modes.state[:, :truncate_number]
+            truncated_modes = spatial_modes.state[:, :truncate_number]
             # cannot distinguish between n != 1 and n == 1 when in modes basis; therefore, pass the shape to keep track
-            return self.__class__(state=truncated_modes,  basis='modes',
-                                  parameters=self.parameters, discretization=(self.n, size)).transform(to=self.basis)
+            return self.__class__(**{**vars(self), 'state': truncated_modes,
+                                     'basis': 'spatial_modes'}).transform(to=self.basis)
 
     def shapes(self):
         """ State array shapes in different bases. See core.py for details.
@@ -2681,7 +2660,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         else:
             x = self.x
 
-        return self.__class__(state=preconditioned_state, parameters=(0., x, 0.), basis='modes')
+        return self.__class__(**{**vars(self), 'state': preconditioned_state, 'basis': 'modes'})
 
     def preprocess(self):
         """ Check whether the orbit converged to an equilibrium or close-to-zero solution """
@@ -2690,9 +2669,8 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         # See if the L_2 norm is beneath a threshold value, if so, replace with zeros.
         if field_orbit.norm() < 10**-5:
-
-            return self.__class__(state=np.zeros(self.discretization), basis='field',
-                                  parameters=self.parameters).transform(to=self.basis)
+            return self.__class__(**{**vars(self), 'state': np.zeros(self.discretization),
+                                     'basis': 'field'}).transform(to=self.basis)
         else:
             return self
 
@@ -2833,8 +2811,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         if array:
             return spacetime_modes
         else:
-            return self.__class__(state=spacetime_modes, basis='modes',
-                                  parameters=self.parameters, discretization=self.discretization)
+            return self.__class__(**{**vars(self), 'state': spacetime_modes, 'basis': 'modes'})
 
     def _inv_time_transform(self, array=False):
         """ Overwrite of parent method
@@ -2850,7 +2827,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         if array:
             return spatial_modes
         else:
-            return self.__class__(state=spatial_modes, basis='spatial_modes', parameters=self.parameters)
+            return self.__class__(**{**vars(self), 'state': spatial_modes, 'basis': 'spatial_modes'})
 
 
 class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
@@ -2895,8 +2872,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             if array:
                 return np.zeros(self.state.shape)
             else:
-                return self.__class__(state=np.zeros(self.state.shape), basis=self.basis,
-                                      parameters=self.parameters)
+                return self.__class__(**{**vars(self), 'state': np.zeros(self.shape), 'basis': 'modes'})
         else:
             raise ValueError(
                 'Attempting to compute time derivative of ' + str(self) + ' in physical reference frame.'
@@ -2983,8 +2959,8 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
                 # because it is designed to only represent the zeroth modes.
                 spatial_modes = self.transform(to='spatial_modes')
                 padded_spatial_modes = np.tile(spatial_modes.state[-1, :].reshape(1, -1), (size, 1))
-                return self.__class__(state=padded_spatial_modes, basis='spatial_modes',
-                                      parameters=self.parameters).transform(to=self.basis)
+                return self.__class__(**{**vars(self), 'state': padded_spatial_modes,
+                                         'basis': 'spatial_modes'}).transform(to=self.basis)
             else:
                 modes = self.transform(to='modes')
                 padding = (size-modes.m) // 2
@@ -2992,8 +2968,8 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
                 padded_modes = np.concatenate((modes.state[:, :-modes.m//2-1],
                                                np.pad(modes.state[:, -modes.m//2-1:], padding_tuple)), axis=1)
                 padded_modes *= np.sqrt(size / modes.m)
-                return self.__class__(state=padded_modes, basis='modes',
-                                      parameters=self.parameters).transform(to=self.basis)
+                return self.__class__(**{**vars(self), 'state': padded_modes,
+                                         'basis': 'modes'}).transform(to=self.basis)
 
     def truncate(self, size, axis=0):
         """ Subclassed method to handle RelativeEquilibriumOrbitKS mode's shape.
@@ -3001,7 +2977,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         assert self.frame == 'comoving', 'Transform to comoving frame before truncating modes'
         if axis == 0:
             truncated_spatial_modes = self.transform(to='spatial_modes').state[-size:, :]
-            self.__class__(state=truncated_spatial_modes, basis='spatial_modes', parameters=self.parameters
+            self.__class__(**{**vars(self), 'state': truncated_spatial_modes, 'basis': 'spatial_modes'}
                            ).transform(to=self.basis)
         else:
             truncate_number = int(size // 2) - 1
@@ -3010,8 +2986,8 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             first_half = spatial_modes.state[:, :truncate_number]
             second_half = spatial_modes.state[:, -spatial_modes.m//2-1:-spatial_modes.m//2-1 + truncate_number]
             truncated_spatial_modes = np.sqrt(size / spatial_modes.m) * np.concatenate((first_half, second_half), axis=1)
-        return self.__class__(state=truncated_spatial_modes, basis=self.basis,
-                              parameters=self.parameters).transform(to=self.basis)
+        return self.__class__(**{**vars(self), 'state': truncated_spatial_modes,
+                                 'basis': 'spatial_modes'}).transform(to=self.basis)
 
     @classmethod
     def parameter_based_discretization(cls, parameters, **kwargs):
@@ -3101,8 +3077,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         if array:
             return spacetime_modes
         else:
-            return self.__class__(state=spacetime_modes, basis='modes', parameters=self.parameters,
-                                  discretization=self.discretization)
+            return self.__class__(**{**vars(self), 'state': spacetime_modes, 'basis': 'modes'})
 
     def _inv_time_transform(self, array=False):
         """ Overwrite of parent method
@@ -3116,7 +3091,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         if array:
             return spatial_modes
         else:
-            return self.__class__(state=spatial_modes, basis='spatial_modes', parameters=self.parameters)
+            return self.__class__(**{**vars(self), 'state': spatial_modes, 'basis': 'spatial_modes'})
 
     def _jac_lin(self):
         """ Extension of the OrbitKS method that includes the term for spatial translation symmetry"""

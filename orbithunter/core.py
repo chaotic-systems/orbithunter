@@ -566,11 +566,17 @@ class Orbit:
         -----
         If self.eqn().state = 0. at every point (within some numerical tolerance), then the state constitutes
         a solution to the governing equation. Of course there is no equation for this class, so zeros are returned.
-        The instance needs to be in spatiotemporal basis prior to computation; this avoids possible mistakes in the
+        The instance needs to be in 'spatiotemporal' basis prior to computation; this avoids possible mistakes in the
         optimization process, which would result in a breakdown in performance from redundant transforms.
+
+        Additionally, the equations and state are defined such that state + parameters are required to compute
+        the governing equations. Often it is the case that  there will not be an associated component of the equations
+        for the parameters themselves. Therefore, because the parameters in the continuous case define the
+        spatiotemporal domain (tile), it makes sense for these values to be assigned to the "eqn" orbit. That is,
+        the evaluation of the governing equations yields a state defined on the same domain.
         """
         assert self.basis == self.bases()[-1], 'Convert to spatiotemporal basis before computing governing equations.'
-        return self.__class__(**{**vars(self), 'state': np.zeros(self.shapes()[-1]), 'parameters':})
+        return self.__class__(**{**vars(self), 'state': np.zeros(self.shapes()[-1])})
 
     def residual(self, eqn=True):
         """ Cost function evaluated at current state.
@@ -605,19 +611,23 @@ class Orbit:
         Returns
         -------
         orbit_matvec :
-            Orbit with values representative of the matrix-vector product
+            Orbit with values representative of the matrix-vector product.
 
         Notes
         -----
-        Because the general Orbit template doesn't have an associated equation, returns an array of zeros.
-        Should typically return an instance with the same parameters as current instance.
+        This method represents the matrix-vector product of the Jacobian matrix with an orbit vector of dimension
+        self.size+len(self.parameters). Typically for these systems, the Jacobian has dimensions
+        [self.size, self.size + len(self.parameters)]. Because there are no associated components for the parameters
+        (i.e. the last elements of the orbit vector), it is often convenient to simply pass the current state's
+        parameters to the new instance; this philosophy mimics the eqn() method. Because the general Orbit template
+        doesn't have an associated equation, return an array of zeros.
         """
         # Instance with all attributes except state and parameters
         return self.__class__(**{**vars(self), 'state': np.zeros(self.shapes()[-1])})
 
 
     def rmatvec(self, other, **kwargs):
-        """ Matrix-vector product of adjoint Jacobian evaluated at instance state, times vector of other instance.
+        """ Matrix-vector product of adjoint Jacobian evaluated at instance state, times state of other instance.
 
         Parameters
         ----------
@@ -681,8 +691,7 @@ class Orbit:
         """
         # slice out the parameters; cast as list to gain access to pop
         params_list = list(kwargs.pop('parameters', orbit_vector.ravel()[self.size:].tolist()))
-        # The usage of this function is to convert a vector of corrections to an orbit instance;
-        # while default parameter values may be None, default corrections are 0.
+        # In order to increment orbit states, need values for all parameters even if they are constrained, i.e. zero.
         parameters = tuple(params_list.pop(0) if not constrained and params_list else 0
                            for constrained in self.constraints.values())
         return self.__class__(**{**vars(self), 'state': np.reshape(orbit_vector.ravel()[:self.size], self.shape),
@@ -709,11 +718,11 @@ class Orbit:
         This is used primarily in optimization methods, e.g. adding a gradient descent step using class instances
         instead of simply arrays.
         """
-        incremented_params = tuple(self_param + step_size * other_param
-                                   if other_param != 0 else self_param  # assumed to be constrained if 0.
+        incremented_params = tuple(self_param + step_size * other_param # assumed to be constrained if 0.
                                    for self_param, other_param in zip(self.parameters, other.parameters))
-        return self.__class__(**{**vars(self), 'state': self.state + step_size * other.state,
-                                 'parameters': incremented_params, **kwargs})
+        return self.__class__(**{**vars(self), **kwargs, 'state': self.state + step_size * other.state,
+                                 'parameters': incremented_params})
+
     def pad(self, size, axis=0):
         """ Increase the size of the discretization along an axis.
 
@@ -958,7 +967,7 @@ class Orbit:
 
     def copy(self):
         """ Return an instance with deep copy of numpy array. """
-        return self.__class__(**{k:v.copy() if hasattr(v, 'copy') else v for k, v in vars(self).items()})
+        return self.__class__(**{k: v.copy() if hasattr(v, 'copy') else v for k, v in vars(self).items()})
 
     def constrain(self, *labels):
         """ Set self constraints based on labels provided.
