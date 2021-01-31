@@ -42,7 +42,7 @@ def _correct_aspect_ratios(orbit_array, axis=0, conserve_parity=True):
 
     if conserve_parity:
         # the values returned by minimal shape are the absolute minimum. If the parity is wrong, then the practical
-        # minimum must be one greater.
+        # minimum must be at least one greater.
         min_disc_sizes = []
         for i, min_size in enumerate(o.minimal_shape()[axis] for o in orbit_array):
             if (min_size % 2) != (sizes[i] % 2):
@@ -50,8 +50,9 @@ def _correct_aspect_ratios(orbit_array, axis=0, conserve_parity=True):
             else:
                 min_disc_sizes.append(min_size)
         min_disc_sizes = np.array(min_disc_sizes)
-        # Once the minimum discretization sizes are stored with the correct parity, then to maintain the parity
-        # we need to add even numbers only; can accomplish this by using units of 2.
+        # The parity is built into the minimum discretization sizes; therefore, the total sizes are these minimum
+        # sizes plus an even number if parity is to be maintained. The best way (that I've found) to maintain
+        # this even parity in the remainder is to distribute
         disc_remainder = disc_total - np.sum(min_disc_sizes)
         disc_remainder //= 2
         dim_remainder = dim_total
@@ -89,7 +90,7 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
         have the same discretization size if gluing is occuring along more than one axis. The orbits should
         all be in the physical field basis.
     class_constructor : Orbit class
-        i.e. OrbitKS without parentheses
+        Not an instance.
     strip_wise : bool
         If True, then "strip-wise aspect ratio correction" is applied.
     Returns
@@ -128,19 +129,16 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
     For a symbol array of shape (a, b, c, d) and orbit field with shape (N, X, Y, Z, 3) the final dimensions
     would be (a*N, b*X, c*Y, d*Z, 3). I believe that this can be achieved by repeated concatenation along the
     axis corresponding to the last axis of the symbol array. i.e. for (a,b,c,d) this would be concatenation along
-    axis=3, 4 times in a row. I believe that this generalizes for all equations but it's hard to test
+    axis=3, 4 times in a row. I believe that this generalizes for all equations but it has not been tested yet.
 
     """
     glue_shape = orbit_array.shape
     tiling_shape = orbit_array.ravel()[0].shapes()[0]
     gluing_order = kwargs.get('gluing_order', np.argsort(glue_shape))
+    conserve_parity = kwargs.get('conserve_parity', True)
+    nzero = kwargs.get('nonzero_parameter_glue', True)
     # This joins the dictionary of all orbits' dimensions by zipping the values together. i.e.
     #(T_1, L_1, ...), (T_2, L_2, ...) transforms into  ((T_1, T_2, ...) , (L_1, L_2, ...))
-
-    # Bundle all of the parameters at once, instead of "stripwise"
-    zipped_dimensions = tuple(zip(*(o.dimensions() for o in orbit_array.ravel())))
-    # Average tile dimensions
-    glued_parameters = class_constructor.glue_parameters(zipped_dimensions, glue_shape=glue_shape)
 
     if strip_wise:
         for gluing_axis in gluing_order:
@@ -157,13 +155,14 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
 
                 # For each strip, need to know how to combine the dimensions of the orbits. Bundle, then combine.
                 tuple_of_zipped_dimensions = tuple(zip(*(o.dimensions() for o in orbit_array[gs].ravel())))
-                strip_parameters = class_constructor.glue_parameters(tuple_of_zipped_dimensions, glue_shape=strip_shape)
+                strip_parameters = class_constructor.glue_parameters(tuple_of_zipped_dimensions, glue_shape=strip_shape,
+                                                                     non_zero=nzero)
                 # Slice the orbit array to get the strip, reshape to maintain its d-dimensional form.
                 strip_of_orbits = orbit_array[gs].ravel()
 
                 # Correct the proportions of the dimensions along the current gluing axis.
-                orbit_array_corrected = _correct_aspect_ratios(strip_of_orbits, strip_parameters, glued_parameters,
-                                                               axis=gluing_axis)
+                orbit_array_corrected = _correct_aspect_ratios(strip_of_orbits, axis=gluing_axis,
+                                                               conserve_parity=conserve_parity)
                 # Concatenate the states with corrected proportions.
                 glued_strip_state = np.concatenate(tuple(x.state for x in orbit_array_corrected),
                                                    axis=gluing_axis)
@@ -180,6 +179,10 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
             if orbit_array.size == 1:
                 glued_orbit = orbit_array.ravel()[0]
     else:
+        # Bundle all of the parameters at once, instead of "stripwise"
+        zipped_dimensions = tuple(zip(*(o.dimensions() for o in orbit_array.ravel())))
+        # Default parameter gluing strategy is to average all tile dimensions
+        glued_parameters = class_constructor.glue_parameters(zipped_dimensions, glue_shape=glue_shape, non_zero=nzero)
         # If we want a much simpler method of gluing, we can do "arraywise" which simply concatenates everything at
         # once. I would say this is the better option if all orbits in the tile dictionary are approximately equal
         # in size.

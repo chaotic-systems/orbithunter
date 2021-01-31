@@ -43,6 +43,10 @@ matvec = J * x, and must be able to construct the Jacobian = J. ***NOTE: the mat
 explicitly construct the Jacobian matrix. In the context of DAE's there is typically no need to write these
 with finite difference approximations of time evolved Jacobians. (Of course if the DAEs are defined
 in terms of finite differences, so should the Jacobian).***
+
+The way that binary operations and dunder methods involving the state are designed is to maintain all attributes of a 
+state except for the state itself. 
+
 """
 
 
@@ -75,11 +79,12 @@ class Orbit:
         other : Orbit, ndarray, float, int
         """
         if issubclass(type(other), Orbit):
-            summation = self.state + other.state
+            result = self.state + other.state
         else:
-            summation = self.state + other
+            result = self.state + other
 
-        return self.__class__(state=summation, basis=self.basis, parameters=self.parameters)
+        # construct a new instance with same attributes except for state, which is updated by merging dicts
+        return self.__class__(**{**vars(self), 'state': result})
 
     def __radd__(self, other):
         """ Addition of Orbit state and other numerical quantity.
@@ -89,11 +94,11 @@ class Orbit:
         other : Orbit, ndarray, float, int
         """
         if issubclass(type(other), Orbit):
-            summation = other.state + self.state
+            result = other.state + self.state
         else:
-            summation = other + self.state
+            result = other + self.state
 
-        return self.__class__(state=summation, basis=self.basis, parameters=self.parameters)
+        return self.__class__(**{**vars(self), 'state': result})
 
     def __sub__(self, other):
         """ Subtraction of other numerical quantity from Orbit state.
@@ -103,10 +108,10 @@ class Orbit:
         other : Orbit, ndarray, float, int
         """
         if issubclass(type(other), Orbit):
-            sub = self.state - other.state
+            result = self.state - other.state
         else:
-            sub = self.state - other
-        return self.__class__(state=sub, basis=self.basis, parameters=self.parameters)
+            result = self.state - other
+        return self.__class__(**{**vars(self), 'state': result})
 
     def __rsub__(self, other):
         """ Subtraction of Orbit state from other numeric quantity
@@ -117,10 +122,10 @@ class Orbit:
 
         """
         if issubclass(type(other), Orbit):
-            sub = other.state - self.state
+            result = other.state - self.state
         else:
-            sub = other - self.state
-        return self.__class__(state=sub, basis=self.basis, parameters=self.parameters)
+            result = other - self.state
+        return self.__class__(**{**vars(self), 'state': result})
 
     def __mul__(self, other):
         """ Multiplication of Orbit state and other numerical quantity
@@ -135,11 +140,11 @@ class Orbit:
         array of shape (x,) * array of shape (x, 1) = array of shape (x, x)
         """
         if issubclass(type(other), Orbit):
-            product = np.multiply(self.state, other.state)
+            result = np.multiply(self.state, other.state)
         else:
-            product = np.multiply(self.state, other)
+            result = np.multiply(self.state, other)
 
-        return self.__class__(state=product, basis=self.basis, parameters=self.parameters)
+        return self.__class__(**{**vars(self), 'state': result})
 
     def __rmul__(self, other):
         """ Multiplication of Orbit state and other numerical quantity
@@ -154,11 +159,10 @@ class Orbit:
         array of shape (x,) * array of shape (x, 1) = array of shape (x, x)
         """
         if issubclass(type(other), Orbit):
-            product = np.multiply(self.state, other.state)
+            result = np.multiply(self.state, other.state)
         else:
-            product = np.multiply(self.state, other)
-
-        return self.__class__(state=product, basis=self.basis, parameters=self.parameters)
+            result = np.multiply(self.state, other)
+        return self.__class__(**{**vars(self), 'state': result})
 
     def __truediv__(self, other):
         """ Division of Orbit state by other numerical quantity
@@ -173,11 +177,10 @@ class Orbit:
         array of shape (x,) / array of shape (x, 1) = array of shape (x, x)
         """
         if issubclass(type(other), Orbit):
-            quotient = np.divide(self.state, other.state)
+            result = np.divide(self.state, other.state)
         else:
-            quotient = np.divide(self.state, other)
-
-        return self.__class__(state=quotient, basis=self.basis, parameters=self.parameters)
+            result = np.divide(self.state, other)
+        return self.__class__(**{**vars(self), 'state': result})
 
     def __floordiv__(self, other):
         """ Floor division of Orbit state by other numerical quantity
@@ -192,10 +195,10 @@ class Orbit:
         array of shape (x,) // array of shape (x, 1) = array of shape (x, x)
         """
         if issubclass(type(other), Orbit):
-            quotient = np.floor_divide(self.state, other.state)
+            result = np.floor_divide(self.state, other.state)
         else:
-            quotient = np.floor_divide(self.state, other)
-        return self.__class__(state=quotient, basis=self.basis, parameters=self.parameters)
+            result = np.floor_divide(self.state, other)
+        return self.__class__(**{**vars(self), 'state': result})
 
     def __pow__(self, other):
         """ Exponentiation of Orbit state.
@@ -205,10 +208,10 @@ class Orbit:
         other : Orbit, ndarray, float, int
         """
         if issubclass(type(other), Orbit):
-            expo = self.state**other.state
+            result = self.state**other.state
         else:
-            expo = self.state**other
-        return self.__class__(state=expo, basis=self.basis, parameters=self.parameters)
+            result = self.state**other
+        return self.__class__(**{**vars(self), 'state': result})
 
     def __str__(self):
         """ String name
@@ -330,6 +333,22 @@ class Orbit:
         -----
         Often symmetry constraints reduce the dimensionality; if too small this reduction may leave the state empty,
         this is used for aspect ratio correction and possibly other gluing applications.
+        """
+        return 1, 1, 1, 1
+
+    @staticmethod
+    def minimal_shape_increments():
+        """ The smallest valid increment to change the discretization by.
+
+        Returns
+        -------
+        tuple of int :
+            The smallest valid increments to changes in discretization size; presumably to retain all functionality.
+
+        Notes
+        -----
+        Used in aspect ratio correction and "discretization continuation". For example, the KSe code requires
+        even valued field discretizations; therefore the minimum increments for the KSE are 2's.
         """
         return 1, 1, 1, 1
 
@@ -551,7 +570,7 @@ class Orbit:
         optimization process, which would result in a breakdown in performance from redundant transforms.
         """
         assert self.basis == self.bases()[-1], 'Convert to spatiotemporal basis before computing governing equations.'
-        return self.__class__(state=np.zeros(self.shapes()[-1]), basis=self.bases()[-1], parameters=self.parameters)
+        return self.__class__(**{**vars(self), 'state': np.zeros(self.shapes()[-1]), 'parameters':})
 
     def residual(self, eqn=True):
         """ Cost function evaluated at current state.
@@ -591,9 +610,11 @@ class Orbit:
         Notes
         -----
         Because the general Orbit template doesn't have an associated equation, returns an array of zeros.
+        Should typically return an instance with the same parameters as current instance.
         """
-        return self.__class__(state=np.zeros(self.shape), basis=self.basis,
-                              parameters=tuple([0] * len(self.parameter_labels())))
+        # Instance with all attributes except state and parameters
+        return self.__class__(**{**vars(self), 'state': np.zeros(self.shapes()[-1])})
+
 
     def rmatvec(self, other, **kwargs):
         """ Matrix-vector product of adjoint Jacobian evaluated at instance state, times vector of other instance.
@@ -606,10 +627,11 @@ class Orbit:
         Returns
         -------
         orbit_rmatvec :
-            Orbit with values representative of the adjoint-vector product
+            Orbit with values representative of the adjoint-vector product; this returns a vector of the
+            same dimension as self.orbit_vector; i.e. parameter values are returned.
         """
-        return self.__class__(state=np.zeros(self.shape), basis=self.basis,
-                              parameters=tuple([0] * len(self.parameter_labels())))
+        return self.__class__(**{**vars(self), 'state': np.zeros(self.shape),
+                                 'parameters': tuple([0] * len(self.parameter_labels()))})
 
     def orbit_vector(self):
         """ Vector representation of Orbit instance.
@@ -619,8 +641,15 @@ class Orbit:
         ndarray :
             The state vector: the current state with parameters appended, returned as a (self.size + n_params , 1)
             axis of dimension 1 for scipy purposes.
+
+        Notes
+        -----
+        Parameters only need to be bundled into a tuple. There is no requirement that elements must be scalars.
+        Any type which can be cast as a numpy array and has numeric values is allowed.
         """
-        return np.concatenate((self.state.ravel(), self.parameters), axis=0).reshape(-1, 1)
+        # By raveling and concatenating ensure that the array is 1-d for the second concatenation; i.e. flatten first.
+        parameter_array = np.concatenate(tuple(np.array(p).ravel() for p in self.parameters))
+        return np.concatenate((self.state.ravel(), parameter_array), axis=0).reshape(-1, 1)
 
     def from_numpy_array(self, orbit_vector, **kwargs):
         """ Utility to convert from numpy array (orbit_vector) to Orbit instance for scipy wrappers.
@@ -656,8 +685,8 @@ class Orbit:
         # while default parameter values may be None, default corrections are 0.
         parameters = tuple(params_list.pop(0) if not constrained and params_list else 0
                            for constrained in self.constraints.values())
-        return self.__class__(state=np.reshape(orbit_vector.ravel()[:self.size], self.shape), basis=self.bases()[-1],
-                              parameters=parameters, **kwargs)
+        return self.__class__(**{**vars(self), 'state': np.reshape(orbit_vector.ravel()[:self.size], self.shape),
+                                 'parameters': parameters, **kwargs})
 
     def increment(self, other, step_size=1, **kwargs):
         """ Incrementally add Orbit instances together
@@ -683,10 +712,8 @@ class Orbit:
         incremented_params = tuple(self_param + step_size * other_param
                                    if other_param != 0 else self_param  # assumed to be constrained if 0.
                                    for self_param, other_param in zip(self.parameters, other.parameters))
-
-        return self.__class__(state=self.state + step_size * other.state, basis=self.basis,
-                              parameters=incremented_params, **kwargs)
-
+        return self.__class__(**{**vars(self), 'state': self.state + step_size * other.state,
+                                 'parameters': incremented_params, **kwargs})
     def pad(self, size, axis=0):
         """ Increase the size of the discretization along an axis.
 
@@ -728,8 +755,7 @@ class Orbit:
             padding_tuple = tuple((padding_size, padding_size) if i == axis else (0, 0)
                                   for i in range(len(self.shape)))
 
-        return self.__class__(state=np.pad(self.state, padding_tuple), basis=self.basis,
-                              parameters=self.parameters).transform(to=self.basis)
+        return self.__class__(**{**vars(self), 'state': np.pad(self.state, padding_tuple)}).transform(to=self.basis)
 
     def truncate(self, size, axis=0):
         """ Decrease the size of the discretization along an axis
@@ -761,9 +787,7 @@ class Orbit:
         else:
             truncate_slice = tuple(slice(truncate_size, -truncate_size) if i == axis else slice(None)
                                    for i in range(len(self.shape)))
-
-        return self.__class__(state=self.state[truncate_slice], basis=self.basis,
-                              parameters=self.parameters).transform(to=self.basis)
+        return self.__class__(**{**vars(self), 'state': self.state[truncate_slice]}).transform(to=self.basis)
 
     def jacobian(self, **kwargs):
         """ Jacobian matrix evaluated at the current state.
@@ -807,20 +831,20 @@ class Orbit:
             rescaled_state = np.sign(state) * np.abs(state) ** magnitude
         else:
             raise ValueError('Unrecognizable method.')
-        return self.__class__(state=rescaled_state, basis=self.bases()[0],
-                              parameters=self.parameters).transform(to=self.basis)
+        return self.__class__(**{**vars(self), 'state': rescaled_state,
+                                 'basis': self.bases()[0]}).transform(to=self.basis)
 
-    def to_h5(self, filename=None, h5_group=None, h5py_mode='r+', verbose=False, include_residual=False):
+    def to_h5(self, filename=None, dataname=None, mode='a', verbose=False, include_residual=False, **kwargs):
         """ Export current state information to HDF5 file
 
         Parameters
         ----------
         filename : str, default None
             filename to write/append to.
-        h5_group : str, default None
+        dataname : str, default 'state'
             Name of the h5_group wherein to store the Orbit in the h5_file at location filename. Should be
             HDF5 group name, i.e. '/A/B/C/...'
-        h5py_mode : str
+        mode : str
             Mode with which to open the file. Default is a, read/write if exists, create otherwise,
             other modes ['r+', 'a', 'w-', 'w']. See h5py.File for details. 'r' not allowed, because this is a function
             to write to the file. Defaults to r+ to prevent overwrites.
@@ -828,25 +852,41 @@ class Orbit:
             Whether or not to print save location and group
         include_residual : bool
             Whether or not to include residual as metadata; requires equation to be well-defined for current instance.
-        """
-        if verbose:
-            print('Saving data to {} under group name'.format(filename, h5_group))
 
+        Notes
+        -----
+        If more attributes are desired to be saved then you will need to overload.
+        """
         try:
-            with h5py.File(filename, h5py_mode) as f:
-                # Returns h5_group if not None, else, filename method.
-                orbit_group = f.require_group(h5_group or self.filename(extension=''))
-                # State may be empty, but can still save.
-                orbit_group.create_dataset(self.bases()[0], data=self.transform(to=self.bases()[0]).state)
-                # The parameters required to exactly specify an orbit.
-                orbit_group.create_dataset('parameters', data=tuple(float(p) for p in self.parameters))
+            with h5py.File(filename or self.filename(extension='.h5'), mode) as file:
+                # When dataset=='auto' then find the first string of the form orbit_# that is not in the
+                # currently opened file. 'orbit' is the first value attempted.
+                if dataname is None:
+                    suffix, i = '', 1
+                    dataname = ''.join(['orbit', suffix])
+                    while dataname in file:
+                        suffix = '_' + str(i)
+                        dataname = ''.join(['orbit', suffix])
+                        i += 1
+                if verbose:
+                    print('Writing dataset "{}" to file {}'.format(dataname, filename))
+                orbitset = file.require_dataset(dataname, data=self.state, dtype='float64', shape=self.shape)
+                # Get the attributes that aren't being saved as a dataset. Combine with class name.
+                # This is kept as general to allow for others' classes to have arbitrary attributes beyond
+                # the defaults: parameters, discretization, shape, basis,
+                orbitattributes = {**self.__dict__, 'class': self.__class__.__name__}
+                for key, val in orbitattributes.items():
+                    try:
+                        orbitset.attrs[key] = val
+                    except TypeError:
+                        # If h5py encounters a dtype which it does not know how to encode, skip it.
+                        continue
+
                 if include_residual:
                     # This is included as a conditional statement because it seems strange to make importing/exporting
-                    # dependent upon full implementation of the governing equations; i.e. perhaps the equations
-                    # are still in development and data is used to test their implementation. In that case you would
-                    # not be able to export data which is undesirable.
+                    # dependent upon full implementation of the governing equations
                     try:
-                        orbit_group.attrs['residual'] = float(self.residual())
+                        orbitset.attrs['residual'] = self.residual()
                     except (ZeroDivisionError, ValueError):
                         print('Unable to compute residual for {}'.format(repr(self)))
         except (OSError, IOError):
@@ -918,7 +958,7 @@ class Orbit:
 
     def copy(self):
         """ Return an instance with deep copy of numpy array. """
-        return self.__class__(state=self.state.copy(), parameters=self.parameters, basis=self.basis)
+        return self.__class__(**{k:v.copy() if hasattr(v, 'copy') else v for k, v in vars(self).items()})
 
     def constrain(self, *labels):
         """ Set self constraints based on labels provided.
@@ -969,9 +1009,10 @@ class Orbit:
 
         Notes
         -----
-        Parameters are required to be of numerical type. If there are categorical parameters then they
-        should be assigned to a different attribute. The reason for this is that for numerical optimization,
-        the orbit_vector; the concatenation of self.state and self.parameters is sent to the various algorithms.
+        Parameters are required to be of numerical type and are typically expected to be scalar values.
+        If there are categorical parameters then they should be assigned to a different attribute.
+        The reason for this is that in numerical optimization, the orbit_vector;
+        the concatenation of self.state and self.parameters is sent to the various algorithms.
         Cannot send categoricals to these algorithms.
         """
         # default is not to be constrained in any dimension;
@@ -979,10 +1020,10 @@ class Orbit:
         if parameters is None:
             self.parameters = parameters
         elif isinstance(parameters, tuple):
-            # This does not check each tuple element; they can be whatever the user desires.
-            # This ensures all parameters are filled. If unequal in length, zip truncates
-            # If more parameters than labels then we do not know what to call them by; truncate.
+            # This does not check each tuple element; they can be whatever the user desires, technically.
+            # This ensures all parameters are filled.
             if len(self.parameter_labels()) < len(parameters):
+                # If more parameters than labels then we do not know what to call them by; truncate by using zip.
                 self.parameters = tuple(val for label, val in zip(self.parameter_labels(), parameters))
             else:
                 # if more labels than parameters, simply fill with the default missing value, 0.
@@ -990,8 +1031,8 @@ class Orbit:
                                                                           fillvalue=0))
         else:
             # A number of methods require parameters to be an iterable, hence the tuple requirement.
-            raise TypeError('"parameters" is required to be a tuple or None. '
-                            'singleton parameter "p" needs to be cast as tuple (p,).')
+            raise TypeError('"parameters" is required to be a tuple or NoneType. '
+                            'singleton parameters need to be cast as tuple (val,).')
 
     def _generate_parameters(self, **kwargs):
         """ Randomly initialize parameters which are currently zero.
@@ -1006,7 +1047,7 @@ class Orbit:
         # helper function so comprehension can be used later on; each orbit type typically has a default
         # range of good parameters; however, it is often the case that using a user-defined range is desired.
         def sample_from_generator(val, val_generator, overwrite=False):
-            if val == 0 or overwrite:
+            if val == 0 or overwrite or val is None:
                 # for numerical parameter generators we're going to use uniform distribution to generate values
                 # If the generator is "interval like" then use uniform distribution.
                 if isinstance(val_generator, tuple) and len(val_generator) == 2:
@@ -1014,7 +1055,11 @@ class Orbit:
                     val = pmin + (pmax - pmin) * np.random.rand()
                 # Everything else treated as distribution to sample from
                 else:
-                    val = np.random.choice(val_generator)
+                    try:
+                        val = np.random.choice(val_generator)
+                    except (ValueError, TypeError):
+                        val = 0
+
             return val
 
         # seeding takes a non-trivial amount of time, only set if explicitly provided.
@@ -1028,11 +1073,13 @@ class Orbit:
         parameter_iterable = self.parameters or len(self.parameter_labels()) * [0]
         if len(self.parameter_labels()) < len(parameter_iterable):
             # If more values than labels, then truncate and discard the additional values
-            parameters = tuple(sample_from_generator(val, p_ranges[label], overwrite=kwargs.get('overwrite', False))
+            parameters = tuple(sample_from_generator(val, p_ranges.get(label, (0, 0)),
+                                                     overwrite=kwargs.get('overwrite', False))
                                for label, val in zip(self.parameter_labels(), parameter_iterable))
         else:
             # If more labels than parameters, fill the missing parameters with default
-            parameters = tuple(sample_from_generator(val, p_ranges[label], overwrite=kwargs.get('overwrite', False))
+            parameters = tuple(sample_from_generator(val, p_ranges.get(label, (0, 0)),
+                                                     overwrite=kwargs.get('overwrite', False))
                                for label, val in zip_longest(self.parameter_labels(), parameter_iterable, fillvalue=0))
         setattr(self, 'parameters', parameters)
 

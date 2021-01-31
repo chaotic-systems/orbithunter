@@ -31,8 +31,9 @@ def _increment_orbit_parameter(orbit_, target_extent, increment, parameter_label
         next_extent = current_extent + increment
     parameters = tuple(next_extent if lab == parameter_label else getattr(orbit_, lab)
                        for lab in orbit_.parameter_labels())
-    return orbit_.__class__(state=orbit_.state, basis=orbit_.basis,
-                            parameters=parameters, constraints=orbit_.constraints)
+    # This overwrites current parameters with updated parameters, while also keeping all necessary attributes
+    orbitattr = {**{k: v for k, v in orbit_.__dict__ if k != 'state'}, 'parameters': parameters}
+    return orbit_.__class__(state=orbit_.state, **orbitattr)
 
 
 def continuation(orbit_, target_value, constraint_label, *extra_constraints,  step_size=0.01, **kwargs):
@@ -51,20 +52,26 @@ def continuation(orbit_, target_value, constraint_label, *extra_constraints,  st
 
 
     """
-    # As long as we keep converging to solutions, we keep stepping towards target value.
-    # We need to be incrementing in the correct direction. i.e. to get smaller we need to have a negative increment.
-    # Use list to get the correct count, then convert to tuple as expected.
-    # Check that the orbit_ is converged prior to any constraints
+    # TODO : It makes a lot more sense to have save-every-continuation-step option now that .h5 files are aggregated.
+    # check that the orbit_ instance is converged when having constraints
     orbit_.constrain((constraint_label, *extra_constraints))
     minimize_result = hunt(orbit_, **kwargs)
-    # check that the orbit_ instance is converged when having constraints, otherwise performance takes a big hit.
-    # The constraints are applied but orbit_ can also be passed with the correct constrains.
 
-    # parameter_label = orbit_.parameter_labels().index(constraint_label)
-    # Ensure that we are stepping in correct direction.
+    # Derive step size with correct sign.
     step_size = (np.sign(target_value - getattr(minimize_result.orbit, constraint_label)) * np.abs(step_size))
-    # We need to be incrementing in the correct direction. i.e. to get smaller we need to have a negative increment.
+
     while minimize_result.status == -1 and not _equals_target(minimize_result.orbit, target_value, constraint_label):
+        # Having to specify both seems strange and so the options are: provide save=True and then use default
+        # filename, or provide filename.
+        if kwargs.get('save', False) or kwargs.get('filename', None):
+            # When generating an orbits' continuous family, it is useful to save the intermediate states
+            # so that they may be referenced in future calculations
+            valstr = str(np.round(getattr(minimize_result.orbit, constraint_label),
+                                  int(abs(np.log10(abs(step_size))))+1)).replace('.', 'p')
+            datname = ''.join([constraint_label, valstr])
+            filename = kwargs.get('filename', None) or ''.join(['continuation_', orbit_.filename()])
+            # pass keywords like this to avoid passing multiple values to same keyword.
+            minimize_result.orbit.to_h5(**{**kwargs, 'filename': filename, 'dataname':datname})
         incremented_orbit = _increment_orbit_parameter(minimize_result.orbit, target_value, step_size, constraint_label)
         minimize_result = hunt(incremented_orbit, **kwargs)
     return minimize_result
@@ -122,9 +129,9 @@ def discretization_continuation(orbit_, target_discretization, cycle=False, **kw
     # check that we are starting from converged solution, first of all.
     minimize_result = hunt(orbit_, **kwargs)
     axes_order = kwargs.get('axes_order', np.argsort(target_discretization)[::-1])
-    # Use list to get the correct count, then convert to tuple as expected.
-    step_sizes = kwargs.get('step_sizes', tuple(1 if min_dim % 2 else 2 for min_dim
-                                                in np.array(orbit_.minimal_shape())[axes_order]))
+    # The minimum step size is inferred from the minimal shapes if not provided; the idea here is that if
+    # the minimum shape is odd then
+    step_sizes = kwargs.get('step_sizes', np.array(orbit_.minimal_shape_increments())[axes_order])
     # To be efficient, always do the smallest target axes first.
     # We need to be incrementing in the correct direction. i.e. to get smaller we need to have a negative increment.
     if cycle:
@@ -133,6 +140,13 @@ def discretization_continuation(orbit_, target_discretization, cycle=False, **kw
         # an equilibrium solution along said axis; this can be handled by simply rediscretizing the field.
         cycle_index = 0 
         while minimize_result.status == -1 and minimize_result.orbit.shapes()[0] != target_discretization:
+            # Having to specify both seems strange and so the options are: provide save=True and then use default
+            # filename, or provide filename.
+            if kwargs.get('save', False) or kwargs.get('filename', None):
+                # When generating an orbits' continuous family, it is useful to save the intermediate states
+                # so that they may be referenced in future calculations
+                filename = kwargs.get('filename', None) or ''.join(['discretization_continuation_', orbit_.filename()])
+                minimize_result.orbit.to_h5(**{**kwargs, 'filename': filename})
 
             # Ensure that we are stepping in correct direction.
             step_size = (np.sign(target_discretization[axes_order[cycle_index]] 
@@ -155,6 +169,12 @@ def discretization_continuation(orbit_, target_discretization, cycle=False, **kw
             # an equilibrium solution along said axis; this can be handled by simply rediscretizing the field.
             while (minimize_result.status == -1
                    and not minimize_result.orbit.shapes()[0][axis] == target_discretization[axis]):
+                # When generating an orbits' continuous family, it is useful to save the intermediate states
+                # so that they may be referenced in future calculations
+                if kwargs.get('save', False) or kwargs.get('filename', None):
+                    filename = kwargs.get('filename', None) or ''.join(['discretization_continuation_', orbit_.filename()])
+                    minimize_result.orbit.to_h5(**{**kwargs, 'filename': filename})
+
                 incremented_orbit = _increment_discretization(minimize_result.orbit, target_discretization[axis],
                                                               step_size, axis=axis)
                 minimize_result = hunt(incremented_orbit, **kwargs)

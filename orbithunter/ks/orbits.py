@@ -58,6 +58,22 @@ class OrbitKS(Orbit):
         return 32, 32
 
     @staticmethod
+    def minimal_shape_increments():
+        """ The smallest valid increment to change the discretization by.
+
+        Returns
+        -------
+        tuple of int :
+            The smallest valid increments to changes in discretization size; presumably to retain all functionality.
+
+        Notes
+        -----
+        Used in aspect ratio correction and "discretization continuation". For example, the KSe code requires
+        even valued field discretizations; therefore the minimum increments for the KSE are 2's.
+        """
+        return 2, 2
+
+    @staticmethod
     def minimal_shape():
         """ The smallest possible compatible discretization
 
@@ -1072,35 +1088,33 @@ class OrbitKS(Orbit):
         # Equilibrium is defined by having no temporal variation, i.e. time derivative is a uniformly zero.
         if self.t == 0.:
             # If there is sufficient evidence that solution is an equilibrium, change its class
-            code = 3
             # store T just in case we want to refer to what the period was before conversion to EquilibriumOrbitKS
             return EquilibriumOrbitKS(state=field_orbit.state, basis='field',
-                                      parameters=self.parameters).transform(to=self.basis), code
+                                      parameters=self.parameters).transform(to=self.basis)
         # See if the L_2 norm is beneath a threshold value, if so, replace with zeros.
         elif field_orbit.norm() < field_orbit.size * 10**-9:
-            code = 4
             return EquilibriumOrbitKS(state=np.zeros(self.discretization), basis='field',
-                                      parameters=self.parameters).transform(to=self.basis), code
+                                      parameters=self.parameters).transform(to=self.basis)
 
         elif field_orbit.dt().transform(to='field').norm() < field_orbit.size * 10**-9:
             # If there is sufficient evidence that solution is an equilibrium, change its class
-            code = 3
+            # code = 3
             # store T just in case we want to refer to what the period was before conversion to EquilibriumOrbitKS
             return EquilibriumOrbitKS(state=field_orbit.state, basis='field',
-                                      parameters=self.parameters).transform(to=self.basis), code
+                                      parameters=self.parameters).transform(to=self.basis)
         else:
-            return self, 1
+            return self
 
-    def to_h5(self, filename=None, h5_group=None, h5py_mode='r+', verbose=False, include_residual=False):
+    def to_h5(self, filename=None, dataname=None, mode='a', verbose=False, include_residual=True, **kwargs):
         """ Export current state information to HDF5 file. See core.py for more details
 
         Parameters
         ----------
         filename : str or None
             If None then filename method will be called.
-        h5_group : str or None
+        dataname : str or None
             h5py group name for orbit
-        h5py_mode : str
+        mode : str
             The writing mode, see core.py for details
         verbose : bool
             Whether or not to print save destination.
@@ -1111,7 +1125,7 @@ class OrbitKS(Orbit):
         -----
         Mainly an overload simply to get a different default behavior for include_residual.
         """
-        super().to_h5(filename=filename, h5_group=h5_group, h5py_mode=h5py_mode, verbose=verbose,
+        super().to_h5(filename=filename, dataname=dataname, mode=mode, verbose=verbose,
                       include_residual=include_residual)
 
     @classmethod
@@ -1325,17 +1339,15 @@ class OrbitKS(Orbit):
                 n, m = self.shape[0], self.shape[1] + 2
             else:
                 raise ValueError('basis not recognized; must equal "field" or "spatial_modes", or "modes"')
-            
+
+            self.basis = basis
             if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
                 raise ValueError('discretization size does not satisfy minimum requirements. See class.minimal_shape()')
             else:
                 self.discretization = n, m
-                
-            self.basis = basis
         else:
-            self.discretization = None
-            # Don't use the basis value in case state is None but bad value used for basis
             self.basis = None
+            self.discretization = None
 
     def _jac_lin(self):
         """ The linear component of the Jacobian matrix of the Kuramoto-Sivashinsky equation"""
@@ -1946,24 +1958,24 @@ class RelativeOrbitKS(OrbitKS):
 
         # See if the L_2 norm is beneath a threshold value, if so, replace with zeros.
         if field_orbit.norm() < 10**-5 or self.t == 0:
-            code = 4
+            # code = 4
             return RelativeEquilibriumOrbitKS(state=np.zeros(self.discretization), basis='field',
-                                              parameters=self.parameters).transform(to=self.basis), code
+                                              parameters=self.parameters).transform(to=self.basis)
         # Equilibrium is defined by having no temporal variation, i.e. time derivative is a uniformly zero.
         elif self.t == 0.:
             # If there is sufficient evidence that solution is an equilibrium, change its class
-            code = 3
+            # code = 3
             # store T just in case we want to refer to what the period was before conversion to EquilibriumOrbitKS
             return EquilibriumOrbitKS(state=field_orbit.state, basis='field',
-                                      parameters=self.parameters).transform(to=self.basis), code
+                                      parameters=self.parameters).transform(to=self.basis)
         elif field_orbit.dt().transform(to='field').norm() < 10**-5:
             # If there is sufficient evidence that solution is an equilibrium, change its class
-            code = 3
+            # code = 3
             return RelativeEquilibriumOrbitKS(state=self.transform(to='modes').state, basis='modes',
-                                              parameters=self.parameters).transform(to=self.basis), code
+                                              parameters=self.parameters).transform(to=self.basis)
         else:
-            code = 1
-            return orbit_, code
+            # code = 1
+            return orbit_
 
     def from_fundamental_domain(self):
         return self.change_reference_frame(to='comoving')
@@ -2224,7 +2236,8 @@ class AntisymmetricOrbitKS(OrbitKS):
         """
         # Take rfft, accounting for unitary normalization.
         modes = rfft(self.state, norm='ortho', axis=0)
-        spacetime_modes = np.concatenate((modes.real[:-1, -(int(self.m // 2) - 1):], modes.imag[1:-1, -(int(self.m // 2) - 1):]), axis=0)
+        spacetime_modes = np.concatenate((modes.real[:-1, -(int(self.m // 2) - 1):],
+                                          modes.imag[1:-1, -(int(self.m // 2) - 1):]), axis=0)
         spacetime_modes[1:, :] = np.sqrt(2) * spacetime_modes[1:, :]
         if array:
             return spacetime_modes
@@ -2425,8 +2438,10 @@ class ShiftReflectionOrbitKS(OrbitKS):
         modes[1::2, -(int(self.m // 2) - 1):] = 0
         # Due to projection, can add the different components without mixing information, this allows
         # us to avoid a complex operation like shuffling.
-        spacetime_modes = np.concatenate((modes.real[:-1, :-(int(self.m // 2) - 1)] + modes.real[:-1, -(int(self.m // 2) - 1):],
-                                          modes.imag[1:-1, :-(int(self.m // 2) - 1)] + modes.imag[1:-1, -(int(self.m // 2) - 1):]), axis=0)
+        spacetime_modes = np.concatenate(((modes.real[:-1, :-(int(self.m // 2) - 1)]
+                                          + modes.real[:-1, -(int(self.m // 2) - 1):]),
+                                          (modes.imag[1:-1, :-(int(self.m // 2) - 1)]
+                                          + modes.imag[1:-1, -(int(self.m // 2) - 1):])), axis=0)
         spacetime_modes[1:, :] = np.sqrt(2)*spacetime_modes[1:, :]
         if array:
             return spacetime_modes
@@ -2596,21 +2611,21 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         If starting and ending in the spatiotemporal modes basis, this will only create an instance with a different
         value of time dimensionality attribute 'N'.
         """
-        spatial_modes = self.transform(to='spatial_modes')
+        spatial_modes = self.transform(to='spatial_modes').state
         if axis == 0:
+
             # Not technically zero-padding, just copying. Just can't be in temporal mode basis
             # because it is designed to only represent the zeroth modes.
-            padded_spatial_modes = np.tile(spatial_modes.state[0, :].reshape(1, -1), (size, 1))
+            padded_spatial_modes = np.tile(spatial_modes[0, :].reshape(1, -1), (size, 1))
             return self.__class__(state=padded_spatial_modes, basis='spatial_modes',
                                   parameters=self.parameters).transform(to=self.basis)
         else:
             # Split into real and imaginary components, pad separately.
-            complex_modes = spatial_modes.state[:, -spatial_modes.m//2-1:]
-            real_modes = np.zeros(complex_modes.shape)
-            padding_number = (size-spatial_modes.m) // 2
-            padding = np.zeros([spatial_modes.state.shape[0], padding_number])
-            padded_modes = np.sqrt(size / spatial_modes.m) * np.concatenate((real_modes, padding,
-                                                                       complex_modes, padding), axis=1)
+            padding = (size-self.m) // 2
+            padding_tuple = ((0, 0), (padding, padding))
+            padded_modes = np.concatenate((spatial_modes[:, :-(self.m//2-1)],
+                                           np.pad(spatial_modes[:, -(self.m//2-1):], padding_tuple)), axis=1)
+            padded_modes *= np.sqrt(size / self.m)
             return self.__class__(state=padded_modes, basis='spatial_modes',
                                   parameters=self.parameters).transform(to=self.basis)
 
@@ -2675,11 +2690,11 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         # See if the L_2 norm is beneath a threshold value, if so, replace with zeros.
         if field_orbit.norm() < 10**-5:
-            code = 4
+
             return self.__class__(state=np.zeros(self.discretization), basis='field',
-                                  parameters=self.parameters).transform(to=self.basis), code
+                                  parameters=self.parameters).transform(to=self.basis)
         else:
-            return self, 1
+            return self
 
     @classmethod
     def default_parameter_ranges(cls):
@@ -2733,6 +2748,9 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             if basis is None:
                 raise ValueError('basis must be provided when state is provided')
             elif basis == 'modes':
+                # If passed as modes; which only contain the zeroth modes, the shape in the other bases
+                # cannot be inferred from the NumPy array; it must either be provided via discretization keyword
+                # or it will default to the minimal value.
                 self.state = self.state[0, :].reshape(1, -1)
                 n = kwargs.get('discretization', (None, None))[0] or 1
                 m = 2 * self.shape[1] + 2
@@ -2935,12 +2953,10 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         field_orbit = orbit_.transform(to='field')
         zero_check = field_orbit.norm()
         if zero_check < 10**-5:
-            code = 4
             return RelativeEquilibriumOrbitKS(state=np.zeros(self.discretization), basis='field',
-                                              parameters=self.parameters).transform(to=self.basis), code
+                                              parameters=self.parameters).transform(to=self.basis)
         else:
-            code = 1
-            return orbit_, code
+            return orbit_
 
     def to_fundamental_domain(self):
         return self.change_reference_frame(to='physical')

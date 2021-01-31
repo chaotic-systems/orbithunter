@@ -125,38 +125,38 @@ def shadowing(base_orbit, window_orbit, verbose=False, threshold=0.02, threshold
 
 def cover(base_orbit, *window_orbits, verbose=False, threshold=0.02, threshold_type='percentile', stride=1,
               mask_region='exterior'):
+    for window_orbit in window_orbits:
+        window_orbit = window_orbit.transform(to='field')
+        base_orbit = base_orbit.transform(to='field')
+        twindow, xwindow = window_orbit.shapes()[0]
+        tbase, xbase = base_orbit.shapes()[0]
 
-    window_orbit = window_orbit.transform(to='field')
-    base_orbit = base_orbit.transform(to='field')
-    twindow, xwindow = window_orbit.shapes()[0]
-    tbase, xbase = base_orbit.shapes()[0]
+        assert twindow < tbase and xwindow < xbase, 'Shadowing window is larger than the base orbit. resize first. '
 
-    assert twindow < tbase and xwindow < xbase, 'Shadowing window is larger than the base orbit. resize first. '
-
-    # First, need to calculate the norm of the window squared and base squared (squared because then it detects
-    # the shape rather than the color coded field), for all translations of the window.
-    mask = np.zeros([tbase, xbase], dtype=bool)
-    norm_matrix = np.zeros([(tbase-twindow)//stride, (xbase-xwindow)//stride])
-    for i, t in enumerate(range(0, tbase-twindow, stride)):
-        if verbose and np.mod(i, ((tbase-twindow)//stride)//10) == 0:
-            print('#', end='')
-        for j, x in enumerate(range(0,  xbase-xwindow, stride)):
+        # First, need to calculate the norm of the window squared and base squared (squared because then it detects
+        # the shape rather than the color coded field), for all translations of the window.
+        mask = np.zeros([tbase, xbase], dtype=bool)
+        norm_matrix = np.zeros([(tbase-twindow)//stride, (xbase-xwindow)//stride])
+        for i, t in enumerate(range(0, tbase-twindow, stride)):
+            if verbose and np.mod(i, ((tbase-twindow)//stride)//10) == 0:
+                print('#', end='')
+            for j, x in enumerate(range(0,  xbase-xwindow, stride)):
+                trange = np.arange(t, t+twindow)
+                xrange = np.arange(x, x+xwindow)
+                # numpy meshgrid returns list but when used slicing needs a tuple.
+                window_slice_indices = tuple(np.meshgrid(trange, xrange, indexing='ij'))
+                norm_matrix[i, j] = np.linalg.norm(base_orbit.state[window_slice_indices]**2 - window_orbit.state**2)
+        if threshold_type == 'percentile':
+            threshold = np.percentile(norm_matrix[norm_matrix > 0.],  threshold)
+            indices = np.where((norm_matrix > 0.) & (norm_matrix < threshold))
+        else:
+            indices = np.where((norm_matrix > 0.) & (norm_matrix < threshold))
+        for i, j in zip(*indices):
+            t, x = stride*i,  stride*j
             trange = np.arange(t, t+twindow)
             xrange = np.arange(x, x+xwindow)
-            # numpy meshgrid returns list but when used slicing needs a tuple.
-            window_slice_indices = tuple(np.meshgrid(trange, xrange, indexing='ij'))
-            norm_matrix[i, j] = np.linalg.norm(base_orbit.state[window_slice_indices]**2 - window_orbit.state**2)
-    if threshold_type == 'percentile':
-        threshold = np.percentile(norm_matrix[norm_matrix > 0.],  threshold)
-        indices = np.where((norm_matrix > 0.) & (norm_matrix < threshold))
-    else:
-        indices = np.where((norm_matrix > 0.) & (norm_matrix < threshold))
-    for i, j in zip(*indices):
-        t, x = stride*i,  stride*j
-        trange = np.arange(t, t+twindow)
-        xrange = np.arange(x, x+xwindow)
-        # numpy meshgrid returns list but slicing needs a tuple.
-        mask[tuple(np.meshgrid(trange, xrange, indexing='ij'))] = True
+            # numpy meshgrid returns list but slicing needs a tuple.
+            mask[tuple(np.meshgrid(trange, xrange, indexing='ij'))] = True
 
     # TODO : Look at the mask returned and ensure it is the correct region
     masked_orbit = base_orbit.copy()

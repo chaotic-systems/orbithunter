@@ -4,6 +4,7 @@ from scipy.sparse.linalg import (LinearOperator, bicg, bicgstab, gmres, lgmres,
                                  cg, cgs, qmr, minres, lsqr, lsmr, gcrotmk)
 import sys
 import numpy as np
+import h5py
 
 __all__ = ['hunt']
 
@@ -76,23 +77,19 @@ def hunt(orbit_, method='adj', precision='default', comp_time='default', **kwarg
     ----------
     orbit_ : Orbit
         The orbit instance serving as the initial condition for optimization.
-
+    method : str, default is 'adj'
+        Representing the numerical method to hunt with. Valid choices are:
+        'adj', 'lstsq', 'newton_descent', 'lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
+        'cg', 'cgs', 'qmr', 'minres', 'gcrotmk', 'hybr', 'lm','broyden1', 'broyden2', 'root_anderson',
+        'linearmixing', 'diagbroyden', 'excitingmixing', 'root_krylov',' df-sane',
+        'newton_krylov', 'anderson', 'cg_min', 'newton-cg', 'l-bfgs-b', 'tnc', 'bfgs'
+    precision : str
+        Key word to choose an `orbithunter recommended' tolerance.  Choices include:
+        'machine', 'high', 'medium' or 'default' (equivalent), 'low', 'minimal'
+    comp_time : str
+        Key word to choose an `orbithunter recommended' number of iterations, dependent on the chosen method.
+        Choices include : 'excessive', 'thorough', 'long' , 'medium' or 'default' (equivalent), 'short', 'minimal'.
     kwargs:
-        method : str, optional
-            Default is 'adj', representing the adjoint descent method, valid choices are:
-            'adj', 'lstsq', 'newton_descent', 'lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
-            'cg', 'cgs', 'qmr', 'minres', 'gcrotmk', 'hybr', 'lm','broyden1', 'broyden2', 'root_anderson',
-            'linearmixing', 'diagbroyden', 'excitingmixing', 'root_krylov',' df-sane',
-            'newton_krylov', 'anderson', 'cg_min', 'newton-cg', 'l-bfgs-b', 'tnc', 'bfgs'
-
-        precision : str, optional
-            Key word to choose an `orbithunter recommended' tolerance.  Choices include:
-            'machine', 'high', 'medium' or 'default' (equivalent), 'low', 'minimal'
-
-        comp_time: str, optional
-            Key word to choose an `orbithunter recommended' number of iterations, dependent on the chosen method.
-            Choices include : 'excessive', 'thorough', 'long' , 'medium' or 'default' (equivalent), 'short', 'minimal'.
-
         maxiter : int, optional
             The maximum number of steps; computation time can be highly dependent on this number i.e.
             maxiter=100 for adjoint descent and lstsq have very very different computational times.
@@ -176,7 +173,8 @@ def hunt(orbit_, method='adj', precision='default', comp_time='default', **kwarg
                                           'cg', 'cgs', 'qmr', 'minres', 'gcrotmk']:
             # solves A^T A x = A^T b repeatedly
             result_orbit, statistics = _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method=method, **kwargs)
-        elif method in ['cg_min', 'newton-cg', 'l-bfgs-b', 'tnc', 'bfgs']:
+        elif method in ['nelder-mead', 'powell', 'cg_min', 'bfgs', 'newton-cg', 'l-bfgs-b', 'tnc', 'cobyla',
+                        'slsqp', 'trust-constr', 'dogleg', 'trust-ncg', 'trust-exact', 'trust-krylov']:
             # minimizes cost functional 1/2 F^2
             if method == 'cg_min':
                 # had to use an alias because this is also defined for scipy.sparse.linalg
@@ -593,7 +591,7 @@ def _scipy_optimize_minimize_wrapper(orbit_, tol, maxiter, method='l-bfgs-b',  *
         print('-------------------------------------------------------------------------------------------------')
         sys.stdout.flush()
 
-    def _cost_function_scipy_minimize(x):
+    def _minfunc(x):
         '''
         :param x0: (n,) numpy array
         :param args: time discretization, space discretization, subClass from orbit.py
@@ -606,7 +604,7 @@ def _scipy_optimize_minimize_wrapper(orbit_, tol, maxiter, method='l-bfgs-b',  *
         x_orbit = orbit_.from_numpy_array(x, **kwargs)
         return x_orbit.residual()
 
-    def _cost_function_jac_scipy_minimize(x):
+    def _minjac(x):
         """ The jacobian of the cost function (scalar) can be expressed as a vector product
         Parameters
         ----------
@@ -623,10 +621,28 @@ def _scipy_optimize_minimize_wrapper(orbit_, tol, maxiter, method='l-bfgs-b',  *
         x_orbit = orbit_.from_numpy_array(x)
         return x_orbit.cost_function_gradient(x_orbit.eqn(**kwargs), **kwargs).orbit_vector().ravel()
 
+    # def _minhessp(x, p):
+    #     """ The jacobian of the cost function (scalar) can be expressed as a vector product
+    #     Parameters
+    #     ----------
+    #     x
+    #     args
+    #     Returns
+    #     -------
+    #     Notes
+    #     -----
+    #     The gradient of 1/2 F^2 = J^T F, rmatvec is a function which does this matrix vector product
+    #     Will always use preconditioned version by default, not sure if wise.
+    #     """
+    #
+    #     x_orbit = orbit_.from_numpy_array(x)
+    #     p_orbit = orbit_.from_numpy_array(p)
+    #     return x_orbit.hessp(p_orbit, **kwargs).orbit_vector().ravel()
+
     scipy_kwargs = kwargs.get('scipy_kwargs', {'tol': tol})
     while residual > tol and stats['status'] == 1:
-        result = minimize(_cost_function_scipy_minimize, orbit_.orbit_vector(),
-                          method=method, jac=_cost_function_jac_scipy_minimize, **scipy_kwargs)
+        result = minimize(_minfunc, orbit_.orbit_vector(),
+                          method=method, jac=_minjac, **scipy_kwargs)
         scipy_kwargs['tol'] /= 10.
 
         next_orbit = orbit_.from_numpy_array(result.x)
@@ -668,7 +684,7 @@ def _scipy_optimize_root_wrapper(orbit_, tol, maxiter, method='lgmres', **kwargs
         print('-------------------------------------------------------------------------------------------------')
         sys.stdout.flush()
 
-    def _cost_function_scipy_root(x):
+    def _rootfunc(x):
         '''
         :param x0: (n,) numpy array
         :param args: time discretization, space discretization, subClass from orbit.py
@@ -683,7 +699,7 @@ def _scipy_optimize_root_wrapper(orbit_, tol, maxiter, method='lgmres', **kwargs
         xvec[-(x_orbit.orbit_vector().size - len(x_orbit.parameters)):] = 0
         return xvec
 
-    def _cost_function_jac_scipy_root(x):
+    def _rootjac(x):
         """ The jacobian of the cost function (scalar) can be expressed as a vector product
 
         Parameters
@@ -706,18 +722,18 @@ def _scipy_optimize_root_wrapper(orbit_, tol, maxiter, method='lgmres', **kwargs
     while residual > tol and stats['status'] == 1:
         if method == 'newton_krylov':
             scipy_kwargs = dict({'f_tol': 1e-6}, **kwargs.get('scipy_kwargs', {}))
-            result_orbit_vector = newton_krylov(_cost_function_scipy_root, orbit_.orbit_vector(),
+            result_orbit_vector = newton_krylov(_rootfunc, orbit_.orbit_vector(),
                                                 **scipy_kwargs)
         elif method == 'anderson':
             scipy_kwargs = dict({'f_tol': 1e-6}, **kwargs.get('scipy_kwargs', {}))
-            result_orbit_vector = anderson(_cost_function_scipy_root, orbit_.orbit_vector().ravel(),
+            result_orbit_vector = anderson(_rootfunc, orbit_.orbit_vector().ravel(),
                                            **scipy_kwargs)
 
         elif method in ['root_anderson', 'linearmixing', 'diagbroyden',
-                        'excitingmixing', 'krylov',' df-sane']:
+                        'excitingmixing', 'krylov', 'df-sane']:
             scipy_kwargs = dict({'tol': 1e-6}, **kwargs.get('scipy_kwargs', {}))
-            result_orbit_vector = root(_cost_function_scipy_root, orbit_.orbit_vector().ravel(),
-                                       method=method, jac=_cost_function_jac_scipy_root,
+            result_orbit_vector = root(_rootfunc, orbit_.orbit_vector().ravel(),
+                                       method=method, jac=_rootjac,
                                        **scipy_kwargs)
         else:
             stats['residuals'].append(orbit_.residual())
