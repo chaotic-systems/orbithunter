@@ -853,7 +853,8 @@ class OrbitKS(Orbit):
 
             time_rotated_modes = np.concatenate((orbit_to_rotate.state[0, :].reshape(1, -1),
                                                  rotated_real, rotated_imag), axis=0)
-            return self.__class__(**{**vars(self), 'state': time_rotated_modes, 'basis': 'modes'}).transform(to=self.basis)
+            return self.__class__(**{**vars(self), 'state': time_rotated_modes,
+                                     'basis': 'modes'}).transform(to=self.basis)
         else:
             if units == 'wavelength':
                 # conversion from plotting units.
@@ -1355,7 +1356,6 @@ class OrbitKS(Orbit):
         _jac_nonlin_middle = self._space_transform_matrix().dot(np.diag(self.transform(to='field').state.ravel()))
         _jac_nonlin_right = self._inv_spacetime_transform_matrix()
         _jac_nonlin = _jac_nonlin_left.dot(_jac_nonlin_middle).dot(_jac_nonlin_right)
-
         return _jac_nonlin
 
     def _jacobian_parameter_derivatives_concat(self, jac_):
@@ -1581,6 +1581,33 @@ class OrbitKS(Orbit):
         else:
             return self.__class__(**{**vars(self), 'state': field, 'basis': 'field'})
 
+    def _space_transform_matrix(self):
+        """ Spatial Fourier transform operator
+
+        Returns
+        -------
+        matrix :
+            Matrix operator whose action maps a physical field u(x,t) into a set of spatial Fourier modes.
+
+        Notes
+        -----
+        Only used for the construction of the Jacobian matrix. Do not use this for the Fourier transform.
+        The matrix is formatted such that is u(x,t), the entire spatiotemporal discretization of the
+        orbit is vector resulting from flattening the 2-d array wherein increasing column index is increasing space
+        variable x and increasing rows is *decreasing* time. This is because of the Physics convention for increasing
+        time to always be "up". By taking the real and imaginary components of the DFT matrix and concatenating them
+        we convert the output from a vector with elements form u_k(t) = a_k + 1j*b_k(t) to a vector of the form
+        [a_0, a_1, a_2, ..., b_1, b_2, b_3, ...]. The kronecker product enables us to act on the entire orbit
+        at once instead of a single instant in time.
+
+        Discard zeroth mode because of the constraint on Galilean velocity (mean flow). Discard Nyquist frequency
+        because of real input of even dimension; just makes matrix operators awkward as well.
+        """
+
+        dft_mat = rfft(np.eye(self.m), norm='ortho', axis=0)[1:-1, :]
+        space_dft_mat = np.sqrt(2) * np.concatenate((dft_mat.real, dft_mat.imag), axis=0)
+        return np.kron(np.eye(self.n), space_dft_mat)
+
     def _time_transform_matrix(self):
         """ Inverse Time Fourier transform operator
 
@@ -1611,59 +1638,21 @@ class OrbitKS(Orbit):
         -----
         Only used for the construction of the Jacobian matrix. Do not use this for the Fourier transform.
         """
-        idft_mat_real = irfft(np.eye(self.n//2 + 1), norm='ortho', axis=0)
-        idft_mat_imag = irfft(1j * np.eye(self.n//2 + 1), norm='ortho', axis=0)
-        time_idft_mat = np.concatenate((idft_mat_real[:, :-1],
-                                        idft_mat_imag[:, 1:-1]), axis=1)
-        # to make the transformations orthogonal, based on scipy implementation of scipy.fft.irfft
-        time_idft_mat[:, 1:] = time_idft_mat[:, 1:]/np.sqrt(2)
-        return np.kron(time_idft_mat, np.eye(self.m-2))
+        return self._time_transform_matrix().transpose()
 
     def _inv_space_transform_matrix(self):
-        """ Inverse spatial Fourier transform operator
+        """ Time Fourier transform operator
 
         Returns
         -------
         matrix :
-            Matrix operator whose action maps a set of spatial Fourier modes into a physical field u(x,t).
-
-        Notes
-        -----
-        Only used for the construction of the Jacobian matrix. Do not use this for the inverse Fourier transform.
-        """
-
-        idft_mat_real = irfft(np.eye(self.m//2 + 1), norm='ortho', axis=0)[:, 1:-1]
-        idft_mat_imag = irfft(1j*np.eye(self.m//2 + 1), norm='ortho', axis=0)[:, 1:-1]
-        # to make the transformations orthogonal, based on scipy implementation of scipy.fft.irfft
-        space_idft_mat = (1./np.sqrt(2)) * np.concatenate((idft_mat_real, idft_mat_imag), axis=1)
-        return np.kron(np.eye(self.n), space_idft_mat)
-
-    def _space_transform_matrix(self):
-        """ Spatial Fourier transform operator
-
-        Returns
-        -------
-        matrix :
-            Matrix operator whose action maps a physical field u(x,t) into a set of spatial Fourier modes.
+            Matrix operator whose action maps a set of spatial modes into field basis.
 
         Notes
         -----
         Only used for the construction of the Jacobian matrix. Do not use this for the Fourier transform.
-        The matrix is formatted such that is u(x,t), the entire spatiotemporal discretization of the
-        orbit is vector resulting from flattening the 2-d array wherein increasing column index is increasing space
-        variable x and increasing rows is *decreasing* time. This is because of the Physics convention for increasing
-        time to always be "up". By taking the real and imaginary components of the DFT matrix and concatenating them
-        we convert the output from a vector with elements form u_k(t) = a_k + 1j*b_k(t) to a vector of the form
-        [a_0, a_1, a_2, ..., b_1, b_2, b_3, ...]. The kronecker product enables us to act on the entire orbit
-        at once instead of a single instant in time.
-
-        Discard zeroth mode because of the constraint on Galilean velocity (mean flow). Discard Nyquist frequency
-        because of real input of even dimension; just makes matrix operators awkward as well.
         """
-
-        dft_mat = rfft(np.eye(self.m), norm='ortho', axis=0)[1:-1, :]
-        space_dft_mat = np.sqrt(2) * np.concatenate((dft_mat.real, dft_mat.imag), axis=0)
-        return np.kron(np.eye(self.n), space_dft_mat)
+        return self._space_transform_matrix().transpose()
 
     def _inv_spacetime_transform(self, array=False):
         """ Inverse space-time Fourier transform
@@ -2157,14 +2146,7 @@ class AntisymmetricOrbitKS(OrbitKS):
         """
         return super()._time_transform_matrix()[self.selection_rules().nonzero()[0], :]
 
-    def _inv_time_transform_matrix(self):
-        """
 
-        Notes
-        -----
-        Dramatic simplification over old code; now just transpose of forward dft matrix b.c. orthogonal
-        """
-        return self._time_transform_matrix().T
 
     def _jac_nonlin(self):
         """ The nonlinear component of the Jacobian matrix of the Kuramoto-Sivashinsky equation
@@ -2215,8 +2197,7 @@ class AntisymmetricOrbitKS(OrbitKS):
         if array:
             return spacetime_modes
         else:
-            return self.__class__(**{**vars(self), 'state': spacetime_modes,
-                                     'basis': 'modes'}).transform(to=self.basis)
+            return self.__class__(**{**vars(self), 'state': spacetime_modes, 'basis': 'modes'})
 
     def _inv_time_transform(self, array=False):
         """ Spatial Fourier transform
@@ -2243,8 +2224,7 @@ class AntisymmetricOrbitKS(OrbitKS):
         if array:
             return space_modes
         else:
-            return self.__class__(**{**vars(self), 'state': space_modes,
-                                     'basis': 'spatial_modes'}).transform(to=self.basis)
+            return self.__class__(**{**vars(self), 'state': space_modes, 'basis': 'spatial_modes'})
 
     def to_fundamental_domain(self, half=0, **kwargs):
         """ Overwrite of parent method """
@@ -2422,7 +2402,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
         if array:
             return spacetime_modes
         else:
-            return self.__class__(**{**vars(self), 'state': spacetime_modes, 'basis': 'modes'}).transform(to=self.basis)
+            return self.__class__(**{**vars(self), 'state': spacetime_modes, 'basis': 'modes'})
 
     def _inv_time_transform(self, array=False):
         """ Spatial Fourier transform
@@ -2452,8 +2432,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
         if array:
             return spatial_modes
         else:
-            return self.__class__(**{**vars(self), 'state': spatial_modes,
-                                     'basis': 'spatial_modes'}).transform(to=self.basis)
+            return self.__class__(**{**vars(self), 'state': spatial_modes, 'basis': 'spatial_modes'})
 
     def _time_transform_matrix(self):
         """
@@ -2751,7 +2730,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         """ Extension of the OrbitKS method that includes the term for spatial translation symmetry"""
         return self._dx_matrix(order=2) + self._dx_matrix(order=4)
 
-    def _jacobian_parameter_derivatives_concat(self, jac_, ):
+    def _jacobian_parameter_derivatives_concat(self, jac_):
         """ Concatenate parameter partial derivatives to Jacobian matrix
 
         Parameters
@@ -2787,12 +2766,14 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         constant associated with a forward in time transformation. The reason for this is for comparison
         of states between different subclasses.
         """
-        return np.tile(np.concatenate((0*np.eye((int(self.m // 2) - 1)), np.eye((int(self.m // 2) - 1))), axis=0), (self.n, 1))
+        return np.tile(np.concatenate((0*np.eye((int(self.m // 2) - 1)),
+                                       np.eye((int(self.m // 2) - 1))), axis=0), (self.n, 1))
 
     def _time_transform_matrix(self):
         """ Overwrite of parent method """
 
-        time_dft_mat = np.tile(np.concatenate((0*np.eye((int(self.m // 2) - 1)), np.eye((int(self.m // 2) - 1))), axis=1), (1, self.n))
+        time_dft_mat = np.tile(np.concatenate((0*np.eye((int(self.m // 2) - 1)),
+                                               np.eye((int(self.m // 2) - 1))), axis=1), (1, self.n))
         time_dft_mat[:, 2*(int(self.m // 2) - 1):] = 0
         return time_dft_mat
 

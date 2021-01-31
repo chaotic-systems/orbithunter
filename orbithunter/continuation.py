@@ -32,8 +32,7 @@ def _increment_orbit_parameter(orbit_, target_extent, increment, parameter_label
     parameters = tuple(next_extent if lab == parameter_label else getattr(orbit_, lab)
                        for lab in orbit_.parameter_labels())
     # This overwrites current parameters with updated parameters, while also keeping all necessary attributes
-    orbitattr = {**{k: v for k, v in orbit_.__dict__ if k != 'state'}, 'parameters': parameters}
-    return orbit_.__class__(state=orbit_.state, **orbitattr)
+    return orbit_.__class__(**{**vars(orbit_), 'parameters': parameters})
 
 
 def continuation(orbit_, target_value, constraint_label, *extra_constraints,  step_size=0.01, **kwargs):
