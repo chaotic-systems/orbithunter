@@ -1,5 +1,6 @@
 import pytest
 import numpy as np
+import h5py
 import orbithunter as oh
 
 @pytest.fixture()
@@ -14,6 +15,10 @@ def fixed_orbit_data():
                       [2.26975462, -1.45436567,  0.04575852, -0.18718385,  1.53277921, 1.46935877],
                       [0.15494743,  0.37816252, -0.88778575, -1.98079647, -0.34791215, 0.15634897]])
     return state
+
+@pytest.fixture()
+def fixed_RelativeOrbitKS():
+    return oh.read_h5('../../data/ks/RelativeOrbitKS.h5', 't44p304_x33p280').transform(to='modes')
 
 @pytest.fixture()
 def fixed_data_transform_norms_dict():
@@ -78,8 +83,7 @@ def test_ks_derivatives(fixed_orbit_data, fixed_derivative_norms, fixed_orbit_pa
 
 def test_ks_derivatives_relativeorbitks(fixed_derivative_norms):
     norms = []
-    relorbit_ = oh.read_h5('../../data/ks/RelativeOrbitKS.h5', 'T44p304_L33p280',
-                           'ks', 'RelativeOrbitKS').transform(to='modes')
+    relorbit_ = oh.read_h5('../../data/ks/RelativeOrbitKS.h5', 't44p304_x33p280').transform(to='modes')
     for order in range(1, 5):
         norms.append(relorbit_.dx(order).norm())
         norms.append(relorbit_.dt(order).norm())
@@ -91,8 +95,7 @@ def test_ks_derivatives_relativeorbitks(fixed_derivative_norms):
 
 
 def test_rmatvec(fixed_orbit_data, fixed_orbit_parameters):
-    relorbit_ = oh.read_h5('../../data/ks/RelativeOrbitKS.h5', 'T44p304_L33p280',
-                           'ks', 'RelativeOrbitKS').transform(to='modes')
+    relorbit_ = oh.read_h5('../../data/ks/RelativeOrbitKS.h5', 't44p304_x33p280').transform(to='modes')
     assert pytest.approx(relorbit_.rmatvec(relorbit_).norm(), 60.18805016)
     assert pytest.approx(relorbit_.cost_function_gradient(relorbit_).norm(), 0.)
 
@@ -103,8 +106,7 @@ def test_rmatvec(fixed_orbit_data, fixed_orbit_parameters):
 
 
 def test_matvec(fixed_orbit_data, fixed_orbit_parameters):
-    relorbit_ = oh.read_h5('../../data/ks/RelativeOrbitKS.h5', 'T44p304_L33p280',
-                           'ks', 'RelativeOrbitKS').transform(to='modes')
+    relorbit_ = oh.read_h5('../../data/ks/RelativeOrbitKS.h5', 't44p304_x33p280').transform(to='field')
     orbit_ = oh.OrbitKS(state=fixed_orbit_data,
                         parameters=fixed_orbit_parameters[0], basis='field').transform(to='modes')
 

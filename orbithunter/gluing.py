@@ -137,6 +137,7 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
     gluing_order = kwargs.get('gluing_order', np.argsort(glue_shape))
     conserve_parity = kwargs.get('conserve_parity', True)
     nzero = kwargs.get('nonzero_parameter_glue', True)
+    gluing_basis = kwargs.get('basis', class_constructor.bases()[0])
     # This joins the dictionary of all orbits' dimensions by zipping the values together. i.e.
     #(T_1, L_1, ...), (T_2, L_2, ...) transforms into  ((T_1, T_2, ...) , (L_1, L_2, ...))
 
@@ -167,7 +168,7 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
                 glued_strip_state = np.concatenate(tuple(x.state for x in orbit_array_corrected),
                                                    axis=gluing_axis)
                 # Put the glued strip's state back into a class instance.
-                glued_strip_orbit = class_constructor(state=glued_strip_state, basis=class_constructor.bases()[0],
+                glued_strip_orbit = class_constructor(state=glued_strip_state, basis=gluing_basis,
                                                       parameters=strip_parameters, **kwargs)
 
                 # Take the result and store it for futher gluings.
@@ -197,7 +198,7 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
         while len(glued_orbit_state.shape) > len(tiling_shape):
             glued_orbit_state = np.concatenate(glued_orbit_state, axis=gluing_axis)
 
-        glued_orbit = class_constructor(state=glued_orbit_state, basis=class_constructor.bases()[0],
+        glued_orbit = class_constructor(state=glued_orbit_state, basis=gluing_basis,
                                         parameters=glued_parameters, **kwargs)
 
     return glued_orbit
@@ -227,18 +228,17 @@ def tile(symbol_array, tiling_dictionary, class_constructor,  **kwargs):
 
     """
     symbol_array_shape = symbol_array.shape
-    orbit_array = np.array([tiling_dictionary[symbol] for symbol in symbol_array.ravel()]
-                                        ).reshape(*symbol_array_shape)
+    orbit_array = np.array([tiling_dictionary[symbol] for symbol in symbol_array.ravel()]).reshape(*symbol_array_shape)
     glued_orbit = glue(orbit_array, class_constructor, **kwargs)
     return glued_orbit
 
 
-def generate_symbol_arrays(fpo_dictionary, glue_shape, unique=True):
+def generate_symbol_arrays(tiling_dictionary, glue_shape, unique=True):
     """ Produce all d-dimensional symbol arrays for a given dictionary and shape.
 
     Parameters
     ----------
-    fpo_dictionary
+    tiling_dictionary
     glue_shape
     unique
 
@@ -251,7 +251,7 @@ def generate_symbol_arrays(fpo_dictionary, glue_shape, unique=True):
     of symbols in the dictionary.
 
     """
-    symbol_array_generator = itertools.product(list(fpo_dictionary.keys()), repeat=np.product(glue_shape))
+    symbol_array_generator = itertools.product(list(tiling_dictionary.keys()), repeat=np.product(glue_shape))
     if unique:
         axes = tuple(range(len(glue_shape)))
         cumulative_equivariants = []

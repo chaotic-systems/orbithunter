@@ -3,6 +3,7 @@ import numpy as np
 
 __all__ = ['continuation', 'discretization_continuation']
 
+# TODO : span_family function which explores/samples continuous family and its group orbit.
 
 def _equals_target(orbit_, target_extent, parameter_label):
     # For the sake of floating point error, round to 13 decimals.
@@ -179,3 +180,4 @@ def discretization_continuation(orbit_, target_discretization, cycle=False, **kw
                 minimize_result = hunt(incremented_orbit, **kwargs)
 
     return minimize_result
+

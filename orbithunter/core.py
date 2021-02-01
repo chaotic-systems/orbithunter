@@ -883,7 +883,8 @@ class Orbit:
                 # Get the attributes that aren't being saved as a dataset. Combine with class name.
                 # This is kept as general to allow for others' classes to have arbitrary attributes beyond
                 # the defaults: parameters, discretization, shape, basis,
-                orbitattributes = {**self.__dict__, 'class': self.__class__.__name__}
+                orbitattributes = {**{k: v for k, v in vars(self).items() if k != 'state'},
+                                   'class': self.__class__.__name__}
                 for key, val in orbitattributes.items():
                     try:
                         orbitset.attrs[key] = val

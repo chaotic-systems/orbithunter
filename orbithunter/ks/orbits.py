@@ -2590,17 +2590,18 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
     def truncate(self, size, axis=0):
         """ Overwrite of parent method """
-        spatial_modes = self.transform(to='spatial_modes')
         if axis == 0:
+            spatial_modes = self.transform(to='spatial_modes')
             truncated_spatial_modes = spatial_modes.state[-size:, :]
             return self.__class__(**{**vars(self), 'state': truncated_spatial_modes,
                                      'basis': 'spatial_modes'}).transform(to=self.basis)
         else:
+            modes = self.transform(to='modes')
             truncate_number = int(size // 2) - 1
-            truncated_modes = spatial_modes.state[:, :truncate_number]
+            truncated_modes = modes.state[:, :truncate_number]
             # cannot distinguish between n != 1 and n == 1 when in modes basis; therefore, pass the shape to keep track
             return self.__class__(**{**vars(self), 'state': truncated_modes,
-                                     'basis': 'spatial_modes'}).transform(to=self.basis)
+                                     'basis': 'modes'}).transform(to=self.basis)
 
     def shapes(self):
         """ State array shapes in different bases. See core.py for details.
@@ -2700,8 +2701,10 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             self.state = np.array([], dtype=float).reshape(0, 0)
 
         if self.size > 0:
+
             if len(self.shape) == 1:
                 self.state = state.reshape(1, -1)
+
             if basis is None:
                 raise ValueError('basis must be provided when state is provided')
             elif basis == 'modes':
