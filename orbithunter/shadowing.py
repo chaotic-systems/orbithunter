@@ -29,7 +29,7 @@ def orbit_mask_from_score_mask(base_orbit, window_orbit, score_array, strides):
     of the score array into one that can be applied to the base orbit. Need the shapes of the windows and strides to do
     so.
     """
-    np.where(score_array)
+    return None
 
 
 def shadowing(base_orbit, window_orbit, **kwargs):
@@ -86,49 +86,20 @@ def shadowing(base_orbit, window_orbit, **kwargs):
         window_slices = tuple(slice(pivot * span, (pivot+1) * span) for pivot, span in zip(pivot_tuple, window.shape))
         score_array[pivot_tuple] = scoring_function(base[window_slices], window)
 
-
     return score_array
 
 
-def cover(base_orbit, *window_orbits, verbose=False, threshold=0.02, threshold_type='percentile', stride=1,
-              mask_region='exterior'):
-    for window_orbit in window_orbits:
-        window_orbit = window_orbit.transform(to='field')
-        base_orbit = base_orbit.transform(to='field')
-        twindow, xwindow = window_orbit.shapes()[0]
-        tbase, xbase = base_orbit.shapes()[0]
+def cover(base_orbit, *window_orbits):
+    """ Function to perform multiple shadowing computations given a collection of orbits.
 
-        assert twindow < tbase and xwindow < xbase, 'Shadowing window is larger than the base orbit. resize first. '
+    Parameters
+    ----------
+    base_orbit
+    window_orbits
 
-        # First, need to calculate the norm of the window squared and base squared (squared because then it detects
-        # the shape rather than the color coded field), for all translations of the window.
-        mask = np.zeros([tbase, xbase], dtype=bool)
-        norm_matrix = np.zeros([(tbase-twindow)//stride, (xbase-xwindow)//stride])
-        for i, t in enumerate(range(0, tbase-twindow, stride)):
-            if verbose and np.mod(i, ((tbase-twindow)//stride)//10) == 0:
-                print('#', end='')
-            for j, x in enumerate(range(0,  xbase-xwindow, stride)):
-                trange = np.arange(t, t+twindow)
-                xrange = np.arange(x, x+xwindow)
-                # numpy meshgrid returns list but when used slicing needs a tuple.
-                window_slice_indices = tuple(np.meshgrid(trange, xrange, indexing='ij'))
-                norm_matrix[i, j] = np.linalg.norm(base_orbit.state[window_slice_indices]**2 - window_orbit.state**2)
-        if threshold_type == 'percentile':
-            threshold = np.percentile(norm_matrix[norm_matrix > 0.],  threshold)
-            indices = np.where((norm_matrix > 0.) & (norm_matrix < threshold))
-        else:
-            indices = np.where((norm_matrix > 0.) & (norm_matrix < threshold))
-        for i, j in zip(*indices):
-            t, x = stride*i,  stride*j
-            trange = np.arange(t, t+twindow)
-            xrange = np.arange(x, x+xwindow)
-            # numpy meshgrid returns list but slicing needs a tuple.
-            mask[tuple(np.meshgrid(trange, xrange, indexing='ij'))] = True
+    Returns
+    -------
 
-    # TODO : Look at the mask returned and ensure it is the correct region
-    masked_orbit = base_orbit.copy()
-    if mask_region == 'exterior':
-        mask = np.invert(mask)
-    masked_orbit.state = np.ma.masked_array(masked_orbit.transform(to='field').state, mask=mask)
-    return masked_orbit, mask, threshold
+    """
+    return None
 
