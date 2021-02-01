@@ -197,9 +197,9 @@ def read_tileset(filename, keys, orbit_names, validate=False, **orbitkwargs):
         Strings representing the labels to give to the orbits corresponding to orbit_names, respectively.
     orbit_names : tuple
         Strings representing the dataset names within the .h5 file; h5py.Groups not allowed.
-    validate :
+    validate : bool
         Whether or not to call preprocess method on each imported orbit.
-    orbitkwargs :
+    orbitkwargs : dict
         Keyword arguments that user wants to provide for construction of orbit instances.
 
     Returns

@@ -133,7 +133,7 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
 
     """
     glue_shape = orbit_array.shape
-    tiling_shape = orbit_array.ravel()[0].shapes()[0]
+    tile_shape = orbit_array.ravel()[0].shapes()[0]
     gluing_order = kwargs.get('gluing_order', np.argsort(glue_shape))
     conserve_parity = kwargs.get('conserve_parity', True)
     nzero = kwargs.get('nonzero_parameter_glue', True)
@@ -142,6 +142,7 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
     #(T_1, L_1, ...), (T_2, L_2, ...) transforms into  ((T_1, T_2, ...) , (L_1, L_2, ...))
 
     if strip_wise:
+        glued_orbit = None
         for gluing_axis in gluing_order:
             # Produce the slices that will select the strips of orbits so we can iterate and work with strips.
             gluing_slices = itertools.product(*(range(g) if i != gluing_axis else [slice(None)]
@@ -179,6 +180,9 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
             orbit_array = np.array(glued_orbit_strips).reshape(glue_shape)
             if orbit_array.size == 1:
                 glued_orbit = orbit_array.ravel()[0]
+        if glued_orbit is None:
+            raise ValueError('strip-wise gluing did not produce a result; verify gluing_shape and gluing_order '
+                             'are not empty or disable the strip-wise correction.')
     else:
         # Bundle all of the parameters at once, instead of "stripwise"
         zipped_dimensions = tuple(zip(*(o.dimensions() for o in orbit_array.ravel())))
@@ -193,14 +197,13 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
 
         # arrange the orbit states into an array of the same shape as the symbol array.
         orbit_field_list = np.array([o.transform(to=class_constructor.bases()[0]).state for o in orbit_array.ravel()])
-        glued_orbit_state = np.array(orbit_field_list).reshape(*orbit_array.shape, *tiling_shape)
+        glued_orbit_state = np.array(orbit_field_list).reshape(*orbit_array.shape, *tile_shape)
         # iterate through and combine all of the axes.
-        while len(glued_orbit_state.shape) > len(tiling_shape):
+        while len(glued_orbit_state.shape) > len(tile_shape):
             glued_orbit_state = np.concatenate(glued_orbit_state, axis=gluing_axis)
 
         glued_orbit = class_constructor(state=glued_orbit_state, basis=gluing_basis,
                                         parameters=glued_parameters, **kwargs)
-
     return glued_orbit
 
 

@@ -529,7 +529,7 @@ class OrbitKS(Orbit):
         if preconditioning:
             # This preconditions with respect to the current state. not J^T F
             gradient = (self.rmatvec(eqn, **kwargs)
-                        ).precondition(pmult=self.preconditioning_parameters)
+                        ).precondition(pmult=self.preconditioning_parameters())
         else:
             gradient = self.rmatvec(eqn, **kwargs)
         return gradient
@@ -766,7 +766,7 @@ class OrbitKS(Orbit):
         I never preconditioned the spatial shift for relative periodic solutions so I don't include it here.
         """
         pmult = kwargs.get('pmult', self.preconditioning_parameters())
-        p_multipliers = 1.0 / (np.abs(temporal_frequencies(*pmult[0]))
+        p_multipliers = 1.0 / (np.abs(temporal_frequencies(*pmult[0], order=1))
                                + np.abs(spatial_frequencies(*pmult[1], order=2))
                                + spatial_frequencies(*pmult[1], order=4))
 
@@ -2495,10 +2495,6 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         """
 
         return 1, 4
-
-    def dimensions(self):
-        """ Tile dimensions. """
-        return (self.x,)
 
     def _eqn_linear_component(self, array=False):
         """ Linear component of the KSE 

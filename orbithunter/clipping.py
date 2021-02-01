@@ -22,7 +22,7 @@ def _slices_from_window(orbit_, window_dimensions, time_ordering='decreasing'):
     shape = orbit_.shapes()[0]
     # Returns the dimensions which would be shown on a plot (easier to eye-ball clipping then), including units.
     # Should be a tuple of tuples (d_min, d_max), one for each dimension.
-    plot_dimensions = orbit_.plotting_dimensions
+    plot_dimensions = orbit_.plotting_dimensions()
     # Returns a tuple of the "length" > 0 of each axis.
     actual_dimensions = orbit_.dimensions()
 
