@@ -7,6 +7,7 @@ from functools import lru_cache
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import warnings
 
 
 __all__ = ['OrbitKS', 'RelativeOrbitKS', 'ShiftReflectionOrbitKS', 'AntisymmetricOrbitKS', 'EquilibriumOrbitKS',
@@ -75,7 +76,7 @@ class OrbitKS(Orbit):
 
     @staticmethod
     def minimal_shape():
-        """ The smallest possible compatible discretization
+        """ The smallest possible compatible discretization to have full functionality.
 
         Returns
         -------
@@ -222,8 +223,6 @@ class OrbitKS(Orbit):
             # return the derivative in an instance
             orbit_dtn = self.__class__(**{**vars(self), 'state': dtn_modes, 'basis': 'modes'})
             return orbit_dtn.transform(to=self.basis)
-
-
 
 
     def dx(self, order=1, computation_basis='modes', array=False, **kwargs):
@@ -1210,9 +1209,9 @@ class OrbitKS(Orbit):
         # also accepts discretization as kwarg
         n, m = self.parameter_based_discretization(self.dimensions(), **kwargs)
         if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
-            raise ValueError('discretization size does not satisfy minimum requirements. See class.minimal_shape()')
-        else:
-            self.discretization = n, m
+            warn_str = 'minimum discretization requirements not met. Methods may not work as intended.'
+            warnings.warn(warn_str, RuntimeWarning)
+        self.discretization = n, m
         # I think this is the easiest way to get symmetry-dependent Fourier mode arrays' shapes.
         # power = 2 b.c. odd powers not defined for spacetime modes for discrete symmetries.
         space_ = np.abs(spatial_frequencies(2*pi, self.m, self.shapes()[2][0], 1)[:, :self.shapes()[2][1]]).astype(int)
@@ -1317,12 +1316,11 @@ class OrbitKS(Orbit):
                 n, m = self.shape[0], self.shape[1] + 2
             else:
                 raise ValueError('basis not recognized; must equal "field" or "spatial_modes", or "modes"')
-
-            self.basis = basis
             if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
-                raise ValueError('discretization size does not satisfy minimum requirements. See class.minimal_shape()')
-            else:
-                self.discretization = n, m
+                warn_str = 'minimum discretization requirements not met. Methods may not work as intended.'
+                warnings.warn(warn_str, RuntimeWarning)
+            self.basis = basis
+            self.discretization = n, m
         else:
             self.basis = None
             self.discretization = None
@@ -2129,10 +2127,10 @@ class AntisymmetricOrbitKS(OrbitKS):
             else:
                 raise ValueError('basis not recognized; must equal "field" or "spatial_modes", or "modes"')
             if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
-                raise ValueError('discretization size does not satisfy minimum requirements. See class.minimal_shape()')
-            else:
-                self.discretization = n, m
+                warn_str = 'minimum discretization requirements not met. Methods may not work as intended.'
+                warnings.warn(warn_str, RuntimeWarning)
             self.basis = basis
+            self.discretization = n, m
         else:
             self.discretization = None
             self.basis = None
@@ -2366,10 +2364,10 @@ class ShiftReflectionOrbitKS(OrbitKS):
             else:
                 raise ValueError('basis not recognized; must equal "field" or "spatial_modes", or "modes"')
             if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
-                raise ValueError('discretization size does not satisfy minimum requirements. See class.minimal_shape()')
-            else:
-                self.discretization = n, m
+                warn_str = 'minimum discretization requirements not met. Methods may not work as intended.'
+                warnings.warn(warn_str, RuntimeWarning)
             self.basis = basis
+            self.discretization = n, m
         else:
             self.discretization = None
             self.basis = None
@@ -2717,9 +2715,9 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             else:
                 raise ValueError('basis not recognized; must equal "field" or "spatial_modes", or "modes"')
             if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
-                raise ValueError('discretization size does not satisfy minimum requirements. See class.minimal_shape()')
-            else:
-                self.discretization = n, m
+                warn_str = 'minimum discretization requirements not met. Methods may not work as intended.'
+                warnings.warn(warn_str, RuntimeWarning)
+            self.discretization = n, m
             self.basis = basis
         else:
             self.discretization = None
@@ -3003,9 +3001,9 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
                 raise ValueError('basis not recognized; must equal "field" or "spatial_modes", or "modes"')
             # To allow for multiple time point fields and spatial modes, for plotting purposes.
             if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
-                raise ValueError('discretization size does not satisfy minimum requirements. See class.minimal_shape()')
-            else:
-                self.discretization = n, m
+                warn_str = 'minimum discretization requirements not met. Methods may not work as intended.'
+                warnings.warn(warn_str, RuntimeWarning)
+            self.discretization = n, m
             self.basis = basis
         else:
             self.discretization = None
@@ -3316,7 +3314,6 @@ def calculate_spatial_shift(spatial_modes, x, **kwargs):
     # This function is used very sparingly, extra imports kept in this scope only.
     # Warnings come from fsolve not converging; only want approximate guess as exact solution won't generally exist
     from scipy.optimize import fsolve
-    import warnings
     # If they are close enough to the same point, then shift equals 0
     if np.linalg.norm(modes_0-modes_T) <= 10**-6:
         shift = x / spatial_modes.shape[1]

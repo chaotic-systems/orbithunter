@@ -1,8 +1,8 @@
 from math import pi
-from .orbits import spatial_frequencies
 import numpy as np
+import warnings
 
-__all__ = ['integrate', 'dissipation', 'energy', 'energy_variation', 'power', 'shadowing']
+__all__ = ['integrate', 'dissipation', 'energy', 'energy_variation', 'power']
 
 
 def _averaging_wrapper(instance_with_state_to_average, average=None):
@@ -81,92 +81,6 @@ def power(orbit_instance, average=None):
                               average=average)
 
 
-def shadowing(base_orbit, window_orbit, verbose=False, threshold=0.02, threshold_type='percentile', stride=1,
-              mask_region='exterior'):
-
-    window_orbit = window_orbit.transform(to='field')
-    base_orbit = base_orbit.transform(to='field')
-    twindow, xwindow = window_orbit.shapes()[0]
-    tbase, xbase = base_orbit.shapes()[0]
-
-    assert twindow < tbase and xwindow < xbase, 'Shadowing window is larger than the base orbit. resize first. '
-
-    # First, need to calculate the norm of the window squared and base squared (squared because then it detects
-    # the shape rather than the color coded field), for all translations of the window.
-    mask = np.zeros([tbase, xbase], dtype=bool)
-    norm_matrix = np.zeros([(tbase-twindow)//stride, (xbase-xwindow)//stride])
-    for i, t in enumerate(range(0, tbase-twindow, stride)):
-        if verbose and np.mod(i, ((tbase-twindow)//stride)//10) == 0:
-            print('#', end='')
-        for j, x in enumerate(range(0,  xbase-xwindow, stride)):
-            trange = np.arange(t, t+twindow)
-            xrange = np.arange(x, x+xwindow)
-            # numpy meshgrid returns list but when used slicing needs a tuple.
-            window_slice_indices = tuple(np.meshgrid(trange, xrange, indexing='ij'))
-            norm_matrix[i, j] = np.linalg.norm(base_orbit.state[window_slice_indices]**2 - window_orbit.state**2)
-    if threshold_type == 'percentile':
-        threshold = np.percentile(norm_matrix[norm_matrix > 0.],  threshold)
-        indices = np.where((norm_matrix > 0.) & (norm_matrix < threshold))
-    else:
-        indices = np.where((norm_matrix > 0.) & (norm_matrix < threshold))
-    for i, j in zip(*indices):
-        t, x = stride*i,  stride*j
-        trange = np.arange(t, t+twindow)
-        xrange = np.arange(x, x+xwindow)
-        # numpy meshgrid returns list but slicing needs a tuple.
-        mask[tuple(np.meshgrid(trange, xrange, indexing='ij'))] = True
-
-    # TODO : Look at the mask returned and ensure it is the correct region
-    masked_orbit = base_orbit.copy()
-    if mask_region == 'exterior':
-        mask = np.invert(mask)
-    masked_orbit.state = np.ma.masked_array(masked_orbit.transform(to='field').state, mask=mask)
-    return masked_orbit, mask, threshold
-
-def cover(base_orbit, *window_orbits, verbose=False, threshold=0.02, threshold_type='percentile', stride=1,
-              mask_region='exterior'):
-    for window_orbit in window_orbits:
-        window_orbit = window_orbit.transform(to='field')
-        base_orbit = base_orbit.transform(to='field')
-        twindow, xwindow = window_orbit.shapes()[0]
-        tbase, xbase = base_orbit.shapes()[0]
-
-        assert twindow < tbase and xwindow < xbase, 'Shadowing window is larger than the base orbit. resize first. '
-
-        # First, need to calculate the norm of the window squared and base squared (squared because then it detects
-        # the shape rather than the color coded field), for all translations of the window.
-        mask = np.zeros([tbase, xbase], dtype=bool)
-        norm_matrix = np.zeros([(tbase-twindow)//stride, (xbase-xwindow)//stride])
-        for i, t in enumerate(range(0, tbase-twindow, stride)):
-            if verbose and np.mod(i, ((tbase-twindow)//stride)//10) == 0:
-                print('#', end='')
-            for j, x in enumerate(range(0,  xbase-xwindow, stride)):
-                trange = np.arange(t, t+twindow)
-                xrange = np.arange(x, x+xwindow)
-                # numpy meshgrid returns list but when used slicing needs a tuple.
-                window_slice_indices = tuple(np.meshgrid(trange, xrange, indexing='ij'))
-                norm_matrix[i, j] = np.linalg.norm(base_orbit.state[window_slice_indices]**2 - window_orbit.state**2)
-        if threshold_type == 'percentile':
-            threshold = np.percentile(norm_matrix[norm_matrix > 0.],  threshold)
-            indices = np.where((norm_matrix > 0.) & (norm_matrix < threshold))
-        else:
-            indices = np.where((norm_matrix > 0.) & (norm_matrix < threshold))
-        for i, j in zip(*indices):
-            t, x = stride*i,  stride*j
-            trange = np.arange(t, t+twindow)
-            xrange = np.arange(x, x+xwindow)
-            # numpy meshgrid returns list but slicing needs a tuple.
-            mask[tuple(np.meshgrid(trange, xrange, indexing='ij'))] = True
-
-    # TODO : Look at the mask returned and ensure it is the correct region
-    masked_orbit = base_orbit.copy()
-    if mask_region == 'exterior':
-        mask = np.invert(mask)
-    masked_orbit.state = np.ma.masked_array(masked_orbit.transform(to='field').state, mask=mask)
-    return masked_orbit, mask, threshold
-
-
-
 def integrate(orbit_, **kwargs):
     """ Exponential time-differencing Runge-Kutta 4th order integration scheme.
 
@@ -188,6 +102,9 @@ def integrate(orbit_, **kwargs):
     integrated trajectory. This will lead to plotting issues so unless desired, you should convert to the
     base orbit type first.
     """
+
+    warnings.simplefilter(action='ignore', category=RuntimeWarning)
+    from scipy.fft import rfftfreq, rfft, irfft
     verbose = kwargs.get('verbose', False)
     orbit_ = orbit_.transform(to='spatial_modes')
     integration_time = kwargs.get('integration_time', orbit_.t)
@@ -197,10 +114,11 @@ def integrate(orbit_, **kwargs):
                                         parameters=orbit_.parameters).transform(to='spatial_modes')
     # stepsize
     step_size = kwargs.get('step_size', 0.01)
-
+    m,x = orbit_t.m, orbit_t.x
+    q = ((2*pi*m/x) * rfftfreq(m)[1:-1].reshape(1, -1))
+    q = np.concatenate((q, q))
     # Because N = 1, this is just the spatial matrices, negative sign b.c. other side of equation.
-    lin_diag = -1.0*(spatial_frequencies(orbit_t.x, orbit_t.M, orbit_t.shapes()[1][0], order=2)
-                     + spatial_frequencies(orbit_t.x, orbit_t.M, orbit_t.shapes()[1][0], order=4)).reshape(-1, 1)
+    lin_diag = (q**2 - q**4).reshape(-1, 1)
 
     E = np.exp(step_size*lin_diag)
     E2 = np.exp(step_size*lin_diag/2.0)
@@ -245,6 +163,9 @@ def integrate(orbit_, **kwargs):
         c = a * E2 + (2 * Nb - Nv) * Q
         Nc = -0.5*(c.transform(to='field')**2).dx(computation_basis='spatial_modes', return_basis='spatial_modes')
         v = v * E + Nv * f1 + (2 * (Na + Nb)) * f2 + Nc * f3
+        if orbit_.__class__.__name__ in ['AntisymmetricOrbitKS', 'EquilibriumOrbitKS']:
+            v.real = 0
+
         if kwargs.get('return_trajectory', True):
             u[-step, :] = v.transform(to='field').state.ravel()
         else:
@@ -255,8 +176,8 @@ def integrate(orbit_, **kwargs):
         print(']', end='')
     # By default do not assign spatial shift S.
     if kwargs.get('return_trajectory', True):
-        return orbit_.__class__(state=u.reshape(nmax, -1), basis='field', parameters=(integration_time, orbit_.x, 0))
+        int_orbit = orbit_.__class__(state=u.reshape(nmax, -1), basis='field', parameters=(integration_time, orbit_.x, 0))
     else:
-        return orbit_.__class__(state=u.reshape(1, -1), basis='field', parameters=(integration_time, orbit_.x, 0))
-
-
+        int_orbit = orbit_.__class__(state=u.reshape(1, -1), basis='field', parameters=(integration_time, orbit_.x, 0))
+    warnings.resetwarnings()
+    return int_orbit

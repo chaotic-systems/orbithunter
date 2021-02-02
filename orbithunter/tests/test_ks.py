@@ -11,7 +11,7 @@ def fixed_orbit_data():
     state = np.array([[1.76405235,  0.40015721,  0.97873798,  2.2408932, 1.86755799, -0.97727788],
                       [0.95008842, -0.15135721, -0.10321885,  0.4105985, 0.14404357, 1.45427351],
                       [0.76103773,  0.12167502,  0.44386323,  0.33367433,  1.49407907, -0.20515826],
-                      [0.3130677, -0.85409574, -2.55298982,  0.6536186 ,  0.8644362, -0.74216502],
+                      [0.3130677, -0.85409574, -2.55298982,  0.6536186,  0.8644362, -0.74216502],
                       [2.26975462, -1.45436567,  0.04575852, -0.18718385,  1.53277921, 1.46935877],
                       [0.15494743,  0.37816252, -0.88778575, -1.98079647, -0.34791215, 0.15634897]])
     return state
@@ -106,7 +106,7 @@ def test_rmatvec(fixed_orbit_data, fixed_orbit_parameters):
 
 
 def test_matvec(fixed_orbit_data, fixed_orbit_parameters):
-    relorbit_ = oh.read_h5('../../data/ks/RelativeOrbitKS.h5', 't44p304_x33p280').transform(to='field')
+    relorbit_ = oh.read_h5('../../data/ks/RelativeOrbitKS.h5', 't44p304_x33p280').transform(to='modes')
     orbit_ = oh.OrbitKS(state=fixed_orbit_data,
                         parameters=fixed_orbit_parameters[0], basis='field').transform(to='modes')
 

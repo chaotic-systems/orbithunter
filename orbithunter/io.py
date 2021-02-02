@@ -1,5 +1,4 @@
 import os
-import sys
 import numpy as np
 import pandas as pd
 import itertools
@@ -19,56 +18,6 @@ filename and the group names, as the group entries for each orbit should be unif
 that currently there is no query method for the HDF5 files built in to orbithunter currently. In order to query
 an h5 file, it is required to use the h5py API explicitly.   
 """
-
-
-def _find_parent_class_from_module(module):
-    """ Parse a string to find the longest class name that occurs as a substring.
-    Parameters
-    ----------
-    module :
-        The module whose classes are to be investigated.
-
-    Returns
-    -------
-    cls : class generator
-        The "parent" class of a submodule. This is the class that is only a subclass of itself (with
-        respect to the other classes in the module).
-    """
-    classes = [cls for name, cls in module.__dict__.items() if isinstance(cls, type)]
-    # Recursively search for the root class of the module
-    for cls in classes:
-        # For each class, count how many subclasses it has. The "parent" class is only its own
-        # subclass; therefore if the count equals 1 then we are done.
-        subclass_count = np.sum([int(issubclass(cls, cls2)) for cls2 in classes])
-        if subclass_count == 1:
-            return cls
-    else:
-        raise ValueError('Did not find parent class in module')
-
-
-def _find_class_from_str(string, module):
-    """ Parse a string to find the longest class name that occurs as a substring.
-    Parameters
-    ----------
-    string : str
-        A string to search for class names as substrings
-    module :
-        The module that the class names are being pulled from
-
-    Returns
-    -------
-    name : str
-        The (longest) class name that occurs in the provided string. Longest returned to avoid substrings i.e.
-        "SubclassOrbit" vs. "Orbit"
-    """
-    names = [str(name) for name, cls in module.__dict__.items() if isinstance(cls, type)]
-    # Recursively search for the root class of the module
-    # Using the longest names first means that we do not pick out substrings.
-    for name in sorted(names, key=len, reverse=True):
-        if string.count(name) > 0:
-            return name
-    else:
-        raise ValueError('Did not find class name as substring.')
 
 
 def read_h5(filename, *datanames, validate=False, **orbitkwargs):
@@ -109,6 +58,9 @@ def read_h5(filename, *datanames, validate=False, **orbitkwargs):
     datasets = []
     imported_orbits = []
 
+    # This SHOULD avoid circular imports yet still provide a resource to retrieve class constructors.
+    module = importlib.import_module('orbithunter')
+
     # With orbit_names now correctly instantiated as an iterable, can open file and iterate.
     with h5py.File(os.path.abspath(filename), 'r') as file:
         # define visititems() function here to use variables in current namespace
@@ -127,40 +79,8 @@ def read_h5(filename, *datanames, validate=False, **orbitkwargs):
 
         for orbitname in datasets:
             obj = file[orbitname]
-            try:
-                # The following loads the module for the correct equation dynamically
-                # when the function is called, to prevent imports of all equations and possible circular dependencies.
-                # Module name needs to be included as suffix of class name or included as h5 attribute for this to work.
-                # Only the former is actually expected; hence the try-except statement is really built around the second
-                # clause.
-                module_name = obj.attrs.get('module', None) or obj.attrs['class'].split('Orbit')[-1].lower()
-            except AttributeError:
-                # If not derived from h5 'class' attribute, equation must be provided.
-                module_name = orbitkwargs.get('module', None)
-
-            # For each h5py.Dataset, need to get the corresponding module which contains its class.
-            if module_name not in sys.modules:
-                # module name assumed to be in main orbithunter directory.
-                module = importlib.import_module(''.join(['.', module_name]), 'orbithunter')
-            else:
-                # If already imported, do not load again.
-                module = sys.modules[module_name]
-
-            try:
-                try:
-                    # Get the class from metadata if possible
-                    class_ = getattr(module, obj.attrs['class'])
-                except (KeyError, AttributeError):
-                    # If class name is not in metadata, then try to get it from Dataset or filename, in that order.
-                    try:
-                        # Attempt to get class from h5py.Dataset str
-                        class_ = getattr(module, _find_class_from_str(orbitname, module))
-                    except (ValueError, AttributeError):
-                        # If substring does not exist or is not a class the attempt to retrieve from filename
-                        class_ = getattr(module, _find_class_from_str(filename, module))
-            except (ValueError, AttributeError):
-                # if all methods fail, use the parent class of the module as a last resort.
-                class_ = _find_parent_class_from_module(module)
+            # Get the class from metadata
+            class_ = getattr(module, obj.attrs['class'])
 
             # Next step is to ensure that parameters that are passed are either tuple or NoneType, as required.
             try:
