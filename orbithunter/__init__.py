@@ -3,8 +3,9 @@ from .io import read_h5, read_tileset
 from .ks import (OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS, AntisymmetricOrbitKS, EquilibriumOrbitKS,
                  RelativeEquilibriumOrbitKS)
 from .gluing import glue, tile, rediscretize_tileset
-from .clipping import clip, mask_orbit
-from .continuation import continuation, discretization_continuation
+from .clipping import clip, clipping_mask
+from .continuation import continuation, discretization_continuation, span_family
+from .shadowing import scan, scanning_mask, shadow, cover
 from .core import convert_class, Orbit
 
 __all__ = ['OrbitKS', 'RelativeOrbitKS', 'ShiftReflectionOrbitKS', 'AntisymmetricOrbitKS', 'EquilibriumOrbitKS',
@@ -12,7 +13,8 @@ __all__ = ['OrbitKS', 'RelativeOrbitKS', 'ShiftReflectionOrbitKS', 'Antisymmetri
 __all__ += ['hunt']
 __all__ += ['read_h5', 'read_tileset']
 __all__ += ['glue', 'tile']
-__all__ += ['clip', 'mask_orbit']
-__all__ += ['continuation', 'discretization_continuation']
+__all__ += ['clip', 'clipping_mask']
+__all__ += ['continuation', 'discretization_continuation', 'span_family']
+__all__ += ['scan', 'scanning_mask', 'shadow', 'cover']
 __all__ += ['convert_class', 'Orbit']
 

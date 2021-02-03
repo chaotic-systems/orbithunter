@@ -625,7 +625,6 @@ class Orbit:
         # Instance with all attributes except state and parameters
         return self.__class__(**{**vars(self), 'state': np.zeros(self.shapes()[-1])})
 
-
     def rmatvec(self, other, **kwargs):
         """ Matrix-vector product of adjoint Jacobian evaluated at instance state, times state of other instance.
 
@@ -843,7 +842,7 @@ class Orbit:
         return self.__class__(**{**vars(self), 'state': rescaled_state,
                                  'basis': self.bases()[0]}).transform(to=self.basis)
 
-    def to_h5(self, filename=None, dataname=None, mode='a', verbose=False, include_residual=False, **kwargs):
+    def to_h5(self, filename=None, dataname=None, h5mode='a', verbose=False, include_residual=False, **kwargs):
         """ Export current state information to HDF5 file
 
         Parameters
@@ -853,7 +852,7 @@ class Orbit:
         dataname : str, default 'state'
             Name of the h5_group wherein to store the Orbit in the h5_file at location filename. Should be
             HDF5 group name, i.e. '/A/B/C/...'
-        mode : str
+        h5mode : str
             Mode with which to open the file. Default is a, read/write if exists, create otherwise,
             other modes ['r+', 'a', 'w-', 'w']. See h5py.File for details. 'r' not allowed, because this is a function
             to write to the file. Defaults to r+ to prevent overwrites.
@@ -864,45 +863,52 @@ class Orbit:
 
         Notes
         -----
-        If more attributes are desired to be saved then you will need to overload.
+        The function could be much cleaner if the onus of responsibility for naming files, groups, datasets was
+        put entirely upon the user. To avoid having write gratuitous amounts of code to name orbits, there
+        are default options for the filename, groupname and dataname. groupname always acts as a prefix to dataname,
+        it defaults to being an empty string. groupname is useful when there is a category of orbits (i.e. a family)
+        that have different parameter values.
         """
-        try:
-            with h5py.File(filename or self.filename(extension='.h5'), mode) as file:
-                # When dataset=='auto' then find the first string of the form orbit_# that is not in the
-                # currently opened file. 'orbit' is the first value attempted.
-                if dataname is None:
-                    suffix, i = '', 1
-                    dataname = ''.join(['orbit', suffix])
-                    while dataname in file:
-                        suffix = '_' + str(i)
-                        dataname = ''.join(['orbit', suffix])
-                        i += 1
-                if verbose:
-                    print('Writing dataset "{}" to file {}'.format(dataname, filename))
-                orbitset = file.require_dataset(dataname, data=self.state, dtype='float64', shape=self.shape)
-                # Get the attributes that aren't being saved as a dataset. Combine with class name.
-                # This is kept as general to allow for others' classes to have arbitrary attributes beyond
-                # the defaults: parameters, discretization, shape, basis,
-                orbitattributes = {**{k: v for k, v in vars(self).items() if k != 'state'},
-                                   'class': self.__class__.__name__}
-                for key, val in orbitattributes.items():
-                    try:
-                        orbitset.attrs[key] = val
-                    except TypeError:
-                        # If h5py encounters a dtype which it does not know how to encode, skip it.
-                        continue
+        with h5py.File(filename or self.filename(extension='.h5'), h5mode) as file:
+            # When dataset==None then find the first string of the form orbit_# that is not in the
+            # currently opened file. 'orbit' is the first value attempted.
 
-                if include_residual:
-                    # This is included as a conditional statement because it seems strange to make importing/exporting
-                    # dependent upon full implementation of the governing equations
-                    try:
-                        orbitset.attrs['residual'] = self.residual()
-                    except (ZeroDivisionError, ValueError):
-                        print('Unable to compute residual for {}'.format(repr(self)))
-        except (OSError, IOError):
-            print('Unable to write orbit data {} to {}.'.format(repr(self), filename))
+            dataname = dataname or 'orbit'
+            # Combine the group and dataset strings, accounting for possible missing/extra/inconsistent numbers of '/'
+            groupname = kwargs.get('groupname', '')
+            group_and_dataset = '/'.join(groupname.split('/')+dataname.split('/'))
+            i = 1
+            while group_and_dataset in file:
+                suffix = '_' + str(i)
+                dataname = ''.join(['orbit', suffix])
+                i += 1
+                group_and_dataset = '/'.join(groupname.split('/')+dataname.split('/'))
 
-    def filename(self, extension='.h5', decimals=3):
+            if verbose:
+                print('Writing dataset "{}" to file {}'.format(group_and_dataset, filename))
+            # orbitset = file.require_dataset(group_and_dataset, data=self.state, dtype='float64', shape=self.shape)
+            orbitset = file.create_dataset(group_and_dataset, data=self.state)
+            # Get the attributes that aren't being saved as a dataset. Combine with class name.
+            # This is kept as general to allow for others' classes to have arbitrary attributes beyond
+            # the defaults: parameters, discretization, shape, basis,
+            orbitattributes = {**{k: v for k, v in vars(self).items() if k != 'state'},
+                               'class': self.__class__.__name__}
+            for key, val in orbitattributes.items():
+                # If h5py encounters a dtype which it does not know how to encode (dict, for example), skip it.
+                try:
+                    orbitset.attrs[key] = val
+                except TypeError:
+                    continue
+
+            if include_residual:
+                # This is included as a conditional statement because it seems strange to make importing/exporting
+                # dependent upon full implementation of the governing equations
+                try:
+                    orbitset.attrs['residual'] = self.residual()
+                except (ZeroDivisionError, ValueError):
+                    print('Unable to compute residual for {}'.format(repr(self)))
+
+    def filename(self, extension='.h5', decimals=3, cls_name=True):
         """ Method for consistent/conventional filenaming
 
         Parameters
@@ -911,7 +917,8 @@ class Orbit:
             The extension to append to the filename
         decimals :
             The number of decimals to include in the str name of the orbit.
-
+        cls_name :
+            Whether or not to include str(self) in the filename.
         Returns
         -------
         str :
@@ -928,11 +935,15 @@ class Orbit:
         if self.dimensions() is not None:
             # Of the form
             dimensional_string = ''.join(['_' + ''.join([self.dimension_labels()[i],
-                                                         str(round(d, decimals)).replace('.', 'p')])
+                                                         f'{d:.{decimals}f}'.replace('.', 'p')])
                                           for i, d in enumerate(self.dimensions()) if (d != 0) and (d is not None)])
         else:
             dimensional_string = ''
-        return ''.join([self.__class__.__name__, dimensional_string, extension])
+
+        if not cls_name and dimensional_string:
+            return ''.join([dimensional_string, extension]).lstrip('_')
+        else:
+            return ''.join([self.__class__.__name__, dimensional_string, extension]).lstrip('_')
 
     def preprocess(self):
         """ Check the status of a solution, whether or not it converged to the correct orbit type. """

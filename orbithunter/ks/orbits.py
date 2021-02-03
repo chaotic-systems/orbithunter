@@ -549,8 +549,6 @@ class OrbitKS(Orbit):
                 The field discretization to plot, will be used instead of default padding if padding is enabled.
             filename : str
                 The (custom) save name of the figure, if save==True. Save name will be generated otherwise.
-            directory : str
-                The location to save to, if save==True
         Notes
         -----
         new_N and new_M are accessed via .get() because this is the only manner in which to incorporate
@@ -640,36 +638,26 @@ class OrbitKS(Orbit):
         cbar = plt.colorbar(image, cax=cax, ticks=cbarticks)
         cbar.ax.set_yticklabels(cbarticklabels, fontdict={'fontsize': scaled_font})
 
-        filename = kwargs.get('filename', None)
-        if save or (filename is not None):
+        if save or kwargs.get('filename', None):
             extension = kwargs.get('extension', '.png')
-            directory = kwargs.get('directory', 'local')
+            filename = kwargs.get('filename', None) or self.filename(extension=extension)
             # Create save name if one doesn't exist.
-            if filename is None:
-                filename = self.filename(extension=extension)
-            elif filename.endswith('.h5'):
-                filename = filename.split('.h5')[0] + extension
+            if filename.endswith('.h5'):
+                filename = ''.join([filename.split('.h5')[0], extension])
 
-            if fundamental_domain and str(plot_orbit) != 'OrbitKS':
+            if fundamental_domain:
                 # Need to rename fundamental domain or else it will overwrite, of course there
                 # is no such thing for solutions without any symmetries.
-                filename = filename.split('.')[0] + '_fdomain.' + filename.split('.')[1]
-
-            # Create save directory if one doesn't exist.
-            if isinstance(directory, str):
-                if directory == 'local':
-                    directory = os.path.abspath(os.path.join(__file__, '../../../data/local/', str(self)))
+                filename = '_fdomain.'.join([filename.split('.')])
 
             # If filename is provided as an absolute path it overrides the value of 'directory'.
-            filename = os.path.abspath(os.path.join(directory, filename))
-
+            filename = os.path.abspath(os.path.join(filename))
             if kwargs.get('verbose', False):
                 print('Saving figure to {}'.format(filename))
             plt.savefig(filename, bbox_inches='tight', pad_inches=0.05)
 
         if show:
             plt.show()
-
         plt.close()
         return None
 
@@ -693,7 +681,6 @@ class OrbitKS(Orbit):
         plt.rc('text', usetex=True)
         plt.rc('font', family='serif')
         plt.rcParams['text.usetex'] = True
-
         if scale == 'log':
             modes = np.log10(np.abs(self.transform(to='modes').state))
         else:
@@ -708,31 +695,21 @@ class OrbitKS(Orbit):
         cax = divider.append_axes('right', size=0.075, pad=0.1)
         plt.colorbar(image, cax=cax)
 
-        filename = kwargs.get('filename', None)
-        if save or (filename is not None):
+        if save or kwargs.get('filename', None):
             extension = kwargs.get('extension', '.png')
-            directory = kwargs.get('directory', 'local')
+            filename = kwargs.get('filename', None) or self.filename(extension=extension)
             # Create save name if one doesn't exist.
-            if filename is None:
-                filename = self.filename(extension=extension)
-            elif filename.endswith('.h5'):
-                filename = filename.split('.h5')[0] + extension
-
-            # Create save directory if one doesn't exist.
-            if isinstance(directory, str):
-                if directory == 'local':
-                    directory = os.path.abspath(os.path.join(__file__, '../../../data/local/', str(self)))
+            if filename.endswith('.h5'):
+                filename = ''.join([filename.split('.h5')[0], extension])
 
             # If filename is provided as an absolute path it overrides the value of 'directory'.
-            filename = os.path.abspath(os.path.join(directory, filename))
-
+            filename = os.path.abspath(os.path.join(filename))
             if kwargs.get('verbose', False):
                 print('Saving figure to {}'.format(filename))
             plt.savefig(filename, bbox_inches='tight', pad_inches=0.05)
 
         if show:
             plt.show()
-
         plt.close()
         return None
 
@@ -942,7 +919,7 @@ class OrbitKS(Orbit):
         ------
         An instance which is an element of the (discrete or continuous) group orbit of the current instance.
         """
-        if kwargs.get('discrete_only', False):
+        if kwargs.get('discrete', False):
             # The discrete symmetry operations which preserve reflection symmetry axis.
             for g in (self, self.reflection(), self.cell_shift(2, axis=1), self.cell_shift(2, axis=1).reflection()):
                 yield g.to_fundamental_domain()
@@ -952,7 +929,7 @@ class OrbitKS(Orbit):
             for g in [self, self.reflection()]:
                 for N in range(0, g.shapes()[0][0], strides[0]):
                     for M in range(0, g.shapes()[0][1], strides[1]):
-                        yield g.roll(N, axis=0).roll(M, axis=1).to_fundamental_domain()
+                        yield g.roll(N, axis=0).roll(M, axis=1)
 
     def shapes(self):
         """ State array shapes in different bases. See core.py for details.
@@ -962,6 +939,12 @@ class OrbitKS(Orbit):
     def dimensions(self):
         """ Tile dimensions. """
         return self.t, self.x
+
+    @staticmethod
+    def dimension_labels():
+        """ Strings to use to label dimensions/periods; this is redundant for Orbit class.
+        """
+        return 't', 'x'
 
     def plotting_dimensions(self):
         """ Dimensions according to plot labels; used in clipping. """
@@ -1082,7 +1065,7 @@ class OrbitKS(Orbit):
         else:
             return self
 
-    def to_h5(self, filename=None, dataname=None, mode='a', verbose=False, include_residual=True, **kwargs):
+    def to_h5(self, filename=None, dataname=None, h5mode='a', verbose=False, include_residual=True, **kwargs):
         """ Export current state information to HDF5 file. See core.py for more details
 
         Parameters
@@ -1091,7 +1074,7 @@ class OrbitKS(Orbit):
             If None then filename method will be called.
         dataname : str or None
             h5py group name for orbit
-        mode : str
+        h5mode : str
             The writing mode, see core.py for details
         verbose : bool
             Whether or not to print save destination.
@@ -1102,8 +1085,8 @@ class OrbitKS(Orbit):
         -----
         Mainly an overload simply to get a different default behavior for include_residual.
         """
-        super().to_h5(filename=filename, dataname=dataname, mode=mode, verbose=verbose,
-                      include_residual=include_residual)
+        super().to_h5(filename=filename, dataname=dataname, h5mode=h5mode, verbose=verbose,
+                      include_residual=include_residual, **kwargs)
 
     @classmethod
     def parameter_based_discretization(cls, parameters, **kwargs):
@@ -1209,7 +1192,7 @@ class OrbitKS(Orbit):
         # also accepts discretization as kwarg
         n, m = self.parameter_based_discretization(self.dimensions(), **kwargs)
         if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
-            warn_str = 'minimum discretization requirements not met. Methods may not work as intended.'
+            warn_str = '\nminimum discretization requirements not met; methods may not work as intended.'
             warnings.warn(warn_str, RuntimeWarning)
         self.discretization = n, m
         # I think this is the easiest way to get symmetry-dependent Fourier mode arrays' shapes.
@@ -1317,7 +1300,7 @@ class OrbitKS(Orbit):
             else:
                 raise ValueError('basis not recognized; must equal "field" or "spatial_modes", or "modes"')
             if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
-                warn_str = 'minimum discretization requirements not met. Methods may not work as intended.'
+                warn_str = '\nminimum discretization requirements not met; methods may not work as intended.'
                 warnings.warn(warn_str, RuntimeWarning)
             self.basis = basis
             self.discretization = n, m
@@ -1340,8 +1323,7 @@ class OrbitKS(Orbit):
             (D/DU) 1/2 d_x (u .* u) = (D/DU) 1/2 d_x F (diag(F^-1 u)^2)  = d_x F( diag(F^-1 u) F^-1).
             See
             Chu, K.T. A direct matrix method for computing analytical Jacobians of discretized nonlinear
-            integro-differential equations. J. Comp. Phys. 2009
-            for details.
+            integro-differential equations. J. Comp. Phys. 2009 for details.
 
         Notes
         -----
@@ -1719,7 +1701,7 @@ class RelativeOrbitKS(OrbitKS):
             return super().dt(order, array=array)
         else:
             raise ValueError(
-                'Attempting to compute time derivative of '+str(self)+'in physical reference frame.')
+                'Attempting to compute time derivative of '+str(self)+' in physical reference frame.')
 
     def _eqn_linear_component(self, array=False):
         """ Linear component of the KSE 
@@ -2127,7 +2109,7 @@ class AntisymmetricOrbitKS(OrbitKS):
             else:
                 raise ValueError('basis not recognized; must equal "field" or "spatial_modes", or "modes"')
             if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
-                warn_str = 'minimum discretization requirements not met. Methods may not work as intended.'
+                warn_str = '\nminimum discretization requirements not met; methods may not work as intended.'
                 warnings.warn(warn_str, RuntimeWarning)
             self.basis = basis
             self.discretization = n, m
@@ -2364,7 +2346,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
             else:
                 raise ValueError('basis not recognized; must equal "field" or "spatial_modes", or "modes"')
             if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
-                warn_str = 'minimum discretization requirements not met. Methods may not work as intended.'
+                warn_str = '\nminimum discretization requirements not met; methods may not work as intended.'
                 warnings.warn(warn_str, RuntimeWarning)
             self.basis = basis
             self.discretization = n, m
@@ -2715,7 +2697,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             else:
                 raise ValueError('basis not recognized; must equal "field" or "spatial_modes", or "modes"')
             if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
-                warn_str = 'minimum discretization requirements not met. Methods may not work as intended.'
+                warn_str = '\nminimum discretization requirements not met; methods may not work as intended.'
                 warnings.warn(warn_str, RuntimeWarning)
             self.discretization = n, m
             self.basis = basis
@@ -3001,7 +2983,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
                 raise ValueError('basis not recognized; must equal "field" or "spatial_modes", or "modes"')
             # To allow for multiple time point fields and spatial modes, for plotting purposes.
             if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
-                warn_str = 'minimum discretization requirements not met. Methods may not work as intended.'
+                warn_str = '\nminimum discretization requirements not met; methods may not work as intended.'
                 warnings.warn(warn_str, RuntimeWarning)
             self.discretization = n, m
             self.basis = basis

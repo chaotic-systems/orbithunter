@@ -1,7 +1,7 @@
 import numpy as np
 
 
-__all__ = ['clip', 'mask_orbit']
+__all__ = ['clip', 'clipping_mask']
 
 
 def _slices_from_window(orbit_, window_dimensions, time_ordering='decreasing'):
@@ -104,7 +104,7 @@ def clip(orbit_, window_dimensions, **kwargs):
     return clipped_orbit
 
 
-def mask_orbit(orbit_, windows, mask_region='exterior'):
+def clipping_mask(orbit_, windows, mask_region='exterior'):
     """
 
     Parameters
