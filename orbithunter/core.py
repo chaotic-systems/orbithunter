@@ -1,7 +1,8 @@
 from json import dumps
 import h5py
 import numpy as np
-from itertools import zip_longest
+import itertools
+import inspect
 
 __all__ = ['Orbit', 'convert_class']
 
@@ -258,7 +259,7 @@ class Orbit:
             # parameters must be cast as tuple, (p,) if singleton.
             return self.parameters[self.parameter_labels().index(attr)]
         elif attr in self.discretization_labels():
-            # parameters must be cast as tuple, (p,) if singleton.
+            # discretization must be tuple, (d,) if singleton.
             return self.discretization[self.discretization_labels().index(attr)]
         else:
             error_message = ' '.join([self.__class__.__name__, 'has no attribute\'{}\''.format(attr)])
@@ -288,6 +289,11 @@ class Orbit:
     @staticmethod
     def parameter_labels():
         """ Strings to use to label dimensions. Generic 3+1 spacetime labels default.
+
+        Notes
+        -----
+        It might seem idiotic to have both a parameter labels staticmethod and parameters as a tuple; why not just make
+        a dict? Because I wanted an immutable type for parameters that could easily be converted into a numpy array.
         """
         return 't', 'x', 'y', 'z'
 
@@ -351,6 +357,10 @@ class Orbit:
         even valued field discretizations; therefore the minimum increments for the KSE are 2's.
         """
         return 1, 1, 1, 1
+
+    @classmethod
+    def default_constraints(cls):
+        return {k: False for k in cls.parameter_labels()}
 
     @property
     def shape(self):
@@ -682,17 +692,19 @@ class Orbit:
 
         Notes
         -----
-        Important: If parameters are passed as a keyword argument, they are appended to the numpy array,
-        'state_array', via concatenation.
-
-        Orbit is assumed to be in the 'spatiotemporal' basis, i.e. the one indicated by the last element of bases()
-        method.
+        This function is mainly to retrieve output from (scipy) optimization methods and convert it back into Orbit
+        instances. Because constrained parameters are not included in the optimization process, this is not
+        as simple as merely slicing the parameters from the array.
         """
+        # orbit_vector is defined to be concatenation of state and parameters;
         # slice out the parameters; cast as list to gain access to pop
-        params_list = list(kwargs.pop('parameters', orbit_vector.ravel()[self.size:].tolist()))
-        # In order to increment orbit states, need values for all parameters even if they are constrained, i.e. zero.
-        parameters = tuple(params_list.pop(0) if not constrained and params_list else 0
-                           for constrained in self.constraints.values())
+        param_list = list(kwargs.pop('parameters', orbit_vector.ravel()[self.size:]))
+
+        # The issue with parsing the parameters is that we do not know which list element corresponds to
+        # which parameter unless the constraints are checked. Parameter keys which are not in the constraints dict
+        # are assumed to be constrained.
+        parameters = tuple(param_list.pop(0) if not self.constraints.get(each_label, True) else 0
+                           for each_label in self.parameter_labels())
         return self.__class__(**{**vars(self), 'state': np.reshape(orbit_vector.ravel()[:self.size], self.shape),
                                  'parameters': parameters, **kwargs})
 
@@ -869,24 +881,31 @@ class Orbit:
         it defaults to being an empty string. groupname is useful when there is a category of orbits (i.e. a family)
         that have different parameter values.
         """
-        with h5py.File(filename or self.filename(extension='.h5'), h5mode) as file:
+
+        with h5py.File(filename or self.filename(extension='.h5'), mode=h5mode) as file:
             # When dataset==None then find the first string of the form orbit_# that is not in the
             # currently opened file. 'orbit' is the first value attempted.
-
-            dataname = dataname or 'orbit'
+            i = 1
+            dataname = dataname or str(i)
             # Combine the group and dataset strings, accounting for possible missing/extra/inconsistent numbers of '/'
             groupname = kwargs.get('groupname', '')
-            group_and_dataset = '/'.join(groupname.split('/')+dataname.split('/'))
-            i = 1
+            group_and_dataset = '/'.join(groupname.split('/') + dataname.split('/'))
             while group_and_dataset in file:
-                suffix = '_' + str(i)
-                dataname = ''.join(['orbit', suffix])
-                i += 1
-                group_and_dataset = '/'.join(groupname.split('/')+dataname.split('/'))
+                # append _# so that multiple versions with the same name (typically determined by parameters, but
+                # could have different values due to decimal truncation).
+                try:
+                    dataname = str(int(dataname)+1)
+                    group_and_dataset = '/'.join(groupname.split('/') + dataname.split('/'))
+                except ValueError:
+                    group_and_dataset = '/'.join(groupname.split('/')
+                                                 + ''.join([dataname.rstrip('/'), '_', str(i)]).split('/'))
+                    i += 1
 
             if verbose:
                 print('Writing dataset "{}" to file {}'.format(group_and_dataset, filename))
             # orbitset = file.require_dataset(group_and_dataset, data=self.state, dtype='float64', shape=self.shape)
+            # If group already exists, which it typically does, create_group would fail; use require_group instead
+            # create_dataset will always overwrite the h5py.Dataset
             orbitset = file.create_dataset(group_and_dataset, data=self.state)
             # Get the attributes that aren't being saved as a dataset. Combine with class name.
             # This is kept as general to allow for others' classes to have arbitrary attributes beyond
@@ -987,14 +1006,30 @@ class Orbit:
         Parameters
         ----------
         labels : str or tuple of str
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        Does not maintain other constraints when constraining unless they are provided as labels. This
+        is to avoid the requirement for an "unconstrain" method. If more constraints are to be maintained then
+        just include them in labels.
+
+        By the way that this any other methods are defined, parameters not in the default constraints dict will
+        always be assumed to be constrained. This is important for optimization methods. However, having all parameters
+        can also be necessary for both calculations and conversion processes. In other words, this is a strict
+        enforcement of parameter constraints, hard coded into the default_constraints method. Of course, you can
+        have a subclass without a stricter constraints dict.
         """
         if isinstance(labels, str):
             labels = (labels,)
         elif not isinstance(labels, tuple):
             raise TypeError('constraint labels must be str or tuple of str')
-        # Maintain other constraints when constraining.
-        constraints = {key: (True if key in tuple(*labels) else False)
-                       for key, val in self.constraints.items()}
+
+        # iterating over constraints items means that constant variables can never be unconstrained by accident.
+        constraints = {key: (True if key in tuple(*labels) else False) for key, val in self.constraints.items()}
         setattr(self, 'constraints', constraints)
 
     def _parse_state(self, state, basis, **kwargs):
@@ -1033,12 +1068,24 @@ class Orbit:
         Parameters are required to be of numerical type and are typically expected to be scalar values.
         If there are categorical parameters then they should be assigned to a different attribute.
         The reason for this is that in numerical optimization, the orbit_vector;
-        the concatenation of self.state and self.parameters is sent to the various algorithms.
+        the concatenation of self.state and self.parameters is sentf to the various algorithms.
         Cannot send categoricals to these algorithms.
+
+        Default is not to be constrained in any dimension; account for when constraints come from a class with
+        fewer parameters by iterated over current labels, then assigning value from passed 'constraints'
+        dict. When an expected constraint is not included, the associated parameter is assumed to be constrained.
+
+        # The subclass essentially defines what is and is not a constant; conversion between classes (and passing
+        # constraints in the process) can mistakenly unconstrain these constants. Therefore, if the key is not
+        # in the default constraints dict then it is assumed to be constant, even when being told otherwise.
+        # This is not an issue because this is one of the fundamental requirements built into the subclasses
+        # by the user themselves.
         """
-        # default is not to be constrained in any dimension;
-        self.constraints = kwargs.get('constraints', {dim_key: False for dim_key in self.parameter_labels()})
+        # Get the constraints, making sure to not mistakenly unconstrain constants.
+        self.constraints = {k: kwargs.get('constraints', self.default_constraints()).get(k, True)
+                            if k in self.default_constraints().keys() else True for k in self.parameter_labels()}
         if parameters is None:
+            # None is a valid choice of parameters; it essentially means "generate all parameters" upon generation.
             self.parameters = parameters
         elif isinstance(parameters, tuple):
             # This does not check each tuple element; they can be whatever the user desires, technically.
@@ -1048,7 +1095,7 @@ class Orbit:
                 self.parameters = tuple(val for label, val in zip(self.parameter_labels(), parameters))
             else:
                 # if more labels than parameters, simply fill with the default missing value, 0.
-                self.parameters = tuple(val for label, val in zip_longest(self.parameter_labels(), parameters,
+                self.parameters = tuple(val for label, val in itertools.zip_longest(self.parameter_labels(), parameters,
                                                                           fillvalue=0))
         else:
             # A number of methods require parameters to be an iterable, hence the tuple requirement.
@@ -1101,7 +1148,7 @@ class Orbit:
             # If more labels than parameters, fill the missing parameters with default
             parameters = tuple(sample_from_generator(val, p_ranges.get(label, (0, 0)),
                                                      overwrite=kwargs.get('overwrite', False))
-                               for label, val in zip_longest(self.parameter_labels(), parameter_iterable, fillvalue=0))
+                               for label, val in itertools.zip_longest(self.parameter_labels(), parameter_iterable, fillvalue=0))
         setattr(self, 'parameters', parameters)
 
     def _generate_state(self, **kwargs):
@@ -1132,12 +1179,12 @@ class Orbit:
         self.basis = kwargs.get('basis', None) or self.bases()[0]
 
 
-def convert_class(orbit, class_generator, **kwargs):
+def convert_class(orbit_, class_generator, **kwargs):
     """ Utility for converting between different classes.
 
     Parameters
     ----------
-    orbit : Orbit instance
+    orbit_ : Orbit instance
         The orbit instance to be converted
     class_generator : class generator
         The target class that orbit will be converted to.
@@ -1147,6 +1194,10 @@ def convert_class(orbit, class_generator, **kwargs):
     To avoid conflicts with projections onto symmetry invariant subspaces, the orbit is always transformed into the
     physical basis prior to conversion; the instance is returned in the basis of the input, however.
 
+    # Include any and all attributes that might be relevant to the new orbit and those which transfer over from
+    # old orbit via usage of vars(orbit_) and kwargs. If for some reason an attribute should not be passed,
+    then providing attr=None in the function call is how to handle it.
     """
-    return class_generator(state=orbit.transform(to=orbit.bases()[0]).state, basis=orbit.bases()[0],
-                           parameters=kwargs.pop('parameters', orbit.parameters), **kwargs).transform(to=orbit.basis)
+    # Note any keyword arguments will overwrite the values in vars(orbit_) or state or basis
+    return class_generator(**{**vars(orbit_), 'state': orbit_.transform(to=orbit_.bases()[0]).state,
+                              'basis': orbit_.bases()[0], **kwargs}).transform(to=orbit_.basis)

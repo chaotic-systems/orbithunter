@@ -4,7 +4,6 @@ from scipy.sparse.linalg import (LinearOperator, bicg, bicgstab, gmres, lgmres,
                                  cg, cgs, qmr, minres, lsqr, lsmr, gcrotmk)
 import sys
 import numpy as np
-import h5py
 
 __all__ = ['hunt']
 
@@ -218,10 +217,11 @@ def _adjoint_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
     if kwargs.get('verbose', False):
         print('\n-------------------------------------------------------------------------------------------------')
         print('Starting adjoint descent')
+        print('Initial guess : {}'.format(repr(orbit_)))
+        print('Constraints : {}'.format(orbit_.constraints))
         print('Initial residual : {}'.format(orbit_.residual()))
         print('Target residual tolerance : {}'.format(tol))
         print('Maximum iteration number : {}'.format(maxiter))
-        print('Initial guess : {}'.format(repr(orbit_)))
         print('-------------------------------------------------------------------------------------------------')
         sys.stdout.flush()
     mapping = orbit_.eqn(**kwargs)
@@ -280,10 +280,11 @@ def _newton_descent(orbit_, tol, maxiter, min_step=1e-6, **kwargs):
     if kwargs.get('verbose', False):
         print('\n-------------------------------------------------------------------------------------------------')
         print('Starting Newton descent optimization')
+        print('Initial guess : {}'.format(repr(orbit_)))
+        print('Constraints : {}'.format(orbit_.constraints))
         print('Initial residual : {}'.format(orbit_.residual()))
         print('Target residual tolerance : {}'.format(tol))
         print('Maximum iteration number : {}'.format(maxiter))
-        print('Initial guess : {}'.format(repr(orbit_)))
         print('-------------------------------------------------------------------------------------------------')
         sys.stdout.flush()
     mapping = orbit_.eqn(**kwargs)
@@ -362,10 +363,11 @@ def _lstsq(orbit_, tol, maxiter, min_step=1e-6,  **kwargs):
     if kwargs.get('verbose', False):
         print('\n-------------------------------------------------------------------------------------------------')
         print('Starting lstsq optimization')
+        print('Initial guess : {}'.format(repr(orbit_)))
+        print('Constraints : {}'.format(orbit_.constraints))
         print('Initial residual : {}'.format(orbit_.residual()))
         print('Target residual tolerance : {}'.format(tol))
         print('Maximum iteration number : {}'.format(maxiter))
-        print('Initial guess : {}'.format(repr(orbit_)))
         print('-------------------------------------------------------------------------------------------------')
     while residual > tol and stats['status'] == 1:
         step_size = 1
@@ -420,10 +422,11 @@ def _solve(orbit_, tol, maxiter, min_step=1e-6,  **kwargs):
     if kwargs.get('verbose', False):
         print('\n-------------------------------------------------------------------------------------------------')
         print('Starting lstsq optimization')
+        print('Initial guess : {}'.format(repr(orbit_)))
+        print('Constraints : {}'.format(orbit_.constraints))
         print('Initial residual : {}'.format(orbit_.residual()))
         print('Target residual tolerance : {}'.format(tol))
         print('Maximum iteration number : {}'.format(maxiter))
-        print('Initial guess : {}'.format(repr(orbit_)))
         print('-------------------------------------------------------------------------------------------------')
     while residual > tol and stats['status'] == 1:
         step_size = 1
@@ -476,10 +479,11 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method='minres', m
     if kwargs.get('verbose', False):
         print('\n------------------------------------------------------------------------------------------------')
         print('Starting {} optimization'.format(method))
+        print('Initial guess : {}'.format(repr(orbit_)))
+        print('Constraints : {}'.format(orbit_.constraints))
         print('Initial residual : {}'.format(orbit_.residual()))
         print('Target residual tolerance : {}'.format(tol))
         print('Maximum iteration number : {}'.format(maxiter))
-        print('Initial guess : {}'.format(repr(orbit_)))
         print('-------------------------------------------------------------------------------------------------')
         sys.stdout.flush()
     stats = {'nit': 0, 'residuals': [residual], 'maxiter': maxiter, 'tol': tol, 'status': 1}
@@ -598,10 +602,11 @@ def _scipy_optimize_minimize_wrapper(orbit_, tol, maxiter, method='l-bfgs-b',  *
     if kwargs.get('verbose', False):
         print('\n-------------------------------------------------------------------------------------------------')
         print('Starting {} optimization'.format(method))
+        print('Initial guess : {}'.format(repr(orbit_)))
+        print('Constraints : {}'.format(orbit_.constraints))
         print('Initial residual : {}'.format(orbit_.residual()))
         print('Target residual tolerance : {}'.format(tol))
         print('Maximum iteration number : {}'.format(maxiter))
-        print('Initial guess : {}'.format(repr(orbit_)))
         print('-------------------------------------------------------------------------------------------------')
         sys.stdout.flush()
 
@@ -663,9 +668,9 @@ def _scipy_optimize_minimize_wrapper(orbit_, tol, maxiter, method='l-bfgs-b',  *
         next_residual = next_orbit.residual()
         # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
         orbit_, stats = _process_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
-                                          1, 0, residual, next_residual,
-                                          method, residual_logging=kwargs.get('residual_logging', False),
-                                          verbose=kwargs.get('verbose', False))
+                                            1, 0, residual, next_residual,
+                                            method, residual_logging=kwargs.get('residual_logging', False),
+                                            verbose=kwargs.get('verbose', False))
         residual = next_residual
     else:
         if orbit_.residual() <= tol:
@@ -695,9 +700,11 @@ def _scipy_optimize_root_wrapper(orbit_, tol, maxiter, method='lgmres', **kwargs
     if kwargs.get('verbose', False):
         print('\n-------------------------------------------------------------------------------------------------')
         print('Starting {} optimization'.format(method))
+        print('Initial guess : {}'.format(repr(orbit_)))
+        print('Constraints : {}'.format(orbit_.constraints))
         print('Initial residual : {}'.format(orbit_.residual()))
         print('Target residual tolerance : {}'.format(tol))
-        print('Initial guess : {}'.format(repr(orbit_)))
+        print('Maximum iteration number : {}'.format(maxiter))
         print('-------------------------------------------------------------------------------------------------')
         sys.stdout.flush()
 
@@ -758,10 +765,10 @@ def _scipy_optimize_root_wrapper(orbit_, tol, maxiter, method='lgmres', **kwargs
         next_orbit = orbit_.from_numpy_array(result_orbit_vector)
         next_residual = next_orbit.residual()
         # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
-        orbit_, stats = _process_correction(orbit_, next_orbit, stats, tol, maxiter, ftol,
-                                          1, 0, residual, next_residual,
-                                          method, residual_logging=kwargs.get('residual_logging', False),
-                                          verbose=kwargs.get('verbose', False))
+        orbit_, stats = _process_correction(orbit_, next_orbit, stats, tol, maxiter, ftol, 1, 0, residual,
+                                            next_residual, method,
+                                            residual_logging=kwargs.get('residual_logging', False),
+                                            verbose=kwargs.get('verbose', False))
         residual = next_residual
     else:
         if orbit_.residual() <= tol:

@@ -104,7 +104,7 @@ def integrate(orbit_, **kwargs):
     """
 
     warnings.simplefilter(action='ignore', category=RuntimeWarning)
-    from scipy.fft import rfftfreq, rfft, irfft
+    from scipy.fft import rfftfreq
     verbose = kwargs.get('verbose', False)
     orbit_ = orbit_.transform(to='spatial_modes')
     integration_time = kwargs.get('integration_time', orbit_.t)

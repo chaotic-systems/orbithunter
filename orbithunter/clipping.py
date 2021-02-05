@@ -77,6 +77,8 @@ def clip(orbit_, window_dimensions, **kwargs):
         Instance to clip from
     window_dimensions : tuple of tuples.
         Contains one tuple for each continuous field dimension, each of the form (Dimension_minimum, Dimension_maximum).
+        If a dimension has zero extent; i.e. equilibrium in that dimension, then the corresponding window_dimension
+        tuple must be passed as (None, None).
     clipping_class : Orbit type class
         Class to put the clipping state into.
     kwargs :
@@ -86,7 +88,9 @@ def clip(orbit_, window_dimensions, **kwargs):
 
     Notes
     -----
-    For Kuramoto-Sivashinsky, the window_dimensions would be of the form ((T_min, T_max,), (X_min, X_max)).
+
+
+    For Kuramoto-Sivashinsky, the window_dimensions would be of the form ((T_min, T_max), (X_min, X_max)).
     Originally contemplated allowing window_dimensions to be iterable of windows but if this is desired then
     just iterate outside the function. I think that is more reasonable and cleaner.
 

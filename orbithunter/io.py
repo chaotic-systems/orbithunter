@@ -3,8 +3,8 @@ import numpy as np
 import pandas as pd
 import itertools
 import h5py
+import sys
 import importlib
-
 
 __all__ = ['read_h5', 'read_tileset', 'convergence_log', 'refurbish_log', 'write_symbolic_log',
            'read_symbolic_log', 'to_symbol_string', 'to_symbol_array']
@@ -36,7 +36,7 @@ def read_h5(filename, *datanames, validate=False, **orbitkwargs):
 
     Returns
     -------
-    Orbit or list of Orbits.
+    Orbit or list of Orbits or list of list of Orbits
         The imported data; either a single orbit instance or a list of orbit instances.
 
     Notes
@@ -49,6 +49,15 @@ def read_h5(filename, *datanames, validate=False, **orbitkwargs):
     The state data should be saved as a dataset. The attributes which are required for expected output
      are 'basis', 'class', 'parameters'; all attributes included by default are 'discretization'
      (state shape in physical basis, not necessarily the shape of the saved state).
+
+    This searches through provided h5py.Groups recursively to extract all datasets. If you need to distinguish
+    between two groups which are in the same parent group, both names must be provided separately.
+
+    As it takes a deliberate effort, keyword arguments passed to read_h5 are favored over saved attributes
+    This allows for control in case of incorrect attributes; the dictionary update avoids sending more than
+    one value to the same keyword argument.
+    This passes all saved attributes, tuple or None for parameters, and any additional keyword
+    arguments to the class
     """
 
     # unpack tuples so providing multiple strings or strings in a tuple yield same results.
@@ -58,8 +67,11 @@ def read_h5(filename, *datanames, validate=False, **orbitkwargs):
     datasets = []
     imported_orbits = []
 
-    # This SHOULD avoid circular imports yet still provide a resource to retrieve class constructors.
-    module = importlib.import_module('orbithunter')
+    # # This SHOULD avoid circular imports yet still provide a resource to retrieve class constructors.
+    if 'orbithunter' not in sys.modules:
+        module = importlib.import_module('orbithunter')
+    else:
+        module = sys.modules['orbithunter']
 
     # With orbit_names now correctly instantiated as an iterable, can open file and iterate.
     with h5py.File(os.path.abspath(filename), 'r') as file:
@@ -67,34 +79,39 @@ def read_h5(filename, *datanames, validate=False, **orbitkwargs):
         def parse_datasets(h5name, h5obj):
             # Orbits are stored as h5py.Dataset(s) . Collections or orbits are h5py.Group(s).
             if isinstance(h5obj, h5py.Dataset):
-                datasets.append(h5name)
+                groupsets.append(h5obj)
 
         # iterate through all names provided, extract all datasets from groups provided.
         # If no Dataset/Group names were provided, iterate through the entire file.
         for name in (datanames or file):
             if isinstance(file[name], h5py.Group):
+                # Separate groups as lists?
+                groupsets = []
                 file[name].visititems(parse_datasets)
+                datasets.append(groupsets)
             elif isinstance(file[name], h5py.Dataset):
-                datasets.append(name)
+                datasets.append([file[name]])
 
-        for orbitname in datasets:
-            obj = file[orbitname]
-            # Get the class from metadata
-            class_ = getattr(module, obj.attrs['class'])
+        for orbit_collection in datasets:
+            orbit_group = []
+            for obj in orbit_collection:
+                # Get the class from metadata
+                class_ = getattr(module, obj.attrs['class'])
 
-            # Next step is to ensure that parameters that are passed are either tuple or NoneType, as required.
-            try:
-                parameters = tuple(obj.attrs.get('parameters', None))
-            except TypeError:
-                parameters = None
+                # Next step is to ensure that parameters that are passed are either tuple or NoneType, as required.
+                try:
+                    parameters = tuple(obj.attrs.get('parameters', None))
+                except TypeError:
+                    parameters = None
+                orbit_ = class_(state=obj[...],  **{**dict(obj.attrs.items()), 'parameters': parameters, **orbitkwargs})
 
-            # As it takes a deliberate effort, keyword arguments passed to read_h5 are favored over saved attributes
-            # This allows for control in case of incorrect attributes; the dictionary update avoids sending more than
-            # one value to the same keyword argument.
-            # This passes all saved attributes, tuple or None for parameters, and any additional keyword
-            # arguments to the class
-            orbit_ = class_(state=obj[...],  **{**dict(obj.attrs.items()), 'parameters': parameters, **orbitkwargs})
-            imported_orbits.append(orbit_)
+                # If there is a single orbit in the collection (i.e. a dataset and not a group) then do not append as a
+                # list.
+                if len(orbit_collection) == 1:
+                    orbit_group = orbit_
+                else:
+                    orbit_group.append(orbit_)
+            imported_orbits.append(orbit_group)
 
     if validate and len(imported_orbits) == 1:
         return imported_orbits[0].preprocess()

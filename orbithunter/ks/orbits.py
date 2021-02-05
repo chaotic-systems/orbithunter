@@ -120,6 +120,10 @@ class OrbitKS(Orbit):
         """ Labels of all parameters."""
         return 't', 'x', 's'
 
+    @classmethod
+    def default_constraints(cls):
+        return {'t': False, 'x': False}
+
     def orbit_vector(self):
         """ Vector which completely specifies the orbit, contains state information and parameters. """
         return np.concatenate((self.state.reshape(-1, 1),
@@ -224,7 +228,6 @@ class OrbitKS(Orbit):
             orbit_dtn = self.__class__(**{**vars(self), 'state': dtn_modes, 'basis': 'modes'})
             return orbit_dtn.transform(to=self.basis)
 
-
     def dx(self, order=1, computation_basis='modes', array=False, **kwargs):
         """ Spatial derivative of the current state.
 
@@ -312,7 +315,7 @@ class OrbitKS(Orbit):
         # Compute the Kuramoto-sivashinsky equation; linear components differ between subclasses.
         mapping_modes = (self._eqn_linear_component(array=True) + orbit_field.nonlinear(orbit_field, array=True))
 
-        return self.__class__(**{**vars(self), 'state': mapping_modes, 'basis':'modes'})
+        return self.__class__(**{**vars(self), 'state': mapping_modes, 'basis': 'modes'})
 
     def nonlinear(self, other, array=False):
         """ Computation of the nonlinear term of the Kuramoto-Sivashinsky equation
@@ -555,13 +558,14 @@ class OrbitKS(Orbit):
         the current N and M values as defaults.
 
         """
+        plt.rc('text', usetex=True)
+        plt.rc('font', family='serif')
+        plt.rcParams['text.usetex'] = True
+
         if np.product(self.discretization) >= 256**2:
             padding = kwargs.get('padding', False)
         else:
             padding = kwargs.get('padding', True)
-        plt.rc('text', usetex=True)
-        plt.rc('font', family='serif')
-        plt.rcParams['text.usetex'] = True
 
         if padding:
             padding_shape = kwargs.get('padding_shape', (16*self.n, 16*self.m))
@@ -617,7 +621,7 @@ class OrbitKS(Orbit):
                           cmap='jet', interpolation='none', aspect='auto')
 
         xticks = (xticks/plot_orbit.x) * extentL
-        yticks = (yticks/plot_orbit.t) * extentT
+        yticks = (yticks/plot_orbit.plotting_dimensions()[0][1]) * extentT
 
         # Include custom ticks and tick labels
         ax.set_xticks(xticks)
@@ -922,14 +926,20 @@ class OrbitKS(Orbit):
         if kwargs.get('discrete', False):
             # The discrete symmetry operations which preserve reflection symmetry axis.
             for g in (self, self.reflection(), self.cell_shift(2, axis=1), self.cell_shift(2, axis=1).reflection()):
-                yield g.to_fundamental_domain()
+                if kwargs.get('fundamental_domain', False):
+                    yield g.to_fundamental_domain()
+                else:
+                    yield g
         else:
             # Don't need cell shifts, these are within the rotations.
             strides = kwargs.get('strides', (1, 1))
             for g in [self, self.reflection()]:
-                for N in range(0, g.shapes()[0][0], strides[0]):
-                    for M in range(0, g.shapes()[0][1], strides[1]):
-                        yield g.roll(N, axis=0).roll(M, axis=1)
+                for N in range(0, g.n, strides[0]):
+                    for M in range(0, g.m, strides[1]):
+                        if kwargs.get('fundamental_domain', False):
+                            yield g.roll(N, axis=0).roll(M, axis=1).to_fundamental_domain()
+                        else:
+                            yield g.roll(N, axis=0).roll(M, axis=1)
 
     def shapes(self):
         """ State array shapes in different bases. See core.py for details.
@@ -1681,6 +1691,10 @@ class RelativeOrbitKS(OrbitKS):
         The shift parameter is included so that it can be iterated over; clearly only s=0 is allowed. 
         """
         return {'t': (20, 200), 'x': (20, 100), 's': (0, 0)}
+
+    @classmethod
+    def default_constraints(cls):
+        return {'t': False, 'x': False, 's': False}
 
     def dt(self, order=1, array=False):
         """ A time derivative of the current state.
@@ -2476,6 +2490,10 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         return 1, 4
 
+    @classmethod
+    def default_constraints(cls):
+        return {'x': False}
+
     def _eqn_linear_component(self, array=False):
         """ Linear component of the KSE 
         
@@ -2889,8 +2907,8 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         field_orbit = orbit_.transform(to='field')
         zero_check = field_orbit.norm()
         if zero_check < 10**-5:
-            return RelativeEquilibriumOrbitKS(state=np.zeros(self.discretization), basis='field',
-                                              parameters=self.parameters).transform(to=self.basis)
+            return RelativeEquilibriumOrbitKS(**{**vars(self), 'state': np.zeros(self.discretization),
+                                                 'basis': 'field'}).transform(to=self.basis)
         else:
             return orbit_
 

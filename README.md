@@ -1,4 +1,4 @@
-# orbithunter v2.0.0 beta
+# orbithunter beta
 -------------------------
 Framework for solving chaotic nonlinear PDEs in spatiotemporal manner.
 

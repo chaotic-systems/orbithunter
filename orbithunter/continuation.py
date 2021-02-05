@@ -1,6 +1,7 @@
 from .optimize import hunt
-import numpy as np
 from collections import deque
+import numpy as np
+import warnings
 
 __all__ = ['continuation', 'discretization_continuation', 'span_family']
 
@@ -252,23 +253,27 @@ def span_family(orbit_, **kwargs):
     """
     # Check and make sure the root orbit is actually a converged orbit.
     root_orbit_result = hunt(orbit_, **kwargs)
-    convcheck_msg = 'unconverged root orbit; family spanning terminated. Decrease tol to avoid this behavior.'
-    assert root_orbit_result.status == -1, convcheck_msg
-    
+    if root_orbit_result.status != -1:
+        warn_str = '\nunconverged root orbit in family spanning. Change tol or orbit to avoid this message.'
+        warnings.warn(warn_str, RuntimeWarning)
+
     # In order to be able to account for different behaviors when constraining different dimensions, allow
-    # iterable of step_sizes. Keys should be dimension labels, vals should be step sizes for that dimension. 
+    # iterable of step_sizes. Keys should be dimension labels, vals should be step sizes for that dimension.
     step_sizes = kwargs.get('step_sizes', {})
-    
-    # Step the bounds of the continuation per dimension, provided as dict much like step sizes. 
+
+    # Step the bounds of the continuation per dimension, provided as dict much like step sizes.
     bounds = kwargs.get('bounds', {k: (0, np.inf) for k in orbit_.dimension_labels()})
     kwargs.setdefault('filename', ''.join(['family_', orbit_.filename()]))
 
-    # This is to avoid default producing excessively large families. 
+    # This is to avoid default producing excessively large families.
     kwargs.setdefault('strides', (n_points//4 for n_points in orbit_.discretization))
-    
-    # Only save the root orbit once. Save as deque simply for consistency. 
+
+    # Only save the root orbit once. Save as deque, even though single element, simply for consistency.
     family = [deque([orbit_])]
     for dim in orbit_.dimension_labels():
+        # If a dimension is 0 then its continuation is not meaningful.
+        if getattr(root_orbit_result.orbit, dim) == 0.:
+            continue
         branch = deque()
         # Regardless of what the user says, do the saving here and not inside continuation function
         step_size = step_sizes.get(dim, 0.01)
@@ -282,7 +287,8 @@ def span_family(orbit_, **kwargs):
             if getattr(branch_orbit_result.orbit, dim) != getattr(orbit_, dim):
                 branch.append(branch_orbit_result.orbit)
             constraint_item = (dim, getattr(branch_orbit_result.orbit, dim) + step_size)
-            branch_orbit_result = continuation(branch_orbit_result.orbit, constraint_item, **kwargs)
+            branch_orbit_result = continuation(branch_orbit_result.orbit, constraint_item,
+                                               **{**kwargs, 'filename': None})
         # Span the dimension in the negative direction, starting from the root orbit.
         branch_orbit_result = root_orbit_result
         # bounds.get using 'interval' tuple as default only then to slice it is consistently expect bounds
@@ -295,14 +301,13 @@ def span_family(orbit_, **kwargs):
             if getattr(branch_orbit_result.orbit, dim) != getattr(orbit_, dim):
                 branch.appendleft(branch_orbit_result.orbit)
             constraint_item = (dim, getattr(branch_orbit_result.orbit, dim) - step_size)
-            branch_orbit_result = continuation(branch_orbit_result.orbit, constraint_item, **kwargs)
+            branch_orbit_result = continuation(branch_orbit_result.orbit, constraint_item,
+                                               **{**kwargs, 'filename': None})
         # After the family branch is generated, iterate over each branch members' group orbit. This can
         # be a LOT of orbits if you are not careful with sampling/keyword arguments.
         for leaf in branch:
-            # Due to the sheer number of group members, providing names is not supported. In fact, in order
-            # to avoid overwrites, dataname=None required.
-            groupname = leaf.filename(cls_name=False, extension='').lstrip('_')
-            for symmetry_leaf in leaf.group_orbit(**kwargs):
-                symmetry_leaf.to_h5(groupname=groupname, **kwargs)
+            leafname = leaf.filename(cls_name=False, extension='').lstrip('_')
+            leaf.to_h5(dataname=leafname, **kwargs)
         family.append(branch)
+
     return family

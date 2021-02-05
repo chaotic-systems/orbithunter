@@ -39,7 +39,7 @@ def _nprimes(n):
     return np.r_[2, 3, ((3*np.nonzero(sieve)[0]+1) | 1)]
 
 
-def scanning_mask(scores, base_orbit, window_orbit, strides):
+def scanning_mask(scores, base_orbit, window_orbit, strides, show='interior'):
     """
 
     Parameters
@@ -85,7 +85,10 @@ def scanning_mask(scores, base_orbit, window_orbit, strides):
             coordinates[coordinates >= base_extent] -= base_extent
         base_orbit_mask[pivot_grid] = True
 
-    return base_orbit_mask
+    if show == 'interior':
+        return np.invert(base_orbit_mask)
+    else:
+        return base_orbit_mask
 
 
 def scan(base_orbit, window_orbit, **kwargs):
@@ -126,8 +129,9 @@ def scan(base_orbit, window_orbit, **kwargs):
     base = base_orbit.state
     # To get the padding/wrap number, need to see how much the windows extend "beyond" the base orbit. This can be
     # computed using the placement of the last pivot and the window dimensions.
-    padding = [w + (s * ((b-1) // s)) - b for b, s, w in zip(base.shape, strides, window.shape)]
-    pbase = np.pad(base, ((0, pad) for pad in padding), mode='wrap')
+    padding_dims = [w + (s * ((b-1) // s)) - b for b, s, w in zip(base.shape, strides, window.shape)]
+    padding = tuple((0, pad) if pad > 0 else 0 for pad in padding_dims)
+    pbase = np.pad(base, padding, mode='wrap')
 
     for w_dim, b_dim in zip(window.shape, base.shape):
         assert w_dim < b_dim, 'Shadowing window discretization is larger than the base orbit. resize first. '
@@ -183,7 +187,7 @@ def shadow(base_orbit, window_orbit, threshold, **kwargs):
 
     scores = scan(base_orbit, window_orbit, **kwargs)
     scores = masking_function(scores, threshold)
-    orbit_mask_bool = scores_to_orbit_mask(scores, base_orbit, window_orbit, strides)
+    orbit_mask_bool = scanning_mask(scores, base_orbit, window_orbit, strides)
     return orbit_mask_bool
 
 
@@ -231,11 +235,11 @@ def cover(base_orbit, threshold, *window_orbits, mask_type='bool', **kwargs):
             # here it is assumed to be the upper bound.
             scores_bool = masking_function(scores, threshold)
             # Getting where score obeys the threshold, can now translate this back into positions in the orbit.
-            orbit_mask_bool = scores_to_orbit_mask(scores_bool, base_orbit, window, strides)
+            orbit_mask_bool = scanning_mask(scores_bool, base_orbit, window, strides)
             orbit_mask_code = code * orbit_mask_bool
             # So that the product with the current mask doesn't destroy previous values. This makes the
             # orbit mask in terms of code value and 1, instead of 0 and 1.
-            orbit_mask_code[orbit_mask_code==0.] = 1
+            orbit_mask_code[orbit_mask_code == 0.] = 1
             # Once the mask for the orbit has been established, then we can take the product of the current mask
             orbit_mask *= (code * orbit_mask_bool)
     else:
@@ -247,7 +251,7 @@ def cover(base_orbit, threshold, *window_orbits, mask_type='bool', **kwargs):
             # here it is assumed to be the upper bound.
             scores_bool = masking_function(scores, threshold)
             # Getting where score obeys the threshold, can now translate this back into positions in the orbit.
-            orbit_mask_bool = scores_to_orbit_mask(scores_bool, base_orbit, window, strides)
+            orbit_mask_bool = scanning_mask(scores_bool, base_orbit, window, strides)
             # The cumulative union of all shadowings.
             orbit_mask = np.logical_or(orbit_mask, orbit_mask_bool)
             
