@@ -1,9 +1,48 @@
+
+# Personal stuff
+*.pdf
+*.eps
+*.png
+*.h5
+*.sql
+*.zip
+*.gz
+*.ini
+*.jpg
+*.JPG
+3rd_party/*
+publications/latex/*
+
+# Pycharm
+.idea/*
+
+# LaTeX
+*.aux
+*.bcf
+*.log
+*.run.xml
+*.synctex
+*.toc
+*.snm
+*.out
+*.nav
+*.bst
+*.mine
+*.xml
+*.iml
+*.sty
+*.un~
+pdf/*
+pdf/**
+**/local
+*/local
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
 
-# C extensions
+# C extensionsgi
 *.so
 
 # Distribution / packaging
@@ -124,21 +163,6 @@ venv.bak/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
 # Pyre type checker
-
 .pyre/
-
-# notebook temp files
-*~
-
-# IDE settings
-.idea/
-
-# data produced in notebooks (should save to data/local/* and figs/local/*)
-notebooks/*.h5
-notebooks/*.png
-notebooks/*.jpg
-
-# local data and figures
-*/local/*
-**/local/*

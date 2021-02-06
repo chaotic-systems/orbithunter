@@ -1137,7 +1137,7 @@ class Orbit:
         # Can be useful to override default sample spaces to get specific cases.
         p_ranges = kwargs.get('parameter_ranges', self.default_parameter_ranges())
         # If *some* of the parameters were initialized, we want to save those values; iterate over the current
-        # parameters if not None, else,
+        # parameters if not None, else
         parameter_iterable = self.parameters or len(self.parameter_labels()) * [0]
         if len(self.parameter_labels()) < len(parameter_iterable):
             # If more values than labels, then truncate and discard the additional values

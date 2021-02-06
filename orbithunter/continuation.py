@@ -270,7 +270,7 @@ def span_family(orbit_, **kwargs):
 
     # Only save the root orbit once. Save as deque, even though single element, simply for consistency.
     family = [deque([orbit_])]
-    for dim in orbit_.dimension_labels():
+    for dim in bounds:
         # If a dimension is 0 then its continuation is not meaningful.
         if getattr(root_orbit_result.orbit, dim) == 0.:
             continue
@@ -309,5 +309,4 @@ def span_family(orbit_, **kwargs):
             leafname = leaf.filename(cls_name=False, extension='').lstrip('_')
             leaf.to_h5(dataname=leafname, **kwargs)
         family.append(branch)
-
     return family

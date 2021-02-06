@@ -39,7 +39,7 @@ def _nprimes(n):
     return np.r_[2, 3, ((3*np.nonzero(sieve)[0]+1) | 1)]
 
 
-def scanning_mask(scores, base_orbit, window_orbit, strides, show='interior'):
+def scanning_mask(scores, base_orbit, window_orbit, strides, mask_region='exterior'):
     """
 
     Parameters
@@ -52,6 +52,9 @@ def scanning_mask(scores, base_orbit, window_orbit, strides, show='interior'):
         A numpy masked array produced by masking an array returned by shadowing.
     strides : tuple
         Tuple of int; the steps that window slides by in the shadowing computations.
+    mask_region : str
+        Whether to mask the points which do satisfy the scoring condition ('interior') or the points that do not
+        satisfy the scoring condition ('exterior', technically anything other than 'interior')
 
     Returns
     -------
@@ -85,7 +88,7 @@ def scanning_mask(scores, base_orbit, window_orbit, strides, show='interior'):
             coordinates[coordinates >= base_extent] -= base_extent
         base_orbit_mask[pivot_grid] = True
 
-    if show == 'interior':
+    if mask_region == 'exterior':
         return np.invert(base_orbit_mask)
     else:
         return base_orbit_mask

@@ -144,23 +144,7 @@ def hunt(orbit_, method='adj', precision='default', comp_time='default', **kwarg
     tol = kwargs.get('tol', _default_tol(orbit_, precision=precision))
     maxiter = kwargs.get('maxiter', _default_maxiter(orbit_, method=method, comp_time=comp_time))
     if not orbit_.residual() < tol:
-        # unused if method=='hybrid', but saves us from rewriting it for each conditional.
-        kwargs.pop('maxiter', None)
-        kwargs.pop('tol', None)
-        if method == 'hybrid':
-            # make sure that extraneous parameters are removed.
-            # There is often a desire to have different tolerances,
-            descent_tol, lstsq_tol = kwargs.get('hybrid_tol', (tol, tol))
-            descent_iter, lstsq_iter = kwargs.get('hybrid_maxiter',
-                                                  (_default_maxiter(orbit_, method='adj', comp_time=comp_time),
-                                                   _default_maxiter(orbit_, method='lstsq', comp_time=comp_time)))
-
-            adjoint_orbit, adj_stats = _adjoint_descent(orbit_, descent_tol, descent_iter, **kwargs)
-            result_orbit, lstsq_stats = _lstsq(adjoint_orbit,  lstsq_tol, lstsq_iter, **kwargs)
-
-            statistics = {key: ((adj_stats[key], lstsq_stats[key]) if key != 'status' else lstsq_stats[key])
-                          for key in sorted({**adj_stats, **lstsq_stats}.keys())}
-        elif method == 'newton_descent':
+        if method == 'newton_descent':
             result_orbit, statistics = _newton_descent(orbit_, tol, maxiter, **kwargs)
         elif method == 'lstsq':
             # solves Ax = b in least-squares manner
@@ -168,8 +152,7 @@ def hunt(orbit_, method='adj', precision='default', comp_time='default', **kwarg
         elif method == 'solve':
             # solves Ax = b in least-squares manner
             result_orbit, statistics = _solve(orbit_, tol, maxiter, **kwargs)
-        elif method in ['lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
-                                          'cg', 'cgs', 'qmr', 'minres', 'gcrotmk']:
+        elif method in ['lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres', 'cg', 'cgs', 'qmr', 'minres', 'gcrotmk']:
             # solves A^T A x = A^T b repeatedly
             result_orbit, statistics = _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method=method, **kwargs)
         elif method in ['nelder-mead', 'powell', 'cg_min', 'bfgs', 'newton-cg', 'l-bfgs-b', 'tnc', 'cobyla',
@@ -789,8 +772,6 @@ def _print_exit_messages(orbit, status):
     -------
 
     """
-    if isinstance(status, tuple):
-        status = status[-1]
     if status == -1:
         print('\nConverged. Exiting with residual={}'.format(orbit.residual()))
     elif status == 0:

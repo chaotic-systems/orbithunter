@@ -812,19 +812,20 @@ class OrbitKS(Orbit):
         Rotation breaks discrete symmetry and destroys the solution. Users encouraged to change to OrbitKS first.
         """
         if axis == 0:
+            orbit_to_rotate = self.transform(to='modes')
+
             # angle to rotate by
-            thetak = distance * temporal_frequencies(self.t, self.n, 1, 1)
+            thetak = distance * temporal_frequencies(self.t, self.n, 1, 1).ravel()[:-(orbit_to_rotate.n//2-1)]
             cosinek = np.cos(thetak)
             sinek = np.sin(thetak)
 
-            orbit_to_rotate = self.transform(to='modes')
             # Refer to rotation matrix in 2-D for reference.
             cosine_block = np.tile(cosinek.reshape(-1, 1), (1, orbit_to_rotate.shapes()[2][1]))
             sine_block = np.tile(sinek.reshape(-1, 1), (1, orbit_to_rotate.shapes()[2][1]))
 
             # Splitting into real and imaginary components of temporal modes
-            modes_timereal = orbit_to_rotate.state[1:-orbit_to_rotate.n, :]
-            modes_timeimaginary = orbit_to_rotate.state[-orbit_to_rotate.n:, :]
+            modes_timereal = orbit_to_rotate.state[1:-(orbit_to_rotate.n//2-1), :]
+            modes_timeimaginary = orbit_to_rotate.state[-(orbit_to_rotate.n//2-1):, :]
             # Elementwise product to account for matrix product with "2-D" rotation matrix
             rotated_real = (np.multiply(cosine_block, modes_timereal)
                             + np.multiply(sine_block, modes_timeimaginary))
@@ -839,20 +840,20 @@ class OrbitKS(Orbit):
             if units == 'wavelength':
                 # conversion from plotting units.
                 distance = distance * 2*pi*np.sqrt(2)
+            orbit_to_rotate = self.transform(to='spatial_modes')
             # angles to rotate by
-            thetak = distance * spatial_frequencies(self.x, self.m, 1, 1).ravel()
+            thetak = distance * spatial_frequencies(self.x, self.m, 1, 1).ravel()[:-(orbit_to_rotate.m//2-1)]
             cosinek = np.cos(thetak)
             sinek = np.sin(thetak)
 
-            orbit_to_rotate = self.transform(to='spatial_modes')
             # Refer to rotation matrix in 2-D for reference.
             cosine_block = np.tile(cosinek.reshape(1, -1), (orbit_to_rotate.n, 1))
             sine_block = np.tile(sinek.reshape(1, -1), (orbit_to_rotate.n, 1))
 
             # Rotation performed on spatial modes because otherwise rotation is ill-defined for Antisymmetric and
             # Shift-reflection symmetric Orbits.
-            spatial_modes_real = orbit_to_rotate.state[:, :-orbit_to_rotate.m]
-            spatial_modes_imaginary = orbit_to_rotate.state[:, -orbit_to_rotate.m:]
+            spatial_modes_real = orbit_to_rotate.state[:, :-(orbit_to_rotate.m//2-1)]
+            spatial_modes_imaginary = orbit_to_rotate.state[:, -(orbit_to_rotate.m//2-1):]
             rotated_real = (np.multiply(cosine_block, spatial_modes_real)
                             + np.multiply(sine_block, spatial_modes_imaginary))
             rotated_imag = (-np.multiply(sine_block, spatial_modes_real)
@@ -1890,23 +1891,85 @@ class RelativeOrbitKS(OrbitKS):
         -------
 
         """
-        # This will first replace any None valued parameters (or if parameters itself is None)
-        super().generate(attr=attr, **kwargs)
+
         # Can only initialize spatial shift if both the shift and the parameters have been instantiated.
-        if attr in ['all', 'parameters'] and self.size > 0 and self.s == 0. and self.frame == 'physical':
-            shift = calculate_spatial_shift(self.transform(to='spatial_modes').state, self.x, **kwargs)
+        if attr in ['all', 'parameters'] and self.size > 0 and self.s == 0.:
+            shift = self.calculate_spatial_shift(**kwargs)
         else:
             shift = 0
+        # This will first replace any None valued parameters (or if parameters itself is None)
+        super().generate(attr=attr, **kwargs)
         # For chaining operations.
         parameters_with_shift = tuple(shift if label == 's' else val for label, val in zip(self.parameter_labels(),
                                                                                            self.parameters))
         setattr(self, 'parameters', parameters_with_shift)
         return self
 
+    def calculate_spatial_shift(self, **kwargs):
+        """ Calculate the phase difference between the spatial modes at t=0 and t=T
+
+        Parameters
+        ----------
+        spatial_modes : np.ndarray
+            The array of spatial Fourier modes
+        x : float
+            Spatial period in "physical units" (i.e. not plotting units)
+        kwargs :
+            n_modes : int
+                Number of spatial modes to use in the phase calculation.
+
+        Returns
+        -------
+        shift : float
+            The best approximation for physical->comoving shift for relative periodic solutions.
+        """
+        spatial_modes = self.transform(to='spatial_modes').state
+        m0 = spatial_modes.shape[1] // 2
+        modes_included = np.min([kwargs.get('n_modes', m0), m0])
+        if -m0 + modes_included == 0:
+            space_imag_slice_end = None
+        else:
+            space_imag_slice_end = -m0 + modes_included
+        # slice the spatial modes at t=0 and t=T
+        modes_0 = np.concatenate((spatial_modes[-1, :modes_included], spatial_modes[-1, -m0:space_imag_slice_end])).ravel()
+        modes_T = np.concatenate((spatial_modes[0, :modes_included], spatial_modes[0, -m0:space_imag_slice_end])).ravel()
+        m = modes_T.size//2
+        # This function is used very sparingly, extra imports kept in this scope only.
+        # Warnings come from fsolve not converging; only want approximate guess as exact solution won't generally exist
+        from scipy.optimize import fsolve
+        # If they are close enough to the same point, then shift equals 0
+        if np.linalg.norm(modes_0-modes_T) <= 10**-6:
+            shift = self.x / spatial_modes.shape[1]
+        else:
+            # Get guess shift from the angle between the vectors
+            shift_guess = (self.x / (2 * pi))*float(np.arccos((np.dot(np.transpose(modes_T), modes_0)
+                                               / (np.linalg.norm(modes_T)*np.linalg.norm(modes_0)))))
+
+            def fun_(shift_):
+                # find shift which minimizes the differences at the boundaries.
+                thetak = shift_ * ((2 * pi) / self.x) * np.arange(1, m+1)
+                cosinek = np.cos(thetak)
+                sinek = np.sin(thetak)
+                rotated_real_modes_T = np.multiply(cosinek,  modes_T[:-m]) + np.multiply(sinek,  modes_T[-m:])
+                rotated_imag_modes_T = np.multiply(-sinek,  modes_T[:-m]) + np.multiply(cosinek,  modes_T[-m:])
+                rotated_modes = np.concatenate((rotated_real_modes_T, rotated_imag_modes_T))
+                return np.linalg.norm(modes_0 - rotated_modes)
+
+            # suppress fsolve's warnings that occur when it stalls; not expecting an exact answer anyway.
+            warnings.simplefilter(action='ignore', category=RuntimeWarning)
+            shift = fsolve(fun_, np.array(shift_guess))[0]
+            warnings.resetwarnings()
+            # because periodic boundary conditions take modulo; "overstretching" doesn't occur from physical limits.
+            shift = np.sign(shift) * np.mod(np.abs(shift), self.x)
+
+        if self.frame == 'comoving':
+            return -shift
+        else:
+            return shift
+
     def preprocess(self):
         """ Check whether the orbit converged to an equilibrium or close-to-zero solution """
-        orbit_with_inverted_shift = self.copy()
-        orbit_with_inverted_shift.s = -self.s
+        orbit_with_inverted_shift = self.__class__(**{**vars(self), 'parameters': (self.t, self.x, -self.s)})
         residual_imported_S = self.residual()
         residual_negated_S = orbit_with_inverted_shift.residual()
         if residual_imported_S > residual_negated_S:
@@ -1975,12 +2038,12 @@ class RelativeOrbitKS(OrbitKS):
         converted_orbit : orbit or orbit subclass instance
             The class instance in the new basis.
         """
-        transformed_orbit = super().transform(to=to, array=array)
+        transformed_state = super().transform(to=to, array=array)
         if array:
-            return transformed_orbit
+            return transformed_state
         else:
-            transformed_orbit.frame = self.frame
-            return transformed_orbit
+            setattr(transformed_state, 'frame', self.frame)
+            return transformed_state
 
     def _jacobian_parameter_derivatives_concat(self, jac_):
         """ Concatenate parameter partial derivatives to Jacobian matrix
@@ -3282,60 +3345,3 @@ def dtn_block(t, n, order):
     wjn = (-(2*pi*n/t) * rfftfreq(n)[1:-1].reshape(-1, 1))**order
     return np.kron(so2_generator(order), np.diag(wjn.ravel()))
 
-
-def calculate_spatial_shift(spatial_modes, x, **kwargs):
-    """ Calculate the phase difference between the spatial modes at t=0 and t=T
-
-    Parameters
-    ----------
-    spatial_modes : np.ndarray
-        The array of spatial Fourier modes
-    x : float
-        Spatial period in "physical units" (i.e. not plotting units)
-    kwargs :
-        n_modes : int
-            Number of spatial modes to use in the phase calculation.
-
-    Returns
-    -------
-    shift : float
-        The best approximation for physical->comoving shift for relative periodic solutions.
-    """
-    m0 = spatial_modes.shape[1] // 2
-    modes_included = np.min([kwargs.get('n_modes', m0), m0])
-    if -m0 + modes_included == 0:
-        space_imag_slice_end = None
-    else:
-        space_imag_slice_end = -m0 + modes_included
-    # slice the spatial modes at t=0 and t=T
-    modes_0 = np.concatenate((spatial_modes[-1, :modes_included], spatial_modes[-1, -m0:space_imag_slice_end])).ravel()
-    modes_T = np.concatenate((spatial_modes[0, :modes_included], spatial_modes[0, -m0:space_imag_slice_end])).ravel()
-    m = modes_T.size//2
-    # This function is used very sparingly, extra imports kept in this scope only.
-    # Warnings come from fsolve not converging; only want approximate guess as exact solution won't generally exist
-    from scipy.optimize import fsolve
-    # If they are close enough to the same point, then shift equals 0
-    if np.linalg.norm(modes_0-modes_T) <= 10**-6:
-        shift = x / spatial_modes.shape[1]
-    else:
-        # Get guess shift from the angle between the vectors
-        shift_guess = (x / (2 * pi))*float(np.arccos((np.dot(np.transpose(modes_T), modes_0)
-                                           / (np.linalg.norm(modes_T)*np.linalg.norm(modes_0)))))
-
-        def fun_(shift_):
-            # find shift which minimizes the differences at the boundaries.
-            thetak = shift_ * ((2 * pi) / x) * np.arange(1, m+1)
-            cosinek = np.cos(thetak)
-            sinek = np.sin(thetak)
-            rotated_real_modes_T = np.multiply(cosinek,  modes_T[:-m]) + np.multiply(sinek,  modes_T[-m:])
-            rotated_imag_modes_T = np.multiply(-sinek,  modes_T[:-m]) + np.multiply(cosinek,  modes_T[-m:])
-            rotated_modes = np.concatenate((rotated_real_modes_T, rotated_imag_modes_T))
-            return np.linalg.norm(modes_0 - rotated_modes)
-
-        # suppress fsolve's warnings that occur when it stalls; not expecting an exact answer anyway.
-        warnings.simplefilter(action='ignore', category=RuntimeWarning)
-        shift = fsolve(fun_, np.array(shift_guess))[0]
-        warnings.resetwarnings()
-        # because periodic boundary conditions take modulo; "overstretching" doesn't occur from physical limits.
-        shift = np.sign(shift) * np.mod(np.abs(shift), x)
-    return shift
