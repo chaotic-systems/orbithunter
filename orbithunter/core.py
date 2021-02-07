@@ -2,7 +2,7 @@ from json import dumps
 import h5py
 import numpy as np
 import itertools
-import inspect
+import warnings
 
 __all__ = ['Orbit', 'convert_class']
 
@@ -383,7 +383,7 @@ class Orbit:
         return self.state.size
 
     @classmethod
-    def parameter_based_discretization(cls, parameters, **kwargs):
+    def dimension_based_discretization(cls, parameters, **kwargs):
         """ Follow orbithunter conventions for discretization size.
 
         Parameters
@@ -403,7 +403,7 @@ class Orbit:
         return cls.default_shape()
 
     @classmethod
-    def glue_parameters(cls, dimension_tuples, glue_shape, non_zero=True):
+    def glue_dimensions(cls, dimension_tuples, glue_shape, exclude_zero_dimensions=True):
         """ Class method for handling parameters in gluing
 
         Parameters
@@ -412,7 +412,7 @@ class Orbit:
 
         glue_shape : tuple of ints
             The shape of the gluing being performed i.e. for a 2x2 orbit grid glue_shape would equal (2,2).
-        non_zero : bool
+        exclude_zero_dimensions : bool
             If True, then the calculation of average dimensions excludes 0's.
 
         Returns
@@ -428,7 +428,7 @@ class Orbit:
         of dimensions which reduces the residual. The strategy produced by this method is simply a baseline.
 
         """
-        if non_zero:
+        if exclude_zero_dimensions:
             # Take the average of non-zero parameter values
             return tuple(glue_shape[i] * p[p > 0.].mean() for i, p in enumerate(np.array(ptuple) for ptuple
                                                                                 in dimension_tuples))
@@ -499,7 +499,7 @@ class Orbit:
         new_discretization : int or tuple of ints
             New discretization size
         kwargs : dict
-            keyword arguments for parameter_based_discretization.
+            keyword arguments for dimension_based_discretization.
 
         Returns
         -------
@@ -525,7 +525,7 @@ class Orbit:
         # if nothing passed, then new_shape == () which evaluates to false.
         # The default behavior for this will be to modify the current discretization
         # to a `parameter based discretization'.
-        new_shape = new_discretization or self.parameter_based_discretization(self.parameters, **kwargs)
+        new_shape = new_discretization or self.dimension_based_discretization(self.dimensions(), **kwargs)
 
         # unpacking unintended nested tuples i.e. ((a, b, ...)) -> (a, b, ...); leaves unnested tuples invariant.
         # New shape must be tuple; i.e. iterable and have __len__
@@ -885,7 +885,7 @@ class Orbit:
         with h5py.File(filename or self.filename(extension='.h5'), mode=h5mode) as file:
             # When dataset==None then find the first string of the form orbit_# that is not in the
             # currently opened file. 'orbit' is the first value attempted.
-            i = 1
+            i = 0
             dataname = dataname or str(i)
             # Combine the group and dataset strings, accounting for possible missing/extra/inconsistent numbers of '/'
             groupname = kwargs.get('groupname', '')
@@ -980,11 +980,17 @@ class Orbit:
         -----
         Produces a random state and or parameters depending on 'attr' value.
         """
+        # It is possible to only generate a subset of the parameters, hence conditional statements are in the method
         if attr in ['all', 'parameters']:
             self._generate_parameters(**kwargs)
 
+        # While there likely isn't a partial initialization of a state
         if attr in ['all', 'state']:
-            self._generate_state(**kwargs)
+            if self.size == 0. or kwargs.get('overwrite', False):
+                self._generate_state(**kwargs)
+            else:
+                warn_str = '\noverwriting a non-empty state requires overwrite=True. '
+                warnings.warn(warn_str, RuntimeWarning)
         # For chaining operations, return self instead of None
         return self
 
@@ -1173,10 +1179,12 @@ class Orbit:
         numpy_seed = kwargs.get('seed', None)
         if isinstance(numpy_seed, int):
             np.random.seed(numpy_seed)
-        # Presumed to be in physical basis unless specified otherwise.
-        self.discretization = self.parameter_based_discretization(self.parameters, **kwargs)
-        self.state = np.random.randn(*self.discretization)
-        self.basis = kwargs.get('basis', None) or self.bases()[0]
+        if self.size == 0. or kwargs.get('overwrite', False):
+            # Presumed to be in physical basis unless specified otherwise.
+            self.discretization = self.dimension_based_discretization(self.parameters, **kwargs)
+            self.state = np.random.randn(*self.discretization)
+            self.basis = kwargs.get('basis', None) or self.bases()[0]
+
 
 
 def convert_class(orbit_, class_generator, **kwargs):

@@ -925,18 +925,19 @@ class OrbitKS(Orbit):
         An instance which is an element of the (discrete or continuous) group orbit of the current instance.
         """
         if kwargs.get('discrete', False):
-            # The discrete symmetry operations which preserve reflection symmetry axis.
+            # The discrete symmetry operations which preserve reflection symmetry axis. Spatial only.
             for g in (self, self.reflection(), self.cell_shift(2, axis=1), self.cell_shift(2, axis=1).reflection()):
                 if kwargs.get('fundamental_domain', False):
                     yield g.to_fundamental_domain()
                 else:
                     yield g
         else:
-            # Don't need cell shifts, these are within the rotations.
-            strides = kwargs.get('strides', (1, 1))
+            # Don't need cell shifts, these are within the rotations. Arbitrary rotations require interpolation;
+            # only roll preserves orbit's status as a solution.
+            rolls = kwargs.get('rolls', (1, 1))
             for g in [self, self.reflection()]:
-                for N in range(0, g.n, strides[0]):
-                    for M in range(0, g.m, strides[1]):
+                for N in range(0, g.n, rolls[0]):
+                    for M in range(0, g.m, rolls[1]):
                         if kwargs.get('fundamental_domain', False):
                             yield g.roll(N, axis=0).roll(M, axis=1).to_fundamental_domain()
                         else:
@@ -1100,7 +1101,7 @@ class OrbitKS(Orbit):
                       include_residual=include_residual, **kwargs)
 
     @classmethod
-    def parameter_based_discretization(cls, parameters, **kwargs):
+    def dimension_based_discretization(cls, parameters, **kwargs):
         """ Follow orbithunter conventions for discretization size.
 
         Parameters
@@ -1201,7 +1202,7 @@ class OrbitKS(Orbit):
         np.random.seed(kwargs.get('seed', None))
 
         # also accepts discretization as kwarg
-        n, m = self.parameter_based_discretization(self.dimensions(), **kwargs)
+        n, m = self.dimension_based_discretization(self.dimensions(), **kwargs)
         if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
             warn_str = '\nminimum discretization requirements not met; methods may not work as intended.'
             warnings.warn(warn_str, RuntimeWarning)
@@ -2717,7 +2718,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         return {'x': (2*pi, 100.)}
 
     @classmethod
-    def parameter_based_discretization(cls, parameters, **kwargs):
+    def dimension_based_discretization(cls, parameters, **kwargs):
         """ Follow orbithunter conventions for discretization size.
 
 
@@ -2746,7 +2747,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         """
         # Change the default to N = 1 from N = None, this ensures that the temporal period (t=0) is never used.
         kwargs.setdefault('discretization', (1, None))
-        n, m = super().parameter_based_discretization(parameters, **kwargs)
+        n, m = super().dimension_based_discretization(parameters, **kwargs)
         return n, m
 
     def _parse_state(self, state, basis, **kwargs):
@@ -3031,11 +3032,11 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
                                  'basis': 'spatial_modes'}).transform(to=self.basis)
 
     @classmethod
-    def parameter_based_discretization(cls, parameters, **kwargs):
+    def dimension_based_discretization(cls, parameters, **kwargs):
         """ Subclassed method for equilibria.
         """
         kwargs.setdefault('discretization', (1, None))
-        n, m = super().parameter_based_discretization(parameters, **kwargs)
+        n, m = super().dimension_based_discretization(parameters, **kwargs)
         return n, m
 
     def _parse_state(self, state, basis, **kwargs):

@@ -150,10 +150,10 @@ def hunt(orbit_, method='adj', precision='default', comp_time='default', **kwarg
             # solves Ax = b in least-squares manner
             result_orbit, statistics = _lstsq(orbit_, tol, maxiter, **kwargs)
         elif method == 'solve':
-            # solves Ax = b in least-squares manner
+            # solves Ax = b
             result_orbit, statistics = _solve(orbit_, tol, maxiter, **kwargs)
         elif method in ['lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres', 'cg', 'cgs', 'qmr', 'minres', 'gcrotmk']:
-            # solves A^T A x = A^T b repeatedly
+            # solves A^T A x = A^T b inexactly/iteratively
             result_orbit, statistics = _scipy_sparse_linalg_solver_wrapper(orbit_, tol, maxiter, method=method, **kwargs)
         elif method in ['nelder-mead', 'powell', 'cg_min', 'bfgs', 'newton-cg', 'l-bfgs-b', 'tnc', 'cobyla',
                         'slsqp', 'trust-constr', 'dogleg', 'trust-ncg', 'trust-exact', 'trust-krylov']:

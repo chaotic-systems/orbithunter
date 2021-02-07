@@ -11,11 +11,18 @@ def _correct_aspect_ratios(orbit_array, axis=0, conserve_parity=True):
 
     Parameters
     ----------
-    orbit_array
-    axis
+    orbit_array : ndarray
+        An array of orbits to resize along 'axis'
+    axis : int
+        ndarray axis along which to resize with respect to.
+    conserve_parity : bool
+        Whether or not to maintain parity of the discretization size for each orbit. This is relevant when
+        certain bases require either odd or even numbered discretization sizes.
 
     Returns
     -------
+    ndarray :
+        An array of resized orbits, same shape as the original array.
 
     Notes
     -----
@@ -35,7 +42,8 @@ def _correct_aspect_ratios(orbit_array, axis=0, conserve_parity=True):
     # undersized, use some minimum fraction based upon the strip length.
 
     # If dimensions are all zero (dimensions taken to be non-negative), then no resizing can be inferred.
-    if dim_total == 0.:
+    # Also, if orbit array being glued is of shape (N,1) then orbit array may contain single orbit.
+    if dim_total == 0. or len(orbit_array.ravel()) == 1:
         return orbit_array
 
     new_discretization_sizes = np.zeros(len(orbit_array))
@@ -56,21 +64,26 @@ def _correct_aspect_ratios(orbit_array, axis=0, conserve_parity=True):
         disc_remainder = disc_total - np.sum(min_disc_sizes)
         disc_remainder //= 2
         dim_remainder = dim_total
-        for sorted_index in np.argsort(dims):
+        for sorted_index in np.argsort(dims)[:-1]:
             orbits_share = int(disc_remainder * (dims[sorted_index] / dim_remainder))
             new_discretization_sizes[sorted_index] = min_disc_sizes[sorted_index] + (2 * orbits_share)
             dim_remainder -= dims[sorted_index]
             disc_remainder -= orbits_share
+        # Whatever the last orbit is, give it the remainder of the discretization.
+        new_discretization_sizes[np.argsort(dims)[-1]] = min_disc_sizes[np.argsort(dims)[-1]] + (2 * disc_remainder)
     else:
         min_disc_sizes = np.array([o.minimal_shape()[axis] for o in orbit_array])
         disc_remainder = disc_total - np.sum(min_disc_sizes)
         dim_remainder = dim_total
 
-        for sorted_index in np.argsort(dims):
+        for sorted_index in np.argsort(dims)[:-1]:
             orbits_share = int(disc_remainder * (dims[sorted_index] / dim_remainder))
             new_discretization_sizes[sorted_index] = min_disc_sizes[sorted_index] + orbits_share
             dim_remainder -= dims[sorted_index]
             disc_remainder -= orbits_share
+        # Whatever the last orbit is, give it the remainder of the discretization.
+        new_discretization_sizes[np.argsort(dims)[-1]] = min_disc_sizes[np.argsort(dims)[-1]] + (2 * disc_remainder)
+
     # from smallest to largest, increase the share of the discretization
     new_shapes = [tuple(int(new_discretization_sizes[j]) if i == axis else o.shapes()[0][i]
                   for i in range(len(o.shape))) for j, o in enumerate(orbit_array)]
@@ -136,7 +149,7 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
     tile_shape = orbit_array.ravel()[0].shapes()[0]
     gluing_order = kwargs.get('gluing_order', np.argsort(glue_shape))
     conserve_parity = kwargs.get('conserve_parity', True)
-    nzero = kwargs.get('nonzero_parameter_glue', True)
+    nzero = kwargs.get('exclude_zero_dimensions', True)
     gluing_basis = kwargs.get('basis', class_constructor.bases()[0])
     # This joins the dictionary of all orbits' dimensions by zipping the values together. i.e.
     #(T_1, L_1, ...), (T_2, L_2, ...) transforms into  ((T_1, T_2, ...) , (L_1, L_2, ...))
@@ -157,8 +170,8 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
 
                 # For each strip, need to know how to combine the dimensions of the orbits. Bundle, then combine.
                 tuple_of_zipped_dimensions = tuple(zip(*(o.dimensions() for o in orbit_array[gs].ravel())))
-                strip_parameters = class_constructor.glue_parameters(tuple_of_zipped_dimensions, glue_shape=strip_shape,
-                                                                     non_zero=nzero)
+                strip_parameters = class_constructor.glue_dimensions(tuple_of_zipped_dimensions, glue_shape=strip_shape,
+                                                                     exclude_zero_dimensions=nzero)
                 # Slice the orbit array to get the strip, reshape to maintain its d-dimensional form.
                 strip_of_orbits = orbit_array[gs].ravel()
 
@@ -187,7 +200,8 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
         # Bundle all of the parameters at once, instead of "stripwise"
         zipped_dimensions = tuple(zip(*(o.dimensions() for o in orbit_array.ravel())))
         # Default parameter gluing strategy is to average all tile dimensions
-        glued_parameters = class_constructor.glue_parameters(zipped_dimensions, glue_shape=glue_shape, non_zero=nzero)
+        glued_parameters = class_constructor.glue_dimensions(zipped_dimensions, glue_shape=glue_shape,
+                                                             exclude_zero_dimensions=nzero)
         # If we want a much simpler method of gluing, we can do "arraywise" which simply concatenates everything at
         # once. I would say this is the better option if all orbits in the tile dictionary are approximately equal
         # in size.
@@ -211,18 +225,19 @@ def tile(symbol_array, tiling_dictionary, class_constructor,  **kwargs):
     """
     Parameters
     ----------
-    symbol_array : ndarray
+    symbol_array : numpy.ndarray
         An array of dictionary keys which exist in tiling_dictionary
     tiling_dictionary : dict
         A dictionary whose values are Orbit instances.
-    class_constructor : Orbit generator
-        i.e. 'Orbit' w/o parenthesis.
-    tile_shape : tuple
-        Tuple containing the field discretization to be used in tiling
+    class_constructor : object
+        The class object that the result will be initialized as.
     kwargs :
-        Orbit kwargs relevant to instantiation
+        Orbit kwargs relevant to instantiation and gluing. See glue for details.
+
     Returns
     -------
+    Orbit :
+        An instance containing the glued state
 
     Notes
     -----
@@ -283,13 +298,19 @@ def rediscretize_tileset(tiling_dictionary, new_shape=None, **kwargs):
         # The new shape will be inferred from the most common class in the tiling dictionary,
         # as to produce the "best" approximation for the provided dictionary.
         most_common_orbit_class = max(Counter([o.__class__ for o in orbits]))
-        new_shape = most_common_orbit_class.parameter_based_discretization(average_dimensions, **kwargs)
+        new_shape = most_common_orbit_class.dimension_based_discretization(average_dimensions, **kwargs)
 
     return {td_key: td_val.resize(*new_shape) for td_key, td_val in tiling_dictionary.items()}
 
 
 def pairwise_group_orbit(orbit_pair, **kwargs):
     """ Generate all pairwise elements from two group orbits. I.e. all symmetry combinations.
+
+    Parameters
+    ----------
+    kwargs :
+        keyword arguments relevant for group orbit generators; most notably, whether or not to use the
+        fundamental domain of each orbit or not.
 
     Notes
     -----
@@ -316,24 +337,24 @@ def expensive_glue(orbit_pair_array, class_constructor, method='residual', **kwa
     # Aspect ratio correction prior to gluing means that it does not have to be done for each combination.
     gluing_axis = int(np.argmax(orbit_pair_array.shape))
     # The best orbit pair at the start is by default the first one.
-    corrected_orbit_pair = _correct_aspect_ratios(orbit_pair_array, axis=gluing_axis)
-    best_glued_orbit = glue(corrected_orbit_pair, class_constructor, **kwargs)
-    smallest_residual_so_far = best_glued_orbit.residual()
+    best_glued_orbit_so_far = glue(orbit_pair_array, class_constructor, **kwargs)
+    smallest_residual_so_far = best_glued_orbit_so_far.residual()
     # iterate over all combinations of group orbit members; keyword arguments can be passed to control sampling rate.
-    for ga, gb in pairwise_group_orbit(corrected_orbit_pair, **kwargs):
+    for ga, gb in pairwise_group_orbit(orbit_pair_array, **kwargs):
         if method == 'boundary_residual':
             # Ugly way of slicing the state arrays at the boundaries. This is assuming periodic boundary conditions.
-            aslice = tuple((0, -1) if i == gluing_axis else slice(None) for i in range(corrected_orbit_pair.ndim))
-            bslice = tuple((-1, 0) if i == gluing_axis else slice(None) for i in range(corrected_orbit_pair.ndim))
+            aslice = tuple((0, -1) if i == gluing_axis else slice(None) for i in range(orbit_pair_array.ndim))
+            bslice = tuple((-1, 0) if i == gluing_axis else slice(None) for i in range(orbit_pair_array.ndim))
             boundary_residual = np.linalg.norm(ga.state[aslice]-gb.state[bslice])
             if boundary_residual < smallest_residual_so_far:
-                best_glued_orbit = glue(np.array([ga, gb]).reshape(orbit_pair_array.shape), class_constructor, **kwargs)
+                best_glued_orbit_so_far = glue(np.array([ga, gb]).reshape(orbit_pair_array.shape),
+                                               class_constructor, **kwargs)
                 smallest_residual_so_far = boundary_residual
         else:
             g_orbit_array = np.array([ga, gb]).reshape(orbit_pair_array.shape)
-            best_glued_orbit = glue(g_orbit_array, class_constructor, **kwargs)
-            residual = best_glued_orbit.residual()
+            best_glued_orbit_so_far = glue(g_orbit_array, class_constructor, **kwargs)
+            residual = best_glued_orbit_so_far.residual()
             if residual < smallest_residual_so_far:
                 smallest_residual_so_far = residual
 
-    return best_glued_orbit
+    return best_glued_orbit_so_far

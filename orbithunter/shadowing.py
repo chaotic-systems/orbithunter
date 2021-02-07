@@ -9,7 +9,7 @@ def amplitude_difference(base_slice, window):
 
 def absolute_threshold(score_array, threshold):
     mask = np.zeros(score_array.shape, dtype=bool)
-    mask[np.where(score_array) <= threshold] = True
+    mask[np.where(score_array <= threshold)] = True
     return mask
 
 
@@ -39,7 +39,7 @@ def _nprimes(n):
     return np.r_[2, 3, ((3*np.nonzero(sieve)[0]+1) | 1)]
 
 
-def scanning_mask(scores, base_orbit, window_orbit, strides, mask_region='exterior'):
+def scanning_mask(masked_scores, base_orbit, window_orbit, strides):
     """
 
     Parameters
@@ -48,13 +48,10 @@ def scanning_mask(scores, base_orbit, window_orbit, strides, mask_region='exteri
         The base of the shadowing computations
     window_orbit : Orbit
         The window of the shadowing computations
-    scores : ndarray
+    masked_scores : ndarray
         A numpy masked array produced by masking an array returned by shadowing.
     strides : tuple
         Tuple of int; the steps that window slides by in the shadowing computations.
-    mask_region : str
-        Whether to mask the points which do satisfy the scoring condition ('interior') or the points that do not
-        satisfy the scoring condition ('exterior', technically anything other than 'interior')
 
     Returns
     -------
@@ -72,7 +69,7 @@ def scanning_mask(scores, base_orbit, window_orbit, strides, mask_region='exteri
     the base orbit is still the same.
     """
     # Get the positions of the True values in scoring array mask
-    mask_pivot_tuples = zip(*np.where(scores))
+    mask_pivot_tuples = zip(*np.where(masked_scores))
     grid = np.indices(window_orbit.shape)
     base_orbit_mask = np.zeros(base_orbit.shape, dtype=bool)
 
@@ -88,10 +85,7 @@ def scanning_mask(scores, base_orbit, window_orbit, strides, mask_region='exteri
             coordinates[coordinates >= base_extent] -= base_extent
         base_orbit_mask[pivot_grid] = True
 
-    if mask_region == 'exterior':
-        return np.invert(base_orbit_mask)
-    else:
-        return base_orbit_mask
+    return base_orbit_mask
 
 
 def scan(base_orbit, window_orbit, **kwargs):
@@ -133,7 +127,7 @@ def scan(base_orbit, window_orbit, **kwargs):
     # To get the padding/wrap number, need to see how much the windows extend "beyond" the base orbit. This can be
     # computed using the placement of the last pivot and the window dimensions.
     padding_dims = [w + (s * ((b-1) // s)) - b for b, s, w in zip(base.shape, strides, window.shape)]
-    padding = tuple((0, pad) if pad > 0 else 0 for pad in padding_dims)
+    padding = tuple((0, pad) if pad > 0 else (0, 0) for pad in padding_dims)
     pbase = np.pad(base, padding, mode='wrap')
 
     for w_dim, b_dim in zip(window.shape, base.shape):
@@ -194,19 +188,20 @@ def shadow(base_orbit, window_orbit, threshold, **kwargs):
     return orbit_mask_bool
 
 
-def cover(base_orbit, threshold, *window_orbits, mask_type='bool', **kwargs):
+def cover(base_orbit, thresholds, window_orbits, mask_type='bool', **kwargs):
     """ Function to perform multiple shadowing computations given a collection of orbits.
 
     Parameters
     ----------
     base_orbit : Orbit
         The Orbit to be "covered"
-    threshold : determined by masking_function
+    thresholds : determined by masking_function
         The threshold for the masking function. Typically numerical in nature but need not be. The reason
         why threshold does not have a default value even though the functions DO have defaults is because the
         statistics of the scoring function depend on the base orbit and window orbits.  
     window_orbits : array_like of Orbits
-        Orbits to cover the base_orbit with.
+        Orbits to cover the base_orbit with. Typically a group orbit, as threshold is a single constant. Handling
+        group orbits not included because it simply is another t
     mask_type : str
         The type of mask to return, takes values 'prime' and 'bool'. 'prime' returns an array whose elements
         are products of primes, each prime value representing a different orbit; the first n primes for n windows
@@ -220,8 +215,6 @@ def cover(base_orbit, threshold, *window_orbits, mask_type='bool', **kwargs):
 
 
     """
-    if len(window_orbits) == 1 and isinstance(*window_orbits, tuple):
-        window_orbits = tuple(*window_orbits)
 
     strides = kwargs.get('strides', tuple([1]*len(base_orbit.shapes()[0])))
     scoring_function = kwargs.get('scoring_function', amplitude_difference)
@@ -232,7 +225,7 @@ def cover(base_orbit, threshold, *window_orbits, mask_type='bool', **kwargs):
         orbit_mask = np.ones(base_orbit.shape, dtype=np.int32)
         # Need unique identifiers if the union is to be separable into different window covers.
         prime_codes = _nprimes(len(window_orbits))
-        for code, window in zip(prime_codes, window_orbits):
+        for code, threshold, window in zip(prime_codes, thresholds, window_orbits):
             scores = scan(base_orbit, window, scoring_function=scoring_function, strides=strides)
             # Need some numerical thresholding value; masking functions can be whatever user wants but
             # here it is assumed to be the upper bound.
@@ -247,8 +240,8 @@ def cover(base_orbit, threshold, *window_orbits, mask_type='bool', **kwargs):
             orbit_mask *= (code * orbit_mask_bool)
     else:
         # May cause memory issues if base_orbit is huge, but I do not want to get into sparse arrays at the moment.
-        orbit_mask = np.ones(base_orbit.shape, dtype=bool)
-        for window in window_orbits:
+        orbit_mask = np.zeros(base_orbit.shape, dtype=bool)
+        for threshold, window in zip(thresholds, window_orbits):
             scores = scan(base_orbit, window, scoring_function=scoring_function, strides=strides)
             # Need some numerical thresholding value; masking functions can be whatever user wants but
             # here it is assumed to be the upper bound.
@@ -257,6 +250,5 @@ def cover(base_orbit, threshold, *window_orbits, mask_type='bool', **kwargs):
             orbit_mask_bool = scanning_mask(scores_bool, base_orbit, window, strides)
             # The cumulative union of all shadowings.
             orbit_mask = np.logical_or(orbit_mask, orbit_mask_bool)
-            
     return orbit_mask
 
