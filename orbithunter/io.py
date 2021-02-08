@@ -153,7 +153,7 @@ def read_tileset(filename, keys, orbit_names, validate=False, **orbitkwargs):
     return dict(zip(keys, list_of_orbits))
 
 
-def convergence_log(initial_orbit, minimize_result, log_path, spectrum='random', method='adj'):
+def convergence_log(initial_orbit, minimize_result, log_path, spectrum='random', methods='adj'):
     """ Function to log the results of applying orbithunter.optimize.minimize
 
     Parameters
@@ -164,7 +164,7 @@ def convergence_log(initial_orbit, minimize_result, log_path, spectrum='random',
         The
     log_path
     spectrum
-    method
+    methods:
 
     Returns
     -------
@@ -175,9 +175,9 @@ def convergence_log(initial_orbit, minimize_result, log_path, spectrum='random',
     dataframe_row = [[initial_orbit.parameters, initial_orbit.shapes()[0],
                      np.abs(initial_orbit.transform(to=initial_orbit.bases()[0]).state).max(),
                       minimize_result.orbit.residual(),
-                     minimize_result.status, spectrum, method]]
+                     minimize_result.status, spectrum, methods]]
     labels = ['parameters', 'shape', ''.join([initial_orbit.bases()[0], '_magnitude']),
-              'residual', 'status', 'spectrum', 'numerical_method']
+              'residual', 'status', 'spectrum', 'numerical_methods']
     new_row = pd.DataFrame(dataframe_row, columns=labels)
     initial_condition_log_ = pd.concat((initial_condition_log_, new_row), axis=0)
     initial_condition_log_.reset_index(drop=True).drop_duplicates().to_csv(log_path)

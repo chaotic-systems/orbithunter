@@ -912,9 +912,15 @@ class OrbitKS(Orbit):
         -------
         OrbitKS :
             Instance with rolled state
+
+        Notes
+        -----
+        In decision to maintain numpy defaults or change roll to be positive when shift is positive, the latter was
+        chosen.
+
         """
         field = self.transform(to='field').state
-        return self.__class__(**{**vars(self), 'state': np.roll(field, shift, axis=axis),
+        return self.__class__(**{**vars(self), 'state': np.roll(field, -1*shift, axis=axis),
                                  'basis': 'field'}).transform(to=self.basis)
 
     def group_orbit(self, **kwargs):

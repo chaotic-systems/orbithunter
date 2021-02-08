@@ -13,7 +13,7 @@ def absolute_threshold(score_array, threshold):
     return mask
 
 
-def _nprimes(n):
+def first_nprimes(num_primes):
     """ Returns a array of primes, 2 <= p < n
 
     n : int
@@ -29,14 +29,33 @@ def _nprimes(n):
     https://stackoverflow.com/questions/2068372/fastest-way-to-list-all-primes-below-n-in-python/3035188#3035188
     Using this to encode the orbits for covering.
     """
-    sieve = np.ones(n//3 + (n % 6 == 2), dtype=np.bool)
-    sieve[0] = False
-    for i in range(int(n**0.5)//3+1):
-        if sieve[i]:
-            k = 3*i+1 | 1
-            sieve[(k**2//3)::2*k] = False
-            sieve[(k**2+4*k-2*k*(i & 1))//3::2*k] = False
-    return np.r_[2, 3, ((3*np.nonzero(sieve)[0]+1) | 1)]
+    n = 2
+    prime_codes = []
+    while len(prime_codes) < num_primes:
+        sieve = np.ones(n//3 + (n % 6 == 2), dtype=np.bool)
+        sieve[0] = False
+        for i in range(int(n**0.5)//3+1):
+            if sieve[i]:
+                k = 3*i+1 | 1
+                sieve[(k**2//3)::2*k] = False
+                sieve[(k**2+4*k-2*k*(i & 1))//3::2*k] = False
+        prime_codes = np.r_[2, 3, ((3*np.nonzero(sieve)[0]+1) | 1)]
+        n += 1
+    return prime_codes
+
+
+def factor_prime_mask(mask, primes):
+    factors = []
+    # return a collection of covering_masks, each for one of the primes contained in the covering_mask.
+    # Integer entries upon inverse logarithm
+    expcovering_mask = 10**mask
+    rounded = np.round(expcovering_mask)
+    # Do not want the places where 0 (uncovering_masked)
+    for p in primes:
+        factor_covering_mask = np.zeros(expcovering_mask.shape, dtype=np.int32)
+        factor_covering_mask[np.where((rounded//p).astype(float) == rounded/p)] = p
+        factors.append(factor_covering_mask)
+    return factors
 
 
 def scanning_mask(masked_scores, base_orbit, window_orbit, strides):
@@ -222,9 +241,10 @@ def cover(base_orbit, thresholds, window_orbits, mask_type='bool', **kwargs):
 
     if mask_type == 'prime':
         # May cause memory issues if base_orbit is huge, but I do not want to get into sparse arrays at the moment.
-        orbit_mask = np.ones(base_orbit.shape, dtype=np.int32)
+        orbit_mask = np.zeros(base_orbit.shape, dtype=np.float)
         # Need unique identifiers if the union is to be separable into different window covers.
-        prime_codes = _nprimes(len(window_orbits))
+
+        prime_codes = first_nprimes(len(window_orbits))
         for code, threshold, window in zip(prime_codes, thresholds, window_orbits):
             scores = scan(base_orbit, window, scoring_function=scoring_function, strides=strides)
             # Need some numerical thresholding value; masking functions can be whatever user wants but
@@ -237,7 +257,8 @@ def cover(base_orbit, thresholds, window_orbits, mask_type='bool', **kwargs):
             # orbit mask in terms of code value and 1, instead of 0 and 1.
             orbit_mask_code[orbit_mask_code == 0.] = 1
             # Once the mask for the orbit has been established, then we can take the product of the current mask
-            orbit_mask *= (code * orbit_mask_bool)
+            # However, to avoid overflow, use the summation of logarithms instead.
+            orbit_mask += np.log10(orbit_mask_code)
     else:
         # May cause memory issues if base_orbit is huge, but I do not want to get into sparse arrays at the moment.
         orbit_mask = np.zeros(base_orbit.shape, dtype=bool)
@@ -250,5 +271,6 @@ def cover(base_orbit, thresholds, window_orbits, mask_type='bool', **kwargs):
             orbit_mask_bool = scanning_mask(scores_bool, base_orbit, window, strides)
             # The cumulative union of all shadowings.
             orbit_mask = np.logical_or(orbit_mask, orbit_mask_bool)
+
     return orbit_mask
 
