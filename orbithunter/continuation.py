@@ -1,5 +1,6 @@
 from .optimize import hunt
 from collections import deque
+from itertools import islice
 import numpy as np
 import warnings
 
@@ -94,7 +95,7 @@ def continuation(orbit_, constraint_item, *extra_constraints,  step_size=0.01, *
         # Having to specify both seems strange and so the options are: provide save=True and then use default
         # filename, or provide filename.
         
-        if kwargs.get('save', False) or kwargs.get('filename', None):
+        if kwargs.get('save', False):
             # When generating an orbits' continuous family, it is useful to save the intermediate states
             # so that they may be referenced in future calculations
             valstr = str(np.round(getattr(minimize_result.orbit, constraint_label),
@@ -175,7 +176,7 @@ def discretization_continuation(orbit_, target_discretization, cycle=False, **kw
         while minimize_result.status == -1 and minimize_result.orbit.shapes()[0] != target_discretization:
             # Having to specify both seems strange and so the options are: provide save=True and then use default
             # filename, or provide filename.
-            if kwargs.get('save', False) or kwargs.get('filename', None):
+            if kwargs.get('save', False):
                 # When generating an orbits' continuous family, it is useful to save the intermediate states
                 # so that they may be referenced in future calculations
                 fname = kwargs.get('filename', None) or ''.join(['discretization_continuation_', orbit_.filename()])
@@ -206,7 +207,7 @@ def discretization_continuation(orbit_, target_discretization, cycle=False, **kw
                    and not minimize_result.orbit.shapes()[0][axis] == target_discretization[axis]):
                 # When generating an orbits' continuous family, it is useful to save the intermediate states
                 # so that they may be referenced in future calculations
-                if kwargs.get('save', False) or kwargs.get('filename', None):
+                if kwargs.get('save', False):
                     fname = kwargs.get('filename', None) or ''.join(['discretization_continuation_', orbit_.filename()])
                     gname = kwargs.get('groupname', '')
                     # pass keywords like this to avoid passing multiple values to same keyword.
@@ -282,13 +283,12 @@ def span_family(orbit_, **kwargs):
         branch_orbit_result = root_orbit_result
         # While converged and in bounds, step in the positive direction, starting from the root orbit
         while branch_orbit_result.status == -1 and (getattr(branch_orbit_result.orbit, dim)
-                                                    < bounds.get(dim, (0, np.inf))[1]):
+                                                    < bounds.get(dim)[1]):
             # Do not want to redundantly add root node
             if getattr(branch_orbit_result.orbit, dim) != getattr(orbit_, dim):
                 branch.append(branch_orbit_result.orbit)
             constraint_item = (dim, getattr(branch_orbit_result.orbit, dim) + step_size)
-            branch_orbit_result = continuation(branch_orbit_result.orbit, constraint_item,
-                                               **{**kwargs, 'filename': None})
+            branch_orbit_result = continuation(branch_orbit_result.orbit, constraint_item, **kwargs)
         # Span the dimension in the negative direction, starting from the root orbit.
         branch_orbit_result = root_orbit_result
         # bounds.get using 'interval' tuple as default only then to slice it is consistently expect bounds
@@ -296,17 +296,21 @@ def span_family(orbit_, **kwargs):
 
         # While converged and in bounds, step in the negative direction, starting from the root orbit
         while branch_orbit_result.status == -1 and (getattr(branch_orbit_result.orbit, dim)
-                                                    > bounds.get(dim, (0, np.inf))[0]):
+                                                    > bounds.get(dim)[0]):
             # Do not want to redundantly add root node
             if getattr(branch_orbit_result.orbit, dim) != getattr(orbit_, dim):
                 branch.appendleft(branch_orbit_result.orbit)
             constraint_item = (dim, getattr(branch_orbit_result.orbit, dim) - step_size)
-            branch_orbit_result = continuation(branch_orbit_result.orbit, constraint_item,
-                                               **{**kwargs, 'filename': None})
+            branch_orbit_result = continuation(branch_orbit_result.orbit, constraint_item, **kwargs)
         # After the family branch is generated, iterate over each branch members' group orbit. This can
         # be a LOT of orbits if you are not careful with sampling/keyword arguments.
-        for leaf in branch:
-            leafname = leaf.filename(cls_name=False, extension='').lstrip('_')
-            leaf.to_h5(dataname=leafname, **kwargs)
+        for leaf in islice(branch, 0, len(branch), kwargs.get('sampling_rate', 1)):
+            # the ordering provided by the deques is invalidated if the orbits are allowed to be named
+            # regarding their parameters.
+            if kwargs.get('leafnames', False):
+                dataname = leaf.filename(cls_name=False, extension='').lstrip('_')
+            else:
+                dataname = None
+            leaf.to_h5(dataname=dataname, **kwargs)
         family.append(branch)
     return family

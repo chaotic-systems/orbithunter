@@ -148,7 +148,8 @@ def hunt(orbit_, *methods, **kwargs):
     # Because of how multiple runs are handled, popping items off of a list, need to copy the values if using this
     # in a repeated routine like continuation.
     kwargs = {k: v.copy() if hasattr(v, 'copy') else v for k, v in kwargs.items()}
-    methods = tuple(*methods) or kwargs.pop('methods', None)
+    # so that list.pop() method can be used, cast tuple as lists
+    methods = tuple(*methods) or kwargs.pop('methods', 'adj')
 
     if len(methods) == 1 and isinstance(*methods, tuple):
         methods = tuple(*methods)
@@ -192,7 +193,7 @@ def hunt(orbit_, *methods, **kwargs):
                 if key == 'status':
                     runtime_statistics[key] = method_statistics.get('status', -1)
                 elif isinstance(runtime_statistics.get(key, []), list):
-                    runtime_statistics.get(key, []).append(method_statistics.get(key, []))
+                    runtime_statistics.get(key, []).extend(method_statistics.get(key, []))
                 else:
                     runtime_statistics[key] = [runtime_statistics[key], method_statistics.get(key, [])]
 
@@ -203,7 +204,7 @@ def hunt(orbit_, *methods, **kwargs):
     return OrbitResult(orbit=orbit_, **runtime_statistics)
 
 
-def _adjoint_descent(orbit_, tol=1e-6, maxiter=10000, min_step=1e-6, **kwargs):
+def _adjoint_descent(orbit_, tol=1e-6, maxiter=10000, min_step=1e-9, **kwargs):
     """
 
     Parameters
@@ -223,6 +224,12 @@ def _adjoint_descent(orbit_, tol=1e-6, maxiter=10000, min_step=1e-6, **kwargs):
 
     """
     try:
+        assert type(tol) in [int, float, list, np.float64, np.int32]
+        assert type(maxiter) in [int, float, list, np.float64, np.int32]
+    except AssertionError as assrt:
+        raise TypeError('tol and maxiter must be numerical scalars or list.') from assrt
+
+    try:
         if isinstance(tol, list):
             tol = tol.pop(0)
         if isinstance(maxiter, list):
@@ -231,6 +238,7 @@ def _adjoint_descent(orbit_, tol=1e-6, maxiter=10000, min_step=1e-6, **kwargs):
             min_step = min_step.pop(0)
     except IndexError as ie:
         raise IndexError(': parameters for hunt need to be iterables of same length as the number of methods.') from ie
+
     runtime_statistics = {'method': 'adj', 'nit': 0, 'residuals': [orbit_.residual()],
                           'maxiter': maxiter, 'tol': tol, 'status': 1}
     ftol = kwargs.get('ftol', 1e-7)
@@ -277,7 +285,7 @@ def _adjoint_descent(orbit_, tol=1e-6, maxiter=10000, min_step=1e-6, **kwargs):
         return orbit_, runtime_statistics
 
 
-def _newton_descent(orbit_, tol=1e-6, maxiter=500, min_step=1e-6, **kwargs):
+def _newton_descent(orbit_, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
     """
 
     Parameters
@@ -293,12 +301,18 @@ def _newton_descent(orbit_, tol=1e-6, maxiter=500, min_step=1e-6, **kwargs):
 
     """
     try:
+        assert type(tol) in [int, float, list, np.float64, np.int32]
+        assert type(maxiter) in [int, float, list, np.float64, np.int32]
+    except AssertionError as assrt:
+        raise TypeError('tol and maxiter must be numerical scalars or list.') from assrt
+
+    try:
         if isinstance(tol, list):
             tol = tol.pop(0)
         if isinstance(maxiter, list):
             maxiter = maxiter.pop(0)
         if isinstance(min_step, list):
-            min_step = min_step.pop(0)
+            min_step =min_step.pop(0)
     except IndexError as ie:
         raise IndexError(': parameters for hunt need to be iterables of same length as the number of methods.') from ie
 
@@ -371,7 +385,7 @@ def _newton_descent(orbit_, tol=1e-6, maxiter=500, min_step=1e-6, **kwargs):
         return orbit_, runtime_statistics
 
 
-def _lstsq(orbit_, tol=1e-6, maxiter=500, min_step=1e-6, **kwargs):
+def _lstsq(orbit_, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
     """
 
     Parameters
@@ -387,12 +401,17 @@ def _lstsq(orbit_, tol=1e-6, maxiter=500, min_step=1e-6, **kwargs):
 
     """
     try:
+        assert type(tol) in [int, float, list, np.float64, np.int32]
+        assert type(maxiter) in [int, float, list, np.float64, np.int32]
+    except AssertionError as assrt:
+        raise TypeError('tol and maxiter must be numerical scalars or list.') from assrt
+    try:
         if isinstance(tol, list):
             tol = tol.pop(0)
         if isinstance(maxiter, list):
             maxiter = maxiter.pop(0)
         if isinstance(min_step, list):
-            min_step = min_step.pop(0)
+            min_step =min_step.pop(0)
     except IndexError as ie:
         raise IndexError(': parameters for hunt need to be iterables of same length as the number of methods.') from ie
 
@@ -440,7 +459,7 @@ def _lstsq(orbit_, tol=1e-6, maxiter=500, min_step=1e-6, **kwargs):
         return orbit_, runtime_statistics
 
 
-def _solve(orbit_, maxiter=500, tol=1e-6, min_step=1e-6, **kwargs):
+def _solve(orbit_, maxiter=500, tol=1e-6, min_step=1e-9, **kwargs):
     """
 
     Parameters
@@ -456,12 +475,17 @@ def _solve(orbit_, maxiter=500, tol=1e-6, min_step=1e-6, **kwargs):
 
     """
     try:
+        assert type(tol) in [int, float, list, np.float64, np.int32]
+        assert type(maxiter) in [int, float, list, np.float64, np.int32]
+    except AssertionError as assrt:
+        raise TypeError('tol and maxiter must be numerical scalars or list.') from assrt
+    try:
         if isinstance(tol, list):
             tol = tol.pop(0)
         if isinstance(maxiter, list):
             maxiter = maxiter.pop(0)
         if isinstance(min_step, list):
-            min_step = min_step.pop(0)
+            min_step =min_step.pop(0)
     except IndexError as ie:
         raise IndexError(': parameters for hunt need to be iterables of same length as the number of methods.') from ie
 
@@ -509,7 +533,7 @@ def _solve(orbit_, maxiter=500, tol=1e-6, min_step=1e-6, **kwargs):
         return orbit_, runtime_statistics
 
 
-def _scipy_sparse_linalg_solver_wrapper(orbit_, method='minres', maxiter=10, tol=1e-6, min_step=1e-6, **kwargs):
+def _scipy_sparse_linalg_solver_wrapper(orbit_, method='minres', maxiter=10, tol=1e-6, min_step=1e-9, **kwargs):
     """
 
     Parameters
@@ -526,12 +550,17 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, method='minres', maxiter=10, tol
 
     """
     try:
+        assert type(tol) in [int, float, list, np.float64, np.int32]
+        assert type(maxiter) in [int, float, list, np.float64, np.int32]
+    except AssertionError as assrt:
+        raise TypeError('tol and maxiter must be numerical scalars or list.') from assrt
+    try:
         if isinstance(tol, list):
             tol = tol.pop(0)
         if isinstance(maxiter, list):
             maxiter = maxiter.pop(0)
         if isinstance(min_step, list):
-            min_step = min_step.pop(0)
+            min_step =min_step.pop(0)
     except IndexError as ie:
         raise IndexError(': parameters for hunt need to be iterables of same length as the number of methods.') from ie
 
@@ -658,6 +687,11 @@ def _scipy_optimize_minimize_wrapper(orbit_, method='l-bfgs-b', maxiter=10, tol=
 
     """
     try:
+        assert type(tol) in [int, float, list, np.float64, np.int32]
+        assert type(maxiter) in [int, float, list, np.float64, np.int32]
+    except AssertionError as assrt:
+        raise TypeError('tol and maxiter must be numerical scalars or list.') from assrt
+    try:
         if isinstance(tol, list):
             tol = tol.pop(0)
         if isinstance(maxiter, list):
@@ -747,9 +781,14 @@ def _scipy_optimize_root_wrapper(orbit_, method='lgmres', maxiter=10, tol=1e-6, 
 
     """
     try:
-        if isinstance(tol, list):
+        assert type(tol) in [int, float, list, np.float64, np.int32]
+        assert type(maxiter) in [int, float, list, np.float64, np.int32]
+    except AssertionError as assrt:
+        raise TypeError('tol and maxiter must be numerical scalars or list.') from assrt
+    try:
+        if isinstance(tol, list) or isinstance(tol, tuple):
             tol = tol.pop(0)
-        if isinstance(maxiter, list):
+        if isinstance(maxiter, list) or isinstance(maxiter, tuple):
             maxiter = maxiter.pop(0)
     except IndexError as ie:
         raise IndexError(': parameters for hunt need to be iterables of same length as the number of methods.') from ie

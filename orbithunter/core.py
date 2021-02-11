@@ -349,7 +349,7 @@ class Orbit:
         Returns
         -------
         tuple of int :
-            The smallest valid increments to changes in discretization size; presumably to retain all functionality.
+            The smallest valid increments to changes in discretization size to retain all functionality.
 
         Notes
         -----
@@ -357,6 +357,20 @@ class Orbit:
         even valued field discretizations; therefore the minimum increments for the KSE are 2's.
         """
         return 1, 1, 1, 1
+
+    def periodic_dimensions(self):
+        """ Bools indicating whether or not dimension is periodic for persistent homology calculations.
+
+        Returns
+        -------
+
+        Notes
+        -----
+        Static for base class, however for relative periodic solutions this can be dependent on the frame/slice the
+        state is in.
+        """
+        return True, True, True, True
+
 
     @classmethod
     def default_constraints(cls):
@@ -381,6 +395,15 @@ class Orbit:
         Just a convenience to be able to write self.sizeinstead of self.state.size
         """
         return self.state.size
+
+    def abs(self):
+        """ Current state's total dimensionality
+
+        Notes
+        -----
+        Just a convenience to be able to write self.sizeinstead of self.state.size
+        """
+        return self.__class__(**{**vars(self), 'state': np.abs(self.state)})
 
     @classmethod
     def dimension_based_discretization(cls, parameters, **kwargs):
@@ -539,6 +562,9 @@ class Orbit:
             # Changed from iterating over new shape and comparing with old, to iterating over old and comparing
             # with new; this prevents accidentally
             for i, d in enumerate(self.discretization):
+                if new_shape[i] < self.minimal_shape()[i]:
+                    errstr = 'minimum discretization requirements not met during resize.'
+                    raise ValueError(errstr)
                 if new_shape[i] < d:
                     placeholder_orbit = placeholder_orbit.truncate(new_shape[i], axis=i)
                 elif new_shape[i] > d:

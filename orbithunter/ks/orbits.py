@@ -42,6 +42,19 @@ class OrbitKS(Orbit):
     dimensions of the state in either case.
     """
 
+    def periodic_dimensions(self):
+        """ Bools indicating whether or not dimension is periodic for persistent homology calculations.
+
+        Returns
+        -------
+
+        Notes
+        -----
+        Static for base class, however for relative periodic solutions this can be dependent on the frame/slice the
+        state is in.
+        """
+        return True, True
+
     @staticmethod
     def default_shape():
         """ The default array shape when dimensions are not specified.
@@ -747,8 +760,8 @@ class OrbitKS(Orbit):
         """
         pmult = kwargs.get('pmult', self.preconditioning_parameters())
         p_multipliers = 1.0 / (np.abs(temporal_frequencies(*pmult[0], order=1))
-                               + np.abs(spatial_frequencies(*pmult[1], order=2))
-                               + spatial_frequencies(*pmult[1], order=4))
+                               + np.abs(spatial_frequencies(*pmult[1], order=2)[:, :self.shapes()[2][1]])
+                               + spatial_frequencies(*pmult[1], order=4)[:, :self.shapes()[2][1]])
 
         preconditioned_state = np.multiply(self.state, p_multipliers)
         # Precondition the change in T and L
@@ -1700,6 +1713,22 @@ class RelativeOrbitKS(OrbitKS):
         """
         return {'t': (20, 200), 'x': (20, 100), 's': (0, 0)}
 
+    def periodic_dimensions(self):
+        """ Bools indicating whether or not dimension is periodic for persistent homology calculations.
+
+        Returns
+        -------
+
+        Notes
+        -----
+        Static for base class, however for relative periodic solutions this can be dependent on the frame/slice the
+        state is in.
+        """
+        if self.frame == 'comoving':
+            return True, True
+        else:
+            return False, True
+
     @classmethod
     def default_constraints(cls):
         return {'t': False, 'x': False, 's': False}
@@ -2589,7 +2618,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         else:
             rmatvec_L = 0
 
-        return (rmatvec_L,)
+        return (0., rmatvec_L, 0.)
 
     def _rmatvec_linear_component(self, array=False):
         """ Linear component of the adjoint Jacobian-vector product
@@ -2693,8 +2722,9 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         """
         pmult = kwargs.get('pmult', self.preconditioning_parameters())
         pexp = kwargs.get('pexp', (0, 4))
-        p_multipliers = 1.0 / (np.abs(spatial_frequencies(*pmult[1], order=2))
-                               + spatial_frequencies(*pmult[1], order=4))
+
+        p_multipliers = 1.0 / (np.abs(spatial_frequencies(*pmult[1], order=2)[:, :self.shapes()[2][1]])
+                               + spatial_frequencies(*pmult[1], order=4)[:, :self.shapes()[2][1]])
         preconditioned_state = np.multiply(self.state, p_multipliers)
 
         # Precondition the change in T and L so that they do not dominate
