@@ -549,7 +549,7 @@ class OrbitKS(Orbit):
             gradient = self.rmatvec(eqn, **kwargs)
         return gradient
 
-    def plot(self, show=True, save=False, fundamental_domain=False, **kwargs):
+    def plot(self, show=True, save=False, padding=False, fundamental_domain=False, **kwargs):
         """ Plot the velocity field as a 2-d density plot using matplotlib's imshow
 
         Parameters
@@ -574,11 +574,6 @@ class OrbitKS(Orbit):
         plt.rc('text', usetex=True)
         plt.rc('font', family='serif')
         plt.rcParams['text.usetex'] = True
-
-        if np.product(self.discretization) >= 256**2:
-            padding = kwargs.get('padding', False)
-        else:
-            padding = kwargs.get('padding', True)
 
         if padding:
             padding_shape = kwargs.get('padding_shape', (16*self.n, 16*self.m))

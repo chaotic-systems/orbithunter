@@ -144,10 +144,10 @@ def scan(base_orbit, window_orbit, *args, **kwargs):
     base = base_orbit.state
     # To get the padding/wrap number, need to see how much the windows extend "beyond" the base orbit. This can be
     # computed using the placement of the last pivot and the window dimensions. This is only relevant for periodic
-    # dimensions in the base orbit.
-    gudhikwargs = kwargs.get('gudhi_kwargs', {'periodic_dimensions': tuple(len(window.shape)*[False])})
+    # dimensions in the base orbit. Not specifying min_persistence makes memory requirements very large.
+    gudhikwargs = kwargs.get('gudhi_kwargs', {'periodic_dimensions': tuple(len(window.shape)*[False]),
+                                              'min_persistence': 0.01})
     dimension_iterator = zip(base.shape, strides, window.shape, gudhikwargs.get('periodic_dimensions'))
-    dimension_iterator = zip(base.shape, strides, window.shape, (False, True))
 
     for w_dim, b_dim in zip(window.shape, base.shape):
         assert w_dim < b_dim, 'Shadowing window discretization is larger than the base orbit. resize first. '
@@ -180,6 +180,11 @@ def scan(base_orbit, window_orbit, *args, **kwargs):
     # Want to create the number of pivots based on original array, but to handle "overflow", the wrapped array
     # is used for calculations
     score_array = np.zeros(score_array_shape)
+    if isinstance(kwargs.get('mask', None), np.ndarray):
+        mask = kwargs.get('mask', None).astype(bool)
+        iterator = (x for i, x in enumerate(np.ndindex(score_array.shape)) if not mask.ravel()[i])
+    else:
+        iterator = np.ndindex(score_array.shape)
 
     if score_type == 'persistence':
         # Scoring using persistent homology requires the persistence of the complex of both the base orbit slice
@@ -194,7 +199,7 @@ def scan(base_orbit, window_orbit, *args, **kwargs):
         if not cached_persistences.get(window.shape, []):
             base_persistences = []
             # by definition base slices cannot be periodic unless w_dim == b_dim and that dimension is periodic.
-            for pivot_tuple in np.ndindex(score_array.shape):
+            for pivot_tuple in iterator:
                 # To get the slice indices, find the pivot point (i.e. 'corner' of the window) and then add
                 # the window's dimensions.
                 window_slices = []
@@ -207,9 +212,11 @@ def scan(base_orbit, window_orbit, *args, **kwargs):
             # Once the persistences are computed for the pivots for a given slice shape, can include them in the cache.
             cached_persistences[window.shape] = base_persistences
         else:
+            if kwargs.get('verbose', False):
+                print('Using cached persistence values for base orbit, slices of shape {}'.format(window.shape))
             base_persistences = cached_persistences.get(window.shape, [])
         # Periodicity of windows determined by the periodic_dimensions() method.
-        window_persistence = persistence_function(window_orbit, **{**gudhikwargs, 'periodic_dimensions': (True, True)})
+        window_persistence = persistence_function(window_orbit, **gudhikwargs)
         # .ravel() returns a view, therefore can use it to broadcast.
         # Unfortunately what I want to do is only supported if the base slice and window have same periodic dimensions?
         for i, bp in enumerate(base_persistences):
@@ -219,11 +226,7 @@ def scan(base_orbit, window_orbit, *args, **kwargs):
         # Pointwise scoring can use the amplitude difference default.
         scoring_function = kwargs.get('scoring_function', amplitude_difference)
         cache = kwargs.get('cache', {})
-        if isinstance(kwargs.get('mask', None), np.ndarray):
-            mask = kwargs.get('mask', None).astype(bool)
-            iterator = (x for i, x in enumerate(np.ndindex(score_array.shape)) if not mask.ravel()[i])
-        else:
-            iterator = np.ndindex(score_array.shape)
+
         # Because the number of computations is built directly into the size of score_array,
         # can us a numpy iterator. This also allows us to know exactly which window corresponds to which
         # value, as ndindex will always return the same order of indices.
@@ -309,7 +312,6 @@ def cover(base_orbit, thresholds, window_orbits, mask_type='union', **kwargs):
 
     strides = kwargs.get('strides', tuple([1]*len(base_orbit.shapes()[0])))
     cache = kwargs.get('cache', {})
-    score_type = kwargs.get('score_type', 'pointwise')
     masking_function = kwargs.get('masking_function', absolute_threshold)
     # Whether or not previous runs have "cached" the persistence information; not really caching, mind you.
     # This doesn't do anything unless either mask_type=='family' or score_type=='persistence'. One or both must be true.
@@ -360,11 +362,7 @@ def cover(base_orbit, thresholds, window_orbits, mask_type='union', **kwargs):
                 scores_bool = masking_function(scores, threshold)
             else:
                 scores_bool = np.logical_or(scores_bool, masking_function(scores, threshold))
-
-            if score_type == 'pointwise':
-                # In this
-                cache = {'mask': scores_bool}
-            # Getting where score obeys the threshold, can now translate this back into positions in the orbit.
+        # Getting where score obeys the threshold, can now translate this back into positions in the orbit.
         # Because the union is happening at the pivot level, no need to continuously update the orbit_mask with unions.
         orbit_mask = scanning_mask(scores_bool, base_orbit, window, strides).astype(bool)
     return orbit_mask

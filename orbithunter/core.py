@@ -854,7 +854,7 @@ class Orbit:
         """
         return np.linalg.norm(self.state.ravel(), ord=order)
 
-    def plot(self, show=True, save=False, padding=True, fundamental_domain=True, **kwargs):
+    def plot(self, show=True, save=False, padding=False, fundamental_domain=False, **kwargs):
         """ Signature for plotting method.
         """
         return None

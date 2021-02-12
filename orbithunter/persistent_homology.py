@@ -114,7 +114,8 @@ def gudhi_distance(orbit1, orbit2, gudhi_metric='bottleneck', **kwargs):
     return distance_func(diagram1, diagram2)
 
 
-def gudhi_distance_from_persistence(orbit_persistence1, orbit_persistence2, gudhi_metric='bottleneck', **kwargs):
+def gudhi_distance_from_persistence(orbit_persistence1, orbit_persistence2,
+                                    gudhi_metric='bottleneck', with_betti=True, **kwargs):
     """ Compute the distance between two Orbits' persistence diagrams.
 
     Parameters
@@ -135,8 +136,13 @@ def gudhi_distance_from_persistence(orbit_persistence1, orbit_persistence2, gudh
     It is often more efficient to calculate the persistences en masse and store them; the other distance function
     does not account for this and I do not want to do type checking for persistence objects from Gudhi. 
     """
-    diagram1 = np.array([p1[-1] for p1 in orbit_persistence1])
-    diagram2 = np.array([p2[-1] for p2 in orbit_persistence2])
+    if with_betti:
+        diagram1 = np.array([p1[-1] for p1 in orbit_persistence1])
+        diagram2 = np.array([p2[-1] for p2 in orbit_persistence2])
+    else:
+        diagram1 = orbit_persistence1
+        diagram2 = orbit_persistence2
+
     if gudhi_metric == 'bottleneck':
         distance_func = gh.bottleneck.bottleneck_distance
     elif gudhi_metric == 'hera_bottleneck':
