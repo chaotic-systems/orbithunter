@@ -945,6 +945,14 @@ class OrbitKS(Orbit):
                     yield g.to_fundamental_domain()
                 else:
                     yield g
+        elif kwargs.get('continuous', False):
+            rolls = kwargs.get('rolls', (1, 1))
+            for N in range(0, self.n, rolls[0]):
+                for M in range(0, self.m, rolls[1]):
+                    if kwargs.get('fundamental_domain', False):
+                        yield self.roll(N, axis=0).roll(M, axis=1).to_fundamental_domain()
+                    else:
+                        yield self.roll(N, axis=0).roll(M, axis=1)
         else:
             # Don't need cell shifts, these are within the rotations. Arbitrary rotations require interpolation;
             # only roll preserves orbit's status as a solution.
