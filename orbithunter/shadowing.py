@@ -13,51 +13,6 @@ def absolute_threshold(score_array, threshold):
     return mask
 
 
-def first_nprimes(num_primes):
-    """ Returns a array of primes, 2 <= p < n
-
-    n : int
-        Upper search range for primes.
-
-    Returns
-    -------
-    ndarray :
-        Array with primes
-
-    Notes
-    -----
-    https://stackoverflow.com/questions/2068372/fastest-way-to-list-all-primes-below-n-in-python/3035188#3035188
-    Using this to encode the orbits for covering.
-    """
-    n = 2
-    prime_codes = []
-    while len(prime_codes) < num_primes:
-        sieve = np.ones(n//3 + (n % 6 == 2), dtype=np.bool)
-        sieve[0] = False
-        for i in range(int(n**0.5)//3+1):
-            if sieve[i]:
-                k = 3*i+1 | 1
-                sieve[(k**2//3)::2*k] = False
-                sieve[(k**2+4*k-2*k*(i & 1))//3::2*k] = False
-        prime_codes = np.r_[2, 3, ((3*np.nonzero(sieve)[0]+1) | 1)]
-        n += 1
-    return prime_codes
-
-
-def factor_prime_mask(mask, primes):
-    factors = []
-    # return a collection of covering_masks, each for one of the primes contained in the covering_mask.
-    # Integer entries upon inverse logarithm
-    expcovering_mask = 10**mask
-    rounded = np.round(expcovering_mask)
-    # Do not want the places where 0 (uncovering_masked)
-    for p in primes:
-        factor_covering_mask = np.zeros(expcovering_mask.shape, dtype=np.int32)
-        factor_covering_mask[np.where((rounded//p).astype(float) == rounded/p)] = p
-        factors.append(factor_covering_mask)
-    return factors
-
-
 def scanning_mask(masked_scores, base_orbit, window_orbit, strides):
     """
 
@@ -185,9 +140,9 @@ def scan(base_orbit, window_orbit, *args, **kwargs):
             score_array_shape.append(num_pivots)
             pad_shape.append(0)
 
+    score_array = np.zeros(score_array_shape)
     padding = tuple((0, pad) if pad > 0 else (0, 0) for pad in pad_shape)
     pbase = np.pad(base, padding, mode='wrap')
-    score_array = np.zeros(score_array_shape)
     if not pivots:
         pivots = np.ndindex(score_array.shape)
 
@@ -217,6 +172,7 @@ def scan(base_orbit, window_orbit, *args, **kwargs):
         for i, pivot_tuple in enumerate(iterator):
             if verbose and i % max([1, n_pivots//10]) == 0:
                 print('-', end='')
+            # Required to cache the persistence with the correct key.
             base_pivot_tuple = tuple(stride*p for p, stride in zip(pivot_tuple, strides))
             # If the current pivot doesn't have a stored value, then calculate it and add it to the cache.
             # Pivot tuples iterate over the score_array, not the actual base orbit, need to convert.
@@ -308,7 +264,7 @@ def shadow(base_orbit, window_orbit, threshold, **kwargs):
     return orbit_mask_bool
 
 
-def cover(base_orbit, thresholds, window_orbits, mask_type='union', replacement=False, **kwargs):
+def cover(base_orbit, thresholds, window_orbits, replacement=False, cover_type='mask', **kwargs):
     """ Function to perform multiple shadowing computations given a collection of orbits.
 
     Parameters
@@ -331,10 +287,9 @@ def cover(base_orbit, thresholds, window_orbits, mask_type='union', replacement=
 
     Returns
     -------
-    mask : ndarray
-        A mask which is either the logical union of all single window mask values, or whose values are the product of
-        the different prime categorical codes corresponding to each window orbit. Usage of prime numbers is to
-        be able to identify overlaps.
+    covering_masks : dict
+        Dict whose keys are the index positions of the windows in the window_orbits provided, whose values
+        are the ndarrays containing either the scores or boolean mask of the
 
     Notes
     -----
@@ -342,29 +297,22 @@ def cover(base_orbit, thresholds, window_orbits, mask_type='union', replacement=
 
     """
 
-    strides = kwargs.get('strides', tuple([1]*len(base_orbit.shapes()[0])))
     cache = kwargs.get('cache', {})
     masking_function = kwargs.get('masking_function', absolute_threshold)
     # Whether or not previous runs have "cached" the persistence information; not really caching, mind you.
     # This doesn't do anything unless either mask_type=='family' or score_type=='persistence'. One or both must be true.
 
     thresholds, window_orbits = np.array(thresholds), np.array(window_orbits)
-    window_size_order = np.argsort([w.size for w in window_orbits])[::-1]
+    size_order = np.argsort([w.size for w in window_orbits])[::-1]
     mask = None
-    prime_codes = None
-    if mask_type == 'prime':
-        orbit_mask = np.zeros(base_orbit.shape, dtype=float)
-    elif mask_type == 'count':
-        orbit_mask = np.zeros(base_orbit.shape, dtype=int)
-    else:
-        orbit_mask = np.zeros(base_orbit.shape, dtype=bool)
-
-    for index, (threshold, window) in enumerate(zip(thresholds[window_size_order], window_orbits[window_size_order])):
+    covering_masks = {}
+    for index, threshold, window in zip(size_order, thresholds[size_order], window_orbits[size_order]):
         if kwargs.get('verbose', False) and len(thresholds) % max([1, len(thresholds)//10]) == 0:
             print('#', end='')
         # Just in case of union method
         scores, cache = scan(base_orbit, window, **{**kwargs, 'cache': cache, 'mask': mask})
         scores_bool = masking_function(scores, threshold)
+        print(index, scores_bool.sum())
         if not replacement:
             if mask is not None:
                 # The "new" detections
@@ -372,22 +320,12 @@ def cover(base_orbit, thresholds, window_orbits, mask_type='union', replacement=
                 # all detections
                 mask = np.logical_or(scores_bool, mask)
             else:
-                mask = scores_bool
+                mask = scores_bool.copy()
 
-        # If there were no detections then no other computations in this loop are required.
+        # If there were no detections then do not add anything to the cover.
         if scores_bool.sum() > 0:
-            orbit_mask_bool = scanning_mask(scores_bool, base_orbit, window, strides)
-            if mask_type == 'prime':
-                if prime_codes is None:
-                    prime_codes = first_nprimes(len(window_orbits))
-                orbit_mask_code = prime_codes[index] * orbit_mask_bool
-                orbit_mask_code[orbit_mask_code == 0.] = 1
-                # Once the mask for the orbit has been established, then we can take the product of the current mask
-                # However, to avoid overflow, use the summation of logarithms instead.
-                orbit_mask_code = np.log10(orbit_mask_code)
-                orbit_mask += orbit_mask_code
-            elif mask_type == 'count':
-                orbit_mask += orbit_mask_bool.astype(int)
+            if cover_type == 'scores':
+                covering_masks[index] = scores.copy()
             else:
-                orbit_mask = np.logical_or(orbit_mask, orbit_mask_bool)
-    return orbit_mask
+                covering_masks[index] = scores_bool.copy()
+    return covering_masks
