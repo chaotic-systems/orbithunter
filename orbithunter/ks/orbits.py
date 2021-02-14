@@ -123,18 +123,11 @@ class OrbitKS(Orbit):
         return 'n', 'm'
 
     @staticmethod
-    def ndims():
-        """ Strings to use to label dimensions/periods. Generic 3+1 spacetime labels default.
-        """
-        return 2
-
-    @staticmethod
     def parameter_labels():
         """ Labels of all parameters."""
         return 't', 'x', 's'
 
-    @classmethod
-    def default_constraints(cls):
+    def default_constraints(self):
         return {'t': False, 'x': False}
 
     def orbit_vector(self):
@@ -1123,7 +1116,7 @@ class OrbitKS(Orbit):
                       include_residual=include_residual, **kwargs)
 
     @classmethod
-    def dimension_based_discretization(cls, parameters, **kwargs):
+    def dimension_based_discretization(cls, dimensions, **kwargs):
         """ Follow orbithunter conventions for discretization size.
 
         Parameters
@@ -1148,7 +1141,7 @@ class OrbitKS(Orbit):
         the appropriate attributes of the rediscretized orbit.
         """
         resolution = kwargs.get('resolution', 'default')
-        t, x = parameters
+        t, x = dimensions
         N, M = kwargs.get('discretization', (None, None))
         if N is None:
             if t == 0:
@@ -1732,8 +1725,7 @@ class RelativeOrbitKS(OrbitKS):
         else:
             return False, True
 
-    @classmethod
-    def default_constraints(cls):
+    def default_constraints(self):
         return {'t': False, 'x': False, 's': False}
 
     def dt(self, order=1, array=False):
@@ -2592,8 +2584,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         return 1, 4
 
-    @classmethod
-    def default_constraints(cls):
+    def default_constraints(self):
         return {'x': False}
 
     def _eqn_linear_component(self, array=False):
@@ -2757,7 +2748,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         return {'x': (2*pi, 100.)}
 
     @classmethod
-    def dimension_based_discretization(cls, parameters, **kwargs):
+    def dimension_based_discretization(cls, dimensions, **kwargs):
         """ Follow orbithunter conventions for discretization size.
 
 
@@ -3071,7 +3062,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
                                  'basis': 'spatial_modes'}).transform(to=self.basis)
 
     @classmethod
-    def dimension_based_discretization(cls, parameters, **kwargs):
+    def dimension_based_discretization(cls, dimensions, **kwargs):
         """ Subclassed method for equilibria.
         """
         kwargs.setdefault('discretization', (1, None))

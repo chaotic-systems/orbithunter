@@ -48,6 +48,13 @@ in terms of finite differences, so should the Jacobian).***
 The way that binary operations and dunder methods involving the state are designed is to maintain all attributes of a 
 state except for the state itself. 
 
+Possible but very unlikely problems: if you use the autoreload extension for jupyter notebooks and change this
+file then because id(Orbit) changes, the binary operators type checking results in operations between class objects
+and numpy arrays. 
+
+IMPORTANT: If your equation is one-dimensional, it is recommended to define the state as being a (n,1) dimensional array
+due to how numpy multiplication works; i.e. (n,1) * (n,) = (n,n) dimensional; you need to be careful. 
+
 """
 
 
@@ -83,8 +90,6 @@ class Orbit:
             result = self.state + other.state
         else:
             result = self.state + other
-
-        # construct a new instance with same attributes except for state, which is updated by merging dicts
         return self.__class__(**{**vars(self), 'state': result})
 
     def __radd__(self, other):
@@ -98,7 +103,6 @@ class Orbit:
             result = other.state + self.state
         else:
             result = other + self.state
-
         return self.__class__(**{**vars(self), 'state': result})
 
     def __sub__(self, other):
@@ -214,6 +218,110 @@ class Orbit:
             result = self.state**other
         return self.__class__(**{**vars(self), 'state': result})
 
+    def __mod__(self, other):
+        """ Modulo of Orbit state.
+
+        Parameters
+        ----------
+        other : Orbit, ndarray, float, int
+        """
+        if issubclass(type(other), Orbit):
+            result = self.state % other.state
+        else:
+            result = self.state % other
+        return self.__class__(**{**vars(self), 'state': result})
+
+    def __iadd__(self, other):
+        """ Inplace addition of Orbit state
+
+        Parameters
+        ----------
+        other : Orbit, ndarray, float, int
+        """
+        if issubclass(type(other), Orbit):
+            self.state += other.state
+        else:
+            self.state += other
+        return self
+
+    def __isub__(self, other):
+        """ Inplace subtraction of Orbit state
+
+        Parameters
+        ----------
+        other : Orbit, ndarray, float, int
+        """
+        if issubclass(type(other), Orbit):
+            self.state -= other.state
+        else:
+            self.state -= other
+        return self
+
+    def __imul__(self, other):
+        """ Inplace multiplication of Orbit state
+
+        Parameters
+        ----------
+        other : Orbit, ndarray, float, int
+        """
+        if issubclass(type(other), Orbit):
+            self.state *= other.state
+        else:
+            self.state *= other
+        return self
+
+    def __ipow__(self, other):
+        """ Inplace exponentiation of Orbit state
+
+        Parameters
+        ----------
+        other : Orbit, ndarray, float, int
+        """
+        if issubclass(type(other), Orbit):
+            self.state **= other.state
+        else:
+            self.state **= other
+        return self
+
+    def __itruediv__(self, other):
+        """ Inplace division of Orbit state
+
+        Parameters
+        ----------
+        other : Orbit, ndarray, float, int
+        """
+        if issubclass(type(other), Orbit):
+            self.state /= other.state
+        else:
+            self.state /= other
+        return self
+
+    def __ifloordiv__(self, other):
+        """ Inplace floor division of Orbit state
+
+        Parameters
+        ----------
+        other : Orbit, ndarray, float, int
+        """
+        if issubclass(type(other), Orbit):
+            self.state //= other.state
+        else:
+            self.state //= other
+        return self
+
+    def __imod__(self, other):
+        """ Addition of Orbit state and other numerical quantity.
+
+        Parameters
+        ----------
+        other : Orbit, ndarray, float, int
+        """
+        if issubclass(type(other), Orbit):
+            self.state %= other.state
+        else:
+            self.state %= other
+        return self
+
     def __str__(self):
         """ String name
 
@@ -248,7 +356,7 @@ class Orbit:
 
         Notes
         -----
-        This is simply to avoid defining attributes or properties for each variable name; keep the namespace clean.
+        This is setup to allow easy reference of parameters without contaminating the namespace of the Orbit.
         """
         try:
             attr = str(attr)
@@ -271,20 +379,10 @@ class Orbit:
 
         Notes
         -----
-        Defaults to 'physical' and not None or empty string because it is used as a data group for writing .h5 files.
+        Defaults to 'physical'
         """
         return ('physical',)
 
-    @staticmethod
-    def ndims():
-        """ Number of expected dimensions of state array
-
-        Notes
-        -----
-        Auxiliary usage is to use inherit default labels; that is, so the labels defined as staticmethods do not
-        have to be repeated for derived classes.
-        """
-        return 4
 
     @staticmethod
     def parameter_labels():
@@ -299,7 +397,7 @@ class Orbit:
 
     @staticmethod
     def dimension_labels():
-        """ Strings to use to label dimensions/periods; this is redundant for Orbit class.
+        """ Strings to use to label dimensions/periods; typically a subset of parameter_labels.
         """
         return 't', 'x', 'y', 'z'
 
@@ -315,7 +413,8 @@ class Orbit:
         Notes
         -----
         tuples or length two are *always* interpreted to be continuous intervals. If you have a discrete variable
-        with two options, simply use a list instead of tuple.
+        with two options, simply use a list instead of tuple. Discrete variables are generated by using random choice
+        from the provided collection.
         """
         return {p_label: (0, 1) for p_label in cls.parameter_labels()}
 
@@ -327,7 +426,7 @@ class Orbit:
 
     @staticmethod
     def minimal_shape():
-        """ The smallest possible compatible discretization for the given class.
+        """ The smallest possible discretization that can be used without methods breaking down.
 
         Returns
         -------
@@ -371,14 +470,19 @@ class Orbit:
         """
         return True, True, True, True
 
+    def default_constraints(self):
+        """ Sometimes parameters are necessary but constant; this allows for exclusion from optimization without hassle.
 
-    @classmethod
-    def default_constraints(cls):
-        return {k: False for k in cls.parameter_labels()}
+        Returns
+        -------
+        dict :
+            Keys are parameter labels, values are bools.
+        """
+        return {k: False for k in self.parameter_labels()}
 
     @property
     def shape(self):
-        """ Current state's shape
+        """ Current state array's shape
 
         Notes
         -----
@@ -388,30 +492,26 @@ class Orbit:
 
     @property
     def size(self):
-        """ Current state's total dimensionality
+        """ Current state array's dimensionality
 
         Notes
         -----
-        Just a convenience to be able to write self.sizeinstead of self.state.size
+        Just a convenience to be able to write self.size instead of self.state.size
         """
         return self.state.size
 
     def abs(self):
-        """ Current state's total dimensionality
-
-        Notes
-        -----
-        Just a convenience to be able to write self.sizeinstead of self.state.size
+        """ Orbit instance with state magnitude only.
         """
         return self.__class__(**{**vars(self), 'state': np.abs(self.state)})
 
     @classmethod
-    def dimension_based_discretization(cls, parameters, **kwargs):
+    def dimension_based_discretization(cls, dimensions, **kwargs):
         """ Follow orbithunter conventions for discretization size.
 
         Parameters
         ----------
-        parameters : tuple
+        dimensions : tuple
             Values from which the discretization may be inferred.
 
         kwargs :
@@ -427,12 +527,13 @@ class Orbit:
 
     @classmethod
     def glue_dimensions(cls, dimension_tuples, glue_shape, exclude_zero_dimensions=True):
-        """ Class method for handling parameters in gluing
+        """ Class method for handling parameters in gluing; default simply averages dimensions of each orbit in gluing.
 
         Parameters
         ----------
         dimension_tuples : tuple of tuples
-
+            A tuple with a number of elements equal to the number of dimensions; each of these dimension-tuples contains
+            a number of values equal to the number of orbits in the prospective gluing.
         glue_shape : tuple of ints
             The shape of the gluing being performed i.e. for a 2x2 orbit grid glue_shape would equal (2,2).
         exclude_zero_dimensions : bool
@@ -449,7 +550,6 @@ class Orbit:
         dimensions needs to be decided upon/inferred from the original tiles. As this average is only a very
         crude approximation, it can be worthwhile to also simply search the parameter space for a combination
         of dimensions which reduces the residual. The strategy produced by this method is simply a baseline.
-
         """
         if exclude_zero_dimensions:
             # Take the average of non-zero parameter values
@@ -460,7 +560,7 @@ class Orbit:
                                                                         in dimension_tuples))
 
     def dimensions(self):
-        """ Continuous tile dimensions
+        """ Dimensions of the spatiotemporal configuration space.
 
         Returns
         -------
@@ -470,12 +570,12 @@ class Orbit:
         Notes
         -----
         Because this is usually a subset of self.parameters, it does not use the property decorator. This method
-        is purposed for readability.
+        is purposed for readability and so there is no possible error for certain methods.
         """
         return tuple(getattr(self, d_label) for d_label in self.dimension_labels())
 
     def shapes(self):
-        """ Set of shapes based on discretization parameters and basis.
+        """ The possible shapes of the current state based on discretization and basis.
 
         Returns
         -------
@@ -491,7 +591,7 @@ class Orbit:
         return (self.state.shape,)
 
     def cost_function_gradient(self, eqn, **kwargs):
-        """ Gradient of scalar cost functional
+        """ Gradient of scalar cost functional 0.5*|eqn|^2
 
         Parameters
         ----------
@@ -508,14 +608,14 @@ class Orbit:
         Notes
         -----
         Withing optimization routines, the eqn orbit is used for other calculations and hence should not be
-        recalculated; this is why eqn is passed rather than calculated.
+        recalculated; this is why eqn is passed rather than recalculated.
 
         Default cost functional is 1/2 ||eqn||^2.
         """
         return self.rmatvec(eqn, **kwargs)
 
     def resize(self, *new_discretization, **kwargs):
-        """ Rediscretize the current state
+        """ Rediscretize the current state typically via zero padding or interpolation.
 
         Parameters
         ----------
@@ -539,19 +639,11 @@ class Orbit:
         If len >= 2 then could be multiple ints (x,y) or multiple tuples ((a,b), (c,d))
         In other words, they are all tuples, but type checking and unpacking has to be done carefully due to contents.
 
-        All tuples of the form ((x,y,...,z),) are assumed to be redundant representations of (x,y,...,z) and hence is
-        unpacked as so.
+        All tuples of the form ((x,y,...,z),) are assumed to be redundant representations of (x,y,...,z)
         """
         # Padding basis assumed to be in the spatiotemporal basis.
         placeholder_orbit = self.copy().transform(to=self.bases()[-1])
-
-        # if nothing passed, then new_shape == () which evaluates to false.
-        # The default behavior for this will be to modify the current discretization
-        # to a `parameter based discretization'.
         new_shape = new_discretization or self.dimension_based_discretization(self.dimensions(), **kwargs)
-
-        # unpacking unintended nested tuples i.e. ((a, b, ...)) -> (a, b, ...); leaves unnested tuples invariant.
-        # New shape must be tuple; i.e. iterable and have __len__
         if len(new_shape) == 1 and isinstance(*new_shape, tuple):
             new_shape = tuple(*new_shape)
 
@@ -559,8 +651,6 @@ class Orbit:
         if self.discretization != new_shape:
             # Although this is less efficient than doing every axis at once, it generalizes to cases where bases
             # are different for padding along different dimensions (i.e. transforms implicit in truncate and pad).
-            # Changed from iterating over new shape and comparing with old, to iterating over old and comparing
-            # with new; this prevents accidentally
             for i, d in enumerate(self.discretization):
                 if new_shape[i] < self.minimal_shape()[i]:
                     errstr = 'minimum discretization requirements not met during resize.'
@@ -586,7 +676,7 @@ class Orbit:
         -------
         Orbit :
             either self or instance in new basis. Returning self and not copying may have unintended consequences
-            but typically it would not matter as orbithunter avoids overwrites.
+            but typically it would not matter as orbithunter operations typically require copying numpy arrays.
         """
         return self
 
@@ -601,9 +691,9 @@ class Orbit:
         Notes
         -----
         If self.eqn().state = 0. at every point (within some numerical tolerance), then the state constitutes
-        a solution to the governing equation. Of course there is no equation for this class, so zeros are returned.
-        The instance needs to be in 'spatiotemporal' basis prior to computation; this avoids possible mistakes in the
-        optimization process, which would result in a breakdown in performance from redundant transforms.
+        a solution to the governing equation. The instance needs to be in 'spatiotemporal' basis prior to computation;
+        this avoids possible mistakes in the optimization process, which would result in a breakdown
+        in performance from redundant transforms. If you do not like this choice then overwrite this method.
 
         Additionally, the equations and state are defined such that state + parameters are required to compute
         the governing equations. Often it is the case that  there will not be an associated component of the equations
