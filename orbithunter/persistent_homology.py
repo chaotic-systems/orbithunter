@@ -152,3 +152,85 @@ def gudhi_distance_from_persistence(orbit_persistence1, orbit_persistence2,
     else:
         raise ValueError('Distance gudhi_metric not recognized as gudhi metric.')
     return distance_func(diagram1, diagram2)
+
+
+def persistence_array_converter(persistence, pivot_tuple):
+    if isinstance(persistence, np.ndarray):
+        gudhi_persistence = []
+        persistence_slice = slice_persistence_array(persistence, pivot_tuple)
+        for row in persistence_slice:
+            betti = row[-3]
+            interval = row[-2:]
+            gudhi_persistence.append((betti, tuple(interval)))
+        return gudhi_persistence
+    else:
+        persistence_array = np.concatenate([np.concatenate(([row[0]],
+                                                            row[-1])) for row in persistence]).reshape(-1, 3)
+        persistence_count = persistence_array.shape[0]
+        # Go backwards so pivot tuple can be concatenated yet read from left to right.
+        for pivot in pivot_tuple[::-1]:
+            persistence_array = np.concatenate((np.array([pivot]*persistence_count).reshape(-1, 1),
+                                                persistence_array), axis=1)
+        return persistence_array
+
+
+def slice_persistence_array(persistence_array, *pivots):
+    if len(pivots) == 1 and isinstance(*pivots, tuple):
+        pivots = list(*pivots)
+    else:
+        pivots = list(pivots)
+    condition = np.isin(persistence_array[:, :-3], pivots)
+    persistence_slice = persistence_array[np.where(np.isin(persistence_array[:, :-3], condition)[:, 0])]
+    return persistence_slice
+
+
+def orbit_persistence_array(base_orbit, window_orbit, strides, scanning_shapes, persistence_function, **kwargs):
+    window = window_orbit.state
+    base = base_orbit.state
+    score_array_shape, pad_shape = scanning_shapes
+
+    padding = tuple((0, pad) if pad > 0 else (0, 0) for pad in pad_shape)
+    pbase = np.pad(base, padding, mode='wrap')
+
+    # The bases orbit periodicity has to do with scoring and whether or not to wrap windows around.
+
+    # the periodic_dimensions key here determines the periodic dimensions in the gudhi.PeriodicCubicalComplex
+    gudhikwargs = kwargs.get('gudhi_kwargs', {'periodic_dimensions': tuple(len(window.shape)*[False]),
+                                              'min_persistence': 0.01})
+    verbose = kwargs.get('verbose', False)
+    pivots = kwargs.get('pivots', None)
+    persistence_array = None
+    if pivots is None:
+        pivots = np.ndindex(score_array_shape)
+        base_pivot_tuples = tuple(tuple(strides[i] * p for i, p in enumerate(piv)) for piv in pivots)
+        n_pivots = len(base_pivot_tuples)
+    else:
+        base_pivot_tuples = tuple(pivots)
+        n_pivots = len(base_pivot_tuples)
+
+    for i, base_pivot_tuple in enumerate(base_pivot_tuples):
+        # Required to cache the persistence with the correct key.
+        # If the current pivot doesn't have a stored value, then calculate it and add it to the cache.
+        # Pivot tuples iterate over the score_array, not the actual base orbit, need to convert.
+        if verbose and i % max([1, n_pivots//25]) == 0:
+            print('#', end='')
+        # by definition base slices cannot be periodic unless w_dim == b_dim and that dimension is periodic.
+        # To get the slice indices, find the pivot point (i.e. 'corner' of the window) and then add
+        # the window's dimensions.
+        window_slices = []
+        # The CORNER is not given by pivot * span. That is pivot * stride. The WIDTH is +span
+        for base_pivot, span in zip(base_pivot_tuple, window.shape):
+            window_slices.append(slice(base_pivot, base_pivot + span))
+        base_slice_orbit = window_orbit.__class__(**{**vars(window_orbit),
+                                                     'state': pbase[tuple(window_slices)]})
+        base_slice_persistence = persistence_function(base_slice_orbit, **gudhikwargs)
+        persistence_array_slice = persistence_array_converter(base_slice_persistence, base_pivot_tuple)
+
+        if persistence_array is None:
+            persistence_array = persistence_array_slice.copy()
+        else:
+            persistence_array = np.concatenate((persistence_array, persistence_array_slice), axis=0)
+
+    return persistence_array
+
+

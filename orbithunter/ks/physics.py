@@ -5,7 +5,7 @@ import warnings
 __all__ = ['integrate', 'dissipation', 'energy', 'energy_variation', 'power']
 
 
-def _averaging_wrapper(instance_with_state_to_average, average=None):
+def _averaging_wrapper(instance_with_state_to_average, average='spacetime'):
     """ Apply time, space, or spacetime average to field of instance.
 
 
@@ -27,11 +27,15 @@ def _averaging_wrapper(instance_with_state_to_average, average=None):
         # numpy average is over flattened array by default
         return ((1.0 / instance_with_state_to_average.t) * (1.0 / instance_with_state_to_average.x)
                 * instance_with_state_to_average.state.mean())
+    elif average == 'discrete_spacetime':
+        # numpy average is over flattened array by default
+        return ((1.0 / instance_with_state_to_average.n) * (1.0 / instance_with_state_to_average.m)
+                * instance_with_state_to_average.state.mean())
     else:
         return instance_with_state_to_average.state
 
 
-def dissipation(orbit_instance, average=None):
+def dissipation(orbit_instance, average='spacetime'):
     """ Amount of energy dissipation
     Notes
     -----
@@ -46,7 +50,7 @@ def dissipation(orbit_instance, average=None):
                               average=average)
 
 
-def energy(orbit_instance, average=None):
+def energy(orbit_instance, average='spacetime'):
     """ Amount of energy dissipation
     Notes
     -----
@@ -58,7 +62,7 @@ def energy(orbit_instance, average=None):
                               average=average)
 
 
-def energy_variation(orbit_instance, average=None):
+def energy_variation(orbit_instance, average='spacetime'):
     """ The field u_t * u whose spatial average should equal power - dissipation.
 
     Returns
@@ -69,7 +73,7 @@ def energy_variation(orbit_instance, average=None):
                               average=average)
 
 
-def power(orbit_instance, average=None):
+def power(orbit_instance, average='spacetime'):
     """ Amount of energy production
     Notes
     -----

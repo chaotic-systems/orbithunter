@@ -1,5 +1,5 @@
 import numpy as np
-
+from .persistent_homology import persistence_array_converter
 __all__ = ['scan', 'shadow', 'cover', 'scanning_mask']
 
 
@@ -62,6 +62,51 @@ def scanning_mask(masked_scores, base_orbit, window_orbit, strides):
     return base_orbit_mask
 
 
+def scanning_dimensions(base_shape, window_shape, strides, base_orbit_periodicity):
+    """ Helper function that is useful for caching and scanning .
+
+    Parameters
+    ----------
+    base_shape
+    strides
+    window_shape
+    base_orbit_periodicity
+
+    Returns
+    -------
+
+    """
+    score_array_shape = []
+    pad_shape = []
+    dimension_iterator = zip(base_shape, strides, window_shape, base_orbit_periodicity)
+    for base_extent, stride_extent, window_extent, periodic in dimension_iterator:
+        # Need to determine the score array and the padding amount, if periodic in that dimension.
+        # First pivot position is always at (0, 0), opposite corner is (base_extent-1, base_extent-1)
+        # This is really the index of the last pivot along current dimension.
+        if periodic:
+            num_pivots = ((base_extent-1) // stride_extent) + 1
+            spill_over = (window_extent + stride_extent * (num_pivots-1)) - base_extent
+            # All pivot points (separated by stride_extent) are admissible with respect to periodic dimensions.
+            score_array_shape.append(num_pivots)
+            # -1 is a correction for starting at 0 indexing.
+            pad_shape.append(spill_over)
+        else:
+            # If we need padding then the pivot position does not work for aperiodic dimensions. If window extent
+            # is large compared to stride then multiple pivots could be out of bounds. Need to reel back until we find
+            # one that is not.
+            # Extra 1 because iterator provides the index not the number of pivots.
+            num_pivots = 1 + (base_extent - window_extent) // stride_extent
+            score_array_shape.append(num_pivots)
+            pad_shape.append(0)
+    return tuple(score_array_shape), tuple(pad_shape)
+
+
+def pivot_iterator(scan_shape, strides=(1, 1)):
+    pivots = np.ndindex(scan_shape)
+    for pivot_tuple in pivots:
+        yield tuple(stride*p for p, stride in zip(pivot_tuple, strides))
+
+
 def scan(base_orbit, window_orbit, *args, **kwargs):
     """
 
@@ -98,7 +143,7 @@ def scan(base_orbit, window_orbit, *args, **kwargs):
     pivots = kwargs.get('pivots', ())
     mask = kwargs.get('mask', None)
     # Caching doesn't really make sense for pointwise calculations but included here anyway.
-    cache = kwargs.get('cache', {})
+    cache = kwargs.get('cache', None)
     caching = kwargs.get('caching', False)
     # Easiest way I've found to account for periodicity is to pad with wrapped values
     window = window_orbit.state
@@ -117,29 +162,8 @@ def scan(base_orbit, window_orbit, *args, **kwargs):
     # the periodic_dimensions key here determines the periodic dimensions in the gudhi.PeriodicCubicalComplex
     gudhikwargs = kwargs.get('gudhi_kwargs', {'periodic_dimensions': tuple(len(window.shape)*[False]),
                                               'min_persistence': 0.01})
-    dimension_iterator = zip(base.shape, strides, window.shape, base_orbit_periodicity)
-    score_array_shape = []
-    pad_shape = []
-    for base_extent, stride_extent, window_extent, periodic in dimension_iterator:
-        # Need to determine the score array and the padding amount, if periodic in that dimension.
-        # First pivot position is always at (0, 0), opposite corner is (base_extent-1, base_extent-1)
-        # This is really the index of the last pivot along current dimension.
-        if periodic:
-            num_pivots = ((base_extent-1) // stride_extent) + 1
-            spill_over = (window_extent + stride_extent * (num_pivots-1)) - base_extent
-            # All pivot points (separated by stride_extent) are admissible with respect to periodic dimensions.
-            score_array_shape.append(num_pivots)
-            # -1 is a correction for starting at 0 indexing.
-            pad_shape.append(spill_over)
-        else:
-            # If we need padding then the pivot position does not work for aperiodic dimensions. If window extent
-            # is large compared to stride then multiple pivots could be out of bounds. Need to reel back until we find
-            # one that is not.
-            # Extra 1 because iterator provides the index not the number of pivots.
-            num_pivots = 1 + (base_extent - window_extent) // stride_extent
-            score_array_shape.append(num_pivots)
-            pad_shape.append(0)
 
+    score_array_shape, pad_shape = scanning_dimensions(base.shape, window.shape, strides, base_orbit_periodicity)
     score_array = np.zeros(score_array_shape)
     padding = tuple((0, pad) if pad > 0 else (0, 0) for pad in pad_shape)
     pbase = np.pad(base, padding, mode='wrap')
@@ -168,15 +192,14 @@ def scan(base_orbit, window_orbit, *args, **kwargs):
         # Use tuples as keys.
         # The persistences of the base orbit only depend on the size of the subdomain being used. Therefore, this
         # is the primary key of any potential caching dict.
-        base_persistences_dict = cache.get(window.shape, {})
         for i, pivot_tuple in enumerate(iterator):
-            if verbose and i % max([1, n_pivots//10]) == 0:
-                print('-', end='')
             # Required to cache the persistence with the correct key.
             base_pivot_tuple = tuple(stride*p for p, stride in zip(pivot_tuple, strides))
             # If the current pivot doesn't have a stored value, then calculate it and add it to the cache.
             # Pivot tuples iterate over the score_array, not the actual base orbit, need to convert.
-            if not base_persistences_dict.get(base_pivot_tuple, {}):
+            if cache is None or len(persistence_array_converter(cache, base_pivot_tuple)) == 0:
+                if verbose and i % max([1, n_pivots//25]) == 0:
+                    print('-', end='')
                 # by definition base slices cannot be periodic unless w_dim == b_dim and that dimension is periodic.
                 # To get the slice indices, find the pivot point (i.e. 'corner' of the window) and then add
                 # the window's dimensions.
@@ -187,16 +210,18 @@ def scan(base_orbit, window_orbit, *args, **kwargs):
                 base_slice_orbit = window_orbit.__class__(**{**vars(window_orbit),
                                                              'state': pbase[tuple(window_slices)]})
                 bp = persistence_function(base_slice_orbit, **gudhikwargs)
+                persistence_array = persistence_array_converter(bp, base_pivot_tuple)
                 if caching:
-                    # This gives the ability to use a cache but not add to it. Update the cache at the end
-                    # using dict unpacking.
-                    base_persistences_dict[base_pivot_tuple] = bp
+                    if cache is None:
+                        cache = persistence_array.copy()
+                    else:
+                        cache = np.concatenate((cache, persistence_array), axis=0)
             else:
-                bp = base_persistences_dict[base_pivot_tuple]
+                if verbose and i % max([1, n_pivots//25]) == 0:
+                    print('+', end='')
+                bp = persistence_array_converter(cache, base_pivot_tuple)
             score_array[pivot_tuple] = scoring_function(bp, window_persistence, **gudhikwargs)
 
-        if caching:
-            cache[window.shape] = {**cache.get(window.shape, {}), **base_persistences_dict}
         # Once the persistences are computed for the pivots for a given slice shape, can include them in the cache.
 
         # Periodicity of windows determined by the periodic_dimensions() method.
@@ -212,7 +237,7 @@ def scan(base_orbit, window_orbit, *args, **kwargs):
         # value, as ndindex will always return the same order of indices.
 
         for i, pivot_tuple in enumerate(iterator):
-            if verbose and i % max([1, n_pivots//10]) == 0:
+            if verbose and i % max([1, n_pivots//25]) == 0:
                 print('-', end='')
             # To get the slice indices, find the pivot point (i.e. 'corner' of the window) and then add
             # the window's dimensions.
@@ -223,7 +248,6 @@ def scan(base_orbit, window_orbit, *args, **kwargs):
 
             base_slice_orbit = window_orbit.__class__(**{**vars(window_orbit), 'state': pbase[tuple(window_slices)]})
             score_array[pivot_tuple] = scoring_function(base_slice_orbit, window_orbit, *args, **kwargs)
-
         # for uniformity only. the second argument doesn't do anything in this case.
         return score_array, cache
 
@@ -264,7 +288,7 @@ def shadow(base_orbit, window_orbit, threshold, **kwargs):
     return orbit_mask_bool
 
 
-def cover(base_orbit, thresholds, window_orbits, replacement=False, cover_type='mask', **kwargs):
+def cover(base_orbit, thresholds, window_orbits, replacement=False, dtype=bool, **kwargs):
     """ Function to perform multiple shadowing computations given a collection of orbits.
 
     Parameters
@@ -297,7 +321,7 @@ def cover(base_orbit, thresholds, window_orbits, replacement=False, cover_type='
 
     """
 
-    cache = kwargs.get('cache', {})
+    cache = kwargs.get('cache', None)
     masking_function = kwargs.get('masking_function', absolute_threshold)
     # Whether or not previous runs have "cached" the persistence information; not really caching, mind you.
     # This doesn't do anything unless either mask_type=='family' or score_type=='persistence'. One or both must be true.
@@ -307,15 +331,14 @@ def cover(base_orbit, thresholds, window_orbits, replacement=False, cover_type='
     mask = None
     covering_masks = {}
     for index, threshold, window in zip(size_order, thresholds[size_order], window_orbits[size_order]):
-        if kwargs.get('verbose', False) and len(thresholds) % max([1, len(thresholds)//10]) == 0:
+        if kwargs.get('verbose', False) and index % max([1, len(thresholds)//10]) == 0:
             print('#', end='')
         # Just in case of union method
         scores, cache = scan(base_orbit, window, **{**kwargs, 'cache': cache, 'mask': mask})
         scores_bool = masking_function(scores, threshold)
-        print(index, scores_bool.sum())
         if not replacement:
             if mask is not None:
-                # The "new" detections
+                # The "new" detections; removing the masked values
                 scores_bool = np.logical_xor(scores_bool, mask)
                 # all detections
                 mask = np.logical_or(scores_bool, mask)
@@ -324,8 +347,8 @@ def cover(base_orbit, thresholds, window_orbits, replacement=False, cover_type='
 
         # If there were no detections then do not add anything to the cover.
         if scores_bool.sum() > 0:
-            if cover_type == 'scores':
-                covering_masks[index] = scores.copy()
-            else:
+            if dtype is bool:
                 covering_masks[index] = scores_bool.copy()
+            else:
+                covering_masks[index] = scores.copy()
     return covering_masks
