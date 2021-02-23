@@ -55,7 +55,8 @@ def orbit_persistence(orbit_, **kwargs):
     """
     persistence_kwargs = {'homology_coeff_field': kwargs.get('homology_coeff_field', 2),
                           'min_persistence': kwargs.get('min_persistence', -1)}
-    return orbit_complex(orbit_, **kwargs).persistence(**persistence_kwargs)
+    complex_kwargs = {'periodic_dimensions': kwargs.get('periodic_dimensions', orbit_.periodic_dimensions())}
+    return orbit_complex(orbit_, **complex_kwargs).persistence(**persistence_kwargs)
 
 
 def gudhi_plot(orbit_, gudhi_method='diagram', **kwargs):
@@ -99,10 +100,8 @@ def gudhi_distance(orbit1, orbit2, gudhi_metric='bottleneck', **kwargs):
     -------
 
     """
-    persistence_kwargs = {'homology_coeff_field': kwargs.get('homology_coeff_field', 2),
-                          'min_persistence': kwargs.get('min_persistence', -1)}
-    diagram1 = np.array([p1[-1] for p1 in orbit_persistence(orbit1, **persistence_kwargs)])
-    diagram2 = np.array([p2[-1] for p2 in orbit_persistence(orbit2, **persistence_kwargs)])
+    diagram1 = np.array([p1[-1] for p1 in orbit_persistence(orbit1, **kwargs)])
+    diagram2 = np.array([p2[-1] for p2 in orbit_persistence(orbit2, **kwargs)])
     if gudhi_metric == 'bottleneck':
         distance_func = gh.bottleneck.bottleneck_distance
     elif gudhi_metric == 'hera_bottleneck':
@@ -175,13 +174,35 @@ def persistence_array_converter(persistence, pivot_tuple):
 
 
 def slice_persistence_array(persistence_array, *pivots):
+    """ Slice numpy array containing collection of persistences.
+
+    Parameters
+    ----------
+    persistence_array
+    pivots
+
+    Returns
+    -------
+
+    Notes
+    -----
+    Note that this method, while faster than other, looks for all pivots which are in the set of values
+    in each dimension.
+    # Because there are so many pivots, and there is no uniformity in the persistence sizes, slicing is actually
+    # the fastest query method. This only works for "rectangular" slicings; i.e. those of the form [::i, ::j]
+
+    The work around for 'irregular' collections of pivots is to call the function with a single pivot at a time.
+    """
     if len(pivots) == 1 and isinstance(*pivots, tuple):
         pivots = list(*pivots)
     else:
         pivots = list(pivots)
-    condition = np.isin(persistence_array[:, :-3], pivots)
-    persistence_slice = persistence_array[np.where(np.isin(persistence_array[:, :-3], condition)[:, 0])]
-    return persistence_slice
+
+    dim = len(persistence_array[0, :-3])
+    pivots = np.array(pivots).reshape(-1, dim)
+    for i in range(dim):
+        persistence_array = persistence_array[np.isin(persistence_array[:, i], pivots[:, i])]
+    return persistence_array
 
 
 def orbit_persistence_array(base_orbit, window_orbit, strides, scanning_shapes, persistence_function, **kwargs):

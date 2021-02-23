@@ -88,7 +88,8 @@ def clip(orbit_, window_dimensions, **kwargs):
 
     Notes
     -----
-
+    This function allows for slicing based on providing the dimensions of the window; slicing of the Orbit state array
+    is done directly via the __getitem__ method; this updates the dimensions as well.
 
     For Kuramoto-Sivashinsky, the window_dimensions would be of the form ((T_min, T_max), (X_min, X_max)).
     Originally contemplated allowing window_dimensions to be iterable of windows but if this is desired then
@@ -134,7 +135,7 @@ def clipping_mask(orbit_, windows, mask_region='exterior'):
     """
     # Create boolean mask to manipulate for numpy masked arrays.
     mask = np.zeros(orbit_.shapes()[0]).astype(bool)
-    if isinstance(windows, list):
+    if type(windows) in [list, tuple]:
         for window in windows:
             # Do not need dimensions, as we are not clipping technically.
             window_slices, _ = _slices_from_window(orbit_, window)

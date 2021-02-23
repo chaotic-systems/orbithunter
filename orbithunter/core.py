@@ -373,9 +373,32 @@ class Orbit:
             error_message = ' '.join([self.__class__.__name__, 'has no attribute\'{}\''.format(attr)])
             raise AttributeError(error_message)
 
+    def __getitem__(self, slices):
+        try:
+            state_slice = self.state[slices]
+            if self.parameters is not None:
+                # parameters are passed as tuple, not dict but this is the easiest manner with which to update;
+                # need to make sure they are in the right order after the updating.
+                new_dimensions = [dim * (newshape/oldshape) for dim, newshape, oldshape
+                                  in zip(self.dimensions(), state_slice.shape, self.shape)]
+                param_dict = dict(zip(list(self.parameter_labels()), self.parameters))
+                dim_dict = dict(zip(list(self.dimension_labels()), new_dimensions))
+                param_dict = {**param_dict, **dim_dict}
+                parameters = tuple(param_dict[key] for key in self.parameter_labels())
+                return self.__class__(**{**vars(self), 'state': state_slice, 'parameters': parameters})
+            else:
+                return self.__class__(**{**vars(self), 'state': state_slice})
+        except IndexError as ie:
+            raise ValueError('cannot slice an Orbit instance whose state is empty.') from ie
+
     @staticmethod
     def bases():
         """ Labels of the different bases that 'state' attribute can be in.
+
+        Returns
+        -------
+        tuple :
+            tuple of strings which label the possible bases that the state can be in.
 
         Notes
         -----
@@ -383,10 +406,14 @@ class Orbit:
         """
         return ('physical',)
 
-
     @staticmethod
     def parameter_labels():
         """ Strings to use to label dimensions. Generic 3+1 spacetime labels default.
+
+        Returns
+        -------
+        tuple :
+            tuple of strings which label the parameters.
 
         Notes
         -----
@@ -398,12 +425,21 @@ class Orbit:
     @staticmethod
     def dimension_labels():
         """ Strings to use to label dimensions/periods; typically a subset of parameter_labels.
+        Returns
+        -------
+        tuple :
+            tuple of strings which label the dimensions of the current equation
+
         """
         return 't', 'x', 'y', 'z'
 
     @staticmethod
     def discretization_labels():
         """ Strings to use to label discretization variables. Generic 3+1 spacetime labels default.
+        Returns
+        -------
+        tuple :
+            tuple of strings which label the discretization variables of the current state.
         """
         return 'n', 'i', 'j', 'k'
 
@@ -421,6 +457,10 @@ class Orbit:
     @staticmethod
     def default_shape():
         """ The default array shape when dimensions are not specified.
+        Returns
+        -------
+        tuple :
+            tuple of int for the shape of the discretization when otherwise not determined.
         """
         return 2, 2, 2, 2
 
@@ -437,7 +477,7 @@ class Orbit:
         Notes
         -----
         Often symmetry constraints reduce the dimensionality; if too small this reduction may leave the state empty,
-        this is used for aspect ratio correction and possibly other gluing applications.
+        this method is called in aspect ratio correction and possibly other gluing applications.
         """
         return 1, 1, 1, 1
 
@@ -476,7 +516,7 @@ class Orbit:
         Returns
         -------
         dict :
-            Keys are parameter labels, values are bools.
+            Keys are parameter labels, values are bools indicating whether or not a parameter is constrained.
         """
         return {k: False for k in self.parameter_labels()}
 
@@ -501,9 +541,19 @@ class Orbit:
         return self.state.size
 
     def abs(self):
-        """ Orbit instance with state magnitude only.
+        """ Orbit instance with absolute value of state.
         """
         return self.__class__(**{**vars(self), 'state': np.abs(self.state)})
+
+    def dot(self, other):
+        """ Return the L_2 inner product of two orbits
+
+        Returns
+        -------
+        float :
+            The value of self * other via L_2 inner product.
+        """
+        return float(np.dot(self.state.ravel(), other.state.ravel()))
 
     @classmethod
     def dimension_based_discretization(cls, dimensions, **kwargs):
@@ -512,7 +562,7 @@ class Orbit:
         Parameters
         ----------
         dimensions : tuple
-            Values from which the discretization may be inferred.
+            Values from which the discretization may be inferred/calculated.
 
         kwargs :
             Various flags for defining discretization; can be highly dependent on equation and so
@@ -527,7 +577,7 @@ class Orbit:
 
     @classmethod
     def glue_dimensions(cls, dimension_tuples, glue_shape, exclude_zero_dimensions=True):
-        """ Class method for handling parameters in gluing; default simply averages dimensions of each orbit in gluing.
+        """ Strategy for combining tile dimensions in gluing; default is arithmetic averaging.
 
         Parameters
         ----------
@@ -549,7 +599,8 @@ class Orbit:
         This returns an average of parameter tuples, used exclusively in the gluing method; wherein the new tile
         dimensions needs to be decided upon/inferred from the original tiles. As this average is only a very
         crude approximation, it can be worthwhile to also simply search the parameter space for a combination
-        of dimensions which reduces the residual. The strategy produced by this method is simply a baseline.
+        of dimensions which reduces the residual. The strategy produced by this method is simply a baseline; there
+        may be way better ways but it is likely highly dependent on equation.
         """
         if exclude_zero_dimensions:
             # Take the average of non-zero parameter values
@@ -560,7 +611,7 @@ class Orbit:
                                                                         in dimension_tuples))
 
     def dimensions(self):
-        """ Dimensions of the spatiotemporal configuration space.
+        """ Dimensions of the spatiotemporal tile (configuration space).
 
         Returns
         -------
@@ -570,7 +621,7 @@ class Orbit:
         Notes
         -----
         Because this is usually a subset of self.parameters, it does not use the property decorator. This method
-        is purposed for readability and so there is no possible error for certain methods.
+        is purposed for readability and other reasons where only dimensions are required. .
         """
         return tuple(getattr(self, d_label) for d_label in self.dimension_labels())
 
@@ -632,13 +683,12 @@ class Orbit:
 
         Notes
         -----
-        # These cases covered by unpacking tuples of length 1.
+        Description of how different number/types of *args are handled:
         If passed as single int x, then new_discretization=(x,): len==1 but type(*new_shape)==int
         If passed as tuple with length one (a,), then new_discretization=((a,),)
         If passed as tuple with length n, then new_discretization=((x,y,...,z),)
         If len >= 2 then could be multiple ints (x,y) or multiple tuples ((a,b), (c,d))
         In other words, they are all tuples, but type checking and unpacking has to be done carefully due to contents.
-
         All tuples of the form ((x,y,...,z),) are assumed to be redundant representations of (x,y,...,z)
         """
         # Padding basis assumed to be in the spatiotemporal basis.
@@ -665,12 +715,12 @@ class Orbit:
         return placeholder_orbit.transform(to=self.basis)
 
     def transform(self, to=None):
-        """ Method that handles all basis transformations. Undefined for Orbit class.
+        """ Method that handles all basis transformations. Undefined/trivial for Orbits with only one basis.
 
         Parameters
         ----------
         to : str
-            The basis to transform into. If already in said basis, returns self
+            The basis to transform into. If already in said basis, returns self (not a copy!)
 
         Returns
         -------
@@ -681,7 +731,7 @@ class Orbit:
         return self
 
     def eqn(self, *args, **kwargs):
-        """ The governing equations evaluated using the current state.
+        """ Return an instance whose state is an evaluation of the governing equations.
 
         Returns
         -------
@@ -711,14 +761,12 @@ class Orbit:
         -------
         float :
             The value of the cost function, equal to 1/2 the squared L_2 norm of the spatiotemporal mapping,
-            R = 1/2 ||F||^2. The current form generalizes to any equation.
+            R = 1/2 ||F||^2 by default. The current form generalizes to any equation.
 
         Notes
         -----
-        In certain optimization methods, it is more efficient to have the equations stored, and then take their norm
-        as opposed to re-evaluating the equations. The reason why .norm() isn't called instead is to allow for different
-        residual functions other than, for instance, the L_2 norm of the DAEs; although in this case there is no
-        difference.
+        In certain optimization methods, storing evaluations of the governing equation in instances can cut down on the
+        number of function calls.
         """
         if eqn:
             v = self.transform(to=self.bases()[-1]).eqn().state.ravel()
@@ -746,7 +794,7 @@ class Orbit:
         [self.size, self.size + len(self.parameters)]. Because there are no associated components for the parameters
         (i.e. the last elements of the orbit vector), it is often convenient to simply pass the current state's
         parameters to the new instance; this philosophy mimics the eqn() method. Because the general Orbit template
-        doesn't have an associated equation, return an array of zeros.
+        doesn't have an associated equation, return an array of zeros for its state.
         """
         # Instance with all attributes except state and parameters
         return self.__class__(**{**vars(self), 'state': np.zeros(self.shapes()[-1])})
@@ -762,8 +810,15 @@ class Orbit:
         Returns
         -------
         orbit_rmatvec :
-            Orbit with values representative of the adjoint-vector product; this returns a vector of the
-            same dimension as self.orbit_vector; i.e. parameter values are returned.
+
+            Orbit with values representative of the adjoint-vector product.
+
+        Notes
+        -----
+        This method represents the matrix-vector product of the adjoint Jacobian matrix with an orbit state of dimension
+        self.size. Typically for these systems, the adjoint Jacobian has dimensions
+        [self.size + len(self.parameters), self.size]; this returns a vector of the same dimension as self.orbit_vector;
+        i.e. this *does* produce components corresponding to the parameters.
         """
         return self.__class__(**{**vars(self), 'state': np.zeros(self.shape),
                                  'parameters': tuple([0] * len(self.parameter_labels()))})
@@ -780,7 +835,8 @@ class Orbit:
         Notes
         -----
         Parameters only need to be bundled into a tuple. There is no requirement that elements must be scalars.
-        Any type which can be cast as a numpy array and has numeric values is allowed.
+        Any type which can be cast as a numpy array and has numeric values is allowed, technically, but scalars are
+        recommended. If non-scalar parameters are used, user will need to overwrite the Orbit.from_numpy_array() method.
         """
         # By raveling and concatenating ensure that the array is 1-d for the second concatenation; i.e. flatten first.
         parameter_array = np.concatenate(tuple(np.array(p).ravel() for p in self.parameters))
@@ -796,21 +852,24 @@ class Orbit:
 
         kwargs :
             parameters : tuple
-                If parameters from another Orbit instance are to overwrite the values within the orbit_vector
+                If parameters from another Orbit instance are provided, overwrite the values within the orbit_vector
             parameter_constraints : dict
                 constraint dictionary, keys are parameter_labels, values are bools
-            Orbit or subclass kwargs : dict
+            subclass kwargs : dict
                 If special kwargs are required/desired for Orbit instantiation.
         Returns
         -------
-        state_orbit : Orbit instance
+        Orbit instance :
             Orbit instance whose state and parameters are extracted from the input orbit_vector.
 
         Notes
         -----
         This function is mainly to retrieve output from (scipy) optimization methods and convert it back into Orbit
         instances. Because constrained parameters are not included in the optimization process, this is not
-        as simple as merely slicing the parameters from the array.
+        as simple as merely slicing the parameters from the array, as the order of the elements is determined by
+        the constraints.
+
+        If non-scalar parameters are used, user will need to overwrite the Orbit.from_numpy_array() method.
         """
         # orbit_vector is defined to be concatenation of state and parameters;
         # slice out the parameters; cast as list to gain access to pop
@@ -832,18 +891,16 @@ class Orbit:
         other : Orbit
             Represents the values to increment by.
         step_size : float
-            Multiplicative other which decides the step length of the correction.
+            Multiplicative factor for step size.
 
         Returns
         -------
         Orbit :
-            New instance incremented by other instance's values. Typically self is the current iterate and
-            other is the optimization correction.
+            New instance incremented by other instance's values.
 
         Notes
         -----
-        This is used primarily in optimization methods, e.g. adding a gradient descent step using class instances
-        instead of simply arrays.
+        Typically when this method is called, self is the current iterate and other is an optimization correction.
         """
         incremented_params = tuple(self_param + step_size * other_param # assumed to be constrained if 0.
                                    for self_param, other_param in zip(self.parameters, other.parameters))
@@ -856,15 +913,15 @@ class Orbit:
         Parameters
         ----------
         size : int
-            The new size of the discretization, restrictions typically imposed by equations.
+            The new size of the discretization (not the current shape), restrictions typically imposed by equations.
         axis : int
             Axis to pad along per numpy conventions.
 
         Returns
         -------
         Orbit :
-            Orbit instance whose state in the physical (self.bases()[0]) basis has a number of discretization
-            points equal to 'size'
+            Orbit instance whose state in the physical along numpy axis 'axis' basis has a number of discretization
+            points equal to 'size', (self.bases()[0][axis] == size after method call).
 
         Notes
         -----
@@ -899,14 +956,13 @@ class Orbit:
         Parameters
         -----------
         size : int
-            The new size of the discretization, must be an even integer
-            smaller than the current size of the discretization.
+            The new size of the discretization.
         axis : int
-            Axis to truncate along per numpy conventions.
+            Axis along which truncation occurs.
 
         Returns
         -------
-        Orbit
+        Orbit :
             Orbit instance with smaller discretization.
 
         Notes
@@ -978,24 +1034,30 @@ class Orbit:
         filename : str, default None
             filename to write/append to.
         dataname : str, default 'state'
-            Name of the h5_group wherein to store the Orbit in the h5_file at location filename. Should be
+            Name of the h5py.Dataset wherein to store the Orbit in the h5_file at location filename. Should be
             HDF5 group name, i.e. '/A/B/C/...'
         h5mode : str
             Mode with which to open the file. Default is a, read/write if exists, create otherwise,
             other modes ['r+', 'a', 'w-', 'w']. See h5py.File for details. 'r' not allowed, because this is a function
-            to write to the file. Defaults to r+ to prevent overwrites.
+            to write to the file.
         verbose : bool
             Whether or not to print save location and group
         include_residual : bool
             Whether or not to include residual as metadata; requires equation to be well-defined for current instance.
-
+        kwargs : dict
+            extra keyword arguments, in signature to allow for generalization
+            groupname : str
+                The name for a h5py.Group to save under. This is included to make hierarchical saving easier.
         Notes
         -----
+        The mode 'a' would typically overwrite datasets but this is handled here by adding suffixes. This allows
+        for storing multiple versions of data within the same file without overwriting the old data/creating a new
+        file.
+
         The function could be much cleaner if the onus of responsibility for naming files, groups, datasets was
         put entirely upon the user. To avoid having write gratuitous amounts of code to name orbits, there
         are default options for the filename, groupname and dataname. groupname always acts as a prefix to dataname,
-        it defaults to being an empty string. groupname is useful when there is a category of orbits (i.e. a family)
-        that have different parameter values.
+        it defaults to being an empty string. groupname is useful when there is a category of orbits (i.e. a family).
         """
 
         with h5py.File(filename or self.filename(extension='.h5'), mode=h5mode) as file:
@@ -1019,13 +1081,9 @@ class Orbit:
 
             if verbose:
                 print('Writing dataset "{}" to file {}'.format(group_and_dataset, filename))
-            # orbitset = file.require_dataset(group_and_dataset, data=self.state, dtype='float64', shape=self.shape)
-            # If group already exists, which it typically does, create_group would fail; use require_group instead
-            # create_dataset will always overwrite the h5py.Dataset
             orbitset = file.create_dataset(group_and_dataset, data=self.state)
-            # Get the attributes that aren't being saved as a dataset. Combine with class name.
-            # This is kept as general to allow for others' classes to have arbitrary attributes beyond
-            # the defaults: parameters, discretization, shape, basis,
+            # Get the attributes that aren't being saved as a dataset. Include class name so class can be parsed
+            # upon import.
             orbitattributes = {**{k: v for k, v in vars(self).items() if k != 'state'},
                                'class': self.__class__.__name__}
             for key, val in orbitattributes.items():
@@ -1044,7 +1102,7 @@ class Orbit:
                     print('Unable to compute residual for {}'.format(repr(self)))
 
     def filename(self, extension='.h5', decimals=3, cls_name=True):
-        """ Method for consistent/conventional filenaming
+        """ Method for convenience and consistent/conventional file naming.
 
         Parameters
         ----------
@@ -1061,7 +1119,7 @@ class Orbit:
 
         Notes
         -----
-        Many dimensions will yield long filenames.
+        More dimensions means longer filenames.
 
         Examples
         --------
@@ -1081,7 +1139,13 @@ class Orbit:
             return ''.join([self.__class__.__name__, dimensional_string, extension]).lstrip('_')
 
     def preprocess(self):
-        """ Check the status of a solution, whether or not it converged to the correct orbit type. """
+        """ Check the "status" of a solution
+        Notes
+        -----
+        This method is used to check to see, for example, if an orbit has converged to an equilibrium but is still
+        being stored in a different Orbit class. It is beneficial to check and see whether orbit states can be
+        "simplified".
+        """
         return self
 
     def generate(self, attr='all', **kwargs):
@@ -1096,11 +1160,13 @@ class Orbit:
         -----
         Produces a random state and or parameters depending on 'attr' value.
         """
-        # It is possible to only generate a subset of the parameters, hence conditional statements are in the method
+        # Parameter generation only overwrites default-valued parameters. If random parameters are desired
+        # then simply do not provide 'parameters' upon initialization.
         if attr in ['all', 'parameters']:
             self._generate_parameters(**kwargs)
 
-        # While there likely isn't a partial initialization of a state
+        # State generation is typically an all-or-nothing process; therefore to prevent accidental overwrites an
+        # extra condition is required to be satisfied.
         if attr in ['all', 'state']:
             if self.size == 0. or kwargs.get('overwrite', False):
                 self._generate_state(**kwargs)
@@ -1139,11 +1205,9 @@ class Orbit:
         is to avoid the requirement for an "unconstrain" method. If more constraints are to be maintained then
         just include them in labels.
 
-        By the way that this any other methods are defined, parameters not in the default constraints dict will
-        always be assumed to be constrained. This is important for optimization methods. However, having all parameters
-        can also be necessary for both calculations and conversion processes. In other words, this is a strict
-        enforcement of parameter constraints, hard coded into the default_constraints method. Of course, you can
-        have a subclass without a stricter constraints dict.
+        Parameters not in the default constraints dict will always be assumed to be constrained.
+        This is important for optimization methods, in the instance where you have constant parameters required
+        to evaluation the governing equations.
         """
         if isinstance(labels, str):
             labels = (labels,)
@@ -1162,7 +1226,7 @@ class Orbit:
         state : ndarray
             Numpy array containing state information, can have any number of dimensions.
         basis : str
-            The basis that the array 'state' is assumed to be in.
+            The basis that the array 'state' is in.
         """
         if isinstance(state, np.ndarray):
             self.state = state
@@ -1183,7 +1247,7 @@ class Orbit:
             self.basis = None
 
     def _parse_parameters(self, parameters, **kwargs):
-        """ Parse and initialize the set of parameters
+        """ Parse and set the parameters attribute.
 
         Notes
         -----
@@ -1197,11 +1261,10 @@ class Orbit:
         fewer parameters by iterated over current labels, then assigning value from passed 'constraints'
         dict. When an expected constraint is not included, the associated parameter is assumed to be constrained.
 
-        # The subclass essentially defines what is and is not a constant; conversion between classes (and passing
-        # constraints in the process) can mistakenly unconstrain these constants. Therefore, if the key is not
-        # in the default constraints dict then it is assumed to be constant, even when being told otherwise.
-        # This is not an issue because this is one of the fundamental requirements built into the subclasses
-        # by the user themselves.
+        The subclass essentially defines what is and is not a constant; conversion between classes (and passing
+        constraints in the process) can mistakenly unconstrain these constants. Therefore, if the key is not
+        in the default constraints dict then it is assumed to be constant.
+        This is not an issue because this is one of the fundamental requirements for subclassing.
         """
         # Get the constraints, making sure to not mistakenly unconstrain constants.
         self.constraints = {k: kwargs.get('constraints', self.default_constraints()).get(k, True)
@@ -1218,7 +1281,7 @@ class Orbit:
             else:
                 # if more labels than parameters, simply fill with the default missing value, 0.
                 self.parameters = tuple(val for label, val in itertools.zip_longest(self.parameter_labels(), parameters,
-                                                                          fillvalue=0))
+                                                                                    fillvalue=0))
         else:
             # A number of methods require parameters to be an iterable, hence the tuple requirement.
             raise TypeError('"parameters" is required to be a tuple or NoneType. '
@@ -1238,7 +1301,6 @@ class Orbit:
         # range of good parameters; however, it is often the case that using a user-defined range is desired.
         def sample_from_generator(val, val_generator, overwrite=False):
             if val == 0 or overwrite or val is None:
-                # for numerical parameter generators we're going to use uniform distribution to generate values
                 # If the generator is "interval like" then use uniform distribution.
                 if isinstance(val_generator, tuple) and len(val_generator) == 2:
                     pmin, pmax = val_generator
@@ -1267,10 +1329,12 @@ class Orbit:
                                                      overwrite=kwargs.get('overwrite', False))
                                for label, val in zip(self.parameter_labels(), parameter_iterable))
         else:
-            # If more labels than parameters, fill the missing parameters with default
+            # If more labels than parameters, fill the missing parameters with default values.
             parameters = tuple(sample_from_generator(val, p_ranges.get(label, (0, 0)),
                                                      overwrite=kwargs.get('overwrite', False))
-                               for label, val in itertools.zip_longest(self.parameter_labels(), parameter_iterable, fillvalue=0))
+                               for label, val in itertools.zip_longest(self.parameter_labels(), parameter_iterable,
+                                                                       fillvalue=0))
+        # Once all parameter values have been parsed, set the attribute.
         setattr(self, 'parameters', parameters)
 
     def _generate_state(self, **kwargs):
@@ -1278,7 +1342,7 @@ class Orbit:
 
         Parameters
         ----------
-        kwargs
+        kwargs :
 
         Notes
         -----
@@ -1295,12 +1359,12 @@ class Orbit:
         numpy_seed = kwargs.get('seed', None)
         if isinstance(numpy_seed, int):
             np.random.seed(numpy_seed)
-        if self.size == 0. or kwargs.get('overwrite', False):
-            # Presumed to be in physical basis unless specified otherwise.
-            self.discretization = self.dimension_based_discretization(self.parameters, **kwargs)
-            self.state = np.random.randn(*self.discretization)
-            self.basis = kwargs.get('basis', None) or self.bases()[0]
-
+        # Presumed to be in physical basis unless specified otherwise; get the size of the state based on dimensions
+        self.discretization = self.dimension_based_discretization(self.parameters, **kwargs)
+        # Assign values from a random normal distribution to the state by default.
+        self.state = np.random.randn(*self.discretization)
+        # If no basis provided, state generation presumed to be in the physical basis.
+        self.basis = kwargs.get('basis', None) or self.bases()[0]
 
 
 def convert_class(orbit_, class_generator, **kwargs):
@@ -1318,9 +1382,10 @@ def convert_class(orbit_, class_generator, **kwargs):
     To avoid conflicts with projections onto symmetry invariant subspaces, the orbit is always transformed into the
     physical basis prior to conversion; the instance is returned in the basis of the input, however.
 
-    # Include any and all attributes that might be relevant to the new orbit and those which transfer over from
-    # old orbit via usage of vars(orbit_) and kwargs. If for some reason an attribute should not be passed,
-    then providing attr=None in the function call is how to handle it.
+    Include any and all attributes that might be relevant to the new orbit and those which transfer over from
+    old orbit via usage of vars(orbit_) and kwargs. If for some reason an attribute should not be passed,
+    then providing attr=None in the function call is how to handle it, as the values in kwargs overwrite
+    the values in vars(orbit_) via dictionary unpacking.
     """
     # Note any keyword arguments will overwrite the values in vars(orbit_) or state or basis
     return class_generator(**{**vars(orbit_), 'state': orbit_.transform(to=orbit_.bases()[0]).state,

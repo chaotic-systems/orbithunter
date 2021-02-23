@@ -7,28 +7,6 @@ import warnings
 __all__ = ['continuation', 'discretization_continuation', 'span_family']
 
 
-def family_member_to_h5(original, family_member, constraint_label, step_size, **kwargs):
-    """ Helper function to reduce boilerplate code for saving uniquely named family members.
-
-    Parameters
-    ----------
-    orbit
-
-    Returns
-    -------
-
-    """
-    # When generating an orbits' continuous family, it is useful to save the intermediate states
-    # so that they may be referenced in future calculations
-    valstr = str(np.round(getattr(family_member, constraint_label),
-                          int(abs(np.log10(abs(step_size))))+1)).replace('.', 'p')
-    dataname = ''.join([constraint_label, valstr])
-    filename = kwargs.get('filename', None) or ''.join(['continuation_', original.filename()])
-    groupname = kwargs.get('groupname', '')
-    # pass keywords like this to avoid passing multiple values to same keyword.
-    family_member.to_h5(**{**kwargs, 'filename': filename, 'dataname': dataname, 'groupname': groupname})
-
-
 def _equals_target(orbit_, target_extent, parameter_label):
     # For the sake of floating point error, round to 13 decimals.
     return np.round(getattr(orbit_, parameter_label), 13) == np.round(target_extent, 13)

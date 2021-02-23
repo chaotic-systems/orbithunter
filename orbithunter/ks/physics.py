@@ -11,12 +11,14 @@ def _averaging_wrapper(instance_with_state_to_average, average='spacetime'):
 
     Parameters
     ----------
-    instance_with_state_to_average
-    average
+    instance_with_state_to_average : Orbit
+    average : str
+        Which dimensions/values to average with respect to.
 
     Returns
     -------
-
+    ndarray or float :
+        The averages either along certain dimensions or all dimensions.
     """
 
     if average == 'space':
@@ -36,14 +38,16 @@ def _averaging_wrapper(instance_with_state_to_average, average='spacetime'):
 
 
 def dissipation(orbit_instance, average='spacetime'):
-    """ Amount of energy dissipation
+    """ Average energy dissipation or corresponding field.
+
+    Returns
+    -------
+    float or ndarray :
+        Spatiotemporal dissipation returned as a field, or averaged along an axis (ndarray) or spacetime (float).
+
     Notes
     -----
-    Returns the field, not a scalar (or array thereof), so space or spacetime averages are an additional
-    step. This is to be  as flexible as possible; this is really only a function that exists for readability
-    but also allows for visualization.
-
-    Field computed is u_xx**2.
+    Dissipation = u_xx^2.
     """
 
     return _averaging_wrapper(orbit_instance.dx(order=2).transform(to='field')**2,
@@ -51,12 +55,16 @@ def dissipation(orbit_instance, average='spacetime'):
 
 
 def energy(orbit_instance, average='spacetime'):
-    """ Amount of energy dissipation
+    """ Average energy or corresponding field
+
+    Returns
+    -------
+    float or ndarray :
+        Spatiotemporal power returned as a field, or averaged along an axis (ndarray) or spacetime (float).
+
     Notes
     -----
-    Returns the field, not a scalar (or array thereof), so space or spacetime averages are an additional
-    step. This is to be  as flexible as possible; this is really only a function that exists for readability
-    but also allows for visualization.
+    Energy = 1/2 u^2
     """
     return _averaging_wrapper(0.5 * orbit_instance.transform(to='field')**2,
                               average=average)
@@ -67,19 +75,28 @@ def energy_variation(orbit_instance, average='spacetime'):
 
     Returns
     -------
-    Field equivalent to u_t * u. Spatial average, <u_t * u> should equal <power> - <dissipation> = <u_x**2> - <u_xx**2>
+    float or ndarray :
+        Spatiotemporal energy variation returned as a field, or averaged along an axis (ndarray) or spacetime (float).
+    Returns
+    -------
+    Field equivalent to u_t * u.
     """
     return _averaging_wrapper(orbit_instance.transform(to='field') * orbit_instance.dt().transform(to='field'),
                               average=average)
 
 
 def power(orbit_instance, average='spacetime'):
-    """ Amount of energy production
+    """ Average power or corresponding field
+
+    Returns
+    -------
+    float or ndarray :
+        Spatiotemporal power returned as a field, or averaged along an axis (ndarray) or spacetime (float).
+
     Notes
     -----
-    Returns the field, not a scalar (or array thereof), so space or spacetime averages are an additional
-    step. This is to be  as flexible as possible; this is really only a function that exists for readability
-    but also allows for visualization.
+    power = u_x^2
+
     """
     return _averaging_wrapper(orbit_instance.dx().transform(to='field')**2,
                               average=average)
@@ -91,12 +108,25 @@ def integrate(orbit_, **kwargs):
 
     Parameters
     ----------
-    orbit_
-    kwargs
+    orbit_ : Orbit
+        The Orbit which contains the initial starting point for the integration
+    kwargs : dict
+        verbose : bool
+
+        starting_point :
+            The row to select as the initial value.
+        integration_time : float
+            The total amount of time to integrate, if not provided then defaults to orbit's period (for reproduction
+            of orbit, typically).
+        step_size : float
+            The integration step
+        return_trajectory : bool
+            Whether to store and return all integration steps or only the endpoint.
 
     Returns
     -------
-
+    Orbit :
+        Orbit instance with either an integrated trajectory or its final value as a state.
     Notes
     -----
     Adapter
@@ -115,10 +145,10 @@ def integrate(orbit_, **kwargs):
     start_point = kwargs.get('starting_point', -1)
     # Take the last row (t=0) or first row (t=T) so this works for relative periodic solutions as well.
     orbit_t = orbit_.__class__(state=orbit_.state[start_point, :].reshape(1, -1), basis=orbit_.basis,
-                                        parameters=orbit_.parameters).transform(to='spatial_modes')
+                               parameters=orbit_.parameters).transform(to='spatial_modes')
     # stepsize
     step_size = kwargs.get('step_size', 0.01)
-    m,x = orbit_t.m, orbit_t.x
+    m, x = orbit_t.m, orbit_t.x
     q = ((2*pi*m/x) * rfftfreq(m)[1:-1].reshape(1, -1))
     q = np.concatenate((q, q))
     # Because N = 1, this is just the spatial matrices, negative sign b.c. other side of equation.
@@ -144,12 +174,12 @@ def integrate(orbit_, **kwargs):
     E = E.reshape(1, -1)
     E2 = E2.reshape(1, -1)
     if orbit_t.__class__.__name__ == 'AntisymmetricOrbitKS':
-            Q[:-orbit_t.m, :] = 0
-            f1[:-orbit_t.m, :] = 0
-            f2[:-orbit_t.m, :] = 0
-            f3[:-orbit_t.m, :] = 0
-            E[:-orbit_t.m, :] = 0
-            E2[:-orbit_t.m, :] = 0
+        Q[:-orbit_t.m, :] = 0
+        f1[:-orbit_t.m, :] = 0
+        f2[:-orbit_t.m, :] = 0
+        f3[:-orbit_t.m, :] = 0
+        E[:-orbit_t.m, :] = 0
+        E2[:-orbit_t.m, :] = 0
 
     u = orbit_t.transform(to='field').state
     v = orbit_t.transform(to='spatial_modes')
@@ -180,8 +210,10 @@ def integrate(orbit_, **kwargs):
         print(']', end='')
     # By default do not assign spatial shift S.
     if kwargs.get('return_trajectory', True):
-        int_orbit = orbit_.__class__(state=u.reshape(nmax, -1), basis='field', parameters=(integration_time, orbit_.x, 0))
+        int_orbit = orbit_.__class__(state=u.reshape(nmax, -1), basis='field',
+                                     parameters=(integration_time, orbit_.x, 0))
     else:
-        int_orbit = orbit_.__class__(state=u.reshape(1, -1), basis='field', parameters=(integration_time, orbit_.x, 0))
+        int_orbit = orbit_.__class__(state=u.reshape(1, -1), basis='field',
+                                     parameters=(integration_time, orbit_.x, 0))
     warnings.resetwarnings()
     return int_orbit
