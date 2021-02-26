@@ -10,6 +10,7 @@ def amplitude_difference(base_slice, window, *args, **kwargs):
 def l2_difference(base_slice, window, *args, **kwargs):
     return np.linalg.norm(base_slice - window)
 
+
 def masked_l2_difference(base_slice, window, *args, **kwargs):
     base_mask = base_slice.copy().astype(bool)
     norm = np.linalg.norm(base_slice[base_mask] - window[base_mask])
@@ -371,16 +372,29 @@ def cover(base_orbit, thresholds, window_orbits, replacement=False, dtype=bool, 
     return covering_masks
 
 
-def inside_to_outside_iterator(padded_shape, base_shape, hull):
+def inside_to_outside_iterator(padded_shape, base_shape, hull, verbose=False):
+    if verbose:
+        print('Scanning interior pivots')
+    i = 0
     for pivot_position in np.ndindex(base_shape):
+        i += 1
+        if i % (np.prod(padded_shape)//100) == 0. and i != 0. and verbose:
+            print('#', end='')
         yield tuple(p+h for p, h in zip(pivot_position, hull))
-    for pivot_position in np.ndindex(padded_shape):
+    if verbose:
+        print('Scanning exterior pivots')
+    # Pivot positions completely consisting of padding are redundant
+    for pivot_position in np.ndindex(tuple(p - h for p, h in zip(padded_shape, hull))):
+        i += 1
+        if i % (np.prod(padded_shape)//100) == 0. and i != 0. and verbose:
+            print('#', end='')
         # a hack for "slicing" the generator.
-        exterior_checker = ((p > shp-hl) or (p < hl) for p, shp, hl in zip(pivot_position, base_shape, hull))
+        exterior_checker = tuple(p < hl for p, shp, hl in zip(pivot_position, base_shape, hull))
         if True in exterior_checker:
             yield pivot_position
         else:
             continue
+
 
 def fill(base_orbit, thresholds, window_orbits, **kwargs):
     """ Function to perform multiple shadowing computations given a collection of orbits.
@@ -448,8 +462,8 @@ def fill(base_orbit, thresholds, window_orbits, **kwargs):
     # for n_iter in range(kwargs.get('n_iter', 1)):
     # This is annoying but to fill in the most possible area, it is best to work from inside to outside,
     # i.e. pivots with
-
-    for pivot in inside_to_outside_iterator(padded_base_orbit.shape, base_orbit.shape, hull):
+    for pivot in inside_to_outside_iterator(padded_base_orbit.shape, base_orbit.shape, hull,
+                                            verbose=kwargs.get('verbose', False)):
         # for pivot in np.ndindex(padded_base_orbit.shape):
         # See if the site is filled in the base_orbit array.
         filled = padded_base_orbit_mask[tuple(p*s for p, s in zip(pivot, strides))]
@@ -489,7 +503,7 @@ def fill(base_orbit, thresholds, window_orbits, **kwargs):
                 # window slice are within the boundaries of the base orbit.
                 # if False in base_orbit_periodicity:
                 coord_mask = np.ones(window_orbits[detected_orbit_index].shape, dtype=bool)
-                periodic_coord_mask = np.ones(coord_mask.shape, dtype=bool)
+                wrap_coord_mask = np.ones(coord_mask.shape, dtype=bool)
                 base_coordinates = []
                 wrapped_periodic_coordinates = []
                 periodic_coordinates = []
@@ -499,14 +513,22 @@ def fill(base_orbit, thresholds, window_orbits, **kwargs):
                     # track of the filling of the padded orbit.
                     coord = coordinates.copy()
                     if periodic:
-                        wrap = coordinates + base_extent
+                        if coordinates.min() < h:
+                            wrap = coordinates + base_extent
+                        elif coordinates.max() > base_extent + h:
+                            wrap = coordinates - base_extent
+                        else:
+                            # if the window is completely on the interior then wrap is redundant, but still need all
+                            # coordinates for later slicing.
+                            wrap = coordinates
                         wrapped_periodic_coordinates.append(wrap)
                         periodic_coordinates.append(coordinates)
-                        periodic_coord_mask = np.logical_and(periodic_coord_mask, (wrap < (base_extent+2*h)))
+                        wrap_coord_mask = np.logical_and(wrap_coord_mask, (wrap < (base_extent+2*h)))
+                        wrap_coord_mask = np.logical_and(wrap_coord_mask, (wrap > 0))
 
                         # If periodic then all coordinates in this dimension are valid.
                         coord[coord >= (base_extent+h)] = coord[coord >= (base_extent+h)] - base_extent
-                        coord[coord < h] = base_extent + coord[coord < h]
+                        coord[coord < h] = coord[coord < h] + base_extent
                     else:
                         if True in base_orbit_periodicity:
                             # only need to add to the
@@ -533,7 +555,7 @@ def fill(base_orbit, thresholds, window_orbits, **kwargs):
                 # Subtract the orbit state from the padded base orbit used to compute the score.
                 padded_base_orbit.state[pivot_grid] = 0
                 if True in base_orbit_periodicity:
-                    wrapped_pivot_grid = tuple(coordinates[periodic_coord_mask] for coordinates
+                    wrapped_pivot_grid = tuple(coordinates[wrap_coord_mask] for coordinates
                                                in wrapped_periodic_coordinates)
                     padded_pivot_grid = tuple(c for c in periodic_coordinates)
                     # The mask is only affected by the original, internal points, but the padded field needs
