@@ -451,7 +451,7 @@ def fill(base_orbit, thresholds, window_orbits, **kwargs):
     # Number of discrete points will be the discretized spacetime.
     base_size = np.prod(base_orbit.discretization)
     # Allow for storage of floats, might want to plug in physical observable value.
-    padded_base_orbit_mask = np.zeros(padded_base_orbit.shape, dtype=float)
+    padded_base_orbit_mask = kwargs.get('initial_mask', None) or np.zeros(padded_base_orbit.shape, dtype=float)
     weights = dict(zip(window_keys, len(window_keys)*[0]))
     # for n_iter in range(kwargs.get('n_iter', 1)):
     # This is annoying but to fill in the most possible area, it is best to work from inside to outside,
