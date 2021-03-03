@@ -583,8 +583,8 @@ class OrbitKS(Orbit):
             xticks = np.array([0, plot_orbit.x])
             xlabels = np.array(['0', str(scaled_L)])
 
-        default_figsize = (min([max([0.25, 0.15*plot_orbit.x**0.7]), 20]),
-                           min([max([0.25, 0.15*plot_orbit.t**0.7]), 20]))
+        default_figsize = (min([max([0.25, 0.15*plot_orbit.x**0.7]), 16]),
+                           min([max([0.25, 0.15*plot_orbit.t**0.7]), 16]))
 
         # # this allows for local non-zero galilean velocity to be more easily displayed
         maxval = np.round(np.abs(np.array([plot_orbit.state.ravel().min(),
@@ -1115,8 +1115,6 @@ class OrbitKS(Orbit):
         if N is None:
             if t == 0:
                 N = cls.default_shape()[0]
-            elif isinstance(resolution, tuple):
-                N = np.max([2**(int(np.log2(t)+resolution[0])), 16])
             elif resolution == 'coarse':
                 N = np.max([2**(int(np.log2(t)-2)), 16])
             elif resolution == 'fine':
@@ -1130,8 +1128,6 @@ class OrbitKS(Orbit):
         if M is None:
             if x == 0:
                 M = cls.default_shape()[1]
-            elif isinstance(resolution, tuple):
-                M = np.max([2**(int(np.log2(x)+resolution[1])), 16])
             elif resolution == 'coarse':
                 M = np.max([2**(int(np.log2(x)-1)), 16])
             elif resolution == 'fine':
@@ -1186,13 +1182,13 @@ class OrbitKS(Orbit):
         this is bad practice but they could be replaced by the corresponding tuples. The reason why this is avoided
         is so this function generalizes to subclasses.
         """
-        spatial_modulation = kwargs.get('spatial_modulation', 'exponential')
-        temporal_modulation = kwargs.get('temporal_modulation', 'gaussian')
+        spatial_modulation = kwargs.get('spatial_modulation', 'gaussian')
+        temporal_modulation = kwargs.get('temporal_modulation', 'time_truncation')
 
         tscale = kwargs.get('tscale', int(np.round(self.t / 20.)))
-        xscale = kwargs.get('xscale', int(1 + np.round(self.x / (2*pi*np.sqrt(2)))))
-        xvar = kwargs.get('xvar', max([xscale, 1]))
-        tvar = kwargs.get('tvar', max([tscale, 1]))
+        xscale = kwargs.get('xscale', int(np.round(self.x / (2*pi*np.sqrt(2)))))
+        xvar = kwargs.get('xvar', max([np.sqrt(xscale), 1]))
+        tvar = kwargs.get('tvar', max([np.sqrt(tscale), 1]))
         np.random.seed(kwargs.get('seed', None))
 
         # also accepts discretization as kwarg
@@ -1207,28 +1203,42 @@ class OrbitKS(Orbit):
         time_ = np.abs(temporal_frequencies(2*pi, self.n, self.shapes()[2][1], 1)).astype(int)
         random_modes = np.random.randn(*self.shapes()[2])
 
+        # Anecdotal evidence shows that not enough space-time coupling produces traveling waves very often.
+        # For example, scaling the spatial and temporal modes with the same gaussian profile. Therefore,
+        # The following is added as a means of coupling space and time. It also mimics witnessed spectra.
+        xshift = kwargs.get('xshift', 'sqrt')
+        if xshift == 'sqrt':
+            xscale = xscale + np.sqrt(time_)
+        elif xshift == 'log':
+            xscale = xscale + np.log(1+time_)
+        elif type(xshift) in [int, float, np.float64, np.int32]:
+            xscale = xscale + xshift
+
         # Spatial then temporal modulation, done separately now.
         original_mode_norm = np.linalg.norm(random_modes)
         if spatial_modulation == 'gaussian':
-            # spacetime gaussian modulation
             modulator = np.exp(-(space_ - xscale)**2 / (2*xvar))
         elif spatial_modulation == 'exponential':
             modulator = np.exp(-1.0 * np.abs(space_ - xscale) / np.sqrt(xvar))
+        elif spatial_modulation == 'exponential_sqrt':
+            modulator = np.exp(-1.0 * np.sqrt(np.abs(space_ - xscale)) / np.sqrt(xvar))
         elif spatial_modulation == 'plateau_linear':
             modulator = 1/((2*pi*space_/self.x)**2 - (2*pi*space_/self.x)**4)
             modulator[space_ <= xscale] = 1
         elif spatial_modulation == 'exponential_linear':
-            modulator = np.exp(-1.0 * np.abs((2*pi*space_/self.x)**2 - (2*pi*space_/self.x)**4))
+            modulator = np.exp((2*pi*space_/self.x)**2 - (2*pi*space_/self.x)**4)
             modulator[space_ <= xscale] = 1
+        elif spatial_modulation == 'flat_top':
+            modulator = np.exp(-(np.abs(space_-xscale)/xvar)**5)
         else:
             modulator = np.ones(random_modes.shape)
-        modes = np.multiply(modulator, random_modes)
 
+        modes = np.multiply(modulator, random_modes)
         if temporal_modulation == 'gaussian':
             modulator = np.exp(-(time_ - tscale)**2 / (2*tvar))
         elif temporal_modulation == 'exponential':
             modulator = np.exp(-1.0 * np.abs(time_ - tscale) / np.sqrt(tvar))
-        elif temporal_modulation == 'truncation':
+        elif temporal_modulation == 'truncate':
             modulator = time_.copy()
             modulator[time_ > tscale] = 0
             modulator[time_ <= tscale] = 1
@@ -1238,127 +1248,6 @@ class OrbitKS(Orbit):
         # Rescale
         self.state = (original_mode_norm / np.linalg.norm(modes)) * modes
         self.basis = 'modes'
-
-    # def _generate_state(self, **kwargs):
-    #     """ Initialize a set of random spatiotemporal Fourier modes
-    #     Parameters
-    #     ----------
-    #     parameters : tuple of floats
-    #     **kwargs
-    #         tscale : int
-    #             The number of temporal frequencies to keep after truncation.
-    #         xscale : int
-    #             The number of spatial frequencies to get after truncation.
-    #         xvar : float
-    #             Plays the role of variance for Gaussian and GTES scaling
-    #         tvar : float
-    #             Plays the role of variance for Gaussian and GTES scaling
-    #         seed
-    #     Returns
-    #     -------
-    #     self :
-    #         OrbitKS whose state has been modified to be a set of random Fourier modes.
-    #     Notes
-    #     -----
-    #     These are the initial condition generators that I find the most useful. If a different method is
-    #     desired, simply pass the array as 'state' variable to __init__.
-    #     By initializing the shape parameters and orbit parameters, the other properties get initialized, so
-    #     they can be referenced in what follows (). I am unsure whether or not
-    #     this is bad practice but they could be replaced by the corresponding tuples. The reason why this is avoided
-    #     is so this function generalizes to subclasses.
-    #     """
-    #     spectrum = kwargs.get('spectrum', 'gtes')
-    #     tscale = kwargs.get('tscale', int(np.round(self.t / 25.)))
-    #     xscale = kwargs.get('xscale', int(1 + np.round(self.x / (2*pi*np.sqrt(2)))))
-    #     xvar = kwargs.get('xvar', np.sqrt(max([xscale, 1])))
-    #     tvar = kwargs.get('tvar', np.sqrt(max([tscale, 1])))
-    #     np.random.seed(kwargs.get('seed', None))
-    #
-    #     # also accepts discretization as kwarg
-    #     n, m = self.parameter_based_discretization(self.dimensions(), **kwargs)
-    #     if n < self.minimal_shape()[0] or m < self.minimal_shape()[1]:
-    #         warn_str = '\nminimum discretization requirements not met; methods may not work as intended.'
-    #         warnings.warn(warn_str, RuntimeWarning)
-    #     self.discretization = n, m
-    #     # I think this is the easiest way to get symmetry-dependent Fourier mode arrays' shapes.
-    #     # power = 2 b.c. odd powers not defined for spacetime modes for discrete symmetries.
-    #     space_ = np.abs(spatial_frequencies(2*pi, self.m, self.shapes()[2][0], 1)[:, :self.shapes()[2][1]]).astype(int)
-    #     time_ = np.abs(temporal_frequencies(2*pi, self.n, self.shapes()[2][1], 1)).astype(int)
-    #     random_modes = np.random.randn(*self.shapes()[2])
-    #
-    #     # Pretruncation norm, random normal distribution for modes approximately gives field of "correct" magnitude
-    #     original_mode_norm = np.linalg.norm(random_modes)
-    #
-    #     if spectrum == 'gaussian':
-    #         # spacetime gaussian modulation
-    #         gaussian_modulator = np.exp(-((space_ - xscale)**2/(2*xvar)) - ((time_ - tscale)**2 / (2*tvar)))
-    #         modes = np.multiply(gaussian_modulator, random_modes)
-    #
-    #     elif spectrum == 'gtes':
-    #         gtime_espace_modulator = np.exp(-1.0 * ((np.abs(space_ - xscale) / np.sqrt(xvar))
-    #                                         + ((time_ - tscale)**2 / (2*tvar))))
-    #         modes = np.multiply(gtime_espace_modulator, random_modes)
-    #
-    #     elif spectrum == 'exponential':
-    #         # exponential decrease away from selected spatial scale
-    #         truncate_indices = np.where(time_ > tscale)
-    #         untruncated_indices = np.where(time_ <= tscale)
-    #         time_[truncate_indices] = 0
-    #         time_[untruncated_indices] = 1.
-    #         exp_modulator = np.exp(-1.0 * np.abs(space_ - xscale) / xvar)
-    #         exp_modulator = np.multiply(time_, exp_modulator)
-    #         modes = np.multiply(exp_modulator, random_modes)
-    #
-    #     elif spectrum == 'linear_exponential':
-    #         # Modulate the spectrum using the spatial linear operator; equivalent to preconditioning.
-    #         truncate_indices = np.where(time_ > tscale)
-    #         untruncated_indices = np.where(time_ <= tscale)
-    #         time_[truncate_indices] = 0
-    #         time_[untruncated_indices] = 1.
-    #         # so we get qk^2 - qk^4
-    #         mollifier = -1.0*np.abs(((2*pi*xscale/self.x)**2-(2*pi*xscale/self.x)**4)
-    #                                 - ((2*pi*space_ / self.x)**2+(2*pi*space_/self.x)**4))
-    #         modulated_modes = np.multiply(np.exp(mollifier), random_modes)
-    #         modes = np.multiply(time_, modulated_modes)
-    #     elif spectrum == 'linear':
-    #         # Modulate the spectrum using the spatial linear operator; equivalent to preconditioning.
-    #         truncate_indices = np.where(time_ > tscale)
-    #         untruncated_indices = np.where(time_ <= tscale)
-    #         time_[truncate_indices] = 0
-    #         time_[untruncated_indices] = 1.
-    #         # so we get qk^2 - qk^4
-    #         mollifier = np.abs(((2*pi*xscale/self.x)**2-(2*pi*xscale/self.x)**4))
-    #         modulated_modes = np.divide(random_modes, np.exp(mollifier))
-    #         modes = np.multiply(time_, modulated_modes)
-    #     elif spectrum == 'plateau-linear':
-    #         plateau = np.where(space_[space_ <= xscale])
-    #         # so we get qk^2 - qk^4
-    #         mollifier = (2*pi*space_/self.x)**2 - (2*pi*space_/self.x)**4
-    #         mollifier[plateau] = 1
-    #         modes = np.divide(random_modes, np.abs(mollifier))
-    #     elif spectrum == 'plateau-exponential':
-    #         # space scaling is constant up until certain wave number then exponential decrease
-    #         # time scaling is static
-    #         time_[time_ > tscale] = 0.
-    #         time_[time_ != 0.] = 1.
-    #         space_[space_ <= xscale] = xscale
-    #         exp_modulator = np.exp(-1.0 * np.abs(space_ - xscale) / xvar)
-    #         p_exp_modulator = np.multiply(time_, exp_modulator)
-    #         modes = np.multiply(p_exp_modulator, random_modes)
-    #     elif spectrum == 'time_truncated':
-    #         # need to use conditional statements before modifying values, hence why these are stored
-    #         truncate_indices = np.where(time_ > tscale)
-    #         untruncated_indices = np.where(time_ <= tscale)
-    #         time_[truncate_indices] = 0
-    #         time_[untruncated_indices] = 1.
-    #         # time_[time_ != 1.] = 0.
-    #         modes = np.multiply(time_, random_modes)
-    #     else:
-    #         modes = random_modes
-    #     # Rescale
-    #     self.state = (original_mode_norm / np.linalg.norm(modes)) * modes
-    #     self.basis = 'modes'
-
 
     def _parse_state(self, state, basis, **kwargs):
         """ Instantiate state and infer shape of collocation grid from numpy array and basis
@@ -2826,8 +2715,21 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         the appropriate attributes of the rediscretized orbit_.
         """
         # Change the default to N = 1 from N = None, this ensures that the temporal period (t=0) is never used.
-        kwargs.setdefault('discretization', (1, None))
-        n, m = super().dimension_based_discretization(dimensions, **kwargs)
+        resolution = kwargs.get('resolution', 'default')
+        n, m = kwargs.get('resolution', (1, None))
+        t, x = dimensions
+        if m is None:
+            if x == 0:
+                m = cls.default_shape()[1]
+            elif resolution == 'coarse':
+                m = np.max([2**(int(np.log2(x)-1)), 8])
+            elif resolution == 'fine':
+                m = np.max([2**(int(np.log2(x)+2)), 16])
+            elif resolution == 'power':
+                m = np.max([2*(int(4*x**(1./2.))//2), 16])
+            else:
+                m = np.max([2**(int(np.log2(x)+0.5)), 16])
+            m = max(m, cls.minimal_shape()[1])
         return n, m
 
     def _parse_state(self, state, basis, **kwargs):

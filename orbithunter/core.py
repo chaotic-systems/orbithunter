@@ -1218,6 +1218,28 @@ class Orbit:
         constraints = {key: (True if key in tuple(*labels) else False) for key, val in self.constraints.items()}
         setattr(self, 'constraints', constraints)
 
+    def mask(self, masking_array, invert=True, **kwargs):
+        """ Return an Orbit instance with a numpy masked array state
+
+
+        Parameters
+        ----------
+        boolean_array
+
+        Returns
+        -------
+
+        Notes
+        -----
+        Typically used for plotting shadowing and clipping results.
+        """
+        if invert:
+            # Sometimes shadowing results are returned as int
+            masked_state = np.ma.masked_array(self.state, mask=np.invert(masking_array.astype(bool)), **kwargs)
+        else:
+            masked_state = np.ma.masked_array(self.state, mask=masking_array.astype(bool), **kwargs)
+        return self.__class__(**{**vars(self), 'state': masked_state})
+
     def _parse_state(self, state, basis, **kwargs):
         """ Determine state and state shape parameters based on state array and the basis it is in.
 

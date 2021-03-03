@@ -1,7 +1,8 @@
 import pytest
 import numpy as np
-import h5py
 import orbithunter as oh
+import h5py
+
 
 @pytest.fixture()
 def fixed_orbit_data():
@@ -16,9 +17,48 @@ def fixed_orbit_data():
                       [0.15494743,  0.37816252, -0.88778575, -1.98079647, -0.34791215, 0.15634897]])
     return state
 
+
 @pytest.fixture()
-def fixed_RelativeOrbitKS():
-    return oh.read_h5('../../data/ks/RelativeOrbitKS.h5', 't44p304_x33p280').transform(to='modes')
+def defect():
+    with h5py.File('test_data.h5', 'r') as file:
+        x = oh.RelativeOrbitKS(state=file['defect'][...], **file['defect'].attrs.items())
+    return x
+
+
+@pytest.fixture()
+def drifter():
+    with h5py.File('test_data.h5', 'r') as file:
+        x = oh.RelativeEquilibriumOrbitKS(state=file['drifter'][...], **file['drifter'].attrs.items())
+    return x
+
+
+@pytest.fixture()
+def wiggle():
+    with h5py.File('test_data.h5', 'r') as file:
+        x = oh.AntisymmetricOrbitKS(state=file['wiggle'][...], **file['wiggle'].attrs.items())
+    return x
+
+
+@pytest.fixture()
+def streak():
+    with h5py.File('test_data.h5', 'r') as file:
+        x = oh.EquilibriumOrbitKS(state=file['streak'][...], **file['streak'].attrs.items())
+    return x
+
+
+@pytest.fixture()
+def double_streak():
+    with h5py.File('test_data.h5', 'r') as file:
+        x = oh.EquilibriumOrbitKS(state=file['double_streak'][...], **file['double_streak'].attrs.items())
+    return x
+
+
+@pytest.fixture()
+def large_defect():
+    with h5py.File('test_data.h5', 'r') as file:
+        x = oh.RelativeOrbitKS(state=file['large_defect'][...], **file['large_defect'].attrs.items())
+    return x
+
 
 @pytest.fixture()
 def fixed_data_transform_norms_dict():
@@ -45,8 +85,7 @@ def fixed_derivative_norms():
                                    0.08399731, 0.02282276, 0.02394005, 0.40029903, 1.25836395,
                                    1.10417144])
     test_rpo_norms = np.array([31.63701272,  9.37819755, 31.63947896,  5.11209024, 36.77213848,
-                                4.82539334, 51.14116224,  6.45371111, 31.44907051,  0.        ,
-                               31.44907051])
+                                4.82539334, 51.14116224,  6.45371111, 31.44907051,  0., 31.44907051])
     return test_orbit_norms, test_rpo_norms
 
 @pytest.fixture()

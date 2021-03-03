@@ -45,13 +45,8 @@ def scanning_mask(masked_scores, base_orbit, window_orbit, strides):
 
     Notes
     -----
-    Because of the wrap technique used in the shadowing function, need a function that converts or 'folds' the mask
-    of the score array into one that can be applied to the base orbit. Need the shapes of the windows and strides to do
-    so.
-
-    This function originated from the fact that conditional statements applied to the score array returned by shadowing
-    function can be arbitrarily complex, but the end result, taking an array of bools and applying it to
-    the base orbit is still the same.
+    Because of the wrap technique used in the shadowing function, need a function that converts
+    the score array (whose shape is determined by the pivots) into a mask of the same shape as the underlying base orbit.
     """
     # Get the positions of the True values in scoring array mask
     mask_pivot_tuples = zip(*np.where(masked_scores))
@@ -170,11 +165,6 @@ def scan(base_orbit, window_orbit, *args, **kwargs):
     # The bases orbit periodicity has to do with scoring and whether or not to wrap windows around.
     base_orbit_periodicity = kwargs.get('base_orbit_periodicity', tuple(len(base_orbit.dimensions())*[False]))
 
-    # the periodic_dimensions key here determines the periodic dimensions in the gudhi.PeriodicCubicalComplex
-    # See notes for why this is set to True even though slices are expected to be aperiodic.
-    gudhikwargs = kwargs.get('gudhi_kwargs', {'periodic_dimensions': tuple(len(window.shape)*[True]),
-                                              'min_persistence': 0.01})
-
     score_array_shape, pad_shape = scanning_dimensions(base.shape, window.shape, strides, base_orbit_periodicity)
     score_array = np.zeros(score_array_shape)
     padding = tuple((0, pad) if pad > 0 else (0, 0) for pad in pad_shape)
@@ -193,6 +183,10 @@ def scan(base_orbit, window_orbit, *args, **kwargs):
         iterator = pivots
 
     if score_type == 'persistence':
+        # the periodic_dimensions key here determines the periodic dimensions in the gudhi.PeriodicCubicalComplex
+        # See notes for why this is set to True even though slices are expected to be aperiodic.
+        gudhikwargs = kwargs.get('gudhi_kwargs', {'periodic_dimensions': tuple(len(window.shape)*[True]),
+                                                  'min_persistence': 0.01})
         # Scoring using persistent homology requires the persistence of the complex of both the base orbit slice
         # and the windowing orbit. Computing either of these can be time consuming, so the ability to provide
         # cached persistence scores for the base orbit (there is only one windowing orbit per function call).
@@ -300,7 +294,7 @@ def shadow(base_orbit, window_orbit, threshold, **kwargs):
     return orbit_mask_bool
 
 
-def cover(base_orbit, thresholds, window_orbits, replacement=False, dtype=bool, reorder_by_size=True, **kwargs):
+def cover(base_orbit, thresholds, window_orbits, replacement=False, dtype=float, reorder_by_size=True, **kwargs):
     """ Function to perform multiple shadowing computations given a collection of orbits.
 
     Parameters
@@ -322,8 +316,8 @@ def cover(base_orbit, thresholds, window_orbits, replacement=False, dtype=bool, 
     Returns
     -------
     covering_masks : dict
-        Dict whose keys are the index positions of the windows in the window_orbits provided, whose values
-        are the ndarrays containing either the scores or boolean mask of the
+        Dict whose keys are the indices corresponding to the position in the window_orbits list
+        and whose values are the ndarrays containing the scores, dtype decided upon the respective keyword argument.
 
     Notes
     -----
@@ -553,15 +547,17 @@ def fill(base_orbit, thresholds, window_orbits, **kwargs):
                 # This fills the correct amount of space-time with a key related to the "best" fitting window orbit
                 padded_base_orbit_mask[pivot_grid] = filling_window
                 # Subtract the orbit state from the padded base orbit used to compute the score.
-                padded_base_orbit.state[pivot_grid] = 0
+                if kwargs.get('subtract_field', False):
+                    padded_base_orbit.state[pivot_grid] = 0
                 if True in base_orbit_periodicity:
                     wrapped_pivot_grid = tuple(coordinates[wrap_coord_mask] for coordinates
                                                in wrapped_periodic_coordinates)
                     padded_pivot_grid = tuple(c for c in periodic_coordinates)
                     # The mask is only affected by the original, internal points, but the padded field needs
                     # to set padding equal to zero if it is nonzero (periodic padding).
-                    padded_base_orbit.state[wrapped_pivot_grid] = 0
-                    padded_base_orbit.state[padded_pivot_grid] = 0
+                    if kwargs.get('subtract_field', False):
+                        padded_base_orbit.state[wrapped_pivot_grid] = 0
+                        padded_base_orbit.state[padded_pivot_grid] = 0
     # Only want to return the filling of the original orbit, padding is simply a tool
     base_orbit_mask = padded_base_orbit_mask[tuple(slice(pad, -pad) for pad in hull)]
     filled_base_orbit = padded_base_orbit[tuple(slice(pad, -pad) for pad in hull)]

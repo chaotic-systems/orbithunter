@@ -1,4 +1,4 @@
-# orbithunter beta
+# orbithunter v0.1.0
 -------------------------
 Framework for solving chaotic nonlinear PDEs in spatiotemporal manner.
 
@@ -32,6 +32,5 @@ the first couple steps would be
 - Inclusion of more equations, specifically (2+1)-dimensional Kolmogorov flow. 
 
 # Known Bugs and issues
----------------------
--KSe shadowing, masking not returned properly; can be accessed via returned orbit's state, shadowing_output[0].mask
+-----------------------
 

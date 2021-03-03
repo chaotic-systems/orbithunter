@@ -32,7 +32,7 @@ class OrbitResult(dict):
     with attribute accessors, one can see which attributes are available
     using the `keys()` method.
 
-    The descriptions for each value of status are as follows. In order, the codes [0,1,2,3,4,5] == 0:
+    The descriptions for each value of status are as follows.
     0 : Failed to converge
     1 : Converged
     2:
@@ -45,7 +45,6 @@ class OrbitResult(dict):
         print('\nConverged to the trivial u(x,t)=0 solution')
     elif status == 5:
         print('\n Relative periodic orbit converged to periodic orbit with no shift.')
-
     """
 
     def __getattr__(self, name):
@@ -76,18 +75,21 @@ def hunt(orbit_, *methods, **kwargs):
     ----------
     orbit_ : Orbit
         The orbit instance serving as the initial condition for optimization.
-    method : str or multiple str or tuple of str
-        Representing the numerical method to hunt with. Valid choices are:
-        'adj', 'lstsq', 'newton_descent', 'lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
-        'cg', 'cgs', 'qmr', 'minres', 'gcrotmk', 'hybr', 'lm','broyden1', 'broyden2', 'root_anderson',
-        'linearmixing', 'diagbroyden', 'excitingmixing', 'root_krylov',' df-sane',
-        'newton_krylov', 'anderson', 'cg_min', 'newton-cg', 'l-bfgs-b', 'tnc', 'bfgs'
-    precision : str
-        Key word to choose an `orbithunter recommended' tolerance.  Choices include:
-        'machine', 'high', 'medium' or 'default' (equivalent), 'low', 'minimal'
-    comp_time : str
-        Key word to choose an `orbithunter recommended' number of iterations, dependent on the chosen method.
-        Choices include : 'excessive', 'thorough', 'long' , 'medium' or 'default' (equivalent), 'short', 'minimal'.
+    methods : str or multiple str or tuple of str
+        Representing the numerical methods to hunt with, valid choices are:
+        'newton_descent', 'lstsq', 'solve', 'adj', 'lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
+        'cg', 'cgs', 'qmr', 'minres', 'gcrotmk','nelder-mead', 'powell', 'cg_min', 'bfgs', 'newton-cg', 'l-bfgs-b',
+        'tnc', 'cobyla', 'slsqp', 'trust-constr', 'dogleg', 'trust-ncg', 'trust-exact', 'trust-krylov', 'hybr',
+        'lm','broyden1', 'broyden2', 'root_anderson', 'linearmixing','diagbroyden', 'excitingmixing', 'root_krylov',
+        ' df-sane', 'newton_krylov', 'anderson'
+
+        adj, newton_descent, lstsq, lsqr, lsmr, bicg, bicgstab, gmres, lgmres, cg, cgs, qmr, minres,gcrotmk,
+        cg_min, bfgs, newton-cg, l-bfgs-b, tns, slsqp
+
+        The following are either not supported or highly unrecommended for the KSE
+nelder-mead (very very slow), powell (very slow), cobyla (slow),
+
+
     kwargs:
         maxiter : int, optional
             The maximum number of steps; computation time can be highly dependent on this number i.e.
@@ -108,22 +110,11 @@ def hunt(orbit_, *methods, **kwargs):
 :
             https://docs.scipy.org/doc/scipy/reference/optimize.html
             https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize
-
-
-            ['cg_min', 'newton-cg', 'l-bfgs-b', 'tnc', 'bfgs']:
+            ['cg_min', 'newton-cg', 'l-bfgs-b', 'tnc', 'bfgs']
 
             https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.root.html
             ['hybr', 'lm','broyden1', 'broyden2', 'root_anderson', 'linearmixing',
                         'diagbroyden', 'excitingmixing', 'root_krylov',' df-sane', 'newton_krylov', 'anderson']
-
-        hybrid_maxiter : tuple of two ints, optional
-            Only used if method == 'hybrid', contains the maximum number of iterations to be used in gradient
-            descent and lstsq, respectively.
-
-        hybrid_tol : tuple of floats, optional
-            Only used if method == 'hybrid', contains the tolerance threshold to be used in gradient
-            descent and lstsq, respectively.
-
 
     Returns
     -------
@@ -132,21 +123,15 @@ def hunt(orbit_, *methods, **kwargs):
         the final resulting orbit approximation.
     Notes
     -----
-    Passing tol and maxiter in conjuction with method=='hybrid' will cause the _adj and
-    _lstsq to have the same tolerance and number of steps, which is not optimal. Therefore it is recommended to
-    either use the keyword arguments 'precision' and 'max_iter' to get default templates, or call converge twice,
-    once with method == 'adj' and once more with method == 'lstsq', passing unique
-    tol and maxiter to each call.
-    """
-    # Sometimes it is desirable to provide exact numerical value for tolerance, other times an approximate guideline
-    # `precision' is used. This may seem like bad design except the guidelines depend on the orbit_'s discretization
-    # and so there is no way of including this in the explicit function kwargs as opposed to **kwargs.
-    # unpacking unintended nested tuples i.e. ((a, b, ...)) -> (a, b, ...); leaves unnested tuples invariant.
-    # New shape must be tuple; i.e. iterable and have __len__
+    User should be aware of the existence of scipy.optimize.show_options()
 
-    # Methods were previously passable as keyword arguments; this is a compatibility measure mainly.
-    # Because of how multiple runs are handled, popping items off of a list, need to copy the values if using this
-    # in a repeated routine like continuation.
+    Sometimes it is desirable to provide exact numerical value for tolerance, other times an approximate guideline
+    `precision' is used. This may seem like bad design except the guidelines depend on the orbit_'s discretization
+    and so there is no way of including this in the explicit function kwargs as opposed to **kwargs.
+    unpacking unintended nested tuples i.e. ((a, b, ...)) -> (a, b, ...); leaves unnested tuples invariant.
+    New shape must be tuple; i.e. iterable and have __len__
+    """
+
     kwargs = {k: v.copy() if hasattr(v, 'copy') else v for k, v in kwargs.items()}
     # so that list.pop() method can be used, cast tuple as lists
     methods = tuple(*methods) or kwargs.pop('methods', 'adj')
@@ -168,7 +153,7 @@ def hunt(orbit_, *methods, **kwargs):
             orbit_, method_statistics = _solve(orbit_, **kwargs)
         elif method in ['lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
                         'cg', 'cgs', 'qmr', 'minres', 'gcrotmk']:
-            # solves A^T A x = A^T b inexactly/iteratively
+            # solves A^T A x = A^T b using iterative method
             orbit_, method_statistics = _scipy_sparse_linalg_solver_wrapper(orbit_, method=method, **kwargs)
         elif method in ['nelder-mead', 'powell', 'cg_min', 'bfgs', 'newton-cg', 'l-bfgs-b', 'tnc', 'cobyla',
                         'slsqp', 'trust-constr', 'dogleg', 'trust-ncg', 'trust-exact', 'trust-krylov']:
@@ -319,7 +304,7 @@ def _newton_descent(orbit_, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
     step_size = kwargs.get('step_size', 0.001)
     residual = orbit_.residual()
-    runtime_statistics = {'method':'newton_descent', 'nit': 0, 'residuals': [residual],
+    runtime_statistics = {'method': 'newton_descent', 'nit': 0, 'residuals': [residual],
                           'maxiter': maxiter, 'tol': tol, 'status': 1}
     ftol = kwargs.get('ftol', 1e-7)
     if kwargs.get('verbose', False):
@@ -368,6 +353,11 @@ def _newton_descent(orbit_, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
                     inner_mapping = inner_orbit.eqn(**kwargs)
                     inner_residual = inner_mapping.residual(eqn=False)
                     inner_nit += 1
+                    if inner_residual < tol:
+                        next_orbit = inner_orbit
+                        next_mapping = inner_mapping
+                        next_residual = inner_residual
+                        break
             # If the trigger that broke the while loop was step_size then
             # assume next_residual < residual was not met.
             orbit_, runtime_statistics = _process_correction(orbit_, next_orbit, runtime_statistics, tol, maxiter, ftol,
@@ -576,7 +566,7 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, method='minres', maxiter=10, tol
         print('-------------------------------------------------------------------------------------------------')
         sys.stdout.flush()
     ftol = kwargs.get('ftol', 1e-7)
-    runtime_statistics = {'method':method, 'nit': 0, 'residuals': [residual],
+    runtime_statistics = {'method': method, 'nit': 0, 'residuals': [residual],
                           'maxiter': maxiter, 'tol': tol, 'status': 1}
     while residual > tol and runtime_statistics['status'] == 1:
         step_size = 1
@@ -587,11 +577,13 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, method='minres', maxiter=10, tol
 
             def matvec_func(v):
                 # _orbit_vector_to_orbit turns state vector into class object.
+                nonlocal orbit_
                 v_orbit = orbit_.from_numpy_array(v)
                 return orbit_.matvec(v_orbit, **kwargs).state.reshape(-1, 1)
 
             def rmatvec_func(v):
                 # _orbit_vector_to_orbit turns state vector into class object.
+                nonlocal orbit_
                 v_orbit = orbit_.from_numpy_array(v, parameters=orbit_.parameters)
                 return orbit_.rmatvec(v_orbit, **kwargs).orbit_vector().reshape(-1, 1)
 
@@ -610,6 +602,7 @@ def _scipy_sparse_linalg_solver_wrapper(orbit_, method='minres', maxiter=10, tol
             # Solving `normal equations, A^T A x = A^T b. A^T A is its own transpose hence matvec_func=rmatvec_func
             def matvec_func(v):
                 # _orbit_vector_to_orbit turns state vector into class object.
+                nonlocal orbit_
                 v_orbit = orbit_.from_numpy_array(v)
                 return orbit_.rmatvec(orbit_.matvec(v_orbit, **kwargs), **kwargs).orbit_vector().reshape(-1, 1)
 
@@ -703,6 +696,7 @@ def _scipy_optimize_minimize_wrapper(orbit_, method='l-bfgs-b', maxiter=10, tol=
     ftol = kwargs.get('ftol', 1e-7)
     runtime_statistics = {'method': method, 'nit': 0, 'residuals': [residual], 'maxiter': maxiter,
                           'tol': tol, 'status': 1}
+    scipy_kwargs = kwargs.get('scipy_kwargs', {'tol': tol})
     if kwargs.get('verbose', False):
         print('\n-------------------------------------------------------------------------------------------------')
         print('Starting {} optimization'.format(method))
@@ -724,6 +718,7 @@ def _scipy_optimize_minimize_wrapper(orbit_, method='l-bfgs-b', maxiter=10, tol=
         '''
         Note that passing Class as a function avoids dangerous statements using eval()
         '''
+        nonlocal orbit_
         x_orbit = orbit_.from_numpy_array(x, **kwargs)
         return x_orbit.residual()
 
@@ -740,16 +735,39 @@ def _scipy_optimize_minimize_wrapper(orbit_, method='l-bfgs-b', maxiter=10, tol=
         The gradient of 1/2 F^2 = J^T F, rmatvec is a function which does this matrix vector product
         Will always use preconditioned version by default, not sure if wise.
         """
-
+        nonlocal orbit_
         x_orbit = orbit_.from_numpy_array(x)
         return x_orbit.cost_function_gradient(x_orbit.eqn(**kwargs), **kwargs).orbit_vector().ravel()
 
-    scipy_kwargs = kwargs.get('scipy_kwargs', {'tol': tol})
-    while residual > tol and runtime_statistics['status'] == 1:
-        result = minimize(_minfunc, orbit_.orbit_vector(),
-                          method=method, jac=_minjac, **scipy_kwargs)
-        scipy_kwargs['tol'] /= 10.
+    if method in ['trust-constr', 'dogleg', 'trust-ncg', 'trust-exact', 'trust-krylov']:
+        def _minhess(x):
+            """ The jacobian of the cost function (scalar) can be expressed as a vector product
+            Parameters
+            ----------
+            x
+            args
+            Returns
+            -------
+            Notes
+            -----
+            The gradient of 1/2 F^2 = J^T F, rmatvec is a function which does this matrix vector product
+            Will always use preconditioned version by default, not sure if wise.
+            """
+            nonlocal orbit_
+            x_orbit = orbit_.from_numpy_array(x)
+            return x_orbit.cost_function_hessian(**kwargs)
+        scipy_kwargs = {**scipy_kwargs, 'method': method, 'jac': _minjac, 'hessp': _minhess}
+    elif method in ['linearmixing']:
+        scipy_kwargs = {**scipy_kwargs, 'method': method}
+    else:
+        scipy_kwargs = {**scipy_kwargs, 'method': method, 'jac': _minjac}
 
+    while residual > tol and runtime_statistics['status'] == 1:
+        result = minimize(_minfunc, orbit_.orbit_vector(), **scipy_kwargs)
+        if kwargs.get('progressive', False):
+            # When solving the system repeatedly, a more stringent tolerance may be required to reduce the residual
+            # by a sufficient amount due to vanishing gradients.
+            scipy_kwargs['tol'] /= 10.
         next_orbit = orbit_.from_numpy_array(result.x)
         next_residual = next_orbit.residual()
         # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
@@ -794,6 +812,7 @@ def _scipy_optimize_root_wrapper(orbit_, method='lgmres', maxiter=10, tol=1e-6, 
         raise IndexError(': parameters for hunt need to be iterables of same length as the number of methods.') from ie
 
     residual = orbit_.residual()
+    parameter_eqn_components = kwargs.get('parameter_eqn_components', True)
     ftol = kwargs.get('ftol', 1e-7)
     runtime_statistics = {'method':method, 'nit': 0, 'residuals': [residual],
                           'maxiter': maxiter, 'tol': tol, 'status': 1}
@@ -814,13 +833,14 @@ def _scipy_optimize_root_wrapper(orbit_, method='lgmres', maxiter=10, tol=1e-6, 
         :param args: time discretization, space discretization, subClass from orbit.py
         :return: value of cost functions (0.5 * L_2 norm of spatiotemporal mapping squared)
         '''
-
-        '''
-        Note that passing Class as a function avoids dangerous statements using eval()
-        '''
+        nonlocal orbit_
+        nonlocal parameter_eqn_components
         x_orbit = orbit_.from_numpy_array(x, **kwargs)
         xvec = x_orbit.eqn(**kwargs).orbit_vector().ravel()
-        xvec[-(x_orbit.orbit_vector().size - len(x_orbit.parameters)):] = 0
+        # Need components for the parameters, but typically they will not have an associated component in the equation;
+        # however, I do not think it should be by default.
+        if not parameter_eqn_components:
+            xvec[-len(orbit_.parameters):] = 0
         return xvec
 
     def _rootjac(x):
@@ -839,8 +859,9 @@ def _scipy_optimize_root_wrapper(orbit_, method='lgmres', maxiter=10, tol=1e-6, 
         The gradient of 1/2 F^2 = J^T F, rmatvec is a function which does this matrix vector product
         Will always use preconditioned version by default, not sure if wise.
         """
-
+        nonlocal orbit_
         x_orbit = orbit_.from_numpy_array(x)
+        # gradient does not have the same problem that the equation
         return x_orbit.cost_function_gradient(x_orbit.eqn(**kwargs), **kwargs).orbit_vector().ravel()
 
     while residual > tol and runtime_statistics['status'] == 1:
@@ -855,9 +876,12 @@ def _scipy_optimize_root_wrapper(orbit_, method='lgmres', maxiter=10, tol=1e-6, 
 
         elif method in ['root_anderson', 'linearmixing', 'diagbroyden',
                         'excitingmixing', 'krylov', 'df-sane']:
+            if method == 'root_anderson':
+                method = 'anderson'
             scipy_kwargs = dict({'tol': tol}, **kwargs.get('scipy_kwargs', {}))
-            result_orbit_vector = root(_rootfunc, orbit_.orbit_vector().ravel(),
-                                       method=method, jac=_rootjac, **scipy_kwargs)
+            # Returns an OptimizeResult, .x attribute is where array is stored.
+            result = root(_rootfunc, orbit_.orbit_vector().ravel(), method=method, jac=_rootjac, **scipy_kwargs)
+            result_orbit_vector = result.x
         else:
             runtime_statistics['residuals'].append(orbit_.residual())
             return orbit_, runtime_statistics
@@ -918,7 +942,7 @@ def _process_correction(orbit_, next_orbit_, runtime_statistics, tol, maxiter, f
         return next_orbit_,  runtime_statistics
     elif (residual - next_residual) / max([residual, next_residual, 1]) < ftol:
         runtime_statistics['status'] = 3
-        return next_orbit_,  runtime_statistics
+        return orbit_,  runtime_statistics
     else:
         if method == 'adj':
             if verbose:

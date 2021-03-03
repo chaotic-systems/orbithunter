@@ -1,6 +1,5 @@
 import os
 import numpy as np
-import pandas as pd
 import itertools
 import h5py
 import sys
@@ -170,6 +169,7 @@ def convergence_log(initial_orbit, minimize_result, log_path, spectrum='random',
     -------
 
     """
+    import pandas as pd
     initial_condition_log_ = pd.read_csv(log_path, index_col=0)
     # To store all relevant info as a row in a Pandas DataFrame, put into a 1-D array first.
     dataframe_row = [[initial_orbit.parameters, initial_orbit.shapes()[0],
@@ -199,6 +199,7 @@ def refurbish_log(orbit_, filename, log_filename, overwrite=False, **kwargs):
 
 def write_symbolic_log(symbol_array, minimize_result, log_filename, tileset='default',
                        comoving=False):
+    import pandas as pd
     symbol_string = to_symbol_string(symbol_array)
     dataframe_row_values = [[symbol_string, minimize_result.orbit.parameters, minimize_result.orbit.shapes()[0],
                              minimize_result.orbit.residual(),
