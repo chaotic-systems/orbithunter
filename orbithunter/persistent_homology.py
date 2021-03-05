@@ -53,8 +53,10 @@ def orbit_persistence(orbit_, **kwargs):
     -----
     Convenience function because of how Gudhi is structured.
     """
-    persistence_kwargs = {'homology_coeff_field': kwargs.get('homology_coeff_field', len(orbit_.dimensions())),
-                          'min_persistence': kwargs.get('min_persistence', -1)}
+    persistence_kwargs = {
+                            # 'homology_coeff_field': kwargs.get('homology_coeff_field', len(orbit_.dimensions())),
+                          'min_persistence': kwargs.get('min_persistence', -1)
+                            }
     complex_kwargs = {'periodic_dimensions': kwargs.get('periodic_dimensions', orbit_.periodic_dimensions())}
     return orbit_complex(orbit_, **complex_kwargs).persistence(**persistence_kwargs)
 
