@@ -226,6 +226,7 @@ def score(base_orbit, window_orbit, threshold, **kwargs):
     # Sometimes there are metrics (like persistence diagrams) which need only be computed once per window.
     if kwargs.get('window_caching_function', None) is not None:
         kwargs['window_cache'] = kwargs.get('window_caching_function', None)(window_orbit, **kwargs)
+
     for w_dim, b_dim in zip(window.shape, base.shape):
         assert w_dim < b_dim, 'Shadowing window discretization is larger than the base orbit. resize first. '
 
@@ -239,11 +240,9 @@ def score(base_orbit, window_orbit, threshold, **kwargs):
     padded_state = np.pad(np.pad(base_orbit.state, periodic_padding, mode='wrap'), aperiodic_padding)
     padded_base_orbit = base_orbit.__class__(**{**vars(base_orbit), 'state': padded_state})
     pivot_scores = np.zeros(padded_state.shape, dtype=float)#[tuple(slice(None, -h+1) for h in hull)]
-    cached_pivots = []
     for each_pivot in pivot_iterator(padded_state.shape, base_orbit.shape, window_orbit.shape, hull,
                                      base_orbit_periodicity, **kwargs):
-        if each_pivot in cached_pivots:
-            raise RuntimeError('Iterating over previously scored pivot.')
+
         subdomain_slices = []
         for pivot, span, periodic in zip(each_pivot, hull, base_orbit_periodicity):
             if not periodic:
@@ -251,14 +250,12 @@ def score(base_orbit, window_orbit, threshold, **kwargs):
                 subdomain_slices.append(slice(max([pivot, span-1]), pivot + span))
             else:
                 subdomain_slices.append(slice(pivot, pivot + span))
-        # Slice out the subdomains which are on the "interior" of the calculation; this does nothing when pivots
-        # are in the interior.
-        base_orbit_subdomain = padded_base_orbit[tuple(subdomain_slices)]
-        window_subdomain = window_orbit[tuple(slice(-shp, None) for shp in base_orbit_subdomain.shape)]
+        # Slice out the subdomains; this doesn't do anything to the window if completely within bounds.
+        # Slice as numpy array and not orbit because it is much faster.
+        base_orbit_subdomain = padded_base_orbit.state[tuple(subdomain_slices)]
+        window_subdomain = window_orbit.state[tuple(slice(-shp, None) for shp in base_orbit_subdomain.shape)]
         # Compute the score for the pivot, store in the pivot score array.
-        pivot_scores[each_pivot] = scoring_function(base_orbit_subdomain, window_subdomain, **kwargs)
-        cached_pivots.append(each_pivot)
-
+        pivot_scores[each_pivot] = scoring_function(base_orbit_subdomain, window_subdomain, window_orbit, **kwargs)
     # Return the scores and the masking of the scores for later use (possibly skip these pivots for future calculations)
     return pivot_scores, masking_function(pivot_scores, threshold)
 
@@ -393,9 +390,7 @@ def cover(base_orbit, thresholds, window_orbits, replacement=False, dtype=float,
         if kwargs.get('verbose', False) and index % max([1, len(thresholds)//10]) == 0:
             print('#', end='')
         # Note return_pivot_arrays must always be true here, but not necessarily for the overall function call.
-        t0 = time.time_ns()/10**9
         shadowing_tuple = shadow(base_orbit, window, threshold, **{**kwargs, 'convex_hull': convex_hull, 'mask': mask})
-        print(f'shadowing took {time.time_ns()/10**9 - t0} seconds')
         orbit_scores, orbit_mask, pivot_scores, pivot_mask = shadowing_tuple
         # replacement is whether or not to skip pivots which have already detected orbits. not replacement ==> mask
         if not replacement:
@@ -422,6 +417,7 @@ def cover(base_orbit, thresholds, window_orbits, replacement=False, dtype=float,
         return covering_scores, covering_masks, covering_pivot_scores, covering_pivot_masks
     else:
         return covering_scores, covering_masks
+
 
 def fill(base_orbit, thresholds, window_orbits, **kwargs):
     """ Function to perform multiple shadowing computations given a collection of orbits.

@@ -97,7 +97,7 @@ def clip(orbit_, window_dimensions, **kwargs):
 
     """
     clipping_class = kwargs.get('clipping_class', orbit_.__class__)
-    slices, dimensions = _slices_from_window(orbit_, window_dimensions)
+    slices, dimensions = _slices_from_window(orbit_, window_dimensions, kwargs.get('time_ordering', 'decreasing'))
 
     # It of course is better to get the dimensions/parameters from the clipping directly, but if the user wants to
     # this gives them the ability to override.
