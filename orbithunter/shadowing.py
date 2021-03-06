@@ -259,7 +259,7 @@ def score(base_orbit, window_orbit, threshold, **kwargs):
         # Compute the score for the pivot, store in the pivot score array.
         pivot_scores[each_pivot] = scoring_function(base_orbit_subdomain, window_subdomain, window_orbit, **kwargs)
     t1 = time.time_ns()/10**9
-    print(f" scoring took {t1-t0} seconds, {(t1-t0)/i} per step")
+    print(f" scoring took {t1-t0} seconds, {(t1-t0)/i} per step, {i} steps")
     # Return the scores and the masking of the scores for later use (possibly skip these pivots for future calculations)
     return pivot_scores, masking_function(pivot_scores, threshold)
 
