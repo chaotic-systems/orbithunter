@@ -58,7 +58,7 @@ def l2_difference_mean_flow_correction_density(base_slice, window, *args, **kwar
     return norm_density
 
 
-def masking_function(score_array, threshold):
+def absolute_threshold(score_array, threshold):
     # Depending on the pivots supplied, some places in the scoring array may be empty; do not threshold these elements.
     mask = np.zeros(score_array.shape, dtype=bool)
     non_nan_coordinates = np.where(~np.isnan(score_array))
@@ -223,6 +223,7 @@ def score(base_orbit, window_orbit, threshold, **kwargs):
     window = window_orbit.state
     base = base_orbit.state
     scoring_function = kwargs.get('scoring_function', l2_difference_mean_flow_correction)
+    masking_function = kwargs.get('masking_function', absolute_threshold)
     # Sometimes there are metrics (like persistence diagrams) which need only be computed once per window.
     if kwargs.get('window_caching_function', None) is not None:
         kwargs['window_cache'] = kwargs.get('window_caching_function', None)(window_orbit, **kwargs)
@@ -385,8 +386,8 @@ def cover(base_orbit, thresholds, window_orbits, replacement=False, dtype=float,
     # Masking array is used for multi-part computations.
     mask = kwargs.get('mask', None)
     # Returning numpy arrays instead of dicts now, allows usage of any and all.
-    covering_masks = np.zeros([len(window_orbits), *base_orbit.shape])
-    covering_scores = np.zeros([len(window_orbits), *base_orbit.shape])
+    covering_masks = np.zeros([len(window_orbits), *base_orbit.shape], dtype=bool)
+    covering_scores = np.zeros([len(window_orbits), *base_orbit.shape], dtype=float)
     covering_pivot_scores = None
     covering_pivot_masks = None
     for index, threshold, window in zip(size_order, thresholds[size_order], window_orbits[size_order]):
