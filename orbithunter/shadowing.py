@@ -239,9 +239,10 @@ def score(base_orbit, window_orbit, threshold, **kwargs):
     # Pad the base orbit state to use for computing scores, create the score array which will contain each pivot's score
     padded_state = np.pad(np.pad(base_orbit.state, periodic_padding, mode='wrap'), aperiodic_padding)
     padded_base_orbit = base_orbit.__class__(**{**vars(base_orbit), 'state': padded_state})
-    pivot_scores = np.zeros(padded_state.shape, dtype=float)#[tuple(slice(None, -h+1) for h in hull)]
-    for each_pivot in pivot_iterator(padded_state.shape, base_orbit.shape, window_orbit.shape, hull,
-                                     base_orbit_periodicity, **kwargs):
+    pivot_scores = np.zeros(padded_state.shape, dtype=float)
+    t0 = time.time_ns()/10**9
+    for i, each_pivot in enumerate(pivot_iterator(padded_state.shape, base_orbit.shape, window_orbit.shape, hull,
+                                                  base_orbit_periodicity, **kwargs)):
 
         subdomain_slices = []
         for pivot, span, periodic in zip(each_pivot, hull, base_orbit_periodicity):
@@ -256,6 +257,8 @@ def score(base_orbit, window_orbit, threshold, **kwargs):
         window_subdomain = window_orbit.state[tuple(slice(-shp, None) for shp in base_orbit_subdomain.shape)]
         # Compute the score for the pivot, store in the pivot score array.
         pivot_scores[each_pivot] = scoring_function(base_orbit_subdomain, window_subdomain, window_orbit, **kwargs)
+    t1 = time.time_ns()/10**9
+    print(f" scoring took {t1-t0} seconds, {(t1-t0)/i} per step")
     # Return the scores and the masking of the scores for later use (possibly skip these pivots for future calculations)
     return pivot_scores, masking_function(pivot_scores, threshold)
 
@@ -389,8 +392,11 @@ def cover(base_orbit, thresholds, window_orbits, replacement=False, dtype=float,
     for index, threshold, window in zip(size_order, thresholds[size_order], window_orbits[size_order]):
         if kwargs.get('verbose', False) and index % max([1, len(thresholds)//10]) == 0:
             print('#', end='')
+        t0 = time.time_ns()/10**9
         # Note return_pivot_arrays must always be true here, but not necessarily for the overall function call.
         shadowing_tuple = shadow(base_orbit, window, threshold, **{**kwargs, 'convex_hull': convex_hull, 'mask': mask})
+        print(f'shadowing took {time.time_ns()/10**9 - t0} seconds')
+
         orbit_scores, orbit_mask, pivot_scores, pivot_mask = shadowing_tuple
         # replacement is whether or not to skip pivots which have already detected orbits. not replacement ==> mask
         if not replacement:
