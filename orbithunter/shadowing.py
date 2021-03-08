@@ -58,57 +58,20 @@ def l2_difference_mean_flow_correction_density(base_slice, window, *args, **kwar
     return norm_density
 
 
+# def absolute_threshold(score_array, threshold):
+#     # Depending on the pivots supplied, some places in the scoring array may be empty; do not threshold these elements.
+#     mask = np.zeros(score_array.shape, dtype=bool)
+#     non_nan_coordinates = np.where(~np.isnan(score_array))
+#     under_threshold = score_array[non_nan_coordinates] <= threshold
+#     mask_indices = tuple(mask_coord[under_threshold] for mask_coord in non_nan_coordinates)
+#     mask[mask_indices] = True
+#     return mask
+
 def absolute_threshold(score_array, threshold):
     # Depending on the pivots supplied, some places in the scoring array may be empty; do not threshold these elements.
     mask = np.zeros(score_array.shape, dtype=bool)
-    non_nan_coordinates = np.where(~np.isnan(score_array))
-    under_threshold = score_array[non_nan_coordinates] <= threshold
-    mask_indices = tuple(mask_coord[under_threshold] for mask_coord in non_nan_coordinates)
-    mask[mask_indices] = True
+    mask[score_array <= threshold] = True
     return mask
-
-
-def inside_to_outside_iterator(padded_shape, base_shape, hull):
-    """ Generator of pivot positions that iterate over the interior and then exterior.
-    Parameters
-    ----------
-    padded_shape : tuple
-        The shape of the array containing all possible pivots.
-    base_shape
-        The original orbit's array shape; the shape of the "interior" of the padded array.
-    hull : tuple
-        The shape of the convex hull (the smallest shape which can contain all windows in all dimensions).
-
-    Yields
-    ------
-    tuple :
-        The position of the pivot that will be used for the computation of the shadowing scoring metric.
-
-    Notes
-    -----
-    An example with a three dimensional field: If the window has shape (8, 8, 8) and the pivot is at position
-    (2, 4, 1) then the slice used for scoring is (slice(2, 10), slice(4, 12), slice(1, 9)).
-
-    An example of "hull": If there are two windows with shapes (2, 8) and (24, 4) then hull = (24, 8).
-    """
-    for pivot_position in np.ndindex(base_shape):
-        # Get the pivots for an array without padding, but add the padded dimensions to put pivots into the interior.
-        yield tuple(p + (h-1) for p, h in zip(pivot_position, hull))
-
-    # Windows completely consisting of padding are redundant; by definition these are pivots greater than
-    # the base extent, therefore need only pivots which have at least one coordinate less than hull in each dimension.
-    for pivot_position in np.ndindex(padded_shape):
-        # If in exterior, then pivots are in the padding by definition.
-        exterior_checker = tuple(p < (pad-1) for p, pad in zip(pivot_position, hull))
-        if True in exterior_checker:
-            # Want to work from inside to outside, but np.ndindex starts at 0's in each position. Therefore, need
-            # to treat this as the distance away from the border of the interior region to work in the correct direction
-            # hll - 2 because the width of the padding is always hll-1
-            yield tuple((pad-2) - piv if piv < (pad-1) else piv for piv, pad in zip(pivot_position, hull))
-        else:
-            # If the pivot is not in the exterior, then skip it.
-            continue
-
 
 def pivot_iterator(padded_shape, base_shape, window_shape, hull, periodicity, **kwargs):
     """
@@ -145,46 +108,35 @@ def pivot_iterator(padded_shape, base_shape, window_shape, hull, periodicity, **
     iterator for all points and then subset it using a mask, especially in the context where inside-out iteration
     is desired.
 
+    Could likely reduce memory costs by using np.ndindex and not np.indices but it would likely be a speed trade-off
     Instead of returning a generator, yield from is used; in case of errors this function will be in the traceback
     """
-    # If pivots provided, use those. Otherwise generate all possible pivots for padded array, inside to out order.
-    pivots = kwargs.get('pivots', None) or inside_to_outside_iterator(padded_shape, base_shape, hull)
-    # Masks can be passed in; the utility of this is coverings which have multiple steps
+    # A masking array can be passed; positions where True indicate pivots to be skipped.
     if isinstance(kwargs.get('mask', None), np.ndarray):
         mask = kwargs.get('mask', None)
     else:
         mask = np.zeros(padded_shape, dtype=bool)
 
-    # Not allowing partial matches along the boundary is the same as keeping the pivots within the interior.
-    # Need to trim the pivots in the padding if aperiodic.
-    for coordinates, periodic, base_size, window_size, pad_size in zip(np.indices(padded_shape), periodicity,
-                                                                       base_shape, window_shape, hull):
-        # Pivots with zero overlap are useless, remove those which are more than a window's length away from the
-        # boundary in the prefix padding and all in the suffix padding
-        mask = np.logical_or(mask, coordinates < ((pad_size-1) - (window_size-1)))
-        mask = np.logical_or(mask, coordinates > (base_size + (pad_size-1)))
-        if not periodic:
-            if kwargs.get('scanning_region', 'exterior') == 'interior':
-                # This excludes all pivots which cause windows to extend out of bounds.
-                mask = np.logical_or(np.logical_or(mask, coordinates < pad_size-1),
-                                     coordinates > (base_size + (pad_size-1) - window_size))
-            elif kwargs.get('min_proportion', 0) != 0.:
-                # This allows windows to extend out of bounds, up to a proportion of the window size.
-                num_interior_points = int(window_size * kwargs.get('min_proportion', 0))
-                mask = np.logical_or(np.logical_or(mask, coordinates < (pad_size - (window_size - num_interior_points)),
-                                     coordinates > (base_size + (pad_size-1) - num_interior_points)))
-
-        else:
-            # If a dimension is periodic then all pivots are on the "interior", can iterate over periodic padding
-            # and part of the interior to get all non-redundant information (as opposed to iterating over the
-            # interior alone, from slice(pad_size, pad_size + base_size)).
+    for coordinates, periodic, base_size, window_size, hull_size in zip(np.indices(padded_shape), periodicity,
+                                                                        base_shape, window_shape, hull):
+        # These statements mask all invalid pivot points. Those in the "exterior" whose defintion depends on
+        # window_size, periodicity, and the specified amount of window overlap with the interior.
+        pad_size = hull_size-1
+        if periodic:
+            mask = np.logical_or(mask, coordinates < (pad_size - window_size))
             mask = np.logical_or(mask, coordinates > base_size)
+        else:
+            min_overlap_proportion = kwargs.get('min_overlap', 1)
+            mask = np.logical_or(mask, coordinates < (pad_size - (1-min_overlap_proportion)*window_size))
+            mask = np.logical_or(mask, coordinates > (base_size + pad_size - min_overlap_proportion*window_size))
 
-    if isinstance(mask, np.ndarray):
-        # If mask == True then do NOT calculate the score at that position; follows the np.ma.masked_array conventions.
-        yield from (x for x in pivots if not mask[x])
-    else:
-        yield from pivots
+    # Want the valid pivots only. By definition the pivots are the positions of the array; could likely reduce
+    # me
+    truncated_pivots = np.array(tuple(c[~mask] for c in np.indices(padded_shape))).T
+    # Order the pivots by their distance from the center of the set of all pivots.
+    approximate_centroid = truncated_pivots.max(axis=0)//2
+    ordered_pivots = truncated_pivots[np.argsort(np.sum(np.abs(approximate_centroid - truncated_pivots), axis=-1))]
+    yield from (tuple(x) for x in ordered_pivots)
 
 
 def score(base_orbit, window_orbit, threshold, **kwargs):
@@ -244,17 +196,19 @@ def score(base_orbit, window_orbit, threshold, **kwargs):
     t0 = time.time_ns()/10**9
     for i, each_pivot in enumerate(pivot_iterator(padded_state.shape, base_orbit.shape, window_orbit.shape, hull,
                                                   base_orbit_periodicity, **kwargs)):
-
-        subdomain_slices = []
-        for pivot, span, periodic in zip(each_pivot, hull, base_orbit_periodicity):
+        # If aperiodic then we do not want to include zero padding in the metric scoring; slice the subdomains
+        # to remove portions in the zero_padding.
+        slice_list = []
+        for pivot, span, hull_size, periodic in zip(each_pivot, window_orbit.shape, hull, base_orbit_periodicity):
             if not periodic:
-                # If aperiodic then we only want to score the points of the window which are on the interior.
-                subdomain_slices.append(slice(max([pivot, span-1]), pivot + span))
+                # "Move" the pivot to the boundary if not already within.
+                slice_list.append(slice(max([pivot, hull_size-1]), pivot + span))
             else:
-                subdomain_slices.append(slice(pivot, pivot + span))
+                slice_list.append(slice(pivot, pivot + span))
         # Slice out the subdomains; this doesn't do anything to the window if completely within bounds.
         # Slice as numpy array and not orbit because it is much faster.
-        base_orbit_subdomain = padded_base_orbit.state[tuple(subdomain_slices)]
+        base_orbit_subdomain = padded_base_orbit.state[tuple(slice_list)]
+        # The manner the pivots are setup makes it so the following slices the overlap of base and window orbits.
         window_subdomain = window_orbit.state[tuple(slice(-shp, None) for shp in base_orbit_subdomain.shape)]
         # Compute the score for the pivot, store in the pivot score array.
         pivot_scores[each_pivot] = scoring_function(base_orbit_subdomain, window_subdomain, window_orbit, **kwargs)
@@ -264,7 +218,7 @@ def score(base_orbit, window_orbit, threshold, **kwargs):
     return pivot_scores, masking_function(pivot_scores, threshold)
 
 
-def shadow(base_orbit, window_orbit, threshold, **kwargs):
+def shadow(base_orbit, window_orbit, return_type='all', **kwargs):
     """
 
     Parameters
@@ -293,56 +247,140 @@ def shadow(base_orbit, window_orbit, threshold, **kwargs):
 
     Masking is only applied within the call to function 'score'
     """
-    # The bases orbit periodicity has to do with scoring and whether or not to wrap windows around.
-    base_orbit_periodicity = kwargs.get('base_orbit_periodicity', tuple(len(base_orbit.dimensions())*[False]))
+
     # Calculate the scoring function at every possible window position.
-    t0 = time.time_ns()/10**9
-    pivot_scores, pivot_mask = score(base_orbit, window_orbit, threshold, **kwargs)
-    print(f'scoring took {time.time_ns()/10**9 - t0} seconds')
-    # The next step is to take the score at each pivot point and fill in the corresponding window positions with this
-    # value, if it beats the threshold.
-    orbit_scores = np.full_like(pivot_scores, np.nan)
+    scoring_function = kwargs.get('scoring_function', l2_difference_mean_flow_correction)
+    # Sometimes there are metrics (like persistence diagrams) which need only be computed once per window.
+    if kwargs.get('window_caching_function', None) is not None:
+        kwargs['window_cache'] = kwargs.get('window_caching_function', None)(window_orbit, **kwargs)
+
+    for w_dim, b_dim in zip(window_orbit.shape, base_orbit.shape):
+        assert w_dim < b_dim, 'Shadowing window discretization is larger than the base orbit. resize first. '
+
+    # The bases orbit periodicity has to do with scoring and whether or not to wrap windows around.
+    periodicity = kwargs.get('base_orbit_periodicity', tuple(len(base_orbit.dimensions())*[False]))
     hull = kwargs.get('convex_hull', None) or window_orbit.shape
-    for each_pivot in pivot_iterator(pivot_scores.shape, base_orbit.shape, window_orbit.shape, hull,
-                                     base_orbit_periodicity, **kwargs):
-        pivot_score = pivot_scores[each_pivot]
-        # if pivot_score <= threshold:
-        # The current window's positions is the pivot plus its dimensions.
-        grid = tuple(p + g for g, p in zip(np.indices(window_orbit.shape), each_pivot))
-        valid_coordinates = np.ones(window_orbit.shape, dtype=bool)
-        # The scores only account for the points used to compute the metric; error in previous methods.
-        for coordinates, base_size, window_size, hull_size, periodic in zip(grid, base_orbit.shape,
-                                                                               window_orbit.shape, hull,
-                                                                               base_orbit_periodicity):
-            if periodic:
-                # If periodic then all coordinates in this dimension are valid once folded back into the interior
-                coordinates[coordinates >= (base_size+(hull_size-1))] -= base_size
-                coordinates[coordinates < (hull_size-1)] += base_size
-            else:
-                # If aperiodic then any coordinates in the exterior are invalid.
-                valid_coordinates = np.logical_and(valid_coordinates, ((coordinates < base_size+(window_size-1))
-                                                                       & (coordinates >= (window_size-1))))
-        # The positions in the masking array which are valid given the periodicity and scoring dimensions.
-        interior_grid = tuple(coordinates[valid_coordinates] for coordinates in grid)
-        filling_window = orbit_scores[interior_grid]
-        # any positions which do not have scores take the current score by default. Else, check to see
-        # if other scores are higher.
-        if kwargs.get('overwrite', True):
-            filling_window[np.isnan(filling_window)] = pivot_score
-            # This allows usage of > without improper comparison to NaN, as they have all been filled.
-            filling_window[(filling_window > pivot_score)] = pivot_score
+    verbose = kwargs.get('verbose', False)
+    if kwargs.get('padded_orbit', None) is not None:
+        padded_orbit = kwargs.get('padded_orbit', None)
+    else:
+        padded_orbit = pad_orbit_with_hull(base_orbit, hull, kwargs.get('periodicity', tuple(len(hull)*[False])))
+    padded_shape = padded_orbit.shape
+    pivot_scores = np.full_like(padded_orbit.state, np.inf)
+    pivot_coordinates = np.indices(padded_shape)
+    orbit_scores = None
+    if isinstance(kwargs.get('mask', None), np.ndarray):
+        mask = kwargs.get('mask', None)
+    else:
+        mask = np.zeros(padded_shape, dtype=bool)
+    coordinate_mapping_function = kwargs.get('coordinate_map', None)
+    min_overlap_proportion = kwargs.get('min_overlap', 1)
+
+    import matplotlib.pyplot as plt
+    for axis_coord, base_size, window_size, hull_size, periodic in zip(pivot_coordinates, base_orbit.shape,
+                                                                       window_orbit.shape, hull, periodicity):
+        pad_size = hull_size-1
+        if periodic:
+            mask = np.logical_or(mask, axis_coord < (pad_size - window_size))
+            mask = np.logical_or(mask, axis_coord >= base_size)
         else:
-            filling_window[np.isnan(filling_window)] = pivot_score
-        # once the slices' values have been filled in, can put them back into the orbit score array
-        orbit_scores[interior_grid] = filling_window
+            mask = np.logical_or(mask, axis_coord < (pad_size - (1-min_overlap_proportion)*(window_size-1)))
+            mask = np.logical_or(mask, axis_coord >= (base_size + pad_size - min_overlap_proportion*(window_size-1)))
 
-    # Still need to truncate the prefixed padding.
-    orbit_scores = orbit_scores[tuple(slice(hull_size-1, -(hull_size-1)) for hull_size in hull)]
-    orbit_mask = masking_function(orbit_scores, threshold)
-    return orbit_scores, orbit_mask, pivot_scores, pivot_mask
+    truncated_pivots = []
+    for axis_coord, base_size, hull_size, periodic in zip(pivot_coordinates, base_orbit.shape, hull, periodicity):
+        truncated_pivots.append(axis_coord[~mask].reshape(-1, 1))
+
+    truncated_pivots = np.concatenate(truncated_pivots, axis=-1)
+    approximate_centroid = truncated_pivots.max(axis=0) // 2
+    ordered_pivots = truncated_pivots[np.argsort(np.sum(np.abs(approximate_centroid - truncated_pivots), axis=-1))]
+    for i, each_pivot in enumerate(ordered_pivots):
+        if verbose:
+            if i != 0 and i % max([1, len(ordered_pivots)//10]) == 0:
+                print('-', end='')
+        each_pivot = tuple(each_pivot)
+        base_slices = []
+        window_slices = []
+        for pivot, span, base_size, hull_size, periodic in zip(each_pivot, window_orbit.shape,
+                                                                              base_orbit.shape, hull, periodicity):
+
+            pad_size = hull_size - 1
+            # This allows generalization of rectangular to more nonlinear domains via functional mappings
+            if coordinate_mapping_function is not None:
+                base_slices.append(slice(pivot, pivot + span))
+                window_slices.append(slice(0, span))
+            else:
+                # If no function provided, simple slicing is the method used.
+                if not periodic:
+                    base_start = max([pivot, pad_size])
+                    base_end = min([pivot + span, base_size + pad_size])
+                    window_start = base_start - pivot
+                    window_end = base_end - base_start
+                    base_slices.append(slice(base_start, base_end))
+                    window_slices.append(slice(window_start, window_end))
+                else:
+                    base_slices.append(slice(pivot, pivot + span))
+                    window_slices.append(slice(0, span))
+        base_slices = tuple(base_slices)
+        window_slices = tuple(window_slices)
+        subdomain_coordinates = None
+        if coordinate_mapping_function is not None:
+            subdomain_coordinates = coordinate_mapping_function(pivot_coordinates[(slice(None), *base_slices)].copy(),
+                                                                **kwargs)
+            submask = np.zeros(subdomain_coordinates.shape[1:], dtype=bool)
+            for sub_coords, base_size, window_size, hull_size, periodic in zip(subdomain_coordinates,
+                                                                               base_orbit.shape, window_orbit.shape,
+                                                                               hull, periodicity):
+                pad_size = hull_size - 1
+                if periodic:
+                    sub_coords[sub_coords >= (base_size+pad_size)] -= base_size
+                    sub_coords[sub_coords < pad_size] += base_size
+                else:
+                    lower_bound = (pad_size - (1-min_overlap_proportion)*(window_size-1))
+                    upper_bound = (base_size + pad_size - min_overlap_proportion*(window_size-1))
+                    submask = np.logical_or(submask, sub_coords < lower_bound)
+                    submask = np.logical_or(submask, sub_coords >= upper_bound)
+            subdomain_coordinates = tuple(tuple(c[~submask].ravel()) for c in subdomain_coordinates)
+            base_subdomain = padded_orbit.state[subdomain_coordinates]
+            window_subdomain = window_orbit.state[~submask]
+        elif return_type.count('pivot') == 0.:
+            subdomain_coordinates = tuple(tuple(x[base_slices].ravel()) for x in pivot_coordinates)
+            base_subdomain = padded_orbit.state[base_slices]
+            window_subdomain = window_orbit.state[window_slices]
+            for sub_coords, base_size, window_size, hull_size, periodic in zip(subdomain_coordinates,
+                                                                               base_orbit.shape, window_orbit.shape,
+                                                                               hull, periodicity):
+                pad_size = hull_size - 1
+                if periodic:
+                    sub_coords[sub_coords >= (base_size+pad_size)] -= base_size
+                    sub_coords[sub_coords < pad_size] += base_size
+        else:
+            base_subdomain = padded_orbit.state[base_slices]
+            window_subdomain = window_orbit.state[window_slices]
+        pivot_scores[each_pivot] = scoring_function(base_subdomain, window_subdomain, **kwargs)
+        if subdomain_coordinates is not None:
+            if orbit_scores is None:
+                orbit_scores = np.full_like(pivot_scores, np.inf)
+            filling_window = orbit_scores[subdomain_coordinates]
+            filling_window[(filling_window > pivot_scores[each_pivot])] = pivot_scores[each_pivot]
+            orbit_scores[subdomain_coordinates] = filling_window
+
+    if isinstance(orbit_scores, np.ndarray):
+        orbit_scores = orbit_scores[tuple(slice(hull_size-1, - (hull_size-1)) for hull_size in hull)]
+    return pivot_scores, orbit_scores
 
 
-def cover(base_orbit, thresholds, window_orbits, replacement=False, dtype=float, reorder_by_size=True, **kwargs):
+def pad_orbit_with_hull(base_orbit, hull, periodicity):
+    # This looks redundant but it is not because two padding calls with different modes are required.
+    periodic_padding = tuple((pad-1, pad-1) if bc else (0, 0) for bc, pad in zip(periodicity,  hull))
+    aperiodic_padding = tuple((pad-1, pad-1) if not bc else (0, 0) for bc, pad in zip(periodicity, hull))
+    # Pad the base orbit state to use for computing scores, create the score array which will contain each pivot's score
+    padded_state = np.pad(np.pad(base_orbit.state, periodic_padding, mode='wrap'), aperiodic_padding)
+    padded_base_orbit = base_orbit.__class__(**{**vars(base_orbit), 'state': padded_state})
+    return padded_base_orbit
+
+
+def cover(base_orbit, thresholds, window_orbits, replacement=False, reorder_by_size=True, **kwargs):
     """ Function to perform multiple shadowing computations given a collection of orbits.
 
     Parameters
@@ -374,59 +412,70 @@ def cover(base_orbit, thresholds, window_orbits, replacement=False, dtype=float,
     thresholds, window_orbits = np.array(thresholds), np.array(window_orbits)
     # Want to sort by "complexity"; originally was discretization, now area; maybe norm?
     window_sizes = [np.prod(w.dimensions()) for w in window_orbits]
-
     if reorder_by_size:
-        size_order = np.argsort(window_sizes)[::-1]
+        iter_order = np.argsort(window_sizes)[::-1]
     else:
-        size_order = list(range(len(window_orbits)))
+        iter_order = list(range(len(window_orbits)))
 
     # the array shape that can contain all window orbit arrays.
     convex_hull = tuple(max([window.discretization[i] for window in window_orbits])
                         for i in range(len(base_orbit.discretization)))
-    # Masking array is used for multi-part computations.
+    # Masking array is used for very specific or multi-part computations.
     mask = kwargs.get('mask', None)
-    # Returning numpy arrays instead of dicts now, allows usage of any and all.
-    covering_masks = np.zeros([len(window_orbits), *base_orbit.shape], dtype=bool)
-    covering_scores = np.zeros([len(window_orbits), *base_orbit.shape], dtype=float)
-    covering_pivot_scores = None
-    covering_pivot_masks = None
-    for index, threshold, window in zip(size_order, thresholds[size_order], window_orbits[size_order]):
+    masking_function = kwargs.get('masking_function', absolute_threshold)
+    periodicity = kwargs.get('base_orbit_periodicity', tuple(len(convex_hull)*[False]))
+    return_type = kwargs.get('return_type', 'all')
+
+    padded_orbit = pad_orbit_with_hull(base_orbit, convex_hull, periodicity)
+    # To avoid excessive memory usage by default, allow user to be very specific in what they want returned.
+    # This is ugly but necessary I think in the cases of large memory usage.
+    if return_type in ['all', 'orbit', 'orbit_masks']:
+        orbit_masks = np.zeros([len(window_orbits), *base_orbit.shape], dtype=bool)
+    else:
+        orbit_masks = None
+
+    if return_type in ['all', 'orbit', 'orbit_scores']:
+        orbit_scores = np.zeros([len(window_orbits), *base_orbit.shape], dtype=float)
+    else:
+        orbit_scores = None
+
+    if return_type in ['all', 'pivot', 'pivot_masks']:
+        pivot_masks = np.zeros([len(window_orbits), *padded_orbit.shape], dtype=bool)
+    else:
+        pivot_masks = None
+
+    if return_type in ['all', 'pivot', 'pivot_scores']:
+        pivot_scores = np.zeros([len(window_orbits), *padded_orbit.shape], dtype=float)
+    else:
+        pivot_scores = None
+
+    for index, threshold, window_orbit in zip(iter_order, thresholds[iter_order], window_orbits[iter_order]):
         if kwargs.get('verbose', False) and index % max([1, len(thresholds)//10]) == 0:
             print('#', end='')
-        t0 = time.time_ns()/10**9
-        # Note return_pivot_arrays must always be true here, but not necessarily for the overall function call.
-        shadowing_tuple = shadow(base_orbit, window, threshold, **{**kwargs, 'convex_hull': convex_hull, 'mask': mask})
-        print(f'shadowing took {time.time_ns()/10**9 - t0} seconds')
-
-        orbit_scores, orbit_mask, pivot_scores, pivot_mask = shadowing_tuple
-        # replacement is whether or not to skip pivots which have already detected orbits. not replacement ==> mask
+        shadow_kwargs = {**kwargs, 'convex_hull': convex_hull, 'mask': mask, 'padded_orbit': padded_orbit}
+        shadowing_tuple = shadow(base_orbit, window_orbit, **shadow_kwargs)
+        window_pivot_scores, window_orbit_scores = shadowing_tuple
+        # replacement is whether or not to skip pivots that have detected shadowing.
         if not replacement:
             if mask is not None:
                 # all detections
-                mask = np.logical_or(pivot_mask, mask)
+                mask = np.logical_or(masking_function(window_pivot_scores, threshold), mask)
             else:
-                mask = pivot_mask.copy()
-        # Return the masks for convenience, thresholding could be done outside function, though, it is used for
-        # determining replacement here.
-        covering_masks[index, ...] = orbit_mask.copy()
-        covering_scores[index, ...] = orbit_scores.copy().astype(dtype)
-        # For multiple runs providing a mask of the pivots is very useful, but because these can be very large arrays,
-        # do not return these by default
-        if kwargs.get('return_pivot_arrays', False):
-            if covering_pivot_masks is None:
-                covering_pivot_masks = np.zeros([len(window_orbits), *pivot_mask.shape])
-            if covering_pivot_scores is None:
-                covering_pivot_scores = np.zeros([len(window_orbits), *pivot_scores.shape])
-            covering_pivot_masks[index, ...] = pivot_mask.copy()
-            covering_pivot_scores[index, ...] = pivot_scores.copy().astype(dtype)
+                mask = masking_function(window_pivot_scores, threshold).copy()
 
-    if kwargs.get('return_pivot_arrays', False):
-        return covering_scores, covering_masks, covering_pivot_scores, covering_pivot_masks
-    else:
-        return covering_scores, covering_masks
+        if isinstance(orbit_masks, np.ndarray):
+            orbit_masks[index, ...] = masking_function(window_orbit_scores, threshold)[...]
+        if isinstance(orbit_scores, np.ndarray):
+            orbit_scores[index, ...] = window_orbit_scores[...]
+        if isinstance(pivot_masks, np.ndarray):
+            pivot_masks[index, ...] = masking_function(window_pivot_scores, threshold)[...]
+        if isinstance(pivot_scores, np.ndarray):
+            pivot_scores[index, ...] = window_pivot_scores[...]
+
+    return pivot_scores, pivot_masks, orbit_scores, orbit_masks
 
 
-def fill(base_orbit, thresholds, window_orbits, **kwargs):
+def fill(base_orbit, window_orbits, thresholds, **kwargs):
     """ Function to perform multiple shadowing computations given a collection of orbits.
 
     Parameters
@@ -508,13 +557,13 @@ def fill(base_orbit, thresholds, window_orbits, **kwargs):
         if filled != 0.:
             pass
         else:
-            subdomain_slices = []
+            slice_list = []
             # Need the correct slice of the base orbit with which to compute metric. Take the largest possible
             # slice based on the largest shape that contains all windows, then take subdomains of this slice accordingly
             for pivot_coord, span, stride in zip(pivot, hull, strides):
-                subdomain_slices.append(slice(pivot_coord * stride, pivot_coord * stride + span))
+                slice_list.append(slice(pivot_coord * stride, pivot_coord * stride + span))
 
-            base_orbit_subdomain = padded_base_orbit.state[tuple(subdomain_slices)]
+            base_orbit_subdomain = padded_base_orbit.state[tuple(slice_list)]
             pivot_scores = []
             # Once the correct field slice has been retrieved, score it against all of the windows.
             for window in window_orbits:
