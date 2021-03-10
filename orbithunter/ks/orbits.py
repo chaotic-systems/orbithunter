@@ -975,13 +975,17 @@ class OrbitKS(Orbit):
                 padded_modes = np.concatenate((modes.state[:-(modes.n//2-1), :],
                                                np.pad(modes.state[-(modes.n//2-1):, :], padding_tuple)), axis=0)
                 padded_modes *= np.sqrt(size / modes.n)
+                return self.__class__(**{**vars(self), 'state': padded_modes,
+                                         'basis': 'modes', 'discretization': (size, self.m)}).transform(to=self.basis)
+
             else:
                 padding = (size-modes.m) // 2
                 padding_tuple = ((0, 0), (padding, padding))
                 padded_modes = np.concatenate((modes.state[:, :-(modes.m//2-1)],
                                                np.pad(modes.state[:, -(modes.m//2-1):], padding_tuple)), axis=1)
                 padded_modes *= np.sqrt(size / modes.m)
-        return self.__class__(**{**vars(self), 'state': padded_modes, 'basis': 'modes'}).transform(to=self.basis)
+                return self.__class__(**{**vars(self), 'state': padded_modes,
+                                         'basis': 'modes', 'discretization': (self.n, size)}).transform(to=self.basis)
 
     def truncate(self, size, axis=0):
         """ Decrease the size of the discretization via truncation
@@ -1014,13 +1018,17 @@ class OrbitKS(Orbit):
                 first_half = modes.state[:truncate_number+1, :]
                 second_half = modes.state[-(modes.n//2-1):-(modes.n//2-1)+truncate_number, :]
                 truncated_modes = np.sqrt(size / modes.n) * np.concatenate((first_half, second_half), axis=0)
+                return self.__class__(**{**vars(self), 'state': truncated_modes,
+                                         'basis': 'modes', 'discretization': (size, self.m)}).transform(to=self.basis)
             else:
                 truncate_number = int(size // 2) - 1
                 # Split into real and imaginary components, truncate separately.
                 first_half = self.state[:, :truncate_number]
                 second_half = self.state[:, -(int(self.m//2) - 1):-(int(self.m//2) - 1) + truncate_number]
                 truncated_modes = np.sqrt(size / modes.m) * np.concatenate((first_half, second_half), axis=1)
-        return self.__class__(**{**vars(self), 'state': truncated_modes, 'basis': 'modes'})
+                return self.__class__(**{**vars(self), 'state': truncated_modes,
+                                         'basis': 'modes', 'discretization': (self.n, size)}).transform(to=self.basis)
+
 
     def preprocess(self):
         """ Check whether the orbit converged to an equilibrium or close-to-zero solution
@@ -2077,10 +2085,13 @@ class AntisymmetricOrbitKS(OrbitKS):
                 padded_modes = np.concatenate((modes.state[:-(modes.n//2-1), :],
                                                np.pad(modes.state[-(modes.n//2-1):, :], padding_tuple)), axis=0)
                 padded_modes *= np.sqrt(size / modes.n)
+                return self.__class__(**{**vars(self), 'state': padded_modes,
+                                         'basis': 'modes', 'discretization': (size, self.m)}).transform(to=self.basis)
             else:
                 padding_number = (size-modes.m) // 2
                 padded_modes = np.sqrt(size / modes.m) * np.pad(modes.state, ((0, 0), (0, padding_number)))
-        return self.__class__(**{**vars(self), 'state': padded_modes, 'basis': 'modes'}).transform(to=self.basis)
+                return self.__class__(**{**vars(self), 'state': padded_modes,
+                                         'basis': 'modes', 'discretization': (self.n, size)}).transform(to=self.basis)
 
     def truncate(self, size, axis=0):
         """ Overwrite of parent method """
@@ -2093,10 +2104,13 @@ class AntisymmetricOrbitKS(OrbitKS):
                 first_half = modes.state[:truncate_number+1, :]
                 second_half = modes.state[-(modes.n//2-1):-(modes.n//2-1)+truncate_number, :]
                 truncated_modes = np.sqrt(size / modes.n) * np.concatenate((first_half, second_half), axis=0)
+                return self.__class__(**{**vars(self), 'state': truncated_modes,
+                                         'basis': 'modes', 'discretization': (size, self.m)}).transform(to=self.basis)
             else:
                 truncate_number = int(size // 2) - 1
                 truncated_modes = np.sqrt(size / modes.m) * modes.state[:, :truncate_number]
-        return self.__class__(**{**vars(self), 'state': truncated_modes, 'basis': 'modes'}).transform(to=self.basis)
+                return self.__class__(**{**vars(self), 'state': truncated_modes,
+                                         'basis': 'modes', 'discretization': (self.n, size)}).transform(to=self.basis)
 
     def shapes(self):
         """ State array shapes in different bases.
@@ -2274,11 +2288,14 @@ class ShiftReflectionOrbitKS(OrbitKS):
                 padded_modes = np.concatenate((modes.state[:-(modes.n//2-1), :],
                                                np.pad(modes.state[-(modes.n//2-1):, :], padding_tuple)), axis=0)
                 padded_modes *= np.sqrt(size / modes.n)
+                return self.__class__(**{**vars(self), 'state': padded_modes,
+                                      'basis': 'modes', 'discretization': (size, self.m)}).transform(to=self.basis)
             else:
                 padding_number = (size-modes.m) // 2
                 padded_modes = np.sqrt(size / modes.m) * np.pad(modes.state, ((0, 0), (0, padding_number)))
 
-        return self.__class__(**{**vars(self), 'state': padded_modes, 'basis': 'modes'}).transform(to=self.basis)
+                return self.__class__(**{**vars(self), 'state': padded_modes,
+                                      'basis': 'modes', 'discretization': (self.n, size)}).transform(to=self.basis)
 
     def truncate(self, size, axis=0):
         """ Overwrite of parent method """
@@ -2291,10 +2308,13 @@ class ShiftReflectionOrbitKS(OrbitKS):
                 first_half = modes.state[:truncate_number+1, :]
                 second_half = modes.state[-(modes.n//2-1):-(modes.n//2-1)+truncate_number, :]
                 truncated_modes = np.sqrt(size / modes.n) * np.concatenate((first_half, second_half), axis=0)
+                return self.__class__(**{**vars(self), 'state': truncated_modes,
+                                         'basis': 'modes', 'discretization': (size, self.m)}).transform(to=self.basis)
             else:
                 truncate_number = int(size // 2) - 1
                 truncated_modes = np.sqrt(size / modes.m) * modes.state[:, :truncate_number]
-        return self.__class__(**{**vars(self), 'state': truncated_modes, 'basis': 'modes'}).transform(to=self.basis)
+                return self.__class__(**{**vars(self), 'state': truncated_modes,
+                                         'basis': 'modes', 'discretization': (self.n, size)}).transform(to=self.basis)
 
     def selection_rules(self):
         # equivalent to indices 0 + j from thesis; time indices go like {0, j, j}
@@ -2571,12 +2591,11 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         """
         spatial_modes = self.transform(to='spatial_modes')
         if axis == 0:
-
             # Not technically zero-padding, just copying. Just can't be in temporal mode basis
             # because it is designed to only represent the zeroth modes.
             padded_spatial_modes = np.tile(spatial_modes.state[0, :].reshape(1, -1), (size, 1))
-            return self.__class__(**{**vars(self), 'state': padded_spatial_modes,
-                                     'basis': 'spatial_modes'}).transform(to=self.basis)
+            return self.__class__(**{**vars(self), 'state': padded_spatial_modes, 'basis': 'spatial_modes',
+                                     'discretization': (size, self.m)}).transform(to=self.basis)
         else:
             # Split into real and imaginary components, pad separately.
             padding = (size-self.m) // 2
@@ -2584,23 +2603,23 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             padded_modes = np.concatenate((spatial_modes.state[:, :-(self.m//2-1)],
                                            np.pad(spatial_modes.state[:, -(self.m//2-1):], padding_tuple)), axis=1)
             padded_modes *= np.sqrt(size / self.m)
-            return self.__class__(**{**vars(self), 'state': padded_modes,
-                                     'basis': 'spatial_modes'}).transform(to=self.basis)
+            return self.__class__(**{**vars(self), 'state': padded_modes, 'basis': 'spatial_modes',
+                                     'discretization': (self.n, size)}).transform(to=self.basis)
 
     def truncate(self, size, axis=0):
         """ Overwrite of parent method """
         if axis == 0:
             spatial_modes = self.transform(to='spatial_modes')
             truncated_spatial_modes = spatial_modes.state[-size:, :]
-            return self.__class__(**{**vars(self), 'state': truncated_spatial_modes,
-                                     'basis': 'spatial_modes'}).transform(to=self.basis)
+            return self.__class__(**{**vars(self), 'state': truncated_spatial_modes, 'basis': 'spatial_modes',
+                                     'discretization': (size, self.m)}).transform(to=self.basis)
         else:
             modes = self.transform(to='modes')
             truncate_number = int(size // 2) - 1
             truncated_modes = modes.state[:, :truncate_number]
             # cannot distinguish between n != 1 and n == 1 when in modes basis; therefore, pass the shape to keep track
             return self.__class__(**{**vars(self), 'state': truncated_modes,
-                                     'basis': 'modes'}).transform(to=self.basis)
+                                     'basis': 'modes', 'discretization': (self.n, size)}).transform(to=self.basis)
 
     def shapes(self):
         """ State array shapes in different bases. See core.py for details.
@@ -2968,8 +2987,8 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
                 # because it is designed to only represent the zeroth modes.
                 spatial_modes = self.transform(to='spatial_modes')
                 padded_spatial_modes = np.tile(spatial_modes.state[-1, :].reshape(1, -1), (size, 1))
-                return self.__class__(**{**vars(self), 'state': padded_spatial_modes,
-                                         'basis': 'spatial_modes'}).transform(to=self.basis)
+                return self.__class__(**{**vars(self), 'state': padded_spatial_modes, 'basis': 'spatial_modes',
+                                         'discretization': (size, self.m)}).transform(to=self.basis)
             else:
                 modes = self.transform(to='modes')
                 padding = (size-modes.m) // 2
@@ -2977,8 +2996,8 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
                 padded_modes = np.concatenate((modes.state[:, :-modes.m//2-1],
                                                np.pad(modes.state[:, -modes.m//2-1:], padding_tuple)), axis=1)
                 padded_modes *= np.sqrt(size / modes.m)
-                return self.__class__(**{**vars(self), 'state': padded_modes,
-                                         'basis': 'modes'}).transform(to=self.basis)
+                return self.__class__(**{**vars(self), 'state': padded_modes, 'basis': 'modes',
+                                         'discretization': (self.n, size)}).transform(to=self.basis)
 
     def truncate(self, size, axis=0):
         """ Subclassed method to handle RelativeEquilibriumOrbitKS mode's shape.
@@ -2986,8 +3005,8 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         assert self.frame == 'comoving', 'Transform to comoving frame before truncating modes'
         if axis == 0:
             truncated_spatial_modes = self.transform(to='spatial_modes').state[-size:, :]
-            self.__class__(**{**vars(self), 'state': truncated_spatial_modes, 'basis': 'spatial_modes'}
-                           ).transform(to=self.basis)
+            return self.__class__(**{**vars(self), 'state': truncated_spatial_modes, 'basis': 'spatial_modes',
+                                     'discretization': (size, self.m)}).transform(to=self.basis)
         else:
             truncate_number = int(size // 2) - 1
             # Split into real and imaginary components, truncate separately.
@@ -2996,8 +3015,8 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             second_half = spatial_modes.state[:, -spatial_modes.m//2-1:-spatial_modes.m//2-1 + truncate_number]
             truncated_spatial_modes = (np.sqrt(size / spatial_modes.m)
                                        * np.concatenate((first_half, second_half), axis=1))
-        return self.__class__(**{**vars(self), 'state': truncated_spatial_modes,
-                                 'basis': 'spatial_modes'}).transform(to=self.basis)
+            return self.__class__(**{**vars(self), 'state': truncated_spatial_modes, 'basis': 'spatial_modes',
+                                     'discretization': (self.n, size)}).transform(to=self.basis)
 
     @classmethod
     def dimension_based_discretization(cls, dimensions, **kwargs):
