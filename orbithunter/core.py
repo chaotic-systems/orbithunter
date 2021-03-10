@@ -80,15 +80,20 @@ class Orbit:
         If possible, parsing should be avoided as it takes time. If all primary attributes that would be parsed
         are included then do not parse; it is assumed that the information is coherent.
         """
-        if type(None) in [type(state), type(basis), type(parameters), type(discretization), type(constraints)]:
+        if type(None) in [type(state), type(basis), type(discretization)]:
             self._parse_state(state, basis, **kwargs)
-            self._parse_parameters(parameters, **kwargs)
         else:
             self.state = state
             self.basis = basis
-            self.parameters = parameters
             self.discretization = discretization
+
+        if type(None) in [type(parameters), type(constraints)]:
+            self._parse_parameters(parameters, **kwargs)
+        else:
+            self.parameters = parameters
             self.constraints = constraints
+
+
 
 
     def __add__(self, other):
