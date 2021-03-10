@@ -378,7 +378,8 @@ class Orbit:
             state_slice = self.state[slices]
             if self.parameters is not None:
                 # parameters are passed as tuple, not dict but this is the easiest manner with which to update;
-                # need to make sure they are in the right order after the updating.
+                # need to make sure the new dimensions are in the correct positions with respect to the parameter
+                # labels. Annoying but accounts for others' not abiding by ordering convention.
                 new_dimensions = [dim * (newshape/oldshape) for dim, newshape, oldshape
                                   in zip(self.dimensions(), state_slice.shape, self.shape)]
                 param_dict = dict(zip(list(self.parameter_labels()), self.parameters))
