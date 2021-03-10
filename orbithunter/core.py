@@ -60,7 +60,7 @@ due to how numpy multiplication works; i.e. (n,1) * (n,) = (n,n) dimensional; yo
 
 class Orbit:
 
-    def __init__(self, state=None, basis=None, parameters=None, **kwargs):
+    def __init__(self, state=None, basis=None, parameters=None, discretization=None, constraints=None, **kwargs):
         """ Base/Template class for orbits
 
         Parameters
@@ -74,10 +74,22 @@ class Orbit:
         **kwargs :
             Extra arguments for _parse_parameters and random_state
                 See the description of the aforementioned method.
-                
+
+        Notes
+        -----
+        If possible, parsing should be avoided as it takes time. If all primary attributes that would be parsed
+        are included then do not parse; it is assumed that the information is coherent.
         """
-        self._parse_parameters(parameters, **kwargs)
-        self._parse_state(state, basis, **kwargs)
+        if type(None) in [type(state), type(basis), type(parameters), type(discretization), type(constraints)]:
+            self._parse_state(state, basis, **kwargs)
+            self._parse_parameters(parameters, **kwargs)
+        else:
+            self.state = state
+            self.basis = basis
+            self.parameters = parameters
+            self.discretization = discretization
+            self.constraints = constraints
+
 
     def __add__(self, other):
         """ Addition of Orbit state and other numerical quantity.
@@ -1219,13 +1231,15 @@ class Orbit:
         constraints = {key: (True if key in tuple(*labels) else False) for key, val in self.constraints.items()}
         setattr(self, 'constraints', constraints)
 
-    def mask(self, masking_array, invert=True, **kwargs):
+    def mask(self, masking_array, invert=False, **kwargs):
         """ Return an Orbit instance with a numpy masked array state
 
 
         Parameters
         ----------
-        boolean_array
+        masking_array : np.ndarray
+        invert : bool
+            Whether or not to take the inverse mask.
 
         Returns
         -------
