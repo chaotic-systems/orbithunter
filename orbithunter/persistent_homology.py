@@ -79,11 +79,7 @@ def gudhi_plot(orbit_, gudhi_method='diagram', **kwargs):
     """
     orbit_persistence_ = orbit_persistence(orbit_, **{**kwargs, 'persistence_format':'gudhi'})
     plot_kwargs = {k: v for k, v in kwargs.items() if k in inspect.getfullargspec(gh.plot_persistence_diagram).args}
-    if gudhi_method == 'diagram':
-        gh.plot_persistence_diagram(orbit_persistence_, **plot_kwargs)
-    elif gudhi_method == 'barcode':
-        gh.plot_persistence_barcode(orbit_persistence_, **plot_kwargs)
-    elif gudhi_method == 'density':
+    if gudhi_method in ['diagram', 'barcode', 'density']:
         gh.plot_persistence_diagram(orbit_persistence_, **plot_kwargs)
     else:
         raise ValueError('Gudhi plotting gudhi_method not recognized.')
@@ -108,13 +104,11 @@ def gudhi_distance(orbit1, orbit2, gudhi_metric='bottleneck', **kwargs):
     diagram1 = orbit_persistence(orbit1, **kwargs)[:, 1:]
     diagram2 = orbit_persistence(orbit2, **kwargs)[:, 1:]
     if gudhi_metric == 'bottleneck':
-        distance_func = gh.bottleneck.bottleneck_distance
-    elif gudhi_metric == 'hera_bottleneck':
-        distance_func = gh.hera.bottleneck_distance
+        distance_func = bottleneck_distance
     elif gudhi_metric == 'wasserstein':
-        distance_func = gh.hera.wasserstein_distance
+        distance_func = wasserstein_distance
     else:
-        raise ValueError('Distance gudhi_metric not recognized as gudhi gudhi_metric.')
+        raise ValueError(f'{gudhi_metric} not recognized as gudhi metric.')
     return distance_func(diagram1, diagram2)
 
 

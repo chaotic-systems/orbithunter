@@ -1,5 +1,4 @@
 import numpy as np
-import time
 
 __all__ = [ 'shadow', 'fill', 'cover']
 
