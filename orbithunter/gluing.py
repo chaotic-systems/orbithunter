@@ -3,7 +3,7 @@ import numpy as np
 import itertools
 from collections import Counter
 
-__all__ = ['tile', 'glue', 'generate_symbol_arrays', 'rediscretize_tileset']
+__all__ = ['tile', 'glue', 'populate_symbol_arrays', 'rediscretize_tileset']
 
 
 def _correct_aspect_ratios(orbit_array, axis=0, conserve_parity=True):
@@ -149,7 +149,7 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
     tile_shape = orbit_array.ravel()[0].shapes()[0]
     gluing_order = kwargs.get('gluing_order', np.argsort(glue_shape))
     conserve_parity = kwargs.get('conserve_parity', True)
-    nzero = kwargs.get('exclude_zero_dimensions', True)
+    nzero = kwargs.get('exclude_nonpositive', True)
     gluing_basis = kwargs.get('basis', class_constructor.bases()[0])
     # This joins the dictionary of all orbits' dimensions by zipping the values together. i.e.
     #(T_1, L_1, ...), (T_2, L_2, ...) transforms into  ((T_1, T_2, ...) , (L_1, L_2, ...))
@@ -171,7 +171,7 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
                 # For each strip, need to know how to combine the dimensions of the orbits. Bundle, then combine.
                 tuple_of_zipped_dimensions = tuple(zip(*(o.dimensions() for o in orbit_array[gs].ravel())))
                 strip_parameters = class_constructor.glue_dimensions(tuple_of_zipped_dimensions, glue_shape=strip_shape,
-                                                                     exclude_zero_dimensions=nzero)
+                                                                     exclude_nonpositive=nzero)
                 # Slice the orbit array to get the strip, reshape to maintain its d-dimensional form.
                 strip_of_orbits = orbit_array[gs].ravel()
 
@@ -201,7 +201,7 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
         zipped_dimensions = tuple(zip(*(o.dimensions() for o in orbit_array.ravel())))
         # Default parameter gluing strategy is to average all tile dimensions
         glued_parameters = class_constructor.glue_dimensions(zipped_dimensions, glue_shape=glue_shape,
-                                                             exclude_zero_dimensions=nzero)
+                                                             exclude_nonpositive=nzero)
         # If we want a much simpler method of gluing, we can do "arraywise" which simply concatenates everything at
         # once. I would say this is the better option if all orbits in the tile dictionary are approximately equal
         # in size.
@@ -251,7 +251,7 @@ def tile(symbol_array, tiling_dictionary, class_constructor,  **kwargs):
     return glued_orbit
 
 
-def generate_symbol_arrays(tiling_dictionary, glue_shape, unique=True):
+def populate_symbol_arrays(tiling_dictionary, glue_shape, unique=True):
     """ Produce all d-dimensional symbol arrays for a given dictionary and shape.
 
     Parameters

@@ -235,7 +235,7 @@ def read_symbolic_log(symbol_array, log_filename, overwrite=False, retry=False):
     This checks the records/logs as to whether an orbit or one of its equivariant arrangements converged with
     a particular method.
     """
-    all_rotations = itertools.product(*(list(range(a)) for a in symbol_array.shape))
+    all_rotations = itertools.product(*(tuple(range(a)) for a in symbol_array.shape))
     axes = tuple(range(len(symbol_array.shape)))
     equivariant_str = []
     for rotation in all_rotations:

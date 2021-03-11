@@ -109,10 +109,10 @@ nelder-mead (very very slow), powell (very slow), cobyla (slow),
 
 :
             https://docs.scipy.org/doc/scipy/reference/optimize.html
-            https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize
+            https://docs.scipy.org/doc/scipy/reference/populated/scipy.optimize.minimize.html#scipy.optimize.minimize
             ['cg_min', 'newton-cg', 'l-bfgs-b', 'tnc', 'bfgs']
 
-            https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.root.html
+            https://docs.scipy.org/doc/scipy/reference/populated/scipy.optimize.root.html
             ['hybr', 'lm','broyden1', 'broyden2', 'root_anderson', 'linearmixing',
                         'diagbroyden', 'excitingmixing', 'root_krylov',' df-sane', 'newton_krylov', 'anderson']
 
