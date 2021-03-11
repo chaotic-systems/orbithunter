@@ -1154,13 +1154,13 @@ class OrbitKS(Orbit):
         ----------
         **kwargs
             tscale : int
-                The number of temporal frequencies to keep after truncation.
+                "Mean" for temporal spectrum modulation
             xscale : int
-                The number of spatial frequencies to get after truncation.
+                "Mean" for spatial spectrum modulation
             xvar : float
-                Plays the role of variance for Gaussian and GTES scaling
+                "Variance" for temporal spectrum modulation
             tvar : float
-                Plays the role of variance for Gaussian and GTES scaling
+                "Variance"for spatial spectrum modulation
             seed : int
                 Value to seed random number generator with.
 
@@ -1220,10 +1220,10 @@ class OrbitKS(Orbit):
         elif spatial_modulation == 'exponential_sqrt':
             modulator = np.exp(-1.0 * np.sqrt(np.abs(space_ - xscale)) / np.sqrt(xvar))
         elif spatial_modulation == 'plateau_linear':
-            modulator = 1/((2*pi*space_/self.x)**2 - (2*pi*space_/self.x)**4)
+            modulator = np.divide(1, ((2*pi*space_/self.x)**2 - (2*pi*space_/self.x)**4)) * np.ones(time_.shape)
             modulator[space_ <= xscale] = 1
         elif spatial_modulation == 'exponential_linear':
-            modulator = np.exp((2*pi*space_/self.x)**2 - (2*pi*space_/self.x)**4)
+            modulator = np.exp((2*pi*space_/self.x)**2 - (2*pi*space_/self.x)**4) * np.ones(time_.shape)
             modulator[space_ <= xscale] = 1
         elif spatial_modulation == 'flat_top':
             modulator = np.exp(-(np.abs(space_-xscale)/xvar)**5)

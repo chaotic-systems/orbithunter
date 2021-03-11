@@ -17,12 +17,6 @@ def fixed_orbit_data():
                          [ 1.1337694, -1.0998913]]]])
     return state
 
-@pytest.fixture()
-def fixed_kwarg_dict():
-    # keyword arguments that do nothing except be passed to methods.
-    return {'aint': 'nothin', 'gonna': 'break', 'my': 'stride', 'nobodys': 'gonna', 'slow': 'me', 'down,': 'ohno',
-            'I': 'got', 'to': 'keep', 'on': 'movin'}
-
 
 def test_create_orbit(fixed_orbit_data):
     # PyTest fixture of data used for testing
@@ -72,8 +66,8 @@ def test_binary_operations_no_state():
     # testing binary operators for orbit instances without declaring states.
 
 
-def test_dunder_methods(fixed_orbit_data):
-    orbit_ = test_orbit(fixed_orbit_data)
+def test_attributes(fixed_orbit_data):
+    orbit_ = oh.Orbit(state=fixed_orbit_data, basis='physical', parameters=(10, 10, 10, 10))
     assert orbit_.parameters[0] == orbit_.t
     assert orbit_.parameters[1] == orbit_.x
     assert orbit_.parameters[2] == orbit_.y
@@ -87,9 +81,24 @@ def test_dunder_methods(fixed_orbit_data):
     with pytest.raises(AttributeError):
         _ = oh.Orbit().fakeattr
 
+
+def test_eqn(fixed_orbit_data, fixed_kwarg_dict):
+    orbit_ = oh.Orbit(state=fixed_orbit_data, basis='physical', parameters=(10, 10, 10, 10))
+    eqn_array = orbit_.eqn(fixed_kwarg_dict).state
+    assert
+    grad = orbit_.cost_function_gradient(fixed_kwarg_dict)
+    res = orbit_.residual(fixed_kwarg_dict)
+    matvec_ = orbit_.matvec(f, kwargs=fixed_kwarg_dict)
+    rmatvec_ = orbit_.rmatvec(grad, kwargs=fixed_kwarg_dict)
+    orbit_vector_ = orbit_.orbit_vector()
+    # equivalent to addition of state and parameters.
+    _ = ((2 * orbit_) - orbit_.increment(orbit_)).norm()
+    orbit_from_vector = orbit_.from_numpy_array(orbit_vector_)
+
 def test_equation_methods(fixed_orbit_data, fixed_kwarg_dict):
-    orbit_ = test_orbit(fixed_orbit_data)
+    orbit_ = oh.Orbit(state=fixed_orbit_data, basis='physical', parameters=(10, 10, 10, 10))
     f = orbit_.eqn(fixed_kwarg_dict)
+
     grad = orbit_.cost_function_gradient(fixed_kwarg_dict)
     res = orbit_.residual(fixed_kwarg_dict)
     matvec_ = orbit_.matvec(f, kwargs=fixed_kwarg_dict)
