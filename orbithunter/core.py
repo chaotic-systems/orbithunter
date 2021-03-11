@@ -2,7 +2,6 @@ from json import dumps
 import h5py
 import numpy as np
 import itertools
-import warnings
 
 __all__ = ['Orbit', 'convert_class']
 
@@ -1225,8 +1224,8 @@ class Orbit:
             if self.size == 0. or kwargs.get('overwrite', False):
                 self._generate_state(**kwargs)
             else:
-                warn_str = '\noverwriting a non-empty state requires overwrite=True. '
-                warnings.warn(warn_str, RuntimeWarning)
+                error_str = ' overwriting a non-empty state requires overwrite=True. '
+                raise ValueError(error_str)
         # For chaining operations, return self instead of None
         return self
 
