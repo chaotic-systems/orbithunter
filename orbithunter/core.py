@@ -48,13 +48,9 @@ in terms of finite differences, so should the Jacobian).***
 The way that binary operations and dunder methods involving the state are designed is to maintain all attributes of a 
 state except for the state itself. 
 
-Possible but very unlikely problems: if you use the autoreload extension for jupyter notebooks and change this
-file then because id(Orbit) changes, the binary operators type checking results in operations between class objects
-and numpy arrays. 
-
-IMPORTANT: If your equation is one-dimensional, it is recommended to define the state as being a (n,1) dimensional array
-due to how numpy multiplication works; i.e. (n,1) * (n,) = (n,n) dimensional; you need to be careful. 
-
+Possible but very very unlikely problems: if you use the autoreload extension for jupyter notebooks and change this
+file then because id(Orbit) changes, the type checking which occurs in the binary operator definitions
+results in operations between class objects and numpy arrays. 
 """
 
 
@@ -92,9 +88,6 @@ class Orbit:
         else:
             self.parameters = parameters
             self.constraints = constraints
-
-
-
 
     def __add__(self, other):
         """ Addition of Orbit state and other numerical quantity.
@@ -396,7 +389,7 @@ class Orbit:
             if self.parameters is not None:
                 # parameters are passed as tuple, not dict but this is the easiest manner with which to update;
                 # need to make sure the new dimensions are in the correct positions with respect to the parameter
-                # labels. Annoying but accounts for others' not abiding by ordering convention.
+                # labels.
                 new_dimensions = [dim * (newshape/oldshape) for dim, newshape, oldshape
                                   in zip(self.dimensions(), state_slice.shape, self.shape)]
                 param_dict = dict(zip(list(self.parameter_labels()), self.parameters))
@@ -407,7 +400,7 @@ class Orbit:
             else:
                 return self.__class__(**{**vars(self), 'state': state_slice})
         except IndexError as ie:
-            raise ValueError('cannot slice an Orbit instance whose state is empty.') from ie
+            raise ValueError('out of bounds or attempting to slice an empty state.') from ie
 
     @staticmethod
     def bases():
@@ -719,18 +712,58 @@ class Orbit:
         if self.discretization != new_shape:
             # Although this is less efficient than doing every axis at once, it generalizes to cases where bases
             # are different for padding along different dimensions (i.e. transforms implicit in truncate and pad).
-            for i, d in enumerate(self.discretization):
-                if new_shape[i] < self.minimal_shape()[i]:
+            for ax, (old, new, min_size) in enumerate(zip(self.discretization, new_shape, self.minimal_shape())):
+                if new < min_size:
                     errstr = 'minimum discretization requirements not met during resize.'
                     raise ValueError(errstr)
-                if new_shape[i] < d:
-                    placeholder_orbit = placeholder_orbit.truncate(new_shape[i], axis=i)
-                elif new_shape[i] > d:
-                    placeholder_orbit = placeholder_orbit.pad(new_shape[i], axis=i)
+                if new < old:
+                    placeholder_orbit = placeholder_orbit.truncate(new, axis=ax)
+                elif new > old:
+                    placeholder_orbit = placeholder_orbit.pad(new, axis=ax)
                 else:
                     pass
 
         return placeholder_orbit.transform(to=self.basis)
+
+    def roll(self, shift, axis=0):
+        """ Apply numpy roll along specified axis.
+
+        Parameters
+        ----------
+        shift : int
+            Number of collocation points (discrete rotations) to rotate by
+        axis : int
+            The numpy ndarray along which to roll
+
+        Returns
+        -------
+        OrbitKS :
+            Instance with rolled state
+
+        Notes
+        -----
+        In decision to maintain numpy defaults or change roll to be positive when shift is positive, the latter was
+        chosen.
+        """
+
+        return self.__class__(**{**vars(self), 'state': np.roll(self.state, shift, axis=axis), 'basis': 'field'})
+
+    def cell_shift(self, n_cell, axis=0):
+        """ Rotate by period/n_cell in either axis.
+
+        Parameters
+        ----------
+        n_cell : integer
+            Orbit field being shifted by amount dimension / n_cell
+        axis :
+            Axis
+
+        Returns
+        -------
+        OrbitKS :
+            Instance with rolled state
+        """
+        return self.roll(np.sign(n_cell)*self.discretization[axis] // np.abs(n_cell), axis=axis)
 
     def transform(self, to=None):
         """ Method that handles all basis transformations. Undefined/trivial for Orbits with only one basis.
@@ -965,8 +998,9 @@ class Orbit:
         else:
             padding_tuple = tuple((padding_size, padding_size) if i == axis else (0, 0)
                                   for i in range(len(self.shape)))
-
-        return self.__class__(**{**vars(self), 'state': np.pad(self.state, padding_tuple)}).transform(to=self.basis)
+        newdisc = tuple(size if i == axis else self.discretization[i] for i in range(len(self.discretization)))
+        return self.__class__(**{**vars(self), 'state': np.pad(self.state, padding_tuple),
+                                 'discretization': newdisc}).transform(to=self.basis)
 
     def truncate(self, size, axis=0):
         """ Decrease the size of the discretization along an axis
@@ -997,7 +1031,9 @@ class Orbit:
         else:
             truncate_slice = tuple(slice(truncate_size, -truncate_size) if i == axis else slice(None)
                                    for i in range(len(self.shape)))
-        return self.__class__(**{**vars(self), 'state': self.state[truncate_slice]}).transform(to=self.basis)
+        new_shape = tuple(size if i == axis else self.discretization[i] for i in range(len(self.shape)))
+        return self.__class__(**{**vars(self), 'state': self.state[truncate_slice],
+                                 'discretization': new_shape}).transform(to=self.basis)
 
     def jacobian(self, **kwargs):
         """ Jacobian matrix evaluated at the current state.

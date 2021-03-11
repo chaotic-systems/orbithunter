@@ -859,6 +859,7 @@ class OrbitKS(Orbit):
         OrbitKS :
             Instance with rolled state
         """
+        field = self.transform(to='field')
         return self.roll(np.sign(n_cell)*self.discretization[axis] // np.abs(n_cell), axis=axis)
 
     def roll(self, shift, axis=0):

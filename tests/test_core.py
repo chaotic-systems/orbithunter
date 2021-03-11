@@ -24,14 +24,14 @@ def fixed_kwarg_dict():
             'I': 'got', 'to': 'keep', 'on': 'movin'}
 
 
-def test_orbit(fixed_orbit_data):
+def test_create_orbit(fixed_orbit_data):
     # PyTest fixture of data used for testing
     return oh.Orbit(state=fixed_orbit_data, basis='physical', parameters=(10, 10, 10, 10))
 
 
 def test_binary_operations(fixed_orbit_data):
     # Testing the different overloaded binary operators
-    orbit_ = test_orbit(fixed_orbit_data)
+    orbit_ = oh.Orbit(state=fixed_orbit_data, basis='physical', parameters=(10, 10, 10, 10))
     test_sum = orbit_ + orbit_
     test_sub = orbit_ - orbit_
     test_mul = orbit_ * orbit_
@@ -39,9 +39,30 @@ def test_binary_operations(fixed_orbit_data):
     test_div = orbit_ / 2
     test_floor_div = orbit_ // 2
 
+
+def test_assignment_operators(fixed_orbit_data):
+    # Testing the different overloaded binary operators
+    orbit_ = oh.Orbit(state=fixed_orbit_data, basis='physical', parameters=(10, 10, 10, 10))
+    orbit_ += orbit_
+    orbit_ -= orbit_
+    orbit_ *= orbit_
+    orbit_ **= orbit_
+    orbit_ /= orbit_
+    orbit_ //= orbit_
+
+def test_assignment_operators_no_state():
+    # Testing the different overloaded binary operators
+    orbit_ = oh.Orbit()
+    orbit_ += orbit_
+    orbit_ -= orbit_
+    orbit_ *= orbit_
+    orbit_ **= orbit_
+    orbit_ /= orbit_
+    orbit_ //= orbit_
+
 def test_binary_operations_no_state():
     # Testing the different overloaded binary operators
-    orbit_ = oh.Orbit(fixed_orbit_data)
+    orbit_ = oh.Orbit()
     test_sum = orbit_ + orbit_
     test_sub = orbit_ - orbit_
     test_mul = orbit_ * orbit_
@@ -49,6 +70,7 @@ def test_binary_operations_no_state():
     test_div = orbit_ / 2
     test_floor_div = orbit_ // 2
     # testing binary operators for orbit instances without declaring states.
+
 
 def test_dunder_methods(fixed_orbit_data):
     orbit_ = test_orbit(fixed_orbit_data)
@@ -77,6 +99,7 @@ def test_equation_methods(fixed_orbit_data, fixed_kwarg_dict):
     _ = ((2 * orbit_) - orbit_.increment(orbit_)).norm()
     orbit_from_vector = orbit_.from_numpy_array(orbit_vector_)
 
+
 def test_properties(fixed_orbit_data):
     orbit_ = test_orbit(fixed_orbit_data)
     _ = orbit_.shape
@@ -89,17 +112,9 @@ def test_properties(fixed_orbit_data):
     _ = orbit_.minimal_shape()
     _ = orbit_.default_parameter_ranges()
 
+
 def test_discretization_methods(fixed_orbit_data):
     orbit_ = test_orbit(fixed_orbit_data)
-    large = orbit_.resize(16, 16, 16, 16)
-    original = orbit_.resize(orbit_.shape)
-    assert (original.state - orbit_.state).norm() == 0.
-# def test_numerical_manipulations():
-#     # constrain
-#     # rescale
-#     # glue_parameters
-#
-# def test_generation():
-#     parameters_only = oh.Orbit().generate(attr='parameters')
-#     state_only = oh.Orbit().generate(attr='state')
-#     all = oh.Orbit().generate()
+    enlarged = orbit_.resize(16, 16, 16, 16)
+    shrank = enlarged.resize(orbit_.discretization)
+    assert (shrank - orbit_).norm() == 0.
