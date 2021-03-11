@@ -5,8 +5,16 @@ import h5py
 import sys
 import importlib
 
-__all__ = ['read_h5', 'read_tileset', 'convergence_log', 'refurbish_log', 'write_symbolic_log',
-           'read_symbolic_log', 'to_symbol_string', 'to_symbol_array']
+__all__ = [
+    "read_h5",
+    "read_tileset",
+    "convergence_log",
+    "refurbish_log",
+    "write_symbolic_log",
+    "read_symbolic_log",
+    "to_symbol_string",
+    "to_symbol_array",
+]
 
 """
 Functions and utilities corresponding to filenames and input/output. The convention which we hope others
@@ -67,13 +75,13 @@ def read_h5(filename, *datanames, validate=False, **orbitkwargs):
     imported_orbits = []
 
     # # This SHOULD avoid circular imports yet still provide a resource to retrieve class constructors.
-    if 'orbithunter' not in sys.modules:
-        module = importlib.import_module('orbithunter')
+    if "orbithunter" not in sys.modules:
+        module = importlib.import_module("orbithunter")
     else:
-        module = sys.modules['orbithunter']
+        module = sys.modules["orbithunter"]
 
     # With orbit_names now correctly instantiated as an iterable, can open file and iterate.
-    with h5py.File(os.path.abspath(filename), 'r') as file:
+    with h5py.File(os.path.abspath(filename), "r") as file:
         # define visititems() function here to use variables in current namespace
         def parse_datasets(h5name, h5obj):
             # Orbits are stored as h5py.Dataset(s) . Collections or orbits are h5py.Group(s).
@@ -82,7 +90,7 @@ def read_h5(filename, *datanames, validate=False, **orbitkwargs):
 
         # iterate through all names provided, extract all datasets from groups provided.
         # If no Dataset/Group names were provided, iterate through the entire file.
-        for name in (datanames or file):
+        for name in datanames or file:
             if isinstance(file[name], h5py.Group):
                 # Separate groups as lists?
                 groupsets = []
@@ -95,14 +103,21 @@ def read_h5(filename, *datanames, validate=False, **orbitkwargs):
             orbit_group = []
             for obj in orbit_collection:
                 # Get the class from metadata
-                class_ = getattr(module, obj.attrs['class'])
+                class_ = getattr(module, obj.attrs["class"])
 
                 # Next step is to ensure that parameters that are passed are either tuple or NoneType, as required.
                 try:
-                    parameters = tuple(obj.attrs.get('parameters', None))
+                    parameters = tuple(obj.attrs.get("parameters", None))
                 except TypeError:
                     parameters = None
-                orbit_ = class_(state=obj[...],  **{**dict(obj.attrs.items()), 'parameters': parameters, **orbitkwargs})
+                orbit_ = class_(
+                    state=obj[...],
+                    **{
+                        **dict(obj.attrs.items()),
+                        "parameters": parameters,
+                        **orbitkwargs,
+                    }
+                )
 
                 # If there is a single orbit in the collection (i.e. a dataset and not a group) then do not append as a
                 # list.
@@ -152,7 +167,9 @@ def read_tileset(filename, keys, orbit_names, validate=False, **orbitkwargs):
     return dict(zip(keys, list_of_orbits))
 
 
-def convergence_log(initial_orbit, minimize_result, log_path, spectrum='random', methods='adj'):
+def convergence_log(
+    initial_orbit, minimize_result, log_path, spectrum="random", methods="adj"
+):
     """ Function to log the results of applying orbithunter.optimize.minimize
 
     Parameters
@@ -170,14 +187,29 @@ def convergence_log(initial_orbit, minimize_result, log_path, spectrum='random',
 
     """
     import pandas as pd
+
     initial_condition_log_ = pd.read_csv(log_path, index_col=0)
     # To store all relevant info as a row in a Pandas DataFrame, put into a 1-D array first.
-    dataframe_row = [[initial_orbit.parameters, initial_orbit.shapes()[0],
-                     np.abs(initial_orbit.transform(to=initial_orbit.bases()[0]).state).max(),
-                      minimize_result.orbit.residual(),
-                     minimize_result.status, spectrum, methods]]
-    labels = ['parameters', 'shape', ''.join([initial_orbit.bases()[0], '_magnitude']),
-              'residual', 'status', 'spectrum', 'numerical_methods']
+    dataframe_row = [
+        [
+            initial_orbit.parameters,
+            initial_orbit.shapes()[0],
+            np.abs(initial_orbit.transform(to=initial_orbit.bases()[0]).state).max(),
+            minimize_result.orbit.residual(),
+            minimize_result.status,
+            spectrum,
+            methods,
+        ]
+    ]
+    labels = [
+        "parameters",
+        "shape",
+        "".join([initial_orbit.bases()[0], "_magnitude"]),
+        "residual",
+        "status",
+        "spectrum",
+        "numerical_methods",
+    ]
     new_row = pd.DataFrame(dataframe_row, columns=labels)
     initial_condition_log_ = pd.concat((initial_condition_log_, new_row), axis=0)
     initial_condition_log_.reset_index(drop=True).drop_duplicates().to_csv(log_path)
@@ -186,26 +218,47 @@ def convergence_log(initial_orbit, minimize_result, log_path, spectrum='random',
 
 def refurbish_log(orbit_, filename, log_filename, overwrite=False, **kwargs):
     if not os.path.isfile(log_filename):
-        refurbish_log_ = pd.Series(filename).to_frame(name='filename')
+        refurbish_log_ = pd.Series(filename).to_frame(name="filename")
     else:
         refurbish_log_ = pd.read_csv(log_filename, index_col=0)
 
     if not overwrite and filename in np.array(refurbish_log_.values).tolist():
         orbit_.to_h5(filename, **kwargs)
         orbit_.plot(filename=filename, **kwargs)
-        refurbish_log_ = pd.concat((refurbish_log_, pd.Series(filename).to_frame(name='filename')), axis=0)
+        refurbish_log_ = pd.concat(
+            (refurbish_log_, pd.Series(filename).to_frame(name="filename")), axis=0
+        )
         refurbish_log_.reset_index(drop=True).drop_duplicates().to_csv(log_filename)
 
 
-def write_symbolic_log(symbol_array, minimize_result, log_filename, tileset='default',
-                       comoving=False):
+def write_symbolic_log(
+    symbol_array, minimize_result, log_filename, tileset="default", comoving=False
+):
     import pandas as pd
+
     symbol_string = to_symbol_string(symbol_array)
-    dataframe_row_values = [[symbol_string, minimize_result.orbit.parameters, minimize_result.orbit.shapes()[0],
-                             minimize_result.orbit.residual(),
-                             minimize_result.status, tileset, comoving, symbol_array.shape]]
-    labels = ['symbol_string', 'parameters', 'shape', 'residual', 'status', 'tileset',
-              'comoving', 'tile_shape']
+    dataframe_row_values = [
+        [
+            symbol_string,
+            minimize_result.orbit.parameters,
+            minimize_result.orbit.shapes()[0],
+            minimize_result.orbit.residual(),
+            minimize_result.status,
+            tileset,
+            comoving,
+            symbol_array.shape,
+        ]
+    ]
+    labels = [
+        "symbol_string",
+        "parameters",
+        "shape",
+        "residual",
+        "status",
+        "tileset",
+        "comoving",
+        "tile_shape",
+    ]
 
     dataframe_row = pd.DataFrame(dataframe_row_values, columns=labels).astype(object)
     log_path = os.path.abspath(log_filename)
@@ -239,21 +292,28 @@ def read_symbolic_log(symbol_array, log_filename, overwrite=False, retry=False):
     axes = tuple(range(len(symbol_array.shape)))
     equivariant_str = []
     for rotation in all_rotations:
-        equivariant_str.append(to_symbol_string(np.roll(symbol_array, rotation, axis=axes)))
+        equivariant_str.append(
+            to_symbol_string(np.roll(symbol_array, rotation, axis=axes))
+        )
 
     log_path = os.path.abspath(log_filename)
     if not os.path.isfile(log_path):
         return False
     else:
         symbolic_df = pd.read_csv(log_path, dtype=object, index_col=0)
-        symbolic_intersection = symbolic_df[(symbolic_df['symbol_string'].isin(equivariant_str))].reset_index(drop=True)
+        symbolic_intersection = symbolic_df[
+            (symbolic_df["symbol_string"].isin(equivariant_str))
+        ].reset_index(drop=True)
         if len(symbolic_intersection) == 0:
             return False
         elif overwrite:
             return False
         # If success, then one of the 'status' values has been saves as -1. Count the number of negative ones
         # and see if there is indeed such a value.
-        elif len(symbolic_intersection[symbolic_intersection['status'] == -1]) == 0 and retry:
+        elif (
+            len(symbolic_intersection[symbolic_intersection["status"] == -1]) == 0
+            and retry
+        ):
             return False
         else:
             return True
@@ -263,10 +323,17 @@ def to_symbol_string(symbol_array):
     symbolic_string = symbol_array.astype(str).copy()
     shape_of_axes_to_contract = symbol_array.shape[1:]
     for i, shp in enumerate(shape_of_axes_to_contract):
-        symbolic_string = [(i*'_').join(list_) for list_ in np.array(symbolic_string).reshape(-1, shp).tolist()]
-    symbolic_string = ((len(shape_of_axes_to_contract))*'_').join(symbolic_string)
+        symbolic_string = [
+            (i * "_").join(list_)
+            for list_ in np.array(symbolic_string).reshape(-1, shp).tolist()
+        ]
+    symbolic_string = ((len(shape_of_axes_to_contract)) * "_").join(symbolic_string)
     return symbolic_string
 
 
 def to_symbol_array(symbol_string, symbol_array_shape):
-    return np.array([char for char in symbol_string.replace('_', '')]).astype(int).reshape(symbol_array_shape)
+    return (
+        np.array([char for char in symbol_string.replace("_", "")])
+        .astype(int)
+        .reshape(symbol_array_shape)
+    )

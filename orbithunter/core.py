@@ -3,7 +3,7 @@ import h5py
 import numpy as np
 import itertools
 
-__all__ = ['Orbit', 'convert_class']
+__all__ = ["Orbit", "convert_class"]
 
 """
 The core class for all orbithunter calculations. The methods listed are the ones used in the other modules. If
@@ -54,8 +54,15 @@ results in operations between class objects and numpy arrays.
 
 
 class Orbit:
-
-    def __init__(self, state=None, basis=None, parameters=None, discretization=None, constraints=None, **kwargs):
+    def __init__(
+        self,
+        state=None,
+        basis=None,
+        parameters=None,
+        discretization=None,
+        constraints=None,
+        **kwargs,
+    ):
         """ Base/Template class for orbits
 
         Parameters
@@ -99,7 +106,7 @@ class Orbit:
             result = self.state + other.state
         else:
             result = self.state + other
-        return self.__class__(**{**vars(self), 'state': result})
+        return self.__class__(**{**vars(self), "state": result})
 
     def __radd__(self, other):
         """ Addition of Orbit state and other numerical quantity.
@@ -112,7 +119,7 @@ class Orbit:
             result = other.state + self.state
         else:
             result = other + self.state
-        return self.__class__(**{**vars(self), 'state': result})
+        return self.__class__(**{**vars(self), "state": result})
 
     def __sub__(self, other):
         """ Subtraction of other numerical quantity from Orbit state.
@@ -125,7 +132,7 @@ class Orbit:
             result = self.state - other.state
         else:
             result = self.state - other
-        return self.__class__(**{**vars(self), 'state': result})
+        return self.__class__(**{**vars(self), "state": result})
 
     def __rsub__(self, other):
         """ Subtraction of Orbit state from other numeric quantity
@@ -139,7 +146,7 @@ class Orbit:
             result = other.state - self.state
         else:
             result = other - self.state
-        return self.__class__(**{**vars(self), 'state': result})
+        return self.__class__(**{**vars(self), "state": result})
 
     def __mul__(self, other):
         """ Multiplication of Orbit state and other numerical quantity
@@ -158,7 +165,7 @@ class Orbit:
         else:
             result = np.multiply(self.state, other)
 
-        return self.__class__(**{**vars(self), 'state': result})
+        return self.__class__(**{**vars(self), "state": result})
 
     def __rmul__(self, other):
         """ Multiplication of Orbit state and other numerical quantity
@@ -176,7 +183,7 @@ class Orbit:
             result = np.multiply(self.state, other.state)
         else:
             result = np.multiply(self.state, other)
-        return self.__class__(**{**vars(self), 'state': result})
+        return self.__class__(**{**vars(self), "state": result})
 
     def __truediv__(self, other):
         """ Division of Orbit state by other numerical quantity
@@ -194,7 +201,7 @@ class Orbit:
             result = np.divide(self.state, other.state)
         else:
             result = np.divide(self.state, other)
-        return self.__class__(**{**vars(self), 'state': result})
+        return self.__class__(**{**vars(self), "state": result})
 
     def __floordiv__(self, other):
         """ Floor division of Orbit state by other numerical quantity
@@ -212,7 +219,7 @@ class Orbit:
             result = np.floor_divide(self.state, other.state)
         else:
             result = np.floor_divide(self.state, other)
-        return self.__class__(**{**vars(self), 'state': result})
+        return self.__class__(**{**vars(self), "state": result})
 
     def __pow__(self, other):
         """ Exponentiation of Orbit state.
@@ -222,10 +229,10 @@ class Orbit:
         other : Orbit, ndarray, float, int
         """
         if issubclass(type(other), Orbit):
-            result = self.state**other.state
+            result = self.state ** other.state
         else:
-            result = self.state**other
-        return self.__class__(**{**vars(self), 'state': result})
+            result = self.state ** other
+        return self.__class__(**{**vars(self), "state": result})
 
     def __mod__(self, other):
         """ Modulo of Orbit state.
@@ -238,7 +245,7 @@ class Orbit:
             result = self.state % other.state
         else:
             result = self.state % other
-        return self.__class__(**{**vars(self), 'state': result})
+        return self.__class__(**{**vars(self), "state": result})
 
     def __iadd__(self, other):
         """ Inplace addition of Orbit state
@@ -346,19 +353,18 @@ class Orbit:
         if self.parameters is not None:
             # parameters should be an iterable
             try:
-                pretty_params = tuple(round(x, 3) if isinstance(x, float)
-                                      else x for x in self.parameters)
+                pretty_params = tuple(
+                    round(x, 3) if isinstance(x, float) else x for x in self.parameters
+                )
             except TypeError:
                 pretty_params = self.parameters
         else:
             pretty_params = None
 
-        dict_ = {'shape': self.shape,
-                 'basis': self.basis,
-                 'parameters': pretty_params}
+        dict_ = {"shape": self.shape, "basis": self.basis, "parameters": pretty_params}
         # convert the dictionary to a string via json.dumps
         dictstr = dumps(dict_)
-        return self.__class__.__name__ + '(' + dictstr + ')'
+        return self.__class__.__name__ + "(" + dictstr + ")"
 
     def __getattr__(self, attr):
         """ Retrieve parameters, discretization variables with their labels instead of slicing 'parameters'
@@ -370,7 +376,7 @@ class Orbit:
         try:
             attr = str(attr)
         except ValueError:
-            print('Attribute is not of readable type')
+            print("Attribute is not of readable type")
 
         if attr in self.parameter_labels():
             # parameters must be cast as tuple, (p,) if singleton.
@@ -379,7 +385,9 @@ class Orbit:
             # discretization must be tuple, (d,) if singleton.
             return self.discretization[self.discretization_labels().index(attr)]
         else:
-            error_message = ' '.join([self.__class__.__name__, 'has no attribute\'{}\''.format(attr)])
+            error_message = " ".join(
+                [self.__class__.__name__, "has no attribute'{}'".format(attr)]
+            )
             raise AttributeError(error_message)
 
     def __getitem__(self, slices):
@@ -389,17 +397,25 @@ class Orbit:
                 # parameters are passed as tuple, not dict but this is the easiest manner with which to update;
                 # need to make sure the new dimensions are in the correct positions with respect to the parameter
                 # labels.
-                new_dimensions = [dim * (newshape/oldshape) for dim, newshape, oldshape
-                                  in zip(self.dimensions(), state_slice.shape, self.shape)]
+                new_dimensions = [
+                    dim * (newshape / oldshape)
+                    for dim, newshape, oldshape in zip(
+                        self.dimensions(), state_slice.shape, self.shape
+                    )
+                ]
                 param_dict = dict(zip(list(self.parameter_labels()), self.parameters))
                 dim_dict = dict(zip(list(self.dimension_labels()), new_dimensions))
                 param_dict = {**param_dict, **dim_dict}
                 parameters = tuple(param_dict[key] for key in self.parameter_labels())
-                return self.__class__(**{**vars(self), 'state': state_slice, 'parameters': parameters})
+                return self.__class__(
+                    **{**vars(self), "state": state_slice, "parameters": parameters}
+                )
             else:
-                return self.__class__(**{**vars(self), 'state': state_slice})
+                return self.__class__(**{**vars(self), "state": state_slice})
         except IndexError as ie:
-            raise ValueError('out of bounds or attempting to slice an empty state.') from ie
+            raise ValueError(
+                "out of bounds or attempting to slice an empty state."
+            ) from ie
 
     @staticmethod
     def bases():
@@ -414,7 +430,7 @@ class Orbit:
         -----
         Defaults to 'physical'
         """
-        return ('physical',)
+        return ("physical",)
 
     @staticmethod
     def parameter_labels():
@@ -430,7 +446,7 @@ class Orbit:
         It might seem idiotic to have both a parameter labels staticmethod and parameters as a tuple; why not just make
         a dict? Because I wanted an immutable type for parameters that could easily be converted into a numpy array.
         """
-        return 't', 'x', 'y', 'z'
+        return "t", "x", "y", "z"
 
     @staticmethod
     def dimension_labels():
@@ -441,7 +457,7 @@ class Orbit:
             tuple of strings which label the dimensions of the current equation
 
         """
-        return 't', 'x', 'y', 'z'
+        return "t", "x", "y", "z"
 
     @staticmethod
     def discretization_labels():
@@ -451,7 +467,7 @@ class Orbit:
         tuple :
             tuple of strings which label the discretization variables of the current state.
         """
-        return 'n', 'i', 'j', 'k'
+        return "n", "i", "j", "k"
 
     @classmethod
     def default_parameter_ranges(cls):
@@ -553,7 +569,7 @@ class Orbit:
     def abs(self):
         """ Orbit instance with absolute value of state.
         """
-        return self.__class__(**{**vars(self), 'state': np.abs(self.state)})
+        return self.__class__(**{**vars(self), "state": np.abs(self.state)})
 
     def dot(self, other):
         """ Return the L_2 inner product of two orbits
@@ -615,13 +631,23 @@ class Orbit:
         try:
             if exclude_nonpositive:
                 # Take the average of non-zero parameter values
-                return tuple(glue_shape[i] * p[p > 0.].mean() for i, p in enumerate(np.array(ptuple) for ptuple
-                                                                                    in dimension_tuples))
+                return tuple(
+                    glue_shape[i] * p[p > 0.0].mean()
+                    for i, p in enumerate(
+                        np.array(ptuple) for ptuple in dimension_tuples
+                    )
+                )
             else:
-                return tuple(glue_shape[i] * p.mean() for i, p in enumerate(np.array(ptuple) for ptuple
-                                                                            in dimension_tuples))
+                return tuple(
+                    glue_shape[i] * p.mean()
+                    for i, p in enumerate(
+                        np.array(ptuple) for ptuple in dimension_tuples
+                    )
+                )
         except IndexError as ie:
-            raise ValueError(f'Gluing shape must have as many elements as {cls} has dimensions') from ie
+            raise ValueError(
+                f"Gluing shape must have as many elements as {cls} has dimensions"
+            ) from ie
 
     def dimensions(self):
         """ Dimensions of the spatiotemporal tile (configuration space).
@@ -706,7 +732,9 @@ class Orbit:
         """
         # Padding basis assumed to be in the spatiotemporal basis.
         placeholder_orbit = self.copy().transform(to=self.bases()[-1])
-        new_shape = new_discretization or self.dimension_based_discretization(self.dimensions(), **kwargs)
+        new_shape = new_discretization or self.dimension_based_discretization(
+            self.dimensions(), **kwargs
+        )
         if len(new_shape) == 1 and isinstance(*new_shape, tuple):
             new_shape = tuple(*new_shape)
 
@@ -714,9 +742,13 @@ class Orbit:
         if self.discretization != new_shape:
             # Although this is less efficient than doing every axis at once, it generalizes to cases where bases
             # are different for padding along different dimensions (i.e. transforms implicit in truncate and pad).
-            for ax, (old, new, min_size) in enumerate(zip(self.discretization, new_shape, self.minimal_shape())):
+            for ax, (old, new, min_size) in enumerate(
+                zip(self.discretization, new_shape, self.minimal_shape())
+            ):
                 if new < min_size:
-                    errstr = 'minimum discretization requirements not met during resize.'
+                    errstr = (
+                        "minimum discretization requirements not met during resize."
+                    )
                     raise ValueError(errstr)
                 if new < old:
                     placeholder_orbit = placeholder_orbit.truncate(new, axis=ax)
@@ -748,7 +780,9 @@ class Orbit:
         chosen. If provided tuples of ints, shift and axis need to be the same length as to be coherent.
         """
 
-        return self.__class__(**{**vars(self), 'state': np.roll(self.state, shift, axis=axis)})
+        return self.__class__(
+            **{**vars(self), "state": np.roll(self.state, shift, axis=axis)}
+        )
 
     def cell_shift(self, n_cell, axis=0):
         """ Rotate by period/n_cell in either axis.
@@ -770,7 +804,12 @@ class Orbit:
         If provided tuples of ints, shift and axis need to be the same length as to be coherent.
         """
         # To allow slicing, discretization temporarily cast as array.
-        return self.roll(np.sign(n_cell)*np.array(self.discretization)[np.array(axis)] // np.abs(n_cell), axis=axis)
+        return self.roll(
+            np.sign(n_cell)
+            * np.array(self.discretization)[np.array(axis)]
+            // np.abs(n_cell),
+            axis=axis,
+        )
 
     def reflection(self, axis=0, signed=True):
         """ Reflect the velocity field about the spatial midpoint
@@ -790,7 +829,7 @@ class Orbit:
         else:
             reflected_field = np.flip(self.state, axis=axis)
 
-        return self.__class__(**{**vars(self), 'state': reflected_field})
+        return self.__class__(**{**vars(self), "state": reflected_field})
 
     def transform(self, to=None):
         """ Method that handles all basis transformations. Undefined/trivial for Orbits with only one basis.
@@ -829,8 +868,10 @@ class Orbit:
         spatiotemporal domain (tile), it makes sense for these values to be assigned to the "eqn" orbit. That is,
         the evaluation of the governing equations yields a state defined on the same domain.
         """
-        assert self.basis == self.bases()[-1], 'Convert to spatiotemporal basis before computing governing equations.'
-        return self.__class__(**{**vars(self), 'state': np.zeros(self.shapes()[-1])})
+        assert (
+            self.basis == self.bases()[-1]
+        ), "Convert to spatiotemporal basis before computing governing equations."
+        return self.__class__(**{**vars(self), "state": np.zeros(self.shapes()[-1])})
 
     def residual(self, eqn=True):
         """ Cost function evaluated at current state.
@@ -875,7 +916,7 @@ class Orbit:
         doesn't have an associated equation, return an array of zeros for its state.
         """
         # Instance with all attributes except state and parameters
-        return self.__class__(**{**vars(self), 'state': np.zeros(self.shapes()[-1])})
+        return self.__class__(**{**vars(self), "state": np.zeros(self.shapes()[-1])})
 
     def rmatvec(self, other, **kwargs):
         """ Matrix-vector product of adjoint Jacobian evaluated at instance state, times state of other instance.
@@ -898,8 +939,13 @@ class Orbit:
         [self.size + len(self.parameters), self.size]; this returns a vector of the same dimension as self.orbit_vector;
         i.e. this *does* produce components corresponding to the parameters.
         """
-        return self.__class__(**{**vars(self), 'state': np.zeros(self.shape),
-                                 'parameters': tuple([0] * len(self.parameter_labels()))})
+        return self.__class__(
+            **{
+                **vars(self),
+                "state": np.zeros(self.shape),
+                "parameters": tuple([0] * len(self.parameter_labels())),
+            }
+        )
 
     def orbit_vector(self):
         """ Vector representation of Orbit instance.
@@ -917,8 +963,12 @@ class Orbit:
         recommended. If non-scalar parameters are used, user will need to overwrite the Orbit.from_numpy_array() method.
         """
         # By raveling and concatenating ensure that the array is 1-d for the second concatenation; i.e. flatten first.
-        parameter_array = np.concatenate(tuple(np.array(p).ravel() for p in self.parameters))
-        return np.concatenate((self.state.ravel(), parameter_array), axis=0).reshape(-1, 1)
+        parameter_array = np.concatenate(
+            tuple(np.array(p).ravel() for p in self.parameters)
+        )
+        return np.concatenate((self.state.ravel(), parameter_array), axis=0).reshape(
+            -1, 1
+        )
 
     def from_numpy_array(self, orbit_vector, **kwargs):
         """ Utility to convert from numpy array (orbit_vector) to Orbit instance for scipy wrappers.
@@ -951,15 +1001,23 @@ class Orbit:
         """
         # orbit_vector is defined to be concatenation of state and parameters;
         # slice out the parameters; cast as list to gain access to pop
-        param_list = list(kwargs.pop('parameters', orbit_vector.ravel()[self.size:]))
+        param_list = list(kwargs.pop("parameters", orbit_vector.ravel()[self.size :]))
 
         # The issue with parsing the parameters is that we do not know which list element corresponds to
         # which parameter unless the constraints are checked. Parameter keys which are not in the constraints dict
         # are assumed to be constrained.
-        parameters = tuple(param_list.pop(0) if not self.constraints.get(each_label, True) else 0
-                           for each_label in self.parameter_labels())
-        return self.__class__(**{**vars(self), 'state': np.reshape(orbit_vector.ravel()[:self.size], self.shape),
-                                 'parameters': parameters, **kwargs})
+        parameters = tuple(
+            param_list.pop(0) if not self.constraints.get(each_label, True) else 0
+            for each_label in self.parameter_labels()
+        )
+        return self.__class__(
+            **{
+                **vars(self),
+                "state": np.reshape(orbit_vector.ravel()[: self.size], self.shape),
+                "parameters": parameters,
+                **kwargs,
+            }
+        )
 
     def increment(self, other, step_size=1, **kwargs):
         """ Incrementally add Orbit instances together
@@ -980,10 +1038,18 @@ class Orbit:
         -----
         Typically when this method is called, self is the current iterate and other is an optimization correction.
         """
-        incremented_params = tuple(self_param + step_size * other_param # assumed to be constrained if 0.
-                                   for self_param, other_param in zip(self.parameters, other.parameters))
-        return self.__class__(**{**vars(self), **kwargs, 'state': self.state + step_size * other.state,
-                                 'parameters': incremented_params})
+        incremented_params = tuple(
+            self_param + step_size * other_param  # assumed to be constrained if 0.
+            for self_param, other_param in zip(self.parameters, other.parameters)
+        )
+        return self.__class__(
+            **{
+                **vars(self),
+                **kwargs,
+                "state": self.state + step_size * other.state,
+                "parameters": incremented_params,
+            }
+        )
 
     def pad(self, size, axis=0):
         """ Increase the size of the discretization along an axis.
@@ -1020,14 +1086,26 @@ class Orbit:
         if int(size) % 2:
             # If odd size then cannot distribute symmetrically, floor divide then add append extra zeros to beginning
             # of the dimension.
-            padding_tuple = tuple((padding_size + 1, padding_size) if i == axis else (0, 0)
-                                  for i in range(len(self.shape)))
+            padding_tuple = tuple(
+                (padding_size + 1, padding_size) if i == axis else (0, 0)
+                for i in range(len(self.shape))
+            )
         else:
-            padding_tuple = tuple((padding_size, padding_size) if i == axis else (0, 0)
-                                  for i in range(len(self.shape)))
-        newdisc = tuple(size if i == axis else self.discretization[i] for i in range(len(self.discretization)))
-        return self.__class__(**{**vars(self), 'state': np.pad(self.state, padding_tuple),
-                                 'discretization': newdisc}).transform(to=self.basis)
+            padding_tuple = tuple(
+                (padding_size, padding_size) if i == axis else (0, 0)
+                for i in range(len(self.shape))
+            )
+        newdisc = tuple(
+            size if i == axis else self.discretization[i]
+            for i in range(len(self.discretization))
+        )
+        return self.__class__(
+            **{
+                **vars(self),
+                "state": np.pad(self.state, padding_tuple),
+                "discretization": newdisc,
+            }
+        ).transform(to=self.basis)
 
     def truncate(self, size, axis=0):
         """ Decrease the size of the discretization along an axis
@@ -1053,14 +1131,26 @@ class Orbit:
         if int(size) % 2:
             # If odd size then cannot distribute symmetrically, floor divide then add append extra zeros to beginning
             # of the dimension.
-            truncate_slice = tuple(slice(truncate_size + 1, -truncate_size) if i == axis else slice(None)
-                                   for i in range(len(self.shape)))
+            truncate_slice = tuple(
+                slice(truncate_size + 1, -truncate_size) if i == axis else slice(None)
+                for i in range(len(self.shape))
+            )
         else:
-            truncate_slice = tuple(slice(truncate_size, -truncate_size) if i == axis else slice(None)
-                                   for i in range(len(self.shape)))
-        new_shape = tuple(size if i == axis else self.discretization[i] for i in range(len(self.shape)))
-        return self.__class__(**{**vars(self), 'state': self.state[truncate_slice],
-                                 'discretization': new_shape}).transform(to=self.basis)
+            truncate_slice = tuple(
+                slice(truncate_size, -truncate_size) if i == axis else slice(None)
+                for i in range(len(self.shape))
+            )
+        new_shape = tuple(
+            size if i == axis else self.discretization[i]
+            for i in range(len(self.shape))
+        )
+        return self.__class__(
+            **{
+                **vars(self),
+                "state": self.state[truncate_slice],
+                "discretization": new_shape,
+            }
+        ).transform(to=self.basis)
 
     def jacobian(self, **kwargs):
         """ Jacobian matrix evaluated at the current state.
@@ -1081,33 +1171,44 @@ class Orbit:
         """
         return np.linalg.norm(self.state.ravel(), ord=order)
 
-    def plot(self, show=True, save=False, padding=False, fundamental_domain=False, **kwargs):
+    def plot(
+        self, show=True, save=False, padding=False, fundamental_domain=False, **kwargs
+    ):
         """ Signature for plotting method.
         """
         return None
 
-    def rescale(self, magnitude, method='inf'):
+    def rescale(self, magnitude, method="inf"):
         """ Rescaling of the state in the 'physical' basis per strategy denoted by 'method'
         """
         state = self.transform(to=self.bases()[0]).state
-        if method == 'inf':
+        if method == "inf":
             # rescale by infinity norm
             rescaled_state = magnitude * state / np.max(np.abs(state.ravel()))
-        elif method == 'L1':
+        elif method == "L1":
             # rescale by L1 norm
             rescaled_state = magnitude * state / np.linalg.norm(state, ord=1)
-        elif method == 'L2':
+        elif method == "L2":
             # rescale by L2
             rescaled_state = magnitude * state / np.linalg.norm(state)
-        elif method == 'LP':
+        elif method == "LP":
             # rescale by L_p norm
             rescaled_state = np.sign(state) * np.abs(state) ** magnitude
         else:
-            raise ValueError('Unrecognizable method.')
-        return self.__class__(**{**vars(self), 'state': rescaled_state,
-                                 'basis': self.bases()[0]}).transform(to=self.basis)
+            raise ValueError("Unrecognizable method.")
+        return self.__class__(
+            **{**vars(self), "state": rescaled_state, "basis": self.bases()[0]}
+        ).transform(to=self.basis)
 
-    def to_h5(self, filename=None, dataname=None, h5mode='a', verbose=False, include_residual=False, **kwargs):
+    def to_h5(
+        self,
+        filename=None,
+        dataname=None,
+        h5mode="a",
+        verbose=False,
+        include_residual=False,
+        **kwargs,
+    ):
         """ Export current state information to HDF5 file
 
         Parameters
@@ -1141,32 +1242,42 @@ class Orbit:
         it defaults to being an empty string. groupname is useful when there is a category of orbits (i.e. a family).
         """
 
-        with h5py.File(filename or self.filename(extension='.h5'), mode=h5mode) as file:
+        with h5py.File(filename or self.filename(extension=".h5"), mode=h5mode) as file:
             # When dataset==None then find the first string of the form orbit_# that is not in the
             # currently opened file. 'orbit' is the first value attempted.
             i = 0
             dataname = dataname or str(i)
             # Combine the group and dataset strings, accounting for possible missing/extra/inconsistent numbers of '/'
-            groupname = kwargs.get('groupname', '')
-            group_and_dataset = '/'.join(groupname.split('/') + dataname.split('/'))
+            groupname = kwargs.get("groupname", "")
+            group_and_dataset = "/".join(groupname.split("/") + dataname.split("/"))
             while group_and_dataset in file:
                 # append _# so that multiple versions with the same name (typically determined by parameters, but
                 # could have different values due to decimal truncation).
                 try:
-                    dataname = str(int(dataname)+1)
-                    group_and_dataset = '/'.join(groupname.split('/') + dataname.split('/'))
+                    dataname = str(int(dataname) + 1)
+                    group_and_dataset = "/".join(
+                        groupname.split("/") + dataname.split("/")
+                    )
                 except ValueError:
-                    group_and_dataset = '/'.join(groupname.split('/')
-                                                 + ''.join([dataname.rstrip('/'), '_', str(i)]).split('/'))
+                    group_and_dataset = "/".join(
+                        groupname.split("/")
+                        + "".join([dataname.rstrip("/"), "_", str(i)]).split("/")
+                    )
                     i += 1
 
             if verbose:
-                print('Writing dataset "{}" to file {}'.format(group_and_dataset, filename))
+                print(
+                    'Writing dataset "{}" to file {}'.format(
+                        group_and_dataset, filename
+                    )
+                )
             orbitset = file.create_dataset(group_and_dataset, data=self.state)
             # Get the attributes that aren't being saved as a dataset. Include class name so class can be parsed
             # upon import.
-            orbitattributes = {**{k: v for k, v in vars(self).items() if k != 'state'},
-                               'class': self.__class__.__name__}
+            orbitattributes = {
+                **{k: v for k, v in vars(self).items() if k != "state"},
+                "class": self.__class__.__name__,
+            }
             for key, val in orbitattributes.items():
                 # If h5py encounters a dtype which it does not know how to encode (dict, for example), skip it.
                 try:
@@ -1178,11 +1289,11 @@ class Orbit:
                 # This is included as a conditional statement because it seems strange to make importing/exporting
                 # dependent upon full implementation of the governing equations
                 try:
-                    orbitset.attrs['residual'] = self.residual()
+                    orbitset.attrs["residual"] = self.residual()
                 except (ZeroDivisionError, ValueError):
-                    print('Unable to compute residual for {}'.format(repr(self)))
+                    print("Unable to compute residual for {}".format(repr(self)))
 
-    def filename(self, extension='.h5', decimals=3, cls_name=True):
+    def filename(self, extension=".h5", decimals=3, cls_name=True):
         """ Method for convenience and consistent/conventional file naming.
 
         Parameters
@@ -1208,16 +1319,28 @@ class Orbit:
         """
         if self.dimensions() is not None:
             # Of the form
-            dimensional_string = ''.join(['_' + ''.join([self.dimension_labels()[i],
-                                                         f'{d:.{decimals}f}'.replace('.', 'p')])
-                                          for i, d in enumerate(self.dimensions()) if (d != 0) and (d is not None)])
+            dimensional_string = "".join(
+                [
+                    "_"
+                    + "".join(
+                        [
+                            self.dimension_labels()[i],
+                            f"{d:.{decimals}f}".replace(".", "p"),
+                        ]
+                    )
+                    for i, d in enumerate(self.dimensions())
+                    if (d != 0) and (d is not None)
+                ]
+            )
         else:
-            dimensional_string = ''
+            dimensional_string = ""
 
         if not cls_name and dimensional_string:
-            return ''.join([dimensional_string, extension]).lstrip('_')
+            return "".join([dimensional_string, extension]).lstrip("_")
         else:
-            return ''.join([self.__class__.__name__, dimensional_string, extension]).lstrip('_')
+            return "".join(
+                [self.__class__.__name__, dimensional_string, extension]
+            ).lstrip("_")
 
     def preprocess(self):
         """ Check the "status" of a solution
@@ -1229,7 +1352,7 @@ class Orbit:
         """
         return self
 
-    def populate(self, attr='all', **kwargs):
+    def populate(self, attr="all", **kwargs):
         """ Initialize random parameters or state or both.
 
         Parameters
@@ -1243,16 +1366,16 @@ class Orbit:
         """
         # Parameter generation only overwrites default-valued parameters. If random parameters are desired
         # then simply do not provide 'parameters' upon initialization.
-        if attr in ['all', 'parameters']:
+        if attr in ["all", "parameters"]:
             self._populate_parameters(**kwargs)
 
         # State generation is typically an all-or-nothing process; therefore to prevent accidental overwrites an
         # extra condition is required to be satisfied.
-        if attr in ['all', 'state']:
-            if self.size == 0. or kwargs.get('overwrite', False):
+        if attr in ["all", "state"]:
+            if self.size == 0.0 or kwargs.get("overwrite", False):
                 self._populate_state(**kwargs)
             else:
-                error_str = ' overwriting a non-empty state requires overwrite=True. '
+                error_str = " overwriting a non-empty state requires overwrite=True. "
                 raise ValueError(error_str)
         # For chaining operations, return self instead of None
         return self
@@ -1267,7 +1390,9 @@ class Orbit:
 
     def copy(self):
         """ Return an instance with deep copy of numpy array. """
-        return self.__class__(**{k: v.copy() if hasattr(v, 'copy') else v for k, v in vars(self).items()})
+        return self.__class__(
+            **{k: v.copy() if hasattr(v, "copy") else v for k, v in vars(self).items()}
+        )
 
     def constrain(self, *labels):
         """ Set self constraints based on labels provided.
@@ -1295,16 +1420,24 @@ class Orbit:
             labels = (labels,)
         # If a tuple then there are two options; multiple strings were passed or an actual tuple was passed.
         # Unpacking a string will yield a tuple of char which results in unintended behavior.
-        elif isinstance(labels, tuple) and False not in tuple(isinstance(lab, str) for lab in labels):
+        elif isinstance(labels, tuple) and False not in tuple(
+            isinstance(lab, str) for lab in labels
+        ):
             pass
-        elif isinstance(labels, tuple) and False not in tuple(isinstance(lab, tuple) for lab in labels):
+        elif isinstance(labels, tuple) and False not in tuple(
+            isinstance(lab, tuple) for lab in labels
+        ):
             labels = tuple(*labels)
         else:
-            raise TypeError('constraint labels must be str, tuple of str, or tuple of tuples')
+            raise TypeError(
+                "constraint labels must be str, tuple of str, or tuple of tuples"
+            )
 
         # iterating over constraints items means that constant variables can never be unconstrained by accident.
-        constraints = {key: True if key in labels else False for key in self.parameter_labels()}
-        setattr(self, 'constraints', constraints)
+        constraints = {
+            key: True if key in labels else False for key in self.parameter_labels()
+        }
+        setattr(self, "constraints", constraints)
 
     def mask(self, masking_array, invert=False, **kwargs):
         """ Return an Orbit instance with a numpy masked array state
@@ -1325,10 +1458,14 @@ class Orbit:
         """
         if invert:
             # Sometimes shadowing results are returned as int
-            masked_state = np.ma.masked_array(self.state, mask=np.invert(masking_array.astype(bool)), **kwargs)
+            masked_state = np.ma.masked_array(
+                self.state, mask=np.invert(masking_array.astype(bool)), **kwargs
+            )
         else:
-            masked_state = np.ma.masked_array(self.state, mask=masking_array.astype(bool), **kwargs)
-        return self.__class__(**{**vars(self), 'state': masked_state})
+            masked_state = np.ma.masked_array(
+                self.state, mask=masking_array.astype(bool), **kwargs
+            )
+        return self.__class__(**{**vars(self), "state": masked_state})
 
     def _parse_state(self, state, basis, **kwargs):
         """ Determine state and state shape parameters based on state array and the basis it is in.
@@ -1343,9 +1480,13 @@ class Orbit:
         if isinstance(state, np.ndarray):
             self.state = state
         elif state is None:
-            self.state = np.array([], dtype=float).reshape(len(self.default_shape()) * [0])
+            self.state = np.array([], dtype=float).reshape(
+                len(self.default_shape()) * [0]
+            )
         else:
-            raise ValueError('"state" attribute may only be provided as NumPy array or None.')
+            raise ValueError(
+                '"state" attribute may only be provided as NumPy array or None.'
+            )
 
         if self.size > 0:
             # This seems redundant but typically the discretization needs to be inferred from the state
@@ -1353,7 +1494,7 @@ class Orbit:
             self.basis = basis
             self.discretization = self.state.shape
             if basis is None:
-                raise ValueError('basis must be provided when state is provided')
+                raise ValueError("basis must be provided when state is provided")
         else:
             self.discretization = None
             self.basis = None
@@ -1379,8 +1520,12 @@ class Orbit:
         This is not an issue because this is one of the fundamental requirements for subclassing.
         """
         # Get the constraints, making sure to not mistakenly unconstrain constants.
-        self.constraints = {k: kwargs.get('constraints', self.default_constraints()).get(k, True)
-                            if k in self.default_constraints().keys() else True for k in self.parameter_labels()}
+        self.constraints = {
+            k: kwargs.get("constraints", self.default_constraints()).get(k, True)
+            if k in self.default_constraints().keys()
+            else True
+            for k in self.parameter_labels()
+        }
         if parameters is None:
             # None is a valid choice of parameters; it essentially means "populate all parameters" upon generation.
             self.parameters = parameters
@@ -1389,15 +1534,23 @@ class Orbit:
             # This ensures all parameters are filled.
             if len(self.parameter_labels()) < len(parameters):
                 # If more parameters than labels then we do not know what to call them by; truncate by using zip.
-                self.parameters = tuple(val for label, val in zip(self.parameter_labels(), parameters))
+                self.parameters = tuple(
+                    val for label, val in zip(self.parameter_labels(), parameters)
+                )
             else:
                 # if more labels than parameters, simply fill with the default missing value, 0.
-                self.parameters = tuple(val for label, val in itertools.zip_longest(self.parameter_labels(), parameters,
-                                                                                    fillvalue=0))
+                self.parameters = tuple(
+                    val
+                    for label, val in itertools.zip_longest(
+                        self.parameter_labels(), parameters, fillvalue=0
+                    )
+                )
         else:
             # A number of methods require parameters to be an iterable, hence the tuple requirement.
-            raise TypeError('"parameters" is required to be a tuple or NoneType. '
-                            'singleton parameters need to be cast as tuple (val,).')
+            raise TypeError(
+                '"parameters" is required to be a tuple or NoneType. '
+                "singleton parameters need to be cast as tuple (val,)."
+            )
 
     def _populate_parameters(self, **kwargs):
         """ Randomly initialize parameters which are currently zero.
@@ -1420,8 +1573,12 @@ class Orbit:
                         pmin, pmax = val_generator
                         val = pmin + (pmax - pmin) * np.random.rand()
                     except TypeError as typ:
-                        vestr = ''.join(['parameter generation requires tuples of length two to have numeric elements;',
-                                         'for non-numeric types use a list instead.'])
+                        vestr = "".join(
+                            [
+                                "parameter generation requires tuples of length two to have numeric elements;",
+                                "for non-numeric types use a list instead.",
+                            ]
+                        )
                         raise ValueError(vestr) from typ
                 else:
                     # Everything else treated as distribution to sample from; integer input selects from range(int)
@@ -1430,32 +1587,43 @@ class Orbit:
                         index_range = range(len(val_generator))
                         val = val_generator[np.random.choice(index_range)]
                     except TypeError:
-                    # This exception catching allows for scalar input
+                        # This exception catching allows for scalar input
                         val = np.random.choice(val_generator)
             return val
 
         # seeding takes a non-trivial amount of time, only set if explicitly provided.
-        if isinstance(kwargs.get('seed', None), int):
-            np.random.seed(kwargs.get('seed', None))
+        if isinstance(kwargs.get("seed", None), int):
+            np.random.seed(kwargs.get("seed", None))
 
         # Can be useful to override default sample spaces to get specific cases.
-        p_ranges = kwargs.get('parameter_ranges', self.default_parameter_ranges())
+        p_ranges = kwargs.get("parameter_ranges", self.default_parameter_ranges())
         # If *some* of the parameters were initialized, we want to save those values; iterate over the current
         # parameters if not None, else a list of zeros.
         parameter_iterable = self.parameters or len(self.parameter_labels()) * [None]
         if len(self.parameter_labels()) < len(parameter_iterable):
             # If more values than labels, then truncate and discard the additional values
-            parameters = tuple(sample_from_generator(val, p_ranges.get(label, (0, 0)),
-                                                     overwrite=kwargs.get('overwrite', False))
-                               for label, val in zip(self.parameter_labels(), parameter_iterable))
+            parameters = tuple(
+                sample_from_generator(
+                    val,
+                    p_ranges.get(label, (0, 0)),
+                    overwrite=kwargs.get("overwrite", False),
+                )
+                for label, val in zip(self.parameter_labels(), parameter_iterable)
+            )
         else:
             # If more labels than parameters, fill the missing parameters with default values.
-            parameters = tuple(sample_from_generator(val, p_ranges.get(label, (0, 0)),
-                                                     overwrite=kwargs.get('overwrite', False))
-                               for label, val in itertools.zip_longest(self.parameter_labels(), parameter_iterable,
-                                                                       fillvalue=None))
+            parameters = tuple(
+                sample_from_generator(
+                    val,
+                    p_ranges.get(label, (0, 0)),
+                    overwrite=kwargs.get("overwrite", False),
+                )
+                for label, val in itertools.zip_longest(
+                    self.parameter_labels(), parameter_iterable, fillvalue=None
+                )
+            )
         # Once all parameter values have been parsed, set the attribute.
-        setattr(self, 'parameters', parameters)
+        setattr(self, "parameters", parameters)
 
     def _populate_state(self, **kwargs):
         """ Populate the 'state' attribute
@@ -1476,15 +1644,17 @@ class Orbit:
         """
         # Just populate a random array; more intricate strategies should be written into subclasses.
         # Using standard normal distribution for values.
-        numpy_seed = kwargs.get('seed', None)
+        numpy_seed = kwargs.get("seed", None)
         if isinstance(numpy_seed, int):
             np.random.seed(numpy_seed)
         # Presumed to be in physical basis unless specified otherwise; get the size of the state based on dimensions
-        self.discretization = self.dimension_based_discretization(self.parameters, **kwargs)
+        self.discretization = self.dimension_based_discretization(
+            self.parameters, **kwargs
+        )
         # Assign values from a random normal distribution to the state by default.
         self.state = np.random.randn(*self.discretization)
         # If no basis provided, state generation presumed to be in the physical basis.
-        self.basis = kwargs.get('basis', None) or self.bases()[0]
+        self.basis = kwargs.get("basis", None) or self.bases()[0]
 
 
 def convert_class(orbit_, class_generator, **kwargs):
@@ -1508,5 +1678,11 @@ def convert_class(orbit_, class_generator, **kwargs):
     the values in vars(orbit_) via dictionary unpacking.
     """
     # Note any keyword arguments will overwrite the values in vars(orbit_) or state or basis
-    return class_generator(**{**vars(orbit_), 'state': orbit_.transform(to=orbit_.bases()[0]).state,
-                              'basis': orbit_.bases()[0], **kwargs}).transform(to=orbit_.basis)
+    return class_generator(
+        **{
+            **vars(orbit_),
+            "state": orbit_.transform(to=orbit_.bases()[0]).state,
+            "basis": orbit_.bases()[0],
+            **kwargs,
+        }
+    ).transform(to=orbit_.basis)
