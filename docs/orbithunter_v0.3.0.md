@@ -6,8 +6,7 @@ Major Changes
 
 2. More tests for core and KSE, reorganized and combined into single tests_basic.py 
 
-Minor Changes
--------------
+3. io.py logging utilities removed; need to be redone and so for the time being they are removed. 
 
 
 Bug fixes
