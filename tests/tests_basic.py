@@ -71,12 +71,11 @@ def test_binary_operations(fixed_orbit_data):
     orbit_ = oh.Orbit(
         state=fixed_orbit_data, basis="physical", parameters=(10, 10, 10, 10)
     )
-    test_sum = orbit_ + orbit_
-    test_sub = orbit_ - orbit_
-    test_mul = orbit_ * orbit_
-    test_pow = orbit_ ** 2
-    test_div = orbit_ / 2
-    test_floor_div = orbit_ // 2
+    assert (orbit_ + orbit_).state.sum() == 2 * orbit_.state.sum()
+    assert (orbit_ - orbit_).state.sum() == 0
+    assert np.array_equal((orbit_ * orbit_).state, (orbit_ ** 2).state)
+    assert (orbit_ / 2).state.sum() == (orbit_.state / 2).sum()
+    assert (orbit_ // 5).state.sum() == -10.0
 
 
 def test_assignment_operators(fixed_orbit_data):
@@ -310,8 +309,6 @@ def test_symmetry(fixed_orbit_data):
     assert (x[::-1, ::-1, ::-1, ::-1] + x.reflection(signed=True)).state.sum() == 0.0
 
 
-
-
 @pytest.fixture()
 def fixed_OrbitKS_data():
     # Generated from
@@ -448,7 +445,7 @@ def fixed_eqn_norm_dict():
 
 
 @pytest.fixture()
-def fixed_derivative_norms():
+def fixed_ks_derivative_norms():
     """ Norms for first four spatial derivatives and the first temporal derivative for each class
 
     Returns
@@ -458,12 +455,16 @@ def fixed_derivative_norms():
         OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS, AntisymmetricOrbitKS, EquilibriumOrbitKS
         RelativeEquilibriumOrbitKS.
     """
-    norms = np.array([[1.11206823, 0.28925289, 0.08045879, 0.02282276, 1.07142601],
-                       [1.11206823, 0.28925289, 0.08045879, 0.02282276, 1.07142601],
-                       [0.78244857, 0.20109018, 0.05571912, 0.01578873, 0.73127258],
-                       [0.80033307, 0.20251482, 0.0558226 , 0.01579571, 0.75039609],
-                       [0.32549549, 0.09255996, 0.02640633, 0.00753958, 0.        ],
-                       [0.60209077, 0.16584019, 0.04691697, 0.01336736, 0.        ]])
+    norms = np.array(
+        [
+            [1.11206823, 0.28925289, 0.08045879, 0.02282276, 1.07142601],
+            [1.11206823, 0.28925289, 0.08045879, 0.02282276, 1.07142601],
+            [0.78244857, 0.20109018, 0.05571912, 0.01578873, 0.73127258],
+            [0.80033307, 0.20251482, 0.0558226, 0.01579571, 0.75039609],
+            [0.32549549, 0.09255996, 0.02640633, 0.00753958, 0.0],
+            [0.60209077, 0.16584019, 0.04691697, 0.01336736, 0.0],
+        ]
+    )
     return norms
 
 
@@ -488,44 +489,25 @@ def instance_generator(fixed_OrbitKS_data, kse_classes, fixed_orbit_parameters):
 
 
 def test_ks_derivatives(
-    fixed_OrbitKS_data, fixed_derivative_norms, fixed_orbit_parameters
+    fixed_OrbitKS_data, fixed_ks_derivative_norms, fixed_orbit_parameters, kse_classes
 ):
-    # parameters = (44.30438636668926, 33.28035979609304, -5.809692922307713)
-    # x = oh.OrbitKS(state=fixed_OrbitKS_data, parameters=x.parameters, basis='field').transform(to='modes')
-    # y = oh.RelativeOrbitKS(state=fixed_OrbitKS_data, parameters=y.parameters, basis='field').transform(to='modes')
-    orbit_ = oh.OrbitKS(
-        state=fixed_OrbitKS_data, parameters=fixed_orbit_parameters[0], basis="field"
-    ).transform(to="modes")
-    norms = []
-    for order in range(1, 5):
-        norms.append(orbit_.dx(order).norm())
-        norms.append(orbit_.dt(order).norm())
-    orbitf = orbit_.transform(to="field")
-    norms.append(orbitf.nonlinear(orbitf).norm())
-    norms.append(orbit_.eqn().norm())
-    norms.append(orbit_._eqn_linear_component().norm())
-    assert np.equal(np.array(norms).round(8), fixed_derivative_norms[0].round(8)).all()
-
-
-def test_ks_derivatives_relativeorbitks(fixed_derivative_norms):
-    norms = []
-    relorbit_ = oh.read_h5(
-        "./data/ks/RelativeOrbitKS.h5", "t44p304_x33p280"
-    ).transform(to="modes")
-    for order in range(1, 5):
-        norms.append(relorbit_.dx(order).norm())
-        norms.append(relorbit_.dt(order).norm())
-    orbitf = relorbit_.transform(to="field")
-    norms.append(orbitf.nonlinear(orbitf).norm())
-    norms.append(relorbit_.eqn().norm())
-    norms.append(relorbit_._eqn_linear_component().norm())
-    assert np.equal(np.array(norms).round(8), fixed_derivative_norms[1].round(8)).all()
+    all_norms = []
+    for o in instance_generator(
+        fixed_OrbitKS_data, kse_classes, fixed_orbit_parameters[0]
+    ):
+        norms = []
+        for order in range(1, 5):
+            norms.append(o.dx(order).norm())
+        norms.append(o.dt().norm())
+        all_norms.append(norms)
+    test = (np.array(all_norms).round(6) - fixed_ks_derivative_norms.round(6)).sum()
+    assert test == 0.0
 
 
 def test_rmatvec(fixed_OrbitKS_data, fixed_orbit_parameters):
-    relorbit_ = oh.read_h5(
-        "./data/ks/RelativeOrbitKS.h5", "t44p304_x33p280"
-    ).transform(to="modes")
+    relorbit_ = oh.read_h5("./data/ks/RelativeOrbitKS.h5", "t44p304_x33p280").transform(
+        to="modes"
+    )
     assert pytest.approx(relorbit_.rmatvec(relorbit_).norm(), 60.18805016)
     assert pytest.approx(relorbit_.cost_function_gradient(relorbit_).norm(), 0.0)
 
@@ -537,9 +519,9 @@ def test_rmatvec(fixed_OrbitKS_data, fixed_orbit_parameters):
 
 
 def test_matvec(fixed_OrbitKS_data, fixed_orbit_parameters):
-    relorbit_ = oh.read_h5(
-        "./data/ks/RelativeOrbitKS.h5", "t44p304_x33p280"
-    ).transform(to="modes")
+    relorbit_ = oh.read_h5("./data/ks/RelativeOrbitKS.h5", "t44p304_x33p280").transform(
+        to="modes"
+    )
     orbit_ = oh.OrbitKS(
         state=fixed_OrbitKS_data, parameters=fixed_orbit_parameters[0], basis="field"
     ).transform(to="modes")
@@ -624,7 +606,9 @@ def test_jacobian(fixed_OrbitKS_data, fixed_orbit_parameters, kse_classes):
     """
     for (name, cls) in kse_classes.items():
         orbit_ = cls(
-            state=fixed_OrbitKS_data, basis="field", parameters=fixed_orbit_parameters[0]
+            state=fixed_OrbitKS_data,
+            basis="field",
+            parameters=fixed_orbit_parameters[0],
         )
         # The jacobians have all other matrices within them; just use this as a proxy to test.
         jac_ = orbit_.jacobian()

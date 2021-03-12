@@ -110,12 +110,18 @@ def read_h5(filename, *datanames, validate=False, **orbitkwargs):
                     parameters = tuple(obj.attrs.get("parameters", None))
                 except TypeError:
                     parameters = None
-                # Use the imported data to initialize a new instance.
+
+                try:
+                    discretization = tuple(obj.attrs.get("discretization", None))
+                except TypeError:
+                    discretization = None
+                # Use the imported data to initialize a new instance. Tuple datatype is imported as list.
                 orbit_ = class_(
                     state=obj[...],
                     **{
                         **dict(obj.attrs.items()),
                         "parameters": parameters,
+                        "discretization": discretization,
                         **orbitkwargs,
                     }
                 )
