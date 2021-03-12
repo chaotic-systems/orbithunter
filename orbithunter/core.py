@@ -1000,13 +1000,13 @@ class Orbit:
         """
         # orbit_vector is defined to be concatenation of state and parameters;
         # slice out the parameters; cast as list to gain access to pop
-        param_list = list(kwargs.pop("parameters", orbit_vector.ravel()[self.size:]))
+        param_list = list(kwargs.pop("parameters", orbit_vector.ravel()[self.size :]))
 
         # The issue with parsing the parameters is that we do not know which list element corresponds to
         # which parameter unless the constraints are checked. Parameter keys which are not in the constraints dict
         # are assumed to be constrained.
         parameters = tuple(
-            param_list.pop(0) if not self.constraints.get(each_label, True) else 0.
+            param_list.pop(0) if not self.constraints.get(each_label, True) else 0.0
             for each_label in self.parameter_labels()
         )
         return self.__class__(
@@ -1434,7 +1434,8 @@ class Orbit:
 
         # iterating over constraints items means that constant variables can never be unconstrained by accident.
         constraints = {
-            key: True if key in labels else self.default_constraints().get(key, True) for key in self.parameter_labels()
+            key: True if key in labels else self.default_constraints().get(key, True)
+            for key in self.parameter_labels()
         }
         setattr(self, "constraints", constraints)
 

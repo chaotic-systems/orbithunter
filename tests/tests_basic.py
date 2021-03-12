@@ -165,13 +165,15 @@ def test_parameter_population():
         oh.Orbit().populate(attr="parameters", parameter_ranges=bad_parameter_ranges)
 
     pranges_missing_keys = {"t": np.ones([2, 2, 2, 2]), "z": choice_list}
-    oh.Orbit().populate( attr="parameters", parameter_ranges=pranges_missing_keys)
+    oh.Orbit().populate(attr="parameters", parameter_ranges=pranges_missing_keys)
 
     pranges_missing_keys_bundled_array = {
         "t": (np.ones([2, 2, 2, 2]),),
         "z": choice_list,
     }
-    oh.Orbit().populate(attr="parameters", parameter_ranges=pranges_missing_keys_bundled_array)
+    oh.Orbit().populate(
+        attr="parameters", parameter_ranges=pranges_missing_keys_bundled_array
+    )
 
     # partially populated
     oh.Orbit(parameters=(1, None, 1)).populate(
@@ -453,13 +455,18 @@ def fixed_spt_projection_space_derivative_norms():
         OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS, AntisymmetricOrbitKS, EquilibriumOrbitKS
         RelativeEquilibriumOrbitKS.
     """
-    norms = np.array([[1.112068, 0.289253, 0.080459, 0.022823, 1.071426],
-       [1.112068, 0.289253, 0.080459, 0.022823, 1.071426],
-       [0.782449, 0.20109 , 0.055719, 0.015789, 0.731273],
-       [0.800333, 0.202515, 0.055823, 0.015796, 0.750396],
-       [0.797298, 0.226725, 0.064682, 0.018468, 0.      ],
-       [1.474815, 0.406224, 0.114923, 0.032743, 0.      ]])
+    norms = np.array(
+        [
+            [1.112068, 0.289253, 0.080459, 0.022823, 1.071426],
+            [1.112068, 0.289253, 0.080459, 0.022823, 1.071426],
+            [0.782449, 0.20109, 0.055719, 0.015789, 0.731273],
+            [0.800333, 0.202515, 0.055823, 0.015796, 0.750396],
+            [0.797298, 0.226725, 0.064682, 0.018468, 0.0],
+            [1.474815, 0.406224, 0.114923, 0.032743, 0.0],
+        ]
+    )
     return norms
+
 
 @pytest.fixture()
 def fixed_space_projection_space_derivative_norms():
@@ -472,13 +479,18 @@ def fixed_space_projection_space_derivative_norms():
         OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS, AntisymmetricOrbitKS, EquilibriumOrbitKS
         RelativeEquilibriumOrbitKS.
     """
-    norms = np.array([[1.138022, 0.294354, 0.081732, 0.023173, 1.071426],
-       [1.138022, 0.294354, 0.081732, 0.023173, 1.071426],
-       [1.138022, 0.294354, 0.081732, 0.023173, 0.731273],
-       [1.138022, 0.294354, 0.081732, 0.023173, 0.750396],
-       [1.138022, 0.294354, 0.081732, 0.023173, 0.      ],
-       [1.138022, 0.294354, 0.081732, 0.023173, 0.      ]])
+    norms = np.array(
+        [
+            [1.138022, 0.294354, 0.081732, 0.023173, 1.071426],
+            [1.138022, 0.294354, 0.081732, 0.023173, 1.071426],
+            [1.138022, 0.294354, 0.081732, 0.023173, 0.731273],
+            [1.138022, 0.294354, 0.081732, 0.023173, 0.750396],
+            [1.138022, 0.294354, 0.081732, 0.023173, 0.0],
+            [1.138022, 0.294354, 0.081732, 0.023173, 0.0],
+        ]
+    )
     return norms
+
 
 @pytest.fixture()
 def fixed_spt_projection_spt_derivative_norms():
@@ -491,12 +503,16 @@ def fixed_spt_projection_spt_derivative_norms():
         OrbitKS, RelativeOrbitKS, ShiftReflectionOrbitKS, AntisymmetricOrbitKS, EquilibriumOrbitKS
         RelativeEquilibriumOrbitKS.
     """
-    norms = np.array([[1.112068, 0.289253, 0.080459, 0.022823, 1.071426],
-                       [1.112068, 0.289253, 0.080459, 0.022823, 1.071426],
-                       [0.      , 0.20109 , 0.      , 0.015789, 0.731273],
-                       [0.      , 0.202515, 0.      , 0.015796, 0.750396],
-                       [0.      , 0.09256 , 0.      , 0.00754 , 0.      ],
-                       [0.602091, 0.16584 , 0.046917, 0.013367, 0.      ]])
+    norms = np.array(
+        [
+            [1.112068, 0.289253, 0.080459, 0.022823, 1.071426],
+            [1.112068, 0.289253, 0.080459, 0.022823, 1.071426],
+            [0.0, 0.20109, 0.0, 0.015789, 0.731273],
+            [0.0, 0.202515, 0.0, 0.015796, 0.750396],
+            [0.0, 0.09256, 0.0, 0.00754, 0.0],
+            [0.602091, 0.16584, 0.046917, 0.013367, 0.0],
+        ]
+    )
     return norms
 
 
@@ -505,9 +521,12 @@ def fixed_ks_parameters():
     # Parameter tuples and incorrect input scalar
     return (44, 44, 5), (44, 44), (44,), 44, None
 
+
 def test_OrbitKS_attributes(fixed_OrbitKS_data, fixed_ks_parameters, kse_classes):
     for name, cls in kse_classes.items():
-        orbit_ = cls(state=fixed_OrbitKS_data, basis='field', parameters=fixed_ks_parameters[0])
+        orbit_ = cls(
+            state=fixed_OrbitKS_data, basis="field", parameters=fixed_ks_parameters[0]
+        )
         assert orbit_.parameters[0] == orbit_.t
         assert orbit_.parameters[1] == orbit_.x
         assert orbit_.parameters[2] == orbit_.s
@@ -524,10 +543,14 @@ def kse_classes():
     return dict(
         [(name, cls) for name, cls in oh.ks.__dict__.items() if isinstance(cls, type)]
     )
+
+
 @pytest.fixture()
 def jacobian_abssums():
-    return np.array([11.62823786, 11.87087419,  3.8862443 ,  3.98355746,  0.11814049,
-                    1.10636676])
+    return np.array(
+        [11.62823786, 11.87087419, 3.8862443, 3.98355746, 0.11814049, 1.10636676]
+    )
+
 
 def instance_generator(fixed_OrbitKS_data, kse_classes, fixed_ks_parameters):
     for (name, cls) in kse_classes.items():
@@ -540,43 +563,60 @@ def instance_generator(fixed_OrbitKS_data, kse_classes, fixed_ks_parameters):
 #     pytest.approx(drifter.residual(), )
 #
 
-def test_spt_projection_space_derivative(fixed_OrbitKS_data, fixed_spt_projection_space_derivative_norms,
-                                         kse_classes):
+
+def test_spt_projection_space_derivative(
+    fixed_OrbitKS_data, fixed_spt_projection_space_derivative_norms, kse_classes
+):
     all_norms = []
     for name, cls in kse_classes.items():
         class_norms = []
-        o = cls(state=fixed_OrbitKS_data, parameters=(44, 44, 5), basis='field').transform(to='modes')
+        o = cls(
+            state=fixed_OrbitKS_data, parameters=(44, 44, 5), basis="field"
+        ).transform(to="modes")
         for order in range(1, 5):
-            class_norms.append(o.dx(order=order, return_basis='modes').norm())
+            class_norms.append(o.dx(order=order, return_basis="modes").norm())
         class_norms.append(o.dt().norm())
         all_norms.append(class_norms)
-    pytest.approx(np.array(all_norms).round(6), fixed_spt_projection_space_derivative_norms)
+    pytest.approx(
+        np.array(all_norms).round(6), fixed_spt_projection_space_derivative_norms
+    )
 
-def test_space_projection_space_derivative(fixed_OrbitKS_data, fixed_space_projection_space_derivative_norms,
-                                           kse_classes):
+
+def test_space_projection_space_derivative(
+    fixed_OrbitKS_data, fixed_space_projection_space_derivative_norms, kse_classes
+):
     all_norms = []
     for name, cls in kse_classes.items():
         class_norms = []
-        o = cls(state=fixed_OrbitKS_data, parameters=(44, 44, 5), basis='field').transform(to='modes')
+        o = cls(
+            state=fixed_OrbitKS_data, parameters=(44, 44, 5), basis="field"
+        ).transform(to="modes")
         for order in range(1, 5):
-            class_norms.append(o.dx(order=order, return_basis='modes').norm())
+            class_norms.append(o.dx(order=order, return_basis="modes").norm())
         class_norms.append(o.dt().norm())
         all_norms.append(class_norms)
-    pytest.approx(np.array(all_norms).round(6), fixed_space_projection_space_derivative_norms)
+    pytest.approx(
+        np.array(all_norms).round(6), fixed_space_projection_space_derivative_norms
+    )
 
 
-def test_spt_projection_spt_derivative(fixed_OrbitKS_data, fixed_spt_projection_spt_derivative_norms,
-                                       kse_classes):
+def test_spt_projection_spt_derivative(
+    fixed_OrbitKS_data, fixed_spt_projection_spt_derivative_norms, kse_classes
+):
     all_norms = []
 
     for name, cls in kse_classes.items():
         class_norms = []
-        o = cls(state=fixed_OrbitKS_data, parameters=(44, 44, 5), basis='field').transform(to='modes')
+        o = cls(
+            state=fixed_OrbitKS_data, parameters=(44, 44, 5), basis="field"
+        ).transform(to="modes")
         for order in range(1, 5):
-            class_norms.append(o.dx(order=order, return_basis='modes').norm())
+            class_norms.append(o.dx(order=order, return_basis="modes").norm())
         class_norms.append(o.dt().norm())
         all_norms.append(class_norms)
-    pytest.approx(np.array(all_norms).round(6), fixed_spt_projection_spt_derivative_norms)
+    pytest.approx(
+        np.array(all_norms).round(6), fixed_spt_projection_spt_derivative_norms
+    )
 
 
 def test_rmatvec(fixed_OrbitKS_data, fixed_ks_parameters):
@@ -674,18 +714,17 @@ def test_instantiation(kse_classes):
     return None
 
 
-def test_jacobian(fixed_OrbitKS_data, fixed_ks_parameters, jacobian_abssums, kse_classes):
+def test_jacobian(
+    fixed_OrbitKS_data, fixed_ks_parameters, jacobian_abssums, kse_classes
+):
     """
     Returns
     -------
     """
     for jacsum, (name, cls) in zip(jacobian_abssums, kse_classes.items()):
         orbit_ = cls(
-            state=fixed_OrbitKS_data,
-            basis="field",
-            parameters=fixed_ks_parameters[0],
-        ).transform(to='modes')
+            state=fixed_OrbitKS_data, basis="field", parameters=fixed_ks_parameters[0],
+        ).transform(to="modes")
         # The jacobians have all other matrices within them; just use this as a proxy to test.
         jac_ = orbit_.jacobian()
         pytest.approx(np.abs(jac_).sum(), jacsum)
-

@@ -1,4 +1,4 @@
-# orbithunter v0.1.0
+# orbithunter v0.4.0 (Beta)
 -------------------------
 Framework for solving chaotic nonlinear PDEs in spatiotemporal manner.
 
@@ -23,7 +23,6 @@ symmetries, as indicated by the subclasses of the OrbitKS class.
 # Tutorial Notebooks
 --------------------
 [./notebooks/](notebooks/)
-
 
 # Implementing your equation
 -----

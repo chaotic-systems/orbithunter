@@ -288,7 +288,7 @@ class OrbitKS(Orbit):
         """
         # can compute spatial derivative in spatial mode or spatiotemporal mode basis. spatial_modes basis is required
         # for orbits with discrete symmetry as they are orthogonal to the dx() direction.
-        computation_basis = kwargs.get('computation_basis', 'modes')
+        computation_basis = kwargs.get("computation_basis", "modes")
         if computation_basis == "spatial_modes":
             modes = self.transform(to="spatial_modes", array=True)
             dxn_modes = spatial_frequencies(self.x, self.m, order) * modes
@@ -947,6 +947,66 @@ class OrbitKS(Orbit):
             }
         ).transform(to=self.basis)
 
+    def roll(self, shift, axis=0):
+        """ Apply numpy roll along specified axis.
+
+        Parameters
+        ----------
+        shift : int or tuple of int
+            Number of discrete points to rotate by
+        axis : int or tuple of int
+            The numpy ndarray axes along which to roll
+
+        Returns
+        -------
+        OrbitKS :
+            Instance with rolled state
+
+        Notes
+        -----
+        In decision to maintain numpy defaults or change roll to be positive when shift is positive, the latter was
+        chosen. If provided tuples of ints, shift and axis need to be the same length as to be coherent.
+        This forces OrbitKS to be in the 'field' basis as the rolls can be nonsensical otherwise
+        """
+
+        return self.__class__(
+            **{
+                **vars(self),
+                "state": np.roll(self.transform(to="field").state, shift, axis=axis),
+            }
+        ).transform(to=self.basis)
+
+    def cell_shift(self, n_cell, axis=0):
+        """ Rotate by fraction of the period in either axis; nearest discrete approximate is taken.
+
+        Parameters
+        ----------
+        n_cell : int or array-like
+            Fraction of the domain to rotate by.
+        axis : int or array-like
+            The numpy ndarray axes along which to roll
+
+        Returns
+        -------
+        OrbitKS :
+            Instance with rolled state
+
+        Notes
+        -----
+        If provided tuples of ints, shift and axis need to be the same length as to be coherent.
+        """
+        # To allow slicing, discretization temporarily cast as array.
+        return (
+            self.transform(to="field")
+            .roll(
+                np.sign(n_cell)
+                * np.array(self.discretization)[np.array(axis)]
+                // np.abs(n_cell),
+                axis=axis,
+            )
+            .transform(to=self.basis)
+        )
+
     def rotate(self, distance, axis=0, units="plotting"):
         """ Rotate the velocity field in either space or time.
 
@@ -1315,7 +1375,7 @@ class OrbitKS(Orbit):
         h5mode="a",
         verbose=False,
         include_residual=True,
-        **kwargs
+        **kwargs,
     ):
         """ Export current state information to HDF5 file. See core.py for more details
 
@@ -1342,7 +1402,7 @@ class OrbitKS(Orbit):
             h5mode=h5mode,
             verbose=verbose,
             include_residual=include_residual,
-            **kwargs
+            **kwargs,
         )
 
     @classmethod
@@ -2474,10 +2534,10 @@ class AntisymmetricOrbitKS(OrbitKS):
         # for orbits with discrete symmetry as they are orthogonal to the dx() direction.
         if order % 2:
             # odd ordered derivatives NEED to be in spatial mode basis
-            kwargs['computation_basis'] = 'spatial_modes'
+            kwargs["computation_basis"] = "spatial_modes"
         else:
             # even ordered derivatives CAN be in the spatial mode basis or the spatiotemporal mode basis.
-            kwargs.setdefault('computational_basis', 'modes')
+            kwargs.setdefault("computational_basis", "modes")
         return super().dx(order=order, array=array, **kwargs)
 
     def nonlinear(self, other, array=False):
@@ -2772,7 +2832,6 @@ class AntisymmetricOrbitKS(OrbitKS):
 
 
 class ShiftReflectionOrbitKS(OrbitKS):
-
     def dx(self, order=1, array=False, **kwargs):
         """ Spatial derivative of the current state.
 
@@ -2800,12 +2859,12 @@ class ShiftReflectionOrbitKS(OrbitKS):
         # for orbits with discrete symmetry as they are orthogonal to the dx() direction.
         if order % 2:
             # odd ordered derivatives NEED to be in spatial mode basis
-            kwargs['computation_basis'] = 'spatial_modes'
+            kwargs["computation_basis"] = "spatial_modes"
         else:
             # even ordered derivatives CAN be in the spatial mode basis or the spatiotemporal mode basis.
-            kwargs.setdefault('computational_basis', 'modes')
+            kwargs.setdefault("computational_basis", "modes")
         return super().dx(order=order, array=array, **kwargs)
-  
+
     def nonlinear(self, other, array=False):
         """ nonlinear computation of the nonlinear term of the Kuramoto-Sivashinsky equation
 

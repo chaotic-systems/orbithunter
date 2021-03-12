@@ -9,13 +9,11 @@ would occur otherwise.
 2. More tests for core and KSE, fixed and expanded the derivative norm tests; they hadn't taken the
 projections from transform operators into account. 
 
-Minor Changes
--------------
-
 Bug fixes
 ---------
 1. New iteration of self.constrain() was incorrectly assigning False to parameters that were not in 
 self.parameter_labels(), causing self.from_numpy_array() to fail. 
 
-
-
+Notes
+-----
+Getting readthedocs and github pages setup along with setup. 
