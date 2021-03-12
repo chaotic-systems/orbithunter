@@ -74,7 +74,8 @@ class Orbit:
         Notes
         -----
         If possible, parsing should be avoided as it takes time. If all primary attributes that would be parsed
-        are included then do not parse; it is assumed that the information is coherent if it is all being provided.
+        are included then parsing does not occur; it is assumed that the information is coherent
+        if it is all being passed.
         """
         if type(None) in [type(state), type(basis), type(discretization)]:
             self._parse_state(state, basis, **kwargs)

@@ -450,10 +450,7 @@ def cover(
     for index, threshold, window_orbit in zip(
         iter_order, thresholds[iter_order], window_orbits[iter_order]
     ):
-        if (
-            kwargs.get("verbose", False)
-            and index % max([1, len(thresholds) // 10]) == 0
-        ):
+        if kwargs.get("verbose", False):
             print("#", end="")
         shadow_kwargs = {
             **kwargs,
