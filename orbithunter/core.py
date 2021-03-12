@@ -10,23 +10,17 @@ The core class for all orbithunter calculations. The methods listed are the ones
 full functionality isn't currently desired then I recommend only implementing the methods used in optimize.py,
 saving data to disk, and plotting. Of course this is in addition to the dunder methods such as __init__. 
 
-While not listed here explicitly, this package is fundamentally a (pseudo)spectral method based package; while it is not
-technically required to use a spectral method, not doing so may result in awkwardly named attributes. For example,
-the resize method in spectral space essentially interpolates via zero-padding and truncation. Therefore, other
-interpolation methods would be forced to use _pad and _truncate, unless they specifically overwrite the resize
-method itself. Previous the labels on the bases were static but now everything is written such that they
-can be accessed by an equation specific staticmethod .bases(). For the KSe this returns the tuple 
-self.bases()--------->('field', 'spatial_modes', 'modes'), for example.
- 
-The implementation of this template class, Orbit, implements all numerical computations trivially; in other words,
-the "associated equation" for this class is the trivial equation f=0, such that for any state the DAEs evaluate
-to 0, the corresponding matrix vector products return zero, the Jacobian matrices are just appropriately sized
-calls of np.zeros, etc. The idea is simply to implement the methods required for the numerical methods,
-clipping, gluing, optimize, etc. Of course, in this case, all states are "solutions" and so any operations 
-to the state doesn't *actually* do anything in terms of the "equation". The idea behind 
-returning instances or arrays filled with zeros is to allow for debugging without having to complete everything
-first; although one might argue *not* including the attributes/methods ensure that the team/person creating the module
-does not forget anything. 
+While not listed here explicitly, this package is fundamentally a (pseudo)spectral method based package. The numerical
+methods do not require spectral method implementations but it is highly recommended. 
+
+The implementation of this template class, Orbit, returns trivial results for most numerical computations. 
+In other words, the "associated equation" for this class is the trivial equation u=0, such that for any state 
+the corresponding matrix vector products return zero, the Jacobian matrices are just appropriately sized
+calls of np.zeros, etc. The idea is to implement the methods required for the numerical methods,
+clipping, gluing, optimize, etc. and be indicative of what should be required. 
+Of course, in this case, all states are "solutions" and so any operations 
+to the state doesn't *actually* do anything in terms of the "equation". Although one might argue *not* including 
+the attributes/methods ensure that the team/person creating the module does not forget anything. 
 
 All transforms should be wrapped by
 the method .transform(), such that transforming to another basis can be accessed by statements such as 
@@ -80,7 +74,7 @@ class Orbit:
         Notes
         -----
         If possible, parsing should be avoided as it takes time. If all primary attributes that would be parsed
-        are included then do not parse; it is assumed that the information is coherent.
+        are included then do not parse; it is assumed that the information is coherent if it is all being provided.
         """
         if type(None) in [type(state), type(basis), type(discretization)]:
             self._parse_state(state, basis, **kwargs)
@@ -523,7 +517,7 @@ class Orbit:
         """
         return 1, 1, 1, 1
 
-    def periodic_dimensions(self):
+    def boundary_conditions(self):
         """ Bools indicating whether or not dimension is periodic for persistent homology calculations.
 
         Returns
@@ -844,6 +838,11 @@ class Orbit:
         Orbit :
             either self or instance in new basis. Returning self and not copying may have unintended consequences
             but typically it would not matter as orbithunter operations typically require copying numpy arrays.
+
+        Notes
+        -----
+        Has no purpose for classes with singular basis. Convention is to return self (not a copy) if 'to' keyword
+        argument equals self.basis.
         """
         return self
 
@@ -1007,7 +1006,7 @@ class Orbit:
         # which parameter unless the constraints are checked. Parameter keys which are not in the constraints dict
         # are assumed to be constrained.
         parameters = tuple(
-            param_list.pop(0) if not self.constraints.get(each_label, True) else 0
+            param_list.pop(0) if not self.constraints.get(each_label, True) else 0.
             for each_label in self.parameter_labels()
         )
         return self.__class__(

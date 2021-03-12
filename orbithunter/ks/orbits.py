@@ -21,7 +21,7 @@ __all__ = [
 
 
 class OrbitKS(Orbit):
-    """ Object that represents an orbit for the Kuramoto-Sivashinsky equation. See core.py for details.
+    """ Object that represents an orbit for the Kuramoto-Sivashinsky equation. See core.py for base Orbit class
 
 
     See Also
@@ -33,23 +33,14 @@ class OrbitKS(Orbit):
     The 'state' is ordered such that when in the physical basis, the last row corresponds to 't=0'. This
     results in an extra negative sign when computing time derivatives. This convention was chosen
     because it is conventional to display positive time as 'up'. This convention prevents errors
-    due to flipping fields up and down. The spatial shift parameter only applies to RelativeOrbitKS.
-    Its inclusion in the base class is again a convention
-    for exporting and importing data. If no state is None then a randomly populated state will be
-    provided. It's dimensions will provide on the spatial and temporal periods unless provided
-    as keyword arguments {N, M}.
-
-    The `parameters' argument is always given as a len(parameters)=3 tuple, in-case of conversion between
-    different symmetry sub-types.
-
-    The philosophy behind initializing the state, instead of leaving it empty is to avoid setting attributes
-    after the init process. I cannot think of a situation where you would want an instance without a state AND
-    want to perform the types of calculations possible with orbithunter; as you would have to specify
-    dimensions of the state in either case.
+    due to flipping fields up and down. The spatial shift parameter only applies to RelativeOrbitKS and
+    RelativeEquilibriumOrbitKS. The various subclasses represent symmetry invariant subspaces. Due to the nature of
+    subspaces, it is numerically possible to find, for example, solutions with spatial reflection symmetry
+    (AntisymmetricOrbitKS) even though OrbitKS is being used. Any subclass member can be found using its parent class.
     """
 
-    def periodic_dimensions(self):
-        """ Bools indicating whether or not dimension is periodic for persistent homology calculations.
+    def boundary_conditions(self):
+        """ Bools indicating whether or not dimension is periodic.
 
         Returns
         -------
@@ -69,7 +60,7 @@ class OrbitKS(Orbit):
 
         Notes
         -----
-        32 x 32 is used because this is the shape that generally works for small tile sizes.
+        (32, 32) is used because this is the shape that generally works for small tile sizes.
         """
         return 32, 32
 
@@ -80,7 +71,7 @@ class OrbitKS(Orbit):
         Returns
         -------
         tuple of int :
-            The smallest valid increments to changes in discretization size; presumably to retain all functionality.
+            The smallest valid increments to changes in discretization size which retain all functionality.
         """
         return 2, 2
 
@@ -91,26 +82,45 @@ class OrbitKS(Orbit):
         Returns
         -------
         tuple of int :
-            The default array shape when dimensions are not specified.
+            The minimal shape for this class.
         """
 
         return 2, 4
 
     @staticmethod
     def bases():
-        """ Labels of the different bases populated by different transforms.
+        """ Labels of the different bases produced by transforms.
+
+        Returns
+        -------
+        tuple of str
         """
         return "field", "spatial_modes", "modes"
 
     @staticmethod
     def discretization_labels():
-        """ Strings to use to label dimensions/periods. Generic 3+1 spacetime labels default.
+        """ Strings to use to label dimensions/periods
+
+        Returns
+        -------
+        tuple of str
+            The labels for each dimension's number of collocation points (dimension in field basis)
         """
         return "n", "m"
 
     @staticmethod
     def parameter_labels():
-        """ Labels of all parameters."""
+        """ Labels of all parameters
+
+        Returns
+        -------
+        tuple of str
+
+        Notes
+        -----
+        The parameter 's' is never used outside of RelativeOrbitKS and RelativeEquilibriumKS, however, it is included
+        for compatibility between conversion between symmetry types.
+        """
         return "t", "x", "s"
 
     def default_constraints(self):
@@ -118,7 +128,14 @@ class OrbitKS(Orbit):
         return {"t": False, "x": False}
 
     def orbit_vector(self):
-        """ Vector which completely specifies the orbit, contains state information and parameters. """
+        """ Vector which completely specifies the orbit, contains state information and parameters.
+
+        Returns
+        -------
+        np.ndarray :
+            Column vector array comprised of all (valid) state variables (self.state and self.parameters). Shift 's'
+            is never valid for this class and hence not included.
+        """
         return np.concatenate(
             (
                 self.state.reshape(-1, 1),
@@ -128,8 +145,8 @@ class OrbitKS(Orbit):
             axis=0,
         )
 
-    def transform(self, to="modes", array=False):
-        """ Convert current state to a different basis.
+    def transform(self, to=None, array=False):
+        """ Transform current state to a different basis.
 
         Parameters
         ----------
@@ -137,7 +154,7 @@ class OrbitKS(Orbit):
             One of the following: 'field', 'spatial_modes', 'modes'. Specifies the basis which the orbit will be
             converted to.
         array : bool
-            Whether to return np.ndarray
+            Whether to return np.ndarray or OrbitKS instance
 
         Raises
         ----------
@@ -152,7 +169,11 @@ class OrbitKS(Orbit):
         Notes
         -----
         This method is just a wrapper for different Fourier transforms. It's purpose is to remove the
-        need for the user to keep track of the basis by hand. This should be used as opposed to Fourier transforms.
+        need for the user to keep track of the basis by hand. Transforms should never be used directly. For a state in
+        the field basis, self.transform(to='modes') is equivalent to self._space_transform()._time_transform()
+        If 'to'==self.basis then self (NOT a copy) is returned. While this could cause unintentional overwrites,
+        the user should not be transforming to a basis it is already in anyway. However, for practical purposes,
+        remembering the basis at all times can be troublesome and so not error is raised if this is true.
         """
         if self.state is None:
             raise ValueError(
@@ -197,7 +218,7 @@ class OrbitKS(Orbit):
             raise ValueError("Trying to transform to unrecognized basis.")
 
     def dt(self, order=1, array=False):
-        """ Time derivative of the current state.
+        """ Spectral time derivatives of the current state.
 
         Parameters
         ----------
@@ -211,21 +232,29 @@ class OrbitKS(Orbit):
         ----------
         orbit_dtn : OrbitKS
             The class instance whose state is the time derivative in the spatiotemporal mode basis.
+
+        Notes
+        -----
+        It is very often the case that the derivative in the field basis is desired. Instead of forcing
+        the user to write self.transform(to='modes').dt().transform(to='field'), the functions are written
+        to incur extra overhead by transforming behind the scenes. To avoid unnecessary slow down, the OrbitKS
+        instances must be in the modes basis to compute self.eqn()
         """
         # Need mode basis to compute derivatives
         modes = self.transform(to="modes", array=True)
-        # Elementwise multiplication of modes with frequencies, this is the derivative.
+        # Elementwise multiplication of modes with frequencies, this is the derivative. Uses numpy broadcasting.
         dtn_modes = temporal_frequencies(self.t, self.n, order) * modes
 
-        # If the order of the derivative is odd, then imaginary component and real components switch.
+        # If the order of the derivative is odd, then imaginary component and real components switch. Need to
+        # account for this for our real-valued transforms.
         if np.mod(order, 2):
             dtn_modes = swap_modes(dtn_modes, axis=0)
 
-        # To avoid redundant instantiation of instances, can return ndarray instead.
+        # To for numerical efficiency, NumPy arrays can be returned.
         if array:
             return dtn_modes
         else:
-            # return the derivative in an instance
+            # return the derivative in an instance whose basis is equivalent to the original basis of self.
             orbit_dtn = self.__class__(
                 **{**vars(self), "state": dtn_modes, "basis": "modes"}
             )
@@ -252,20 +281,14 @@ class OrbitKS(Orbit):
 
         Notes
         -----
-        For agility, differentiation will silently perform Fourier transforms to get into the "right" basis in
-        which to compute the tensor products. The onus of responsibility is put on the user to transform their
-        instances prior to differentiation. In cases where forgetting to do so would cause dramatic slow downs,
-        i.e. optimization, errors are raised.
-
-        The general case returned by the function spatial_frequencies is an array of spatial frequencies of the shape
-        [N-1, M-2]. The columns are comprised of two repeats of an array of dimension [N-1, M//2-1]; for orbits
-        with discrete symmetry, we only want this array for the differentiation in the mode basis, simply due
-        to how the selection rules work. Therefore, we can slice by the shape of the mode tensor; for orbits without
-        discrete symmetry this does nothing, for those with discrete symmetry, it slices the half that we want.
-
+        It is very often the case that the derivative in the field basis is desired. Instead of forcing
+        the user to write self.transform(to='modes').dt().transform(to='field'), the functions are written
+        to incur extra overhead by transforming behind the scenes. To avoid unnecessary slow down, the OrbitKS
+        instances must be in the modes basis to compute self.eqn()
         """
+        # can compute spatial derivative in spatial mode or spatiotemporal mode basis. spatial_modes basis is required
+        # for orbits with discrete symmetry as they are orthogonal to the dx() direction.
         if computation_basis == "spatial_modes":
-            # can compute spatial derivative in spatial mode or spatiotemporal mode basis.
             modes = self.transform(to="spatial_modes", array=True)
             dxn_modes = spatial_frequencies(self.x, self.m, order) * modes
         elif computation_basis == "modes":
@@ -292,17 +315,21 @@ class OrbitKS(Orbit):
             return orbit_dxn.transform(to=kwargs.get("return_basis", self.basis))
 
     def _eqn_linear_component(self, array=False):
-        """ Linear component of the KSe
+        """ Linear component of the KSe.
         
         Parameters
         ----------
         array : bool
-            Whether to return ndarray or not. 
+            Whether to return np.ndarray or not.
 
         Returns
         -------
-        Orbit or ndarray :
+        OrbitKS or np.ndarray :
             Evaluation of the governing equations.
+
+        Notes
+        -----
+        Equal to u_t + u_xx + u_xxxx
         """
         return (
             self.dt(array=array)
@@ -347,7 +374,12 @@ class OrbitKS(Orbit):
         other : OrbitKS
             The second component of the nonlinear product.
         array : bool
-            Whether to return a numpy array or Orbit instance, primarily for internal use.
+            Whether to return a numpy array or OrbitKS instance
+
+        Returns
+        -------
+        np.ndarray or OrbitKS
+            Array or OrbitKS instance containing the nonlinear term of the KSE = 1/2 (u**2)_x
 
         Notes
         -----
@@ -355,7 +387,6 @@ class OrbitKS(Orbit):
         convolution of spatiotemporal Fourier modes, the defining quality of a pseudospectral implementation.
         The matrix vector product takes the form d_x (u * v), but the "normal" usage is d_x (u * u); in the latter
         case 'other' should equal 'self', in the field basis.
-
         """
         # Elementwise product, both self and other should be in physical field basis.
         assert (self.basis == "field") and (other.basis == "field")
@@ -369,13 +400,18 @@ class OrbitKS(Orbit):
         other : OrbitKS
             The second component of the nonlinear product
         array : bool
-            If True then return ndarray instead of instance.
+            Whether to return np.ndarray or OrbitKS.
+
+        Returns
+        -------
+        np.ndarray or OrbitKS :
+            Array or OrbitKS instance with -u*v_x as its state.
 
         Notes
         -----
         The matrix-vector product comprised of adjoint Jacobian evaluated at 'self'
         multiplied with the spatiotemporal modes from another orbit instance (typically the DAE modes)
-        elementwise/vectorized operation takes the form -u * v_x.
+        elementwise/vectorized operation takes the form -u * v_x. self==u, other==v.
         """
         assert self.basis == "field"
         if array:
@@ -397,9 +433,10 @@ class OrbitKS(Orbit):
         Returns
         -------
         jac_ : 2-d ndarray
-            Has dimensions dependent on number of spatiotemporal modes and free parameters,
-            (self.shapes()[-1], self.shapes()[-1].size + n_params)
-            Jacobian matrix of the KSe where n_params = 2 - sum(parameter_constraints)
+            Jacobian matrix whose columns are derivatives with respect to all unconstrained state variables;
+            including periods. Has dimensions dependent on number of spatiotemporal modes and free parameters,
+            (self.shapes()[-1].size, self.shapes()[-1].size + n_params)
+            Jacobian matrix of the KSe where n_params = 2 - sum(self.constraints)
         """
         # The Jacobian components for the spatiotemporal Fourier modes
         jac_ = self._jac_lin() + self._jac_nonlin()
@@ -429,8 +466,8 @@ class OrbitKS(Orbit):
 
         assert (self.basis == "modes") and (other.basis == "modes")
         self_field = self.transform(to="field")
-        # The correct derivative of the vector in the matrix vector product needs the current state parameters;
-        # not the parameters stored in other;
+        # The correct derivative of the vector in the matrix vector product needs the current state parameters in
+        # self but the state stored in other.
         other_mode_component = other.__class__(
             **{**vars(self), "state": other.state, "basis": other.basis}
         )
@@ -443,12 +480,12 @@ class OrbitKS(Orbit):
 
         if not self.constraints["t"]:
             # Compute the product of the partial derivative with respect to T with the vector's value of T.
-            # This is typically an incremental value dT.
+            # This is only relevant when other.t an incremental value dT from a numerical method.
             matvec_modes += other.t * (-1.0 / self.t) * self.dt(array=True)
 
         if not self.constraints["x"]:
             # Compute the product of the partial derivative with respect to L with the vector's value of L.
-            # This is typically an incremental value dL.
+            # This is only relevant when other.x an incremental value dL from a numerical method.
             dfdl = (
                 (-2.0 / self.x) * self.dx(order=2, array=True)
                 + (-4.0 / self.x) * self.dx(order=4, array=True)
@@ -468,7 +505,7 @@ class OrbitKS(Orbit):
 
         Returns
         -------
-        orbit_rmatvec :
+        orbit_rmatvec : OrbitKS
             OrbitKS with values representative of the adjoint-vector product
 
         Notes
@@ -548,7 +585,8 @@ class OrbitKS(Orbit):
 
         Returns
         -------
-        Orbit or ndarray.
+        OrbitKS :
+            Linear component of the adjoint KSE
         """
         return (
             -1.0 * self.dt(array=array)
@@ -564,15 +602,20 @@ class OrbitKS(Orbit):
         eqn : OrbitKS
             Orbit instance whose state equals DAE evaluated with respect to current state, i.e. F(v)
         kwargs :
-            Any keyword arguments relevant for rmatvec.
+            Any keyword arguments relevant for rmatvec, eqn, or 'preconditioning'.
 
         Returns
         -------
         gradient :
-            Orbit instance whose state contains (dF/dv)^T * F  = J^T F; (adjoint Jacobian * DAE)
+            OrbitKS instance whose state contains (dF/dv)^T * F  = J^T F; (adjoint Jacobian * DAE)
 
+        Notes
+        -----
+        In this case, "preconditioning" is numerical rescaling of the gradient used as a numerical tool in descent
+        methods.
         """
         preconditioning = kwargs.get("preconditioning", False)
+
         if preconditioning:
             # This preconditions with respect to the current state. not J^T F
             gradient = (self.rmatvec(eqn, **kwargs)).precondition(
@@ -594,15 +637,26 @@ class OrbitKS(Orbit):
         save : bool
             Whether to save the figure
         padding : bool
-            Whther or not to pad the state for interpolation purposes.
+            Whether or not to interpolate more points before plotting. Done numerically instead of via plt.imshow
         fundamental_domain : bool
             Whether to plot only the fundamental domain or not.
         **kwargs :
-            new_shape : (int, int)
+            padding_shape : (int, int)
                 The field discretization to plot, will be used instead of default padding if padding is enabled.
             filename : str
                 The (custom) save name of the figure, if save==True. Save name will be populated otherwise.
+            extension : str
+                The file extension to save as, .png, .pdf, etc. Values supported by matplotlib only.
+            figsize : (int, int)
+                The matplotlib figure size.
 
+        Notes
+        -----
+        Many of the defaults are experiential quantities; for comparison, i.e. larger domains require larger figures,
+        however, to avoid getting too large or small, a number of defaults are set in place to make sure that the
+        labels and scales are sensible.
+
+        The time axis for EquilibriumOrbitKS is labeled by infinity to indicate that they do not change over time.
         """
         plt.rc("text", usetex=True)
         plt.rc("font", family="serif")
@@ -739,7 +793,7 @@ class OrbitKS(Orbit):
         return None
 
     def mode_plot(self, show=True, save=False, scale="log", **kwargs):
-        """ Plot the mode values  as a 2-d density plot using matplotlib's imshow
+        """ Plot the spatiotemporal Fourier spectrum as a 2-d density plot using matplotlib's imshow
 
         Parameters
         ----------
@@ -752,6 +806,10 @@ class OrbitKS(Orbit):
         **kwargs :
             filename : str
                 The (custom) save name of the figure, if save==True. Save name will be populated otherwise.
+            verbose : bool
+                If True then prints the location of the file saving, if attempted.
+            extension : str
+                The file extension to save as, .png, .pdf, etc. Values supported by matplotlib only.
         """
         plt.rc("text", usetex=True)
         plt.rc("font", family="serif")
@@ -791,19 +849,31 @@ class OrbitKS(Orbit):
         return None
 
     def preconditioning_parameters(self):
-        """ Defining parameters; T, L, S kept for convenience"""
+        """ Parameters bundled for convenience
+
+        Returns
+        -------
+        tuple(tuple, tuple) :
+            Time and spatial parameters for usage in preconditioning
+
+        Notes
+        -----
+        It is often the case that rescaling one OrbitKS with respect to another OrbitKS's parameters is desired.
+        This allows calls like self.precondition(other.parameters), for example.
+
+        """
         return (self.t, self.n), (self.x, self.m)
 
     def precondition(self, **kwargs):
-        """ Precondition a vector with the inverse (absolute value) of linear spatial terms
+        """ Rescale a vector with the inverse (absolute value) of linear spatial terms
 
         Parameters
         ----------
         kwargs :
             pmult : tuple of tuples
-                Parameters returned by preconditioning parameters
+                Parameters passed in the form self.preconditioning_parameters
             pexp : tuple
-                Exponents for the parameter scaling
+                Exponents for the parameter scaling, default (1, 4)
 
         Returns
         -------
@@ -1886,7 +1956,7 @@ class RelativeOrbitKS(OrbitKS):
         """
         return {"t": (20, 200), "x": (20, 100), "s": (0, 0)}
 
-    def periodic_dimensions(self):
+    def boundary_conditions(self):
         """ Bools indicating whether or not dimension is periodic for persistent homology calculations.
 
         Returns
