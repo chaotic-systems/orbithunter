@@ -3006,6 +3006,29 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         return 1, 4
 
+    def dt(self, order=1, array=False):
+        """ A time derivative of the current state.
+
+        Parameters
+        ----------
+        order :int
+            The order of the derivative.
+
+        array : bool
+            Whether to return np.ndarray or Orbit
+
+        Returns
+        ----------
+        EquilibriumOrbitKS or np.ndarray :
+            Orbit or array representation of the time derivative of an equilibrium (i.e. zero).
+        """
+        if array:
+            return np.zeros(self.state.shape)
+        else:
+            return self.__class__(
+                **{**vars(self), "state": np.zeros(self.shape), "basis": "modes"}
+            )
+
     def default_constraints(self):
         return {"x": False}
 
@@ -3465,9 +3488,9 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
 
         Returns
         ----------
-        orbit_dtn : OrbitKS or subclass instance
+        RelativeEquilibriumOrbitKS :
             The class instance whose state is the time derivative in
-            the spatiotemporal mode basis.
+            the spatiotemporal mode basis (i.e. zero in comoving frame).
         """
         if self.frame == "comoving":
             if array:
