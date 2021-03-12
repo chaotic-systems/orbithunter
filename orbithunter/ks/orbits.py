@@ -260,7 +260,7 @@ class OrbitKS(Orbit):
             )
             return orbit_dtn.transform(to=self.basis)
 
-    def dx(self, order=1, computation_basis="modes", array=False, **kwargs):
+    def dx(self, order=1, array=False, **kwargs):
         """ Spatial derivative of the current state.
 
         Parameters
@@ -288,6 +288,7 @@ class OrbitKS(Orbit):
         """
         # can compute spatial derivative in spatial mode or spatiotemporal mode basis. spatial_modes basis is required
         # for orbits with discrete symmetry as they are orthogonal to the dx() direction.
+        computation_basis = kwargs.get('computation_basis', 'modes')
         if computation_basis == "spatial_modes":
             modes = self.transform(to="spatial_modes", array=True)
             dxn_modes = spatial_frequencies(self.x, self.m, order) * modes
@@ -299,7 +300,7 @@ class OrbitKS(Orbit):
             )
         else:
             raise ValueError(
-                "spatial spectral derivatives can only be computed in spatial or spacetime mode bases."
+                f"{str(self)}.dx(computation_basis={computation_basis}); invalid basis for spectral differentiation. "
             )
 
         # If the order of the differentiation is odd, need to swap imaginary and real components.
@@ -2446,6 +2447,39 @@ class AntisymmetricOrbitKS(OrbitKS):
         """
         return 1, 32
 
+    def dx(self, order=1, array=False, **kwargs):
+        """ Spatial derivative of the current state.
+
+        Parameters
+        ----------
+        order :int
+            The order of the derivative.
+        array : bool
+            Whether or not to return a numpy array. Used for efficiency/avoiding construction of redundant
+            Orbit instances.
+        kwargs :
+            return_basis : str
+                Which basis to return the ShiftReflectionOrbitKS in, if array=False.
+        Returns
+        ----------
+        ShiftReflectionOrbitKS :
+            Class instance whose spatiotemporal state represents the spatial derivative in the
+            the basis of the original state.
+
+        Notes
+        -----
+        See OrbitKS.dx() for more details
+        """
+        # can compute spatial derivative in spatial mode or spatiotemporal mode basis. spatial_modes basis is required
+        # for orbits with discrete symmetry as they are orthogonal to the dx() direction.
+        if order % 2:
+            # odd ordered derivatives NEED to be in spatial mode basis
+            kwargs['computation_basis'] = 'spatial_modes'
+        else:
+            # even ordered derivatives CAN be in the spatial mode basis or the spatiotemporal mode basis.
+            kwargs.setdefault('computational_basis', 'modes')
+        return super().dx(order=order, array=array, **kwargs)
+
     def nonlinear(self, other, array=False):
         """ nonlinear computation of the nonlinear term of the Kuramoto-Sivashinsky equation
 
@@ -2738,6 +2772,40 @@ class AntisymmetricOrbitKS(OrbitKS):
 
 
 class ShiftReflectionOrbitKS(OrbitKS):
+
+    def dx(self, order=1, array=False, **kwargs):
+        """ Spatial derivative of the current state.
+
+        Parameters
+        ----------
+        order :int
+            The order of the derivative.
+        array : bool
+            Whether or not to return a numpy array. Used for efficiency/avoiding construction of redundant
+            Orbit instances.
+        kwargs :
+            return_basis : str
+                Which basis to return the ShiftReflectionOrbitKS in, if array=False.
+        Returns
+        ----------
+        ShiftReflectionOrbitKS :
+            Class instance whose spatiotemporal state represents the spatial derivative in the
+            the basis of the original state.
+
+        Notes
+        -----
+        See OrbitKS.dx() for more details
+        """
+        # can compute spatial derivative in spatial mode or spatiotemporal mode basis. spatial_modes basis is required
+        # for orbits with discrete symmetry as they are orthogonal to the dx() direction.
+        if order % 2:
+            # odd ordered derivatives NEED to be in spatial mode basis
+            kwargs['computation_basis'] = 'spatial_modes'
+        else:
+            # even ordered derivatives CAN be in the spatial mode basis or the spatiotemporal mode basis.
+            kwargs.setdefault('computational_basis', 'modes')
+        return super().dx(order=order, array=array, **kwargs)
+  
     def nonlinear(self, other, array=False):
         """ nonlinear computation of the nonlinear term of the Kuramoto-Sivashinsky equation
 

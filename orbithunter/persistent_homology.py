@@ -32,13 +32,13 @@ def orbit_complex(orbit_, **kwargs):
     -----
     I do not think orbithunter support vector fields for now, I think each component would have its own cubical complex?
     """
-    boundary_conditions = kwargs.get(
+    periodic_dimensions = kwargs.get(
         "boundary_conditions", orbit_.boundary_conditions()
     )
     cubical_complex = gh.PeriodicCubicalComplex(
         dimensions=orbit_.state.shape,
         top_dimensional_cells=orbit_.state.ravel(),
-        boundary_conditions=boundary_conditions,
+        periodic_dimensions=periodic_dimensions,
     )
     return cubical_complex
 
@@ -63,7 +63,7 @@ def orbit_persistence(orbit_, **kwargs):
         "min_persistence": kwargs.get("min_persistence", 0.0)
     }
     complex_kwargs = {
-        "boundary_conditions": kwargs.get(
+        "periodic_dimensions": kwargs.get(
             "boundary_conditions", orbit_.boundary_conditions()
         )
     }

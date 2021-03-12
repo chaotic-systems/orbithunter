@@ -295,7 +295,7 @@ def _adjoint_descent(orbit_, tol=1e-6, maxiter=10000, min_step=1e-9, **kwargs):
         "tol": tol,
         "status": 1,
     }
-    ftol = kwargs.get("ftol", 1e-7)
+    ftol = kwargs.get("ftol", 1e-9)
     verbose = kwargs.get("verbose", False)
     if kwargs.get("verbose", False):
         print(
@@ -398,7 +398,7 @@ def _newton_descent(orbit_, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
         "tol": tol,
         "status": 1,
     }
-    ftol = kwargs.get("ftol", 1e-7)
+    ftol = kwargs.get("ftol", 1e-9)
     if kwargs.get("verbose", False):
         print(
             "\n-------------------------------------------------------------------------------------------------"
@@ -514,7 +514,7 @@ def _lstsq(orbit_, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
         ) from ie
 
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
-    ftol = kwargs.get("ftol", 1e-7)
+    ftol = kwargs.get("ftol", 1e-9)
     mapping = orbit_.eqn(**kwargs)
     residual = mapping.residual(eqn=False)
     runtime_statistics = {
@@ -613,7 +613,7 @@ def _solve(orbit_, maxiter=500, tol=1e-6, min_step=1e-9, **kwargs):
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
     mapping = orbit_.eqn(**kwargs)
     residual = mapping.residual(eqn=False)
-    ftol = kwargs.get("ftol", 1e-7)
+    ftol = kwargs.get("ftol", 1e-9)
     runtime_statistics = {
         "method": "solve",
         "nit": 0,
@@ -725,7 +725,7 @@ def _scipy_sparse_linalg_solver_wrapper(
             "-------------------------------------------------------------------------------------------------"
         )
         sys.stdout.flush()
-    ftol = kwargs.get("ftol", 1e-7)
+    ftol = kwargs.get("ftol", 1e-9)
     runtime_statistics = {
         "method": method,
         "nit": 0,
@@ -889,7 +889,7 @@ def _scipy_optimize_minimize_wrapper(
         ) from ie
 
     residual = orbit_.residual()
-    ftol = kwargs.get("ftol", 1e-7)
+    ftol = kwargs.get("ftol", 1e-9)
     runtime_statistics = {
         "method": method,
         "nit": 0,
@@ -1045,7 +1045,7 @@ def _scipy_optimize_root_wrapper(
 
     residual = orbit_.residual()
     parameter_eqn_components = kwargs.get("parameter_eqn_components", True)
-    ftol = kwargs.get("ftol", 1e-7)
+    ftol = kwargs.get("ftol", 1e-9)
     runtime_statistics = {
         "method": method,
         "nit": 0,
