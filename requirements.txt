@@ -1,0 +1,9 @@
+matplotlib>=3.1.3
+numpy>=1.18.1
+scipy>=1.4.1
+pytest>=5.3.5
+h5py>=2.10.0
+hdf5>=1.10.4
+
+# For usage of the persistent homology package, gudhi is required
+# For usage of the convolutional_neural_networks module, scikit-learn and tensorflow are required.

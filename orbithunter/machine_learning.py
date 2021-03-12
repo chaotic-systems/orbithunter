@@ -16,7 +16,7 @@ def orbit_cnn(X, y, dimension=2, **kwargs):
     shaped such that first axis is batch size or number of samples, then the last two dimensions
     are the 'image' dimensions, i.e. the two dimensions to convolve over. I.e. shape for KSE fields is
 
-    
+
     y : ndarray
     Must have same length along first axis as X. Contains the "true" values of whatever is being predicted; the
     dimension of each sample is the same as the dimension of the prediction/output layer.

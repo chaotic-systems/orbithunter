@@ -7,9 +7,10 @@ Framework for solving chaotic nonlinear PDEs in spatiotemporal manner.
 This package enables the layman to solve nonlinear chaotic partial differential equations
 by finding unstable periodic orbits by solving the spatiotemporal boundary value problem.
 Currently there is only implementations of all techniques for the Kuramoto-Sivashinsky equation (KSE);
-***HOWEVER***, the package was designed to maximize user-friendliness, generalizability and modularity. The
-spatiotemporal techniques are supposively agnostic of equation; this has not been tested thoroughly for
-arbitrary equations (preliminary testing via the spatiotemporal Henon map branch).
+The package was designed to maximize user-friendliness, generalizability and modularity. The
+spatiotemporal techniques are designed to be agnostic of equation; although only the KSE has been implemented
+for now. 
+
 
 Everything revolves around the Orbit class. To incorporate other equations unofficially, modules should be written
 and placed in their own directories like ```./orbithunter/ks/```. Otherwise I hope to collaborate with others through
@@ -19,18 +20,20 @@ The general usage of this package, currently, is to find exponentially unstable 
 solutions to the KSE with doubly periodic boundary conditions. These solutions can have a variety of
 symmetries, as indicated by the subclasses of the OrbitKS class. 
 
+# Tutorial Notebooks
+--------------------
+[./notebooks/](notebooks/)
+
+
+# Implementing your equation
+-----
+[./docs/subclassing_guide.md](subclassing_guide.md)
+
 # To-do
 -----
-- Finish/rewrite documentation. 
-- Installation and setup documentation, listing the package on pypi/conda. 
-- Create docker container or an equivalent. 
-- Strengthening numerical optimization methods; this is never ending process, however
-the first couple steps would be
-	1. Custom GMRES implementation with variants like flexible gmres, deflated gmres, etc.
-	2. Hessian based methods
+[./docs/agenda.md](agenda.md)
 
-- Inclusion of more equations, specifically (2+1)-dimensional Kolmogorov flow. 
 
 # Known Bugs and issues
 -----------------------
-
+[./docs/issues.md](issues.md)
