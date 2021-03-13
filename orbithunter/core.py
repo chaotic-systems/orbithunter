@@ -518,7 +518,7 @@ class Orbit:
         """
         return 1, 1, 1, 1
 
-    def boundary_conditions(self):
+    def periodic_dimensions(self):
         """ Bools indicating whether or not dimension is periodic for persistent homology calculations.
 
         Returns

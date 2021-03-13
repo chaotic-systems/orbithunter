@@ -18,9 +18,9 @@ def orbit_complex(orbit_, **kwargs):
     min_persistence
 
     kwargs :
-        boundary_conditions : tuple
+        periodic_dimensions : tuple
         Contains bools which flag which axes of the orbit's field are assumed to be periodic for the persistence
-        calculations. i.e. for Kuramoto-Sivashinsky, boundary_conditions=(False, True) would make time aperiodic
+        calculations. i.e. for Kuramoto-Sivashinsky, periodic_dimensions=(False, True) would make time aperiodic
         and space periodic for the construction of the PeriodicCubicalComplex. Generalizes to any dimension.
 
     Returns
@@ -33,7 +33,7 @@ def orbit_complex(orbit_, **kwargs):
     I do not think orbithunter support vector fields for now, I think each component would have its own cubical complex?
     """
     periodic_dimensions = kwargs.get(
-        "boundary_conditions", orbit_.boundary_conditions()
+        "periodic_dimensions", orbit_.periodic_dimensions()
     )
     cubical_complex = gh.PeriodicCubicalComplex(
         dimensions=orbit_.state.shape,
@@ -64,7 +64,7 @@ def orbit_persistence(orbit_, **kwargs):
     }
     complex_kwargs = {
         "periodic_dimensions": kwargs.get(
-            "boundary_conditions", orbit_.boundary_conditions()
+            "periodic_dimensions", orbit_.periodic_dimensions()
         )
     }
     persistence = orbit_complex(orbit_, **complex_kwargs).persistence(

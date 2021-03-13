@@ -39,7 +39,7 @@ class OrbitKS(Orbit):
     (AntisymmetricOrbitKS) even though OrbitKS is being used. Any subclass member can be found using its parent class.
     """
 
-    def boundary_conditions(self):
+    def periodic_dimensions(self):
         """ Bools indicating whether or not dimension is periodic.
 
         Returns
@@ -2017,7 +2017,7 @@ class RelativeOrbitKS(OrbitKS):
         """
         return {"t": (20, 200), "x": (20, 100), "s": (0, 0)}
 
-    def boundary_conditions(self):
+    def periodic_dimensions(self):
         """ Bools indicating whether or not dimension is periodic for persistent homology calculations.
 
         Returns

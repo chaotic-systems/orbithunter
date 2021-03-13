@@ -8,7 +8,7 @@ def amplitude_difference(base_slice, window, *args, **kwargs):
 
 
 def l2_difference(base_slice, window, *args, **kwargs):
-    return np.linalg.norm(base_slice.state - window.state)
+    return np.linalg.norm(base_slice- window)
 
 
 def masked_l2_difference(base_slice, window, *args, **kwargs):
@@ -59,16 +59,6 @@ def l2_difference_mean_flow_correction_density(base_slice, window, *args, **kwar
     norm = np.linalg.norm((base_slice - base_slice.mean()) - window)
     norm_density = norm / base_slice.size
     return norm_density
-
-
-# def absolute_threshold(score_array, threshold):
-#     # Depending on the pivots supplied, some places in the scoring array may be empty; do not threshold these elements.
-#     mask = np.zeros(score_array.shape, dtype=bool)
-#     non_nan_coordinates = np.where(~np.isnan(score_array))
-#     under_threshold = score_array[non_nan_coordinates] <= threshold
-#     mask_indices = tuple(mask_coord[under_threshold] for mask_coord in non_nan_coordinates)
-#     mask[mask_indices] = True
-#     return mask
 
 
 def absolute_threshold(score_array, threshold):
