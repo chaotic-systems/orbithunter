@@ -1,4 +1,4 @@
-# orbithunter v0.4.0 (Beta)
+# orbithunter v0.4b1 (Beta)
 -------------------------
 Framework for solving chaotic nonlinear PDEs in spatiotemporal manner.
 
@@ -20,19 +20,12 @@ The general usage of this package, currently, is to find exponentially unstable 
 solutions to the KSE with doubly periodic boundary conditions. These solutions can have a variety of
 symmetries, as indicated by the subclasses of the OrbitKS class. 
 
-# Tutorial Notebooks
---------------------
-[./notebooks/](notebooks/)
 
-# Implementing your equation
------
-[./docs/subclassing_guide.md](subclassing_guide.md)
+[Tutorials](notebooks/)
+Check out these jupyter notebooks for a walkthrough of the various tools and utilities. 
 
-# To-do
------
-[./docs/agenda.md](agenda.md)
+[Implementing your equation](./docs/subclassing_guide.md)
 
+[To-do](./docs/agenda.md)
 
-# Known Bugs and issues
------------------------
-[./docs/issues.md](issues.md)
+[Known Bugs and issues](./docs/issues.md)

@@ -3,7 +3,8 @@ numpy>=1.18.1
 scipy>=1.4.1
 pytest>=5.3.5
 h5py>=2.10.0
-hdf5>=1.10.4
-
-# For usage of the persistent homology package, gudhi is required
-# For usage of the convolutional_neural_networks module, scikit-learn and tensorflow are required.
+ipykernel>=5.1.4
+jupyterlab>=1.2.6
+# wheel>=0.34.2
+# For usage of the persistent homology module, gudhi is required
+# For usage of the machine_learning module, scikit-learn and tensorflow are required.
