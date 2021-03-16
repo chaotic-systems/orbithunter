@@ -14,7 +14,7 @@ setup(
     # For a discussion on single-sourcing the version across setup.py and the
     # project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version="0.4b2",  # Required
+    version="0.4b3",  # Required
     description="Framework for solving spatiotemporal partial differential equations.",
     long_description=long_description,
     long_description_content_type='text/markdown',
