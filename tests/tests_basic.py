@@ -1,9 +1,11 @@
 from .context import orbithunter as oh
 import pytest
 import numpy as np
-import os
 import h5py
+import pathlib
 
+here = pathlib.Path(__file__).parent.resolve()
+data_path = (here / "tests_data.h5")
 
 @pytest.fixture()
 def fixed_orbit_data():
@@ -102,7 +104,6 @@ def test_assignment_operators_no_state():
     orbit_ /= orbit_
     orbit_ //= orbit_
 
-
 def test_binary_operations_no_state():
     orbit_ = oh.Orbit()
     test_sum = orbit_ + orbit_
@@ -117,10 +118,11 @@ def test_getitem(fixed_orbit_data):
     orbit_ = oh.Orbit(
         state=fixed_orbit_data, basis="physical", parameters=(10, 10, 10, 10)
     )
-    test = orbit_[:1, :1, :1, :1]
-    with pytest.raises(IndexError):
+    assert orbit_[:1, :1, :1, :1].state.squeeze() - 1.6243454 == 0
+    with pytest.raises((IndexError, ValueError)):
             empty_orbit = oh.Orbit()
-            raise_index_error_because_empty_array = empty_orbit[:2]
+            raise_index_error_because_empty_array = empty_orbit[0, 0, 0, 0]
+
 def test_populate():
     """ Initialization in cases where generated information is desired. Occurs in-place"""
     z = oh.Orbit()
@@ -336,8 +338,8 @@ def fixed_OrbitKS_data():
     return state
 
 
-def test_orbit_data(datafiles):
-    with h5py.File("./tests/test_data.h5", "r") as file:
+def test_orbit_data():
+    with h5py.File(data_path, "r") as file:
 
         def h5_helper(name, cls):
             nonlocal file
@@ -372,7 +374,7 @@ def test_orbit_data(datafiles):
         "streak",
         "double_streak",
     )
-    automatic = oh.read_h5("./tests/test_data.h5", keys)
+    automatic = oh.read_h5(data_path, keys)
 
     for static, read in zip(manual, automatic):
         assert static.residual() < 1e-7
@@ -615,7 +617,7 @@ def test_spt_projection_spt_derivative(
 
 
 def test_rmatvec(fixed_OrbitKS_data, fixed_ks_parameters):
-    with h5py.File("./tests/test_data.h5", "r") as file:
+    with h5py.File(data_path, "r") as file:
         attrs = dict(file["rpo/0"].attrs.items())
         relorbit_ = oh.RelativeOrbitKS(
             state=file["rpo/0"][...],
@@ -637,7 +639,7 @@ def test_rmatvec(fixed_OrbitKS_data, fixed_ks_parameters):
 
 
 def test_matvec(fixed_OrbitKS_data, fixed_ks_parameters):
-    relorbit_ = oh.read_h5("./tests/test_data.h5", "rpo")
+    relorbit_ = oh.read_h5(data_path, "rpo")
     orbit_ = oh.OrbitKS(
         state=fixed_OrbitKS_data, parameters=fixed_ks_parameters[0], basis="field"
     ).transform(to="modes")
