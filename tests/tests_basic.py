@@ -1,6 +1,7 @@
+from .context import orbithunter as oh
 import pytest
 import numpy as np
-from .context import orbithunter as oh
+import os
 import h5py
 
 
@@ -111,7 +112,15 @@ def test_binary_operations_no_state():
     test_div = orbit_ / 2
     test_floor_div = orbit_ // 2
 
-
+def test_getitem(fixed_orbit_data):
+    # Testing the different overloaded binary operators
+    orbit_ = oh.Orbit(
+        state=fixed_orbit_data, basis="physical", parameters=(10, 10, 10, 10)
+    )
+    test = orbit_[:1, :1, :1, :1]
+    with pytest.raises(IndexError):
+            empty_orbit = oh.Orbit()
+            raise_index_error_because_empty_array = empty_orbit[:2]
 def test_populate():
     """ Initialization in cases where generated information is desired. Occurs in-place"""
     z = oh.Orbit()
@@ -327,58 +336,49 @@ def fixed_OrbitKS_data():
     return state
 
 
-@pytest.fixture()
-def defect():
-    with h5py.File("test_data.h5", "r") as file:
-        x = oh.RelativeOrbitKS(
-            state=file["defect"][...], **file["defect"].attrs.items()
-        )
-    return x
+def test_orbit_data(datafiles):
+    with h5py.File("./tests/test_data.h5", "r") as file:
 
+        def h5_helper(name, cls):
+            nonlocal file
+            attrs = dict(file["/".join([name, "0"])].attrs.items())
+            state = file["/".join([name, "0"])][...]
+            return cls(
+                state=state,
+                **{
+                    **attrs,
+                    "parameters": tuple(attrs["parameters"]),
+                    "discretization": tuple(attrs["discretization"]),
+                }
+            )
 
-@pytest.fixture()
-def drifter():
-    with h5py.File("test_data.h5", "r") as file:
-        x = oh.RelativeEquilibriumOrbitKS(
-            state=file["drifter"][...], **file["drifter"].attrs.items()
-        )
-    return x
+        rpo = h5_helper("rpo", oh.RelativeOrbitKS)
+        defect = h5_helper("defect", oh.RelativeOrbitKS)
+        large_defect = h5_helper("large_defect", oh.RelativeOrbitKS)
+        drifter = h5_helper("drifter", oh.RelativeEquilibriumOrbitKS)
+        wiggle = h5_helper("wiggle", oh.AntisymmetricOrbitKS)
+        streak = h5_helper("streak", oh.EquilibriumOrbitKS)
+        double_streak = h5_helper("double_streak", oh.EquilibriumOrbitKS)
+        manual = [rpo, defect, large_defect, drifter, wiggle, streak, double_streak]
 
+    # Read in the same orbits as above using the native orbithunter io
+    # keys included so that the import order matches `static_orbits`
+    keys = (
+        "rpo",
+        "defect",
+        "large_defect",
+        "drifter",
+        "wiggle",
+        "streak",
+        "double_streak",
+    )
+    automatic = oh.read_h5("./tests/test_data.h5", keys)
 
-@pytest.fixture()
-def wiggle():
-    with h5py.File("test_data.h5", "r") as file:
-        x = oh.AntisymmetricOrbitKS(
-            state=file["wiggle"][...], **file["wiggle"].attrs.items()
-        )
-    return x
-
-
-@pytest.fixture()
-def streak():
-    with h5py.File("test_data.h5", "r") as file:
-        x = oh.EquilibriumOrbitKS(
-            state=file["streak"][...], **file["streak"].attrs.items()
-        )
-    return x
-
-
-@pytest.fixture()
-def double_streak():
-    with h5py.File("test_data.h5", "r") as file:
-        x = oh.EquilibriumOrbitKS(
-            state=file["double_streak"][...], **file["double_streak"].attrs.items()
-        )
-    return x
-
-
-@pytest.fixture()
-def large_defect():
-    with h5py.File("test_data.h5", "r") as file:
-        x = oh.RelativeOrbitKS(
-            state=file["large_defect"][...], **file["large_defect"].attrs.items()
-        )
-    return x
+    for static, read in zip(manual, automatic):
+        assert static.residual() < 1e-7
+        assert static.residual() == read.residual()
+        assert np.isclose(static.state, read.state).all()
+        assert static.parameters == read.parameters
 
 
 @pytest.fixture()
@@ -559,11 +559,6 @@ def instance_generator(fixed_OrbitKS_data, kse_classes, fixed_ks_parameters):
         )
 
 
-# def test_saved_fundamental_orbits(drifter, defect, large_defect, streak, double_streak, wiggle):
-#     pytest.approx(drifter.residual(), )
-#
-
-
 def test_spt_projection_space_derivative(
     fixed_OrbitKS_data, fixed_spt_projection_space_derivative_norms, kse_classes
 ):
@@ -620,9 +615,17 @@ def test_spt_projection_spt_derivative(
 
 
 def test_rmatvec(fixed_OrbitKS_data, fixed_ks_parameters):
-    relorbit_ = oh.read_h5("./data/ks/RelativeOrbitKS.h5", "t44p304_x33p280").transform(
-        to="modes"
-    )
+    with h5py.File("./tests/test_data.h5", "r") as file:
+        attrs = dict(file["rpo/0"].attrs.items())
+        relorbit_ = oh.RelativeOrbitKS(
+            state=file["rpo/0"][...],
+            **{
+                **attrs,
+                "parameters": tuple(attrs["parameters"]),
+                "discretization": tuple(attrs["discretization"]),
+            }
+        ).transform(to="modes")
+
     assert pytest.approx(relorbit_.rmatvec(relorbit_).norm(), 60.18805016)
     assert pytest.approx(relorbit_.cost_function_gradient(relorbit_).norm(), 0.0)
 
@@ -634,9 +637,7 @@ def test_rmatvec(fixed_OrbitKS_data, fixed_ks_parameters):
 
 
 def test_matvec(fixed_OrbitKS_data, fixed_ks_parameters):
-    relorbit_ = oh.read_h5("./data/ks/RelativeOrbitKS.h5", "t44p304_x33p280").transform(
-        to="modes"
-    )
+    relorbit_ = oh.read_h5("./tests/test_data.h5", "rpo")
     orbit_ = oh.OrbitKS(
         state=fixed_OrbitKS_data, parameters=fixed_ks_parameters[0], basis="field"
     ).transform(to="modes")

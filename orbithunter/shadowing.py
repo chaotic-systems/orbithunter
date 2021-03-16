@@ -8,7 +8,7 @@ def amplitude_difference(base_slice, window, *args, **kwargs):
 
 
 def l2_difference(base_slice, window, *args, **kwargs):
-    return np.linalg.norm(base_slice- window)
+    return np.linalg.norm(base_slice - window)
 
 
 def masked_l2_difference(base_slice, window, *args, **kwargs):
