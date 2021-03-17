@@ -19,8 +19,8 @@ def _averaging_wrapper(instance_with_state_to_average, average="spacetime"):
     -------
     ndarray or float :
         The averages either along certain dimensions or all dimensions.
-    """
 
+    """
     if average == "space":
         return (
             1.0 / instance_with_state_to_average.x
@@ -58,8 +58,8 @@ def dissipation(orbit_instance, average="spacetime"):
     Notes
     -----
     Dissipation = u_xx^2.
-    """
 
+    """
     return _averaging_wrapper(
         orbit_instance.dx(order=2).transform(to="field") ** 2, average=average
     )
@@ -76,6 +76,7 @@ def energy(orbit_instance, average="spacetime"):
     Notes
     -----
     Energy = 1/2 u^2
+
     """
     return _averaging_wrapper(
         0.5 * orbit_instance.transform(to="field") ** 2, average=average
@@ -92,6 +93,7 @@ def energy_variation(orbit_instance, average="spacetime"):
     Returns
     -------
     Field equivalent to u_t * u.
+
     """
     return _averaging_wrapper(
         orbit_instance.transform(to="field")
@@ -121,7 +123,6 @@ def power(orbit_instance, average="spacetime"):
 def integrate(orbit_, **kwargs):
     """ Exponential time-differencing Runge-Kutta 4th order integration scheme.
 
-
     Parameters
     ----------
     orbit_ : Orbit
@@ -145,14 +146,13 @@ def integrate(orbit_, **kwargs):
         Orbit instance with either an integrated trajectory or its final value as a state.
     Notes
     -----
-    Adapter
-    https://epubs.siam.org/doi/abs/10.1137/S1064827502410633?journalCode=sjoce3
+    Adapter https://epubs.siam.org/doi/abs/10.1137/S1064827502410633?journalCode=sjoce3
 
     By default, when input is an instance of relative periodic orbit then shift is calculated off of the
     integrated trajectory. This will lead to plotting issues so unless desired, you should convert to the
     base orbit type first.
-    """
 
+    """
     warnings.simplefilter(action="ignore", category=RuntimeWarning)
     from scipy.fft import rfftfreq
 

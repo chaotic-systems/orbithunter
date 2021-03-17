@@ -1,7 +1,8 @@
 from json import dumps
+from itertools import zip_longest
 import h5py
 import numpy as np
-import itertools
+
 
 __all__ = ["Orbit", "convert_class"]
 
@@ -73,9 +74,10 @@ class Orbit:
 
         Notes
         -----
-        If possible, parsing should be avoided as it takes time. If all primary attributes that would be parsed
-        are included then parsing does not occur; it is assumed that the information is coherent
-        if it is all being passed.
+        If possible, parsing should be avoided as it takes time. If all primary attributes
+        that would otherwise be parsed are included, then parsing does not occur.
+        It is assumed that the information is coherent if it is all being passed by the user.
+
         """
         if type(None) in [type(state), type(basis), type(discretization)]:
             self._parse_state(state, basis, **kwargs)
@@ -96,6 +98,7 @@ class Orbit:
         Parameters
         ----------
         other : Orbit, ndarray, float, int
+
         """
         if issubclass(type(other), Orbit):
             result = self.state + other.state
@@ -109,6 +112,7 @@ class Orbit:
         Parameters
         ----------
         other : Orbit, ndarray, float, int
+
         """
         if issubclass(type(other), Orbit):
             result = other.state + self.state
@@ -122,6 +126,7 @@ class Orbit:
         Parameters
         ----------
         other : Orbit, ndarray, float, int
+
         """
         if issubclass(type(other), Orbit):
             result = self.state - other.state
@@ -154,6 +159,7 @@ class Orbit:
         -----
         If user defined classes are not careful with shapes then accidental outer products can happen (i.e.
         array of shape (x,) * array of shape (x, 1) = array of shape (x, x)
+
         """
         if issubclass(type(other), Orbit):
             result = np.multiply(self.state, other.state)
@@ -173,6 +179,7 @@ class Orbit:
         -----
         If user defined classes are not careful with shapes then accidental outer products can happen (i.e.
         array of shape (x,) * array of shape (x, 1) = array of shape (x, x)
+
         """
         if issubclass(type(other), Orbit):
             result = np.multiply(self.state, other.state)
@@ -191,6 +198,7 @@ class Orbit:
         -----
         If user defined classes are not careful with shapes then accidental outer products can happen (i.e.
         array of shape (x,) / array of shape (x, 1) = array of shape (x, x)
+
         """
         if issubclass(type(other), Orbit):
             result = np.divide(self.state, other.state)
@@ -209,6 +217,7 @@ class Orbit:
         -----
         If user defined classes are not careful with shapes then accidental outer products can happen (i.e.
         array of shape (x,) // array of shape (x, 1) = array of shape (x, x)
+
         """
         if issubclass(type(other), Orbit):
             result = np.floor_divide(self.state, other.state)
@@ -222,6 +231,7 @@ class Orbit:
         Parameters
         ----------
         other : Orbit, ndarray, float, int
+
         """
         if issubclass(type(other), Orbit):
             result = self.state ** other.state
@@ -235,6 +245,7 @@ class Orbit:
         Parameters
         ----------
         other : Orbit, ndarray, float, int
+
         """
         if issubclass(type(other), Orbit):
             result = self.state % other.state
@@ -248,6 +259,7 @@ class Orbit:
         Parameters
         ----------
         other : Orbit, ndarray, float, int
+
         """
         if issubclass(type(other), Orbit):
             self.state += other.state
@@ -261,6 +273,7 @@ class Orbit:
         Parameters
         ----------
         other : Orbit, ndarray, float, int
+
         """
         if issubclass(type(other), Orbit):
             self.state -= other.state
@@ -274,6 +287,7 @@ class Orbit:
         Parameters
         ----------
         other : Orbit, ndarray, float, int
+
         """
         if issubclass(type(other), Orbit):
             self.state *= other.state
@@ -287,6 +301,7 @@ class Orbit:
         Parameters
         ----------
         other : Orbit, ndarray, float, int
+
         """
         if issubclass(type(other), Orbit):
             self.state **= other.state
@@ -300,6 +315,7 @@ class Orbit:
         Parameters
         ----------
         other : Orbit, ndarray, float, int
+
         """
         if issubclass(type(other), Orbit):
             self.state /= other.state
@@ -313,6 +329,7 @@ class Orbit:
         Parameters
         ----------
         other : Orbit, ndarray, float, int
+
         """
         if issubclass(type(other), Orbit):
             self.state //= other.state
@@ -326,6 +343,7 @@ class Orbit:
         Parameters
         ----------
         other : Orbit, ndarray, float, int
+
         """
         if issubclass(type(other), Orbit):
             self.state %= other.state
@@ -340,6 +358,7 @@ class Orbit:
         -------
         str :
             Of the form 'Orbit'
+
         """
         return self.__class__.__name__
 
@@ -362,11 +381,12 @@ class Orbit:
         return self.__class__.__name__ + "(" + dictstr + ")"
 
     def __getattr__(self, attr):
-        """ Retrieve parameters, discretization variables with their labels instead of slicing 'parameters'
+        """ Allows parameters, discretization variables to be retrieved by label
 
         Notes
         -----
         This is setup to allow easy reference of parameters without contaminating the namespace of the Orbit.
+
         """
         try:
             attr = str(attr)
@@ -385,16 +405,43 @@ class Orbit:
             )
             raise AttributeError(error_message)
 
-    def __getitem__(self, slices):
+    def __getitem__(self, key):
+        """ Slicing of Orbit state and corresponding dimensions
+
+        Parameters
+        ----------
+        key : slice, tuple, np.ndarray
+            Any type compatible with np.ndarray.__getitem__
+
+        Returns
+        -------
+        Orbit :
+            New instance whose state equals self.state[key].
+
+        Notes
+        -----
+        Because each axis typically represents a continuous dimension, the slicing operation needs to reflect the
+        reduction in the extent of the tile of the Orbit. Use OrbitKS as an example. This has 't', 'x' as its dimensions
+        respectively. If a single row (i.e. single time 't') was sliced then one would expect self.t == 0. after
+        slicing. This gets complicated considering int, Ellipsis, and slice, np.ndarray and tuples thereof can be the key.
+
+        """
+
         try:
-            state_slice = self.state[slices]
+            state_slice = self.state[key]
             if self.parameters is not None:
+                # If NumPy advanced indexing flattened the state array, or a single integer index was provided,
+                # squeezing the ndarray in the process, need to account for the new dimensions very carefully.
+                #
+                if len(state_slice.shape) != len(self.shape):
+                    ...
                 # parameters are passed as tuple, not dict but this is the easiest manner with which to update;
                 # need to make sure the new dimensions are in the correct positions with respect to the parameter
                 # labels.
                 new_dimensions = [
-                    dim * (newshape / oldshape)
-                    for dim, newshape, oldshape in zip(
+                    dim * (newsize / oldsize)
+                    # If any axes are flattened by the slicing then 
+                    for dim, newsize, oldsize in zip_longest(
                         self.dimensions(), state_slice.shape, self.shape
                     )
                 ]
@@ -408,9 +455,8 @@ class Orbit:
             else:
                 return self.__class__(**{**vars(self), "state": state_slice})
         except IndexError as ie:
-            raise ValueError(
-                "out of bounds or attempting to slice an empty state."
-            ) from ie
+            if self.size == 0.:
+                raise ValueError("attempting to slice an Orbit whose state is empty.") from ie
 
     @staticmethod
     def bases():
@@ -424,6 +470,7 @@ class Orbit:
         Notes
         -----
         Defaults to 'physical'
+
         """
         return ("physical",)
 
@@ -440,6 +487,7 @@ class Orbit:
         -----
         It might seem idiotic to have both a parameter labels staticmethod and parameters as a tuple; why not just make
         a dict? Because I wanted an immutable type for parameters that could easily be converted into a numpy array.
+
         """
         return "t", "x", "y", "z"
 
@@ -461,19 +509,9 @@ class Orbit:
         -------
         tuple :
             tuple of strings which label the discretization variables of the current state.
+
         """
         return "n", "i", "j", "k"
-
-    @classmethod
-    def default_parameter_ranges(cls):
-        """ Intervals (continuous) or iterables (discrete) used to populate parameters.
-        Notes
-        -----
-        tuples or length two are *always* interpreted to be continuous intervals. If you have a discrete variable
-        with two options, simply use a list instead of tuple. Discrete variables are populated by using random choice
-        from the provided collection.
-        """
-        return {p_label: (0, 1) for p_label in cls.parameter_labels()}
 
     @staticmethod
     def default_shape():
@@ -482,6 +520,7 @@ class Orbit:
         -------
         tuple :
             tuple of int for the shape of the discretization when otherwise not determined.
+
         """
         return 2, 2, 2, 2
 
@@ -499,6 +538,7 @@ class Orbit:
         -----
         Often symmetry constraints reduce the dimensionality; if too small this reduction may leave the state empty,
         this method is called in aspect ratio correction and possibly other gluing applications.
+
         """
         return 1, 1, 1, 1
 
@@ -515,6 +555,7 @@ class Orbit:
         -----
         Used in aspect ratio correction and "discretization continuation". For example, the KSe code requires
         even valued field discretizations; therefore the minimum increments for the KSE are 2's.
+
         """
         return 1, 1, 1, 1
 
@@ -523,23 +564,31 @@ class Orbit:
 
         Returns
         -------
-
+        tuple of bool :
+            Tuple containing flags indicating whether or not a state's dimensions are to be treated as periodic or not.
         Notes
         -----
         Static for base class, however for relative periodic solutions this can be dependent on the frame/slice the
-        state is in.
+        state is in, and so is left
+
         """
         return True, True, True, True
 
-    def default_constraints(self):
-        """ Sometimes parameters are necessary but constant; this allows for exclusion from optimization without hassle.
+    @staticmethod
+    def continuous_dimensions():
+        """ Bools indicating whether an array's axes represent continuous dimensions or not.
 
         Returns
         -------
-        dict :
-            Keys are parameter labels, values are bools indicating whether or not a parameter is constrained.
+        tuple of bool :
+            Tuple containing flags indicating whether or not a state's dimensions are to be treated as periodic or not.
+
+        Notes
+        -----
+        Discrete lattice systems would have false for all dimensions; this is necessary for Orbit.__getitem__ mostly.
+
         """
-        return {k: False for k in self.parameter_labels()}
+        return True, True, True, True
 
     @property
     def shape(self):
@@ -573,6 +622,7 @@ class Orbit:
         -------
         float :
             The value of self * other via L_2 inner product.
+
         """
         return float(np.dot(self.state.ravel(), other.state.ravel()))
 
@@ -593,6 +643,7 @@ class Orbit:
         -------
         tuple :
             A tuple of ints
+
         """
         return cls.default_shape()
 
@@ -622,6 +673,7 @@ class Orbit:
         crude approximation, it can be worthwhile to also simply search the parameter space for a combination
         of dimensions which reduces the residual. The strategy produced by this method is simply a baseline; there
         may be way better ways but it is likely highly dependent on equation.
+
         """
         try:
             if exclude_nonpositive:
@@ -655,7 +707,8 @@ class Orbit:
         Notes
         -----
         Because this is usually a subset of self.parameters, it does not use the property decorator. This method
-        is purposed for readability and other reasons where only dimensions are required. .
+        is purposed for readability and other reasons where only dimensions are required.
+
         """
         return tuple(getattr(self, d_label) for d_label in self.dimension_labels())
 
@@ -672,6 +725,7 @@ class Orbit:
         This function is used for operations which require the shape of the state array in a different basis.
         These shapes are defined by the transforms, essentially, but it is wasteful to transform simply for the shape,
         and the amount of boilerplate code to constantly infer the shape justifies this method in most cases.
+
         """
         return (self.state.shape,)
 
@@ -696,6 +750,7 @@ class Orbit:
         recalculated; this is why eqn is passed rather than recalculated.
 
         Default cost functional is 1/2 ||eqn||^2.
+
         """
         return self.rmatvec(eqn, **kwargs)
 
@@ -724,6 +779,7 @@ class Orbit:
         If len >= 2 then could be multiple ints (x,y) or multiple tuples ((a,b), (c,d))
         In other words, they are all tuples, but type checking and unpacking has to be done carefully due to contents.
         All tuples of the form ((x,y,...,z),) are assumed to be redundant representations of (x,y,...,z)
+
         """
         # Padding basis assumed to be in the spatiotemporal basis.
         placeholder_orbit = self.copy().transform(to=self.bases()[-1])
@@ -746,9 +802,9 @@ class Orbit:
                     )
                     raise ValueError(errstr)
                 if new < old:
-                    placeholder_orbit = placeholder_orbit.truncate(new, axis=ax)
+                    placeholder_orbit = placeholder_orbit._truncate(new, axis=ax)
                 elif new > old:
-                    placeholder_orbit = placeholder_orbit.pad(new, axis=ax)
+                    placeholder_orbit = placeholder_orbit._pad(new, axis=ax)
                 else:
                     pass
 
@@ -773,6 +829,7 @@ class Orbit:
         -----
         In decision to maintain numpy defaults or change roll to be positive when shift is positive, the latter was
         chosen. If provided tuples of ints, shift and axis need to be the same length as to be coherent.
+
         """
 
         return self.__class__(
@@ -797,6 +854,7 @@ class Orbit:
         Notes
         -----
         If provided tuples of ints, shift and axis need to be the same length as to be coherent.
+
         """
         # To allow slicing, discretization temporarily cast as array.
         return self.roll(
@@ -817,6 +875,7 @@ class Orbit:
         Notes
         -----
         In certain numerical implementations a call to np.roll may be required
+
         """
 
         if signed:
@@ -844,6 +903,7 @@ class Orbit:
         -----
         Has no purpose for classes with singular basis. Convention is to return self (not a copy) if 'to' keyword
         argument equals self.basis.
+
         """
         return self
 
@@ -867,6 +927,7 @@ class Orbit:
         for the parameters themselves. Therefore, because the parameters in the continuous case define the
         spatiotemporal domain (tile), it makes sense for these values to be assigned to the "eqn" orbit. That is,
         the evaluation of the governing equations yields a state defined on the same domain.
+
         """
         assert (
             self.basis == self.bases()[-1]
@@ -886,6 +947,7 @@ class Orbit:
         -----
         In certain optimization methods, storing evaluations of the governing equation in instances can cut down on the
         number of function calls.
+
         """
         if eqn:
             v = self.transform(to=self.bases()[-1]).eqn().state.ravel()
@@ -894,7 +956,7 @@ class Orbit:
         return 0.5 * v.dot(v)
 
     def matvec(self, other, **kwargs):
-        """ Matrix-vector product of Jacobian evaluated at instance state, times orbit_vector of other instance.
+        """ Matrix-vector product of Jacobian and orbit_vector from other instance.
 
         Parameters
         ----------
@@ -914,12 +976,13 @@ class Orbit:
         (i.e. the last elements of the orbit vector), it is often convenient to simply pass the current state's
         parameters to the new instance; this philosophy mimics the eqn() method. Because the general Orbit template
         doesn't have an associated equation, return an array of zeros for its state.
+
         """
         # Instance with all attributes except state and parameters
         return self.__class__(**{**vars(self), "state": np.zeros(self.shapes()[-1])})
 
     def rmatvec(self, other, **kwargs):
-        """ Matrix-vector product of adjoint Jacobian evaluated at instance state, times state of other instance.
+        """ Matrix-vector product of adjoint Jacobian and state from `other` instance.
 
         Parameters
         ----------
@@ -961,6 +1024,7 @@ class Orbit:
         Parameters only need to be bundled into a tuple. There is no requirement that elements must be scalars.
         Any type which can be cast as a numpy array and has numeric values is allowed, technically, but scalars are
         recommended. If non-scalar parameters are used, user will need to overwrite the Orbit.from_numpy_array() method.
+
         """
         # By raveling and concatenating ensure that the array is 1-d for the second concatenation; i.e. flatten first.
         parameter_array = np.concatenate(
@@ -998,6 +1062,7 @@ class Orbit:
         the constraints.
 
         If non-scalar parameters are used, user will need to overwrite the Orbit.from_numpy_array() method.
+
         """
         # orbit_vector is defined to be concatenation of state and parameters;
         # slice out the parameters; cast as list to gain access to pop
@@ -1037,6 +1102,7 @@ class Orbit:
         Notes
         -----
         Typically when this method is called, self is the current iterate and other is an optimization correction.
+
         """
         incremented_params = tuple(
             self_param + step_size * other_param  # assumed to be constrained if 0.
@@ -1051,107 +1117,6 @@ class Orbit:
             }
         )
 
-    def pad(self, size, axis=0):
-        """ Increase the size of the discretization along an axis.
-
-        Parameters
-        ----------
-        size : int
-            The new size of the discretization (not the current shape), restrictions typically imposed by equations.
-        axis : int
-            Axis to pad along per numpy conventions.
-
-        Returns
-        -------
-        Orbit :
-            Orbit instance whose state in the physical along numpy axis 'axis' basis has a number of discretization
-            points equal to 'size', (self.bases()[0][axis] == size after method call).
-
-        Notes
-        -----
-        This function is typically an interpolation method, i.e. Fourier mode zero-padding.
-        However, in the general case when we cannot assume the basis, the best we can do is pad the current basis,
-        which is done in a symmetric fashion when possible.
-
-        That is, if we have a 4x4 array, then calling this with size=6 and axis=0 would yield a 6x4 array, wherein
-        the first and last rows are uniformly zero. I.e. a "border" of zeroes has been added. The choice to make
-        this symmetric matters in the case of non-periodic boundary conditions.
-
-        When writing this function for spectral interpolation methods BE SURE TO ACCOUNT FOR NORMALIZATION
-        of your transforms. Also, in this instance the interpolation basis and the return basis are the same, as there
-        is no way of specifying otherwise for the general Orbit class. For the KSe, the padding basis is 'modes'
-        and the return basis is whatever the state was originally in. This is the preferred implementation.
-        """
-        padding_size = (size - self.shape[axis]) // 2
-        if int(size) % 2:
-            # If odd size then cannot distribute symmetrically, floor divide then add append extra zeros to beginning
-            # of the dimension.
-            padding_tuple = tuple(
-                (padding_size + 1, padding_size) if i == axis else (0, 0)
-                for i in range(len(self.shape))
-            )
-        else:
-            padding_tuple = tuple(
-                (padding_size, padding_size) if i == axis else (0, 0)
-                for i in range(len(self.shape))
-            )
-        newdisc = tuple(
-            size if i == axis else self.discretization[i]
-            for i in range(len(self.discretization))
-        )
-        return self.__class__(
-            **{
-                **vars(self),
-                "state": np.pad(self.state, padding_tuple),
-                "discretization": newdisc,
-            }
-        ).transform(to=self.basis)
-
-    def truncate(self, size, axis=0):
-        """ Decrease the size of the discretization along an axis
-
-        Parameters
-        -----------
-        size : int
-            The new size of the discretization.
-        axis : int
-            Axis along which truncation occurs.
-
-        Returns
-        -------
-        Orbit :
-            Orbit instance with smaller discretization.
-
-        Notes
-        -----
-        The inverse of pad. Default behavior is to simply truncate in current basis in symmetric fashion along
-        axis of numpy array specific by 'axis'.
-        """
-        truncate_size = (self.shape[axis] - size) // 2
-        if int(size) % 2:
-            # If odd size then cannot distribute symmetrically, floor divide then add append extra zeros to beginning
-            # of the dimension.
-            truncate_slice = tuple(
-                slice(truncate_size + 1, -truncate_size) if i == axis else slice(None)
-                for i in range(len(self.shape))
-            )
-        else:
-            truncate_slice = tuple(
-                slice(truncate_size, -truncate_size) if i == axis else slice(None)
-                for i in range(len(self.shape))
-            )
-        new_shape = tuple(
-            size if i == axis else self.discretization[i]
-            for i in range(len(self.shape))
-        )
-        return self.__class__(
-            **{
-                **vars(self),
-                "state": self.state[truncate_slice],
-                "discretization": new_shape,
-            }
-        ).transform(to=self.basis)
-
     def jacobian(self, **kwargs):
         """ Jacobian matrix evaluated at the current state.
 
@@ -1161,13 +1126,15 @@ class Orbit:
             Included in signature for derived classes; no usage here.
         Returns
         -------
-        jac_ : matrix
+        np.ndarray :
             2-d numpy array equalling the Jacobian matrix of the governing equations evaluated at current state.
+
         """
         return np.zeros([self.size, self.orbit_vector().size])
 
     def norm(self, order=None):
         """ Norm of spatiotemporal state via numpy.linalg.norm
+
         """
         return np.linalg.norm(self.state.ravel(), ord=order)
 
@@ -1175,11 +1142,13 @@ class Orbit:
         self, show=True, save=False, padding=False, fundamental_domain=False, **kwargs
     ):
         """ Signature for plotting method.
+
         """
-        return None
+        ...
 
     def rescale(self, magnitude, method="inf"):
         """ Rescaling of the state in the 'physical' basis per strategy denoted by 'method'
+
         """
         state = self.transform(to=self.bases()[0]).state
         if method == "inf":
@@ -1240,6 +1209,7 @@ class Orbit:
         put entirely upon the user. To avoid having write gratuitous amounts of code to name orbits, there
         are default options for the filename, groupname and dataname. groupname always acts as a prefix to dataname,
         it defaults to being an empty string. groupname is useful when there is a category of orbits (i.e. a family).
+
         """
 
         with h5py.File(filename or self.filename(extension=".h5"), mode=h5mode) as file:
@@ -1316,6 +1286,7 @@ class Orbit:
         Examples
         --------
         For an orbit with t=10, x=5.321 this would yield Orbit_t10p000_x5p321
+
         """
         if self.dimensions() is not None:
             # Of the form
@@ -1349,6 +1320,7 @@ class Orbit:
         This method is used to check to see, for example, if an orbit has converged to an equilibrium but is still
         being stored in a different Orbit class. It is beneficial to check and see whether orbit states can be
         "simplified".
+
         """
         return self
 
@@ -1363,6 +1335,7 @@ class Orbit:
         Notes
         -----
         Produces a random state and or parameters depending on 'attr' value.
+
         """
         # Parameter generation only overwrites default-valued parameters. If random parameters are desired
         # then simply do not provide 'parameters' upon initialization.
@@ -1381,15 +1354,21 @@ class Orbit:
         return self
 
     def to_fundamental_domain(self, **kwargs):
-        """ Placeholder/signature for possible symmetry subclasses. """
+        """ Placeholder/signature for possible symmetry subclasses.
+
+        """
         return self
 
     def from_fundamental_domain(self, **kwargs):
-        """ Placeholder/signature for possible symmetry subclasses. """
+        """ Placeholder/signature for possible symmetry subclasses.
+
+         """
         return self
 
     def copy(self):
-        """ Return an instance with deep copy of numpy array. """
+        """ Return an instance with copies of copy-able attributes.
+
+         """
         return self.__class__(
             **{k: v.copy() if hasattr(v, "copy") else v for k, v in vars(self).items()}
         )
@@ -1414,6 +1393,7 @@ class Orbit:
         Parameters not in the default constraints dict will always be assumed to be constrained.
         This is important for optimization methods, in the instance where you have constant parameters required
         to evaluation the governing equations.
+
         """
         # If string, package as tuple so 'in' can be used for comparison
         if isinstance(labels, str):
@@ -1435,14 +1415,13 @@ class Orbit:
 
         # iterating over constraints items means that constant variables can never be unconstrained by accident.
         constraints = {
-            key: True if key in labels else self.default_constraints().get(key, True)
+            key: True if key in labels else self._default_constraints().get(key, True)
             for key in self.parameter_labels()
         }
         setattr(self, "constraints", constraints)
 
     def mask(self, masking_array, invert=False, **kwargs):
         """ Return an Orbit instance with a numpy masked array state
-
 
         Parameters
         ----------
@@ -1456,6 +1435,7 @@ class Orbit:
         Notes
         -----
         Typically used for plotting shadowing and clipping results.
+
         """
         if invert:
             # Sometimes shadowing results are returned as int
@@ -1468,6 +1448,155 @@ class Orbit:
             )
         return self.__class__(**{**vars(self), "state": masked_state})
 
+
+    @classmethod
+    def defaults(cls):
+        """ Dict of default values for constraints, parameter ranges, sizes, etc.
+
+        Returns
+        -------
+        orbit_defaults_dictionary : dict
+            Dictionary with three keys that indicate the default parameter ranges and shapes used in Orbit.populate()
+            as well as the default parameter constraints.
+
+        Notes
+        -----
+        More defaults can be included in subclassing
+
+        """
+        orbit_defaults_dictionary = {'parameter_ranges': cls._default_parameter_ranges(),
+                                     'shape': cls.default_shape(),
+                                     'constraints': cls._default_constraints()
+                                     }
+        return orbit_defaults_dictionary
+
+
+    @classmethod
+    def _default_parameter_ranges(cls):
+        """ Intervals (continuous) or iterables (discrete) used to populate parameters.
+        Notes
+        -----
+        tuples or length two are *always* interpreted to be continuous intervals. If you have a discrete variable
+        with two options, simply use a list instead of tuple. Discrete variables are populated by using random choice
+        from the provided collection.
+
+        """
+        return {p_label: (0, 1) for p_label in cls.parameter_labels()}
+
+    def _default_constraints(self):
+        """ Sometimes parameters are necessary but constant; this allows for exclusion from optimization without hassle.
+
+        Returns
+        -------
+        dict :
+            Keys are parameter labels, values are bools indicating whether or not a parameter is constrained.
+
+        """
+        return {k: False for k in self.parameter_labels()}
+
+    def _pad(self, size, axis=0):
+        """ Increase the size of the discretization along an axis.
+
+        Parameters
+        ----------
+        size : int
+            The new size of the discretization (not the current shape), restrictions typically imposed by equations.
+        axis : int
+            Axis to pad along per numpy conventions.
+
+        Returns
+        -------
+        Orbit :
+            Orbit instance whose state in the physical along numpy axis 'axis' basis has a number of discretization
+            points equal to 'size', (self.bases()[0][axis] == size after method call).
+
+        Notes
+        -----
+        This function is typically an interpolation method, i.e. Fourier mode zero-padding.
+        However, in the general case when we cannot assume the basis, the best we can do is pad the current basis,
+        which is done in a symmetric fashion when possible.
+
+        That is, if we have a 4x4 array, then calling this with size=6 and axis=0 would yield a 6x4 array, wherein
+        the first and last rows are uniformly zero. I.e. a "border" of zeroes has been added. The choice to make
+        this symmetric matters in the case of non-periodic boundary conditions.
+
+        When writing this function for spectral interpolation methods BE SURE TO ACCOUNT FOR NORMALIZATION
+        of your transforms. Also, in this instance the interpolation basis and the return basis are the same, as there
+        is no way of specifying otherwise for the general Orbit class. For the KSe, the padding basis is 'modes'
+        and the return basis is whatever the state was originally in. This is the preferred implementation.
+
+        """
+        padding_size = (size - self.shape[axis]) // 2
+        if int(size) % 2:
+            # If odd size then cannot distribute symmetrically, floor divide then add append extra zeros to beginning
+            # of the dimension.
+            padding_tuple = tuple(
+                (padding_size + 1, padding_size) if i == axis else (0, 0)
+                for i in range(len(self.shape))
+            )
+        else:
+            padding_tuple = tuple(
+                (padding_size, padding_size) if i == axis else (0, 0)
+                for i in range(len(self.shape))
+            )
+        newdisc = tuple(
+            size if i == axis else self.discretization[i]
+            for i in range(len(self.discretization))
+        )
+        return self.__class__(
+            **{
+                **vars(self),
+                "state": np.pad(self.state, padding_tuple),
+                "discretization": newdisc,
+            }
+        ).transform(to=self.basis)
+
+    def _truncate(self, size, axis=0):
+        """ Decrease the size of the discretization along an axis
+
+        Parameters
+        -----------
+        size : int
+            The new size of the discretization.
+        axis : int
+            Axis along which truncation occurs.
+
+        Returns
+        -------
+        Orbit :
+            Orbit instance with smaller discretization.
+
+        Notes
+        -----
+        The inverse of pad. Default behavior is to simply truncate in current basis in symmetric fashion along
+        axis of numpy array specific by 'axis'.
+
+        """
+        truncate_size = (self.shape[axis] - size) // 2
+        if int(size) % 2:
+            # If odd size then cannot distribute symmetrically, floor divide then add append extra zeros to beginning
+            # of the dimension.
+            truncate_slice = tuple(
+                slice(truncate_size + 1, -truncate_size) if i == axis else slice(None)
+                for i in range(len(self.shape))
+            )
+        else:
+            truncate_slice = tuple(
+                slice(truncate_size, -truncate_size) if i == axis else slice(None)
+                for i in range(len(self.shape))
+            )
+        new_shape = tuple(
+            size if i == axis else self.discretization[i]
+            for i in range(len(self.shape))
+        )
+        return self.__class__(
+            **{
+                **vars(self),
+                "state": self.state[truncate_slice],
+                "discretization": new_shape,
+            }
+        ).transform(to=self.basis)
+
     def _parse_state(self, state, basis, **kwargs):
         """ Determine state and state shape parameters based on state array and the basis it is in.
 
@@ -1477,6 +1606,7 @@ class Orbit:
             Numpy array containing state information, can have any number of dimensions.
         basis : str
             The basis that the array 'state' is in.
+
         """
         if isinstance(state, np.ndarray):
             self.state = state
@@ -1519,11 +1649,12 @@ class Orbit:
         constraints in the process) can mistakenly unconstrain these constants. Therefore, if the key is not
         in the default constraints dict then it is assumed to be constant.
         This is not an issue because this is one of the fundamental requirements for subclassing.
+
         """
         # Get the constraints, making sure to not mistakenly unconstrain constants.
         self.constraints = {
-            k: kwargs.get("constraints", self.default_constraints()).get(k, True)
-            if k in self.default_constraints().keys()
+            k: kwargs.get("constraints", self._default_constraints()).get(k, True)
+            if k in self._default_constraints().keys()
             else True
             for k in self.parameter_labels()
         }
@@ -1542,7 +1673,7 @@ class Orbit:
                 # if more labels than parameters, simply fill with the default missing value, 0.
                 self.parameters = tuple(
                     val
-                    for label, val in itertools.zip_longest(
+                    for label, val in zip_longest(
                         self.parameter_labels(), parameters, fillvalue=0
                     )
                 )
@@ -1597,7 +1728,7 @@ class Orbit:
             np.random.seed(kwargs.get("seed", None))
 
         # Can be useful to override default sample spaces to get specific cases.
-        p_ranges = kwargs.get("parameter_ranges", self.default_parameter_ranges())
+        p_ranges = kwargs.get("parameter_ranges", self._default_parameter_ranges())
         # If *some* of the parameters were initialized, we want to save those values; iterate over the current
         # parameters if not None, else a list of zeros.
         parameter_iterable = self.parameters or len(self.parameter_labels()) * [None]
@@ -1619,7 +1750,7 @@ class Orbit:
                     p_ranges.get(label, (0, 0)),
                     overwrite=kwargs.get("overwrite", False),
                 )
-                for label, val in itertools.zip_longest(
+                for label, val in zip_longest(
                     self.parameter_labels(), parameter_iterable, fillvalue=None
                 )
             )
@@ -1631,7 +1762,9 @@ class Orbit:
 
         Parameters
         ----------
-        kwargs :
+        kwargs : dict
+            seed : str
+
 
         Notes
         -----
@@ -1642,6 +1775,7 @@ class Orbit:
         Historically, for the KSe, the strategy to define a specific state was to provide a keyword argument 'spectrum'
         which controlled a spectrum modulation strategy. This is not included in the base signature, because it is
         terminology specific to spectral methods.
+
         """
         # Just populate a random array; more intricate strategies should be written into subclasses.
         # Using standard normal distribution for values.
@@ -1658,15 +1792,19 @@ class Orbit:
         self.basis = kwargs.get("basis", None) or self.bases()[0]
 
 
-def convert_class(orbit_, class_generator, **kwargs):
-    """ Utility for converting between different classes.
+def convert_class(orbit_instance, orbit_type, **kwargs):
+    """ Utility for converting between different symmetry classes.
 
     Parameters
     ----------
-    orbit_ : Orbit instance
+    orbit_instance : Orbit or Orbit subclass instance
         The orbit instance to be converted
-    class_generator : class generator
+    orbit_type : type
         The target class that orbit will be converted to.
+
+    Returns
+    -------
+    Orbit instance with type == orbit_type
 
     Notes
     -----
@@ -1674,16 +1812,17 @@ def convert_class(orbit_, class_generator, **kwargs):
     physical basis prior to conversion; the instance is returned in the basis of the input, however.
 
     Include any and all attributes that might be relevant to the new orbit and those which transfer over from
-    old orbit via usage of vars(orbit_) and kwargs. If for some reason an attribute should not be passed,
+    old orbit via usage of vars(orbit_instance) and kwargs. If for some reason an attribute should not be passed,
     then providing attr=None in the function call is how to handle it, as the values in kwargs overwrite
-    the values in vars(orbit_) via dictionary unpacking.
+    the values in vars(orbit_instance) via dictionary unpacking.
+
     """
-    # Note any keyword arguments will overwrite the values in vars(orbit_) or state or basis
-    return class_generator(
+    # Note any keyword arguments will overwrite the values in vars(orbit_instance) or state or basis
+    return orbit_type(
         **{
-            **vars(orbit_),
-            "state": orbit_.transform(to=orbit_.bases()[0]).state,
-            "basis": orbit_.bases()[0],
+            **vars(orbit_instance),
+            "state": orbit_instance.transform(to=orbit_instance.bases()[0]).state,
+            "basis": orbit_instance.bases()[0],
             **kwargs,
         }
-    ).transform(to=orbit_.basis)
+    ).transform(to=orbit_instance.basis)

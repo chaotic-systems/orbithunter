@@ -277,7 +277,7 @@ def test_properties(fixed_orbit_data):
     _ = orbit_.dimension_labels()
     _ = orbit_.default_shape()
     _ = orbit_.minimal_shape()
-    _ = orbit_.default_parameter_ranges()
+    _ = orbit_._default_parameter_ranges()
 
 
 def test_rediscretization(fixed_orbit_data):

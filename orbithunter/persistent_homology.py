@@ -4,18 +4,16 @@ import inspect
 import numpy as np
 from gudhi.hera import wasserstein_distance, bottleneck_distance
 
-__all__ = ["orbit_complex", "orbit_persistence", "gudhi_plot", "gudhi_distance"]
+__all__ = ["orbit_complex", "produce_orbit_persistence", "gudhi_plot", "gudhi_distance"]
 
 
-def orbit_complex(orbit_, **kwargs):
+def orbit_complex(orbit_instance, **kwargs):
     """ Wrapper for Gudhi persistent homology package
 
     Parameters
     ----------
-    orbit_ : Orbit
+    orbit_instance : Orbit
         The orbit whose persistent homology will be computed.
-
-    min_persistence
 
     kwargs :
         periodic_dimensions : tuple
@@ -23,73 +21,78 @@ def orbit_complex(orbit_, **kwargs):
         calculations. i.e. for Kuramoto-Sivashinsky, periodic_dimensions=(False, True) would make time aperiodic
         and space periodic for the construction of the PeriodicCubicalComplex. Generalizes to any dimension.
 
+        min_persistence : float
+
+
     Returns
     -------
     cubical_complex : PeriodicCubicalComplex
-    complex_ : list
-        list of pairs(dimension, pair(birth, death)) – the persistence of the complex.
+
     Notes
     -----
     I do not think orbithunter support vector fields for now, I think each component would have its own cubical complex?
+
     """
     periodic_dimensions = kwargs.get(
-        "periodic_dimensions", orbit_.periodic_dimensions()
+        "periodic_dimensions", orbit_instance.periodic_dimensions()
     )
     cubical_complex = gh.PeriodicCubicalComplex(
-        dimensions=orbit_.state.shape,
-        top_dimensional_cells=orbit_.state.ravel(),
+        dimensions=orbit_instance.state.shape,
+        top_dimensional_cells=orbit_instance.state.ravel(),
         periodic_dimensions=periodic_dimensions,
     )
     return cubical_complex
 
 
-def orbit_persistence(orbit_, **kwargs):
+def produce_orbit_persistence(orbit_instance, **kwargs):
     """
 
     Parameters
     ----------
-    orbit_
+    orbit_instance : Orbit
 
     Returns
     -------
-    persistence_ :
+    ndarray or list :
 
     Notes
     -----
     Convenience function because of how Gudhi is structured.
+
     """
     persistence_kwargs = {
-        # 'homology_coeff_field': kwargs.get('homology_coeff_field', len(orbit_.dimensions())),
+        # 'homology_coeff_field': kwargs.get('homology_coeff_field', len(orbit_instance.dimensions())),
         "min_persistence": kwargs.get("min_persistence", 0.0)
     }
     complex_kwargs = {
         "periodic_dimensions": kwargs.get(
-            "periodic_dimensions", orbit_.periodic_dimensions()
+            "periodic_dimensions", orbit_instance.periodic_dimensions()
         )
     }
-    persistence = orbit_complex(orbit_, **complex_kwargs).persistence(
+    orbit_persistence = orbit_complex(orbit_instance, **complex_kwargs).persistence(
         **persistence_kwargs
     )
     if kwargs.get("persistence_format", "numpy") == "numpy":
-        return np.array([[x[0], x[1][0], x[1][1]] for x in persistence])
+        return np.array([[x[0], x[1][0], x[1][1]] for x in orbit_persistence])
     else:
-        return persistence
+        return orbit_persistence
 
 
-def gudhi_plot(orbit_, gudhi_method="diagram", **kwargs):
+def gudhi_plot(orbit_instance, gudhi_method="diagram", **kwargs):
     """
     Parameters
     ----------
-    persistence_ : iterable
+    orbit_instance : Orbit
         Iterable of length N that contains elements of length 2 (i.e. N x 2 array) containing the persistence intervals
         (birth, death)
     gudhi_method : str
         Plotting gudhi_method. Takes one of the following values: 'diagram', 'barcode', 'density'.
     gudhi_kwargs :
         kwargs related to gudhi plotting functions. See Gudhi docs for details.
+
     """
-    orbit_persistence_ = orbit_persistence(
-        orbit_, **{**kwargs, "persistence_format": "gudhi"}
+    orbit_persistence = produce_orbit_persistence(
+        orbit_instance, **{**kwargs, "persistence_format": "gudhi"}
     )
     plot_kwargs = {
         k: v
@@ -97,7 +100,7 @@ def gudhi_plot(orbit_, gudhi_method="diagram", **kwargs):
         if k in inspect.getfullargspec(gh.plot_persistence_diagram).args
     }
     if gudhi_method in ["diagram", "barcode", "density"]:
-        gh.plot_persistence_diagram(orbit_persistence_, **plot_kwargs)
+        gh.plot_persistence_diagram(orbit_persistence, **plot_kwargs)
     else:
         raise ValueError("Gudhi plotting gudhi_method not recognized.")
     plt.show()
@@ -118,8 +121,8 @@ def gudhi_distance(orbit1, orbit2, gudhi_metric="bottleneck", **kwargs):
     -------
 
     """
-    diagram1 = orbit_persistence(orbit1, **kwargs)[:, 1:]
-    diagram2 = orbit_persistence(orbit2, **kwargs)[:, 1:]
+    diagram1 = produce_orbit_persistence(orbit1, **kwargs)[:, 1:]
+    diagram2 = produce_orbit_persistence(orbit2, **kwargs)[:, 1:]
     if gudhi_metric == "bottleneck":
         distance_func = bottleneck_distance
     elif gudhi_metric == "wasserstein":
@@ -140,8 +143,8 @@ def gudhi_distance_from_persistence(
 
     Parameters
     ----------
-    orbit1 : Orbit
-    orbit2 : Orbit
+    orbit_persistence1 : Orbit
+    orbit_persistence2 : Orbit
     gudhi_metric : str
         The persistence diagram distance gudhi_metric to use
     kwargs
@@ -155,6 +158,7 @@ def gudhi_distance_from_persistence(
     -----
     It is often more efficient to calculate the persistences en masse and store them; the other distance function
     does not account for this and I do not want to do type checking for persistence objects from Gudhi. 
+
     """
     if with_betti:
         diagram1 = np.array(orbit_persistence1)[:, 1:]
