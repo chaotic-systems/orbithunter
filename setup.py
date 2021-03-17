@@ -4,7 +4,7 @@ import pathlib
 here = pathlib.Path(__file__).parent.resolve()
 
 # Get the long description from the README file
-long_description = (here / "README.md").read_text(encoding="utf-8")
+long_description = (here / "README.rst").read_text(encoding="utf-8")
 
 setup(
     # There are some restrictions on what makes a valid project name
@@ -73,6 +73,6 @@ setup(
         "tracker": "https://github.com/orbithunter/docs/issues",
         "home page": "https://mgudorf.github.io/orbithunter/",
         "tutorials": "https://github.com/mgudorf/orbithunter/tree/main/notebooks",
-        "frequently asked questions": "https://github.com/mgudorf/orbithunter/tree/main/docs/faq.md",
+        "frequently asked questions": "https://github.com/mgudorf/orbithunter/tree/main/docs/faq.rst",
     },
 )

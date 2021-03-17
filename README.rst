@@ -51,7 +51,7 @@ Contribute
         "tracker": "https://github.com/orbithunter/docs/issues",
         "home page": "https://mgudorf.github.io/orbithunter/",
         "tutorials": "https://github.com/mgudorf/orbithunter/tree/main/notebooks",
-        "frequently asked questions": "https://github.com/mgudorf/orbithunter/tree/main/docs/faq.md",
+        "frequently asked questions": "https://github.com/mgudorf/orbithunter/tree/main/docs/faq.rst",
 
 Support
 -------
