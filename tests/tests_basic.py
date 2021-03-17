@@ -5,7 +5,8 @@ import h5py
 import pathlib
 
 here = pathlib.Path(__file__).parent.resolve()
-data_path = (here / "tests_data.h5")
+data_path = here / "tests_data.h5"
+
 
 @pytest.fixture()
 def fixed_orbit_data():
@@ -104,6 +105,7 @@ def test_assignment_operators_no_state():
     orbit_ /= orbit_
     orbit_ //= orbit_
 
+
 def test_binary_operations_no_state():
     orbit_ = oh.Orbit()
     test_sum = orbit_ + orbit_
@@ -113,6 +115,7 @@ def test_binary_operations_no_state():
     test_div = orbit_ / 2
     test_floor_div = orbit_ // 2
 
+
 def test_getitem(fixed_orbit_data):
     # Testing the different overloaded binary operators
     orbit_ = oh.Orbit(
@@ -120,8 +123,9 @@ def test_getitem(fixed_orbit_data):
     )
     assert orbit_[:1, :1, :1, :1].state.squeeze() - 1.6243454 == 0
     with pytest.raises((IndexError, ValueError)):
-            empty_orbit = oh.Orbit()
-            raise_index_error_because_empty_array = empty_orbit[0, 0, 0, 0]
+        empty_orbit = oh.Orbit()
+        raise_index_error_because_empty_array = empty_orbit[0, 0, 0, 0]
+
 
 def test_populate():
     """ Initialization in cases where generated information is desired. Occurs in-place"""

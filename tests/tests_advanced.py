@@ -3,6 +3,7 @@ import numpy as np
 from .context import orbithunter as oh
 import h5py
 
+
 @pytest.fixture()
 def fixed_OrbitKS_data():
     # Generated from
@@ -20,8 +21,10 @@ def fixed_OrbitKS_data():
     )
     return state
 
+
 def test_glue():
     with h5py.File("./tests/test_data.h5", "r") as file:
+
         def h5_helper(name, cls):
             nonlocal file
             attrs = dict(file["/".join([name, "0"])].attrs.items())
@@ -34,4 +37,3 @@ def test_glue():
                     "discretization": tuple(attrs["discretization"]),
                 }
             )
-

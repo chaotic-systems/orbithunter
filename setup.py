@@ -17,7 +17,7 @@ setup(
     version="0.5b1",  # Required
     description="Framework for solving spatiotemporal partial differential equations.",
     long_description=long_description,
-    long_description_content_type='text/markdown',
+    long_description_content_type="text/markdown",
     url="https://mgudorf.github.io/orbithunter/",  # Optional
     author="Matthew Gudorf",
     author_email="matthew.gudorf@gmail.com",  # Optional
@@ -30,7 +30,7 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-        "Operating System :: Microsoft :: Windows :: Windows 10"
+        "Operating System :: Microsoft :: Windows :: Windows 10",
     ],
     keywords=[
         "pde",
@@ -61,7 +61,7 @@ setup(
         "scipy>=1.4.1",
         "h5py>=2.10.0",
     ],
-    extras_require={  
+    extras_require={
         "test": ["pytest>=5.3.5", "pytest-datafiles>=2.0"],
         "notebooks": ["ipykernel>=5.1.4", "jupyterlab>=1.2.6"],
         "tools": ["gudhi", "scikit-learn", "tensorflow"],

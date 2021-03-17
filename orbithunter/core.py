@@ -440,7 +440,7 @@ class Orbit:
                 # labels.
                 new_dimensions = [
                     dim * (newsize / oldsize)
-                    # If any axes are flattened by the slicing then 
+                    # If any axes are flattened by the slicing then
                     for dim, newsize, oldsize in zip_longest(
                         self.dimensions(), state_slice.shape, self.shape
                     )
@@ -455,8 +455,10 @@ class Orbit:
             else:
                 return self.__class__(**{**vars(self), "state": state_slice})
         except IndexError as ie:
-            if self.size == 0.:
-                raise ValueError("attempting to slice an Orbit whose state is empty.") from ie
+            if self.size == 0.0:
+                raise ValueError(
+                    "attempting to slice an Orbit whose state is empty."
+                ) from ie
 
     @staticmethod
     def bases():
@@ -1448,7 +1450,6 @@ class Orbit:
             )
         return self.__class__(**{**vars(self), "state": masked_state})
 
-
     @classmethod
     def defaults(cls):
         """ Dict of default values for constraints, parameter ranges, sizes, etc.
@@ -1464,12 +1465,12 @@ class Orbit:
         More defaults can be included in subclassing
 
         """
-        orbit_defaults_dictionary = {'parameter_ranges': cls._default_parameter_ranges(),
-                                     'shape': cls.default_shape(),
-                                     'constraints': cls._default_constraints()
-                                     }
+        orbit_defaults_dictionary = {
+            "parameter_ranges": cls._default_parameter_ranges(),
+            "shape": cls.default_shape(),
+            "constraints": cls._default_constraints(),
+        }
         return orbit_defaults_dictionary
-
 
     @classmethod
     def _default_parameter_ranges(cls):
