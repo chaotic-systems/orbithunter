@@ -5,7 +5,7 @@ import h5py
 import pathlib
 
 here = pathlib.Path(__file__).parent.resolve()
-data_path = here / "tests_data.h5"
+data_path = here / "test_data.h5"
 
 @pytest.fixture()
 def fixed_OrbitKS_data():

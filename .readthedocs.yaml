@@ -22,4 +22,6 @@ python:
       path: .
       extra_requirements:
         - docs
+        - extra
   system_packages: true
+  setup_py_install: true

@@ -5,7 +5,7 @@ import pathlib
 import orbithunter as oh  # tests are setup to run against installed version only
 
 here = pathlib.Path(__file__).parent.resolve()
-data_path = here / "tests_data.h5"
+data_path = here / "test_data.h5"
 
 @pytest.fixture()
 def fixed_orbit_data():
