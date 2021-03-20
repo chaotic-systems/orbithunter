@@ -624,7 +624,7 @@ class Orbit:
                 raise ValueError()
 
     @staticmethod
-    def bases():
+    def bases_labels():
         """
         Labels of the different bases that 'state' attribute can be in.
 
@@ -918,7 +918,7 @@ class Orbit:
         Returns
         -------
         tuple :
-            Contains shapes of state in all bases, ordered with respect to self.bases() ordering.
+            Contains shapes of state in all bases, ordered with respect to self.bases_labels() ordering.
 
         Notes
         -----
@@ -969,7 +969,7 @@ class Orbit:
         Returns
         -------
         placeholder_orbit :
-            Orbit with new discretization; the new shape always refers to the shape in the self.bases()[0] basis.
+            Orbit with new discretization; the new shape always refers to the shape in the self.bases_labels()[0] basis.
             Always returned in originating basis.
 
         Notes
@@ -984,7 +984,7 @@ class Orbit:
 
         """
         # Padding basis assumed to be in the spatiotemporal basis.
-        placeholder_orbit = self.copy().transform(to=self.bases()[-1])
+        placeholder_orbit = self.copy().transform(to=self.bases_labels()[-1])
         new_shape = new_discretization or self.dimension_based_discretization(
             self.dimensions(), **kwargs
         )
@@ -1071,14 +1071,23 @@ class Orbit:
         """
         Reflect the velocity field about the spatial midpoint
 
+        Parameters
+        ----------
+
+        axis : int, tuple
+            The NumPy axes to reflect over; reflection occurs with respect to the 'middle' of each dimension.
+        signed : bool
+            Multiply by -1 after reflection.
+
         Returns
         -------
         OrbitKS :
-            OrbitKS whose state is the reflected velocity field -u(L-x,t).
+            OrbitKS has been reflected over axis (may be tuple of axes).
 
         Notes
         -----
-        In certain numerical implementations a call to np.roll may be required
+        In certain numerical implementations a call to np.roll may be required when discretization has even number of
+        points.
 
         """
 
@@ -1136,7 +1145,7 @@ class Orbit:
 
         """
         assert (
-            self.basis == self.bases()[-1]
+            self.basis == self.bases_labels()[-1]
         ), "Convert to spatiotemporal basis before computing governing equations."
         return self.__class__(**{**vars(self), "state": np.zeros(self.shapes()[-1])})
 
@@ -1147,8 +1156,8 @@ class Orbit:
         Returns
         -------
         float :
-            The value of the cost function, equal to 1/2 the squared L_2 norm of the spatiotemporal mapping,
-            R = 1/2 ||F||^2 by default. The current form generalizes to any equation.
+            The value of the cost function, equal to 1/2 of the squared $L_2$ norm of the spatiotemporal mapping,
+            $R = 1/2 ||F||^2$ by default. The current form generalizes to any equation.
 
         Notes
         -----
@@ -1157,7 +1166,7 @@ class Orbit:
 
         """
         if eqn:
-            v = self.transform(to=self.bases()[-1]).eqn().state.ravel()
+            v = self.transform(to=self.bases_labels()[-1]).eqn().state.ravel()
         else:
             v = self.state.ravel()
         return 0.5 * v.dot(v)
@@ -1368,7 +1377,7 @@ class Orbit:
         Rescaling of the state in the 'physical' basis per strategy denoted by 'method'
 
         """
-        state = self.transform(to=self.bases()[0]).state
+        state = self.transform(to=self.bases_labels()[0]).state
         if method == "inf":
             # rescale by infinity norm
             rescaled_state = magnitude * state / np.max(np.abs(state.ravel()))
@@ -1384,7 +1393,7 @@ class Orbit:
         else:
             raise ValueError("Unrecognizable method.")
         return self.__class__(
-            **{**vars(self), "state": rescaled_state, "basis": self.bases()[0]}
+            **{**vars(self), "state": rescaled_state, "basis": self.bases_labels()[0]}
         ).transform(to=self.basis)
 
     def to_h5(
@@ -1761,7 +1770,7 @@ class Orbit:
         -------
         Orbit :
             Orbit instance whose state in the physical along numpy axis 'axis' basis has a number of discretization
-            points equal to 'size', (self.bases()[0][axis] == size after method call).
+            points equal to 'size', (self.bases_labels()[0][axis] == size after method call).
 
         Notes
         -----
@@ -2026,7 +2035,7 @@ class Orbit:
         Notes
         -----
         Must populate and set attributes 'state', 'discretization' and 'basis'. The state is required to be a numpy
-        array, the discretization is required to be its shape (tuple) in the basis specified by self.bases()[0].
+        array, the discretization is required to be its shape (tuple) in the basis specified by self.bases_labels()[0].
         Discretization is coupled to the state and its specific basis, hence why it is populated here.
 
         Historically, for the KSe, the strategy to define a specific state was to provide a keyword argument 'spectrum'
@@ -2046,7 +2055,7 @@ class Orbit:
         # Assign values from a random normal distribution to the state by default.
         self.state = np.random.randn(*self.discretization)
         # If no basis provided, state generation presumed to be in the physical basis.
-        self.basis = kwargs.get("basis", None) or self.bases()[0]
+        self.basis = kwargs.get("basis", None) or self.bases_labels()[0]
 
 
 def convert_class(orbit_instance, orbit_type, **kwargs):
@@ -2080,8 +2089,8 @@ def convert_class(orbit_instance, orbit_type, **kwargs):
     return orbit_type(
         **{
             **vars(orbit_instance),
-            "state": orbit_instance.transform(to=orbit_instance.bases()[0]).state,
-            "basis": orbit_instance.bases()[0],
+            "state": orbit_instance.transform(to=orbit_instance.bases_labels()[0]).state,
+            "basis": orbit_instance.bases_labels()[0],
             **kwargs,
         }
     ).transform(to=orbit_instance.basis)

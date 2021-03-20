@@ -60,8 +60,8 @@ def clip(orbit_instance, window_dimensions, **kwargs):
     )
 
     clipped_orbit = clipping_type(
-        state=orbit_instance.transform(to=orbit_instance.bases()[0]).state[slices],
-        basis=orbit_instance.bases()[0],
+        state=orbit_instance.transform(to=orbit_instance.bases_labels()[0]).state[slices],
+        basis=orbit_instance.bases_labels()[0],
         parameters=parameters,
         **kwargs
     )
@@ -103,11 +103,11 @@ def clipping_mask(orbit_instance, windows, invert=True):
     if invert:
         mask = np.invert(mask)
     masked_field = np.ma.masked_array(
-        orbit_instance.transform(to=orbit_instance.bases()[0]).state, mask=mask
+        orbit_instance.transform(to=orbit_instance.bases_labels()[0]).state, mask=mask
     )
     return orbit_instance.__class__(
         state=masked_field,
-        basis=orbit_instance.bases()[0],
+        basis=orbit_instance.bases_labels()[0],
         parameters=orbit_instance.parameters,
     )
 

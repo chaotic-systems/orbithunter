@@ -110,7 +110,7 @@ Static
 .. autosummary::
    :toctree: generated/
 
-   AntisymmetricOrbitKS.bases
+   AntisymmetricOrbitKS.bases_labels
    AntisymmetricOrbitKS.minimal_shape
    AntisymmetricOrbitKS.minimal_shape_increments
    AntisymmetricOrbitKS.discretization_labels

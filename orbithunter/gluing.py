@@ -162,7 +162,7 @@ def glue(orbit_array, orbit_type, strip_wise=False, **kwargs):
     gluing_order = kwargs.get("gluing_order", np.argsort(glue_shape))
     conserve_parity = kwargs.get("conserve_parity", True)
     nzero = kwargs.get("exclude_nonpositive", True)
-    gluing_basis = kwargs.get("basis", orbit_type.bases()[0])
+    gluing_basis = kwargs.get("basis", orbit_type.bases_labels()[0])
     # This joins the dictionary of all orbits' dimensions by zipping the values together. i.e.
     # (T_1, L_1, ...), (T_2, L_2, ...) transforms into  ((T_1, T_2, ...) , (L_1, L_2, ...))
 
@@ -246,7 +246,7 @@ def glue(orbit_array, orbit_type, strip_wise=False, **kwargs):
         # arrange the orbit states into an array of the same shape as the symbol array.
         orbit_field_list = np.array(
             [
-                o.transform(to=orbit_type.bases()[0]).state
+                o.transform(to=orbit_type.bases_labels()[0]).state
                 for o in orbit_array.ravel()
             ]
         )

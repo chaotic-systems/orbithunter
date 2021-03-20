@@ -110,7 +110,7 @@ Static
 .. autosummary::
    :toctree: generated/
 
-   ShiftReflectionOrbitKS.bases
+   ShiftReflectionOrbitKS.bases_labels
    ShiftReflectionOrbitKS.minimal_shape
    ShiftReflectionOrbitKS.minimal_shape_increments
    ShiftReflectionOrbitKS.discretization_labels

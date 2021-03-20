@@ -98,7 +98,7 @@ class OrbitKS(Orbit):
 
     def periodic_dimensions(self):
         """
-    Bools indicating whether or not dimension is periodic.
+        Bools indicating whether or not dimension is periodic.
 
         Returns
         -------
@@ -156,7 +156,7 @@ class OrbitKS(Orbit):
         return 2, 4
 
     @staticmethod
-    def bases():
+    def bases_labels():
         """
         Labels of the different bases produced by transforms.
 
@@ -352,11 +352,13 @@ class OrbitKS(Orbit):
         ----------
         order :int
             The order of the derivative.
-        computation_basis : str
-            The basis in which to perform the tensor products
         array : bool
             Whether or not to return a numpy array. Used for efficiency/avoiding construction of redundant
             Orbit instances.
+        `**kwargs :` dict
+            `computation_basis : str`
+                The basis in which to perform the tensor products
+
 
         Returns
         ----------
@@ -2303,7 +2305,7 @@ class RelativeOrbitKS(OrbitKS):
 
         return matvec_orbit
 
-    def change_reference_frame(self, to="comoving"):
+    def change_reference_frame(self, frame):
         """
         Transform to (or from) the co-moving frame depending on the current reference frame
 
@@ -2325,12 +2327,12 @@ class RelativeOrbitKS(OrbitKS):
 
         """
         # shift is ALWAYS stored as the shift amount from comoving to physical frame.
-        if to == "comoving":
+        if frame == "comoving":
             if self.frame == "physical":
                 shift = -1.0 * self.s
             else:
                 return self
-        elif to == "physical":
+        elif frame == "physical":
             if self.frame == "comoving":
                 shift = self.s
             else:
@@ -2363,7 +2365,7 @@ class RelativeOrbitKS(OrbitKS):
                 **vars(self),
                 "state": frame_rotated_spatial_modes,
                 "basis": "spatial_modes",
-                "frame": to,
+                "frame": frame,
             }
         )
         return rotated_orbit.transform(to=self.basis)
@@ -2544,10 +2546,10 @@ class RelativeOrbitKS(OrbitKS):
             return orbit_
 
     def from_fundamental_domain(self):
-        return self.change_reference_frame(to="comoving")
+        return self.change_reference_frame(frame="comoving")
 
     def to_fundamental_domain(self):
-        return self.change_reference_frame(to="physical")
+        return self.change_reference_frame(frame="physical")
 
     @classmethod
     def _default_parameter_ranges(cls):
@@ -4070,14 +4072,14 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             return orbit_
 
     def to_fundamental_domain(self):
-        return self.change_reference_frame(to="physical")
+        return self.change_reference_frame(frame="physical")
 
     def from_fundamental_domain(self):
         """
         For compatibility purposes with plotting and other utilities
 
         """
-        return self.change_reference_frame(to="physical")
+        return self.change_reference_frame(frame="comoving")
 
     @classmethod
     def dimension_based_discretization(cls, dimensions, **kwargs):

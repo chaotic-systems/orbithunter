@@ -111,7 +111,7 @@ Static
 .. autosummary::
    :toctree: generated/
 
-   EquilibriumOrbitKS.bases
+   EquilibriumOrbitKS.bases_labels
    EquilibriumOrbitKS.minimal_shape
    EquilibriumOrbitKS.minimal_shape_increments
    EquilibriumOrbitKS.discretization_labels

@@ -135,7 +135,7 @@ Static
 .. autosummary::
    :toctree: generated/
 
-   Orbit.bases
+   Orbit.bases_labels
    Orbit.parameter_labels
    Orbit.dimension_labels
    Orbit.discretization_labels

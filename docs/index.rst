@@ -1,11 +1,13 @@
 .. _contents:
 
-Orbithunter v0.5b1 (Beta)
+Orbithunter |version|
 
-Framework for Solving Spatiotemporal PDEs
-=========================================
+Framework for Nonlinear Dynamics and Chaos
+==========================================
 
-orbithunter serves as a framework for solving chaotic nonlinear partial differential equations.
+Orbithunter serves as a framework for solving chaotic nonlinear partial differential equations
+in "spatiotemporal form", which is to say, as `boundary value problems <https://en.wikipedia.org/wiki/Boundary_value_problem>`_ (typically with periodic
+boundary conditions) which manifest as `differential algebraic equations <https://en.wikipedia.org/wiki/Differential-algebraic_system_of_equations>`_.
 
 
 Features

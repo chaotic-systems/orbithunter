@@ -70,10 +70,15 @@ Or, install any optional package (e.g., ``gudhi``) individually::
 
     $ pip install gudhi
 
-To get `POT <https://pythonot.github.io/>`_ to install correctly, you need to have cython and
-numpy BEFORE you run::
 
-	$ pip install pot
+
+.. warning::
+	To get `POT <https://pythonot.github.io/>`_ to install correctly, you need to have cython and
+	numpy BEFORE you run::
+
+		$ pip install pot
+
+
 
 Testing
 -------
@@ -84,14 +89,17 @@ about pytest on their `homepage <https://pytest.org>`_.
 Test a source distribution
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-You can test the complete package from the unpacked source directory with::
+After navigating to the downloaded source directory, the tests can be evaluated by the following commands::
 
-    pytest orbithunter
+	pytest .
 
-Test an installed package
-^^^^^^^^^^^^^^^^^^^^^^^^^
+or for more control, pytest arguments can be included
 
-From a shell command prompt you can test the installed package with::
+    pytest --pyargs .
+	
+or for individual files e.g. ``test_basic.py``
+	
+	pytest --pyargs test_basic.py
 
-   pytest --pyargs orbithunter
-
+For those that are unaware ``.`` is synonymous with "evaluate in the current directory". Pytest will automatically
+search for the tests folder and any file that begins with the prefix "test". 

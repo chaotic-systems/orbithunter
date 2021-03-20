@@ -109,7 +109,7 @@ Static
 .. autosummary::
    :toctree: generated/
 
-   OrbitKS.bases
+   OrbitKS.bases_labels
    OrbitKS.minimal_shape
    OrbitKS.minimal_shape_increments
    OrbitKS.discretization_labels

@@ -7,7 +7,6 @@ import orbithunter as oh  # tests are setup to run against installed version onl
 here = pathlib.Path(__file__).parent.resolve()
 data_path = here / "tests_data.h5"
 
-
 @pytest.fixture()
 def fixed_orbit_data():
     """ Fixed test data to be used to initialize orbits"""
@@ -104,16 +103,6 @@ def test_assignment_operators_no_state():
     orbit_ **= orbit_
     orbit_ /= orbit_
     orbit_ //= orbit_
-
-
-def test_binary_operations_no_state():
-    orbit_ = oh.Orbit()
-    test_sum = orbit_ + orbit_
-    test_sub = orbit_ - orbit_
-    test_mul = orbit_ * orbit_
-    test_pow = orbit_ ** 2
-    test_div = orbit_ / 2
-    test_floor_div = orbit_ // 2
 
 
 def test_getitem(fixed_orbit_data):
@@ -275,7 +264,7 @@ def test_properties(fixed_orbit_data):
     orbit_ = oh.Orbit(state=fixed_orbit_data, basis="physical")
     _ = orbit_.shape
     _ = orbit_.size
-    _ = orbit_.bases()
+    _ = orbit_.bases_labels()
     _ = orbit_.parameter_labels()
     _ = orbit_.discretization_labels()
     _ = orbit_.dimension_labels()
@@ -344,7 +333,6 @@ def fixed_OrbitKS_data():
 
 def test_orbit_data():
     with h5py.File(data_path, "r") as file:
-
         def h5_helper(name, cls):
             nonlocal file
             attrs = dict(file["/".join([name, "0"])].attrs.items())
@@ -379,7 +367,6 @@ def test_orbit_data():
         "double_streak",
     )
     automatic = oh.read_h5(data_path, keys)
-
     for static, read in zip(manual, automatic):
         assert static.residual() < 1e-7
         assert static.residual() == read.residual()

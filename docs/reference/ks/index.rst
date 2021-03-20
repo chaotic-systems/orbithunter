@@ -1,3 +1,5 @@
+.. _ks:
+
 Kuramoto-Sivashinsky Equation
 -----------------------------
 
@@ -40,8 +42,14 @@ Orbit Types
    equilibriumorbitks
    relativeequilibriumorbitks
    shiftreflectionorbitks
-   physics
 
+Utilities
+=========
+
+.. toctree::
+   :maxdepth: 1
+
+   physics
 
 
 
