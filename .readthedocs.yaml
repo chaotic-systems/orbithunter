@@ -14,14 +14,14 @@ formats:
    - htmlzip
 
 python:
-  version: 3.7
-  install:
-    - requirements: requirements/default.txt
-    - requirements: requirements/docs.txt
-    - method: pip
-      path: .
-      extra_requirements:
-        - docs
-        - extra
-  system_packages: true
-  setup_py_install: true
+   setup_py_install: true
+   system_packages: true
+   version: 3.7
+   install:
+   - requirements: requirements/default.txt
+   - requirements: requirements/docs.txt
+   - method: pip
+     path: .
+     extra_requirements:
+       - docs
+       - extra
