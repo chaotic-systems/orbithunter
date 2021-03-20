@@ -1,4 +1,4 @@
-orbithunter 0.5rc1
+orbithunter 0.5rc2
 ==================
 orbithunter serves as a framework for solving chaotic nonlinear partial differential equations.
 
@@ -15,15 +15,15 @@ Currently there is only an implementation of the Kuramoto-Sivashinsky equation (
 External Links
 --------------
 
-Be sure to check out the `documentation <https://readthedocs.org/projects/orbithunter/">`_
-in addition to the resources included in the github repository for help and tutorials!
+Be sure to check out these resources for help and development!
 
-- `Home Page <https://mgudorf.github.io/orbithunter>`_
-- `Issues and Bugs <github.com/mgudorf/orbithunter/issues>`_
+- `Homepage and Documentation <https://orbithunter.readthedocs.io/en/latest/index.html>`_
+- `Issues <https://orbithunter.readthedocs.io/en/latest/issues.html>`_
+- `Bug reports <https://github.com/mgudorf/orbithunter/issues>`_
 - `Source <https://github.com/mgudorf/orbithunter>`_
-- `Documentation: <https://readthedocs.org/projects/orbithunter>`_
-- `Tutorials: <https://github.com/mgudorf/orbithunter/tree/main/notebooks>`_
-- `FAQ <https://github.com/mgudorf/orbithunter/tree/main/docs/faq.rst>`_
+- `Developer Guide <https://orbithunter.readthedocs.io/en/latest/guide.html>`_
+- `Notebook Tutorials: <https://github.com/mgudorf/orbithunter/tree/main/notebooks>`_
+- `FAQ <https://orbithunter.readthedocs.io/en/latest/faq.html>`_
 
 Support
 -------

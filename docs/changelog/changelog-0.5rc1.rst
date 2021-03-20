@@ -1,4 +1,4 @@
-orbithunter 0.5rc1
+orbithunter 0.5rc2
 ==================
 
 .. currentmodule:: orbithunter

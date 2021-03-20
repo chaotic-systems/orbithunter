@@ -37,7 +37,7 @@ setup(
     description="Framework for Nonlinear Dynamics and Chaos",
     long_description=long_description,
     long_description_content_type="text/x-rst",
-    url="https://mgudorf.github.io/orbithunter/",  # Optional
+    url="https://orbithunter.readthedocs.io/en/latest/index.html",  # Optional
     author="Matthew Gudorf",
     author_email="matthew.gudorf@gmail.com",  # Optional
     classifiers=[
@@ -76,12 +76,13 @@ setup(
     install_requires=install_requires,
     extras_require=extras_require,
     project_urls={
-        "bug reports": "https://github.com/mgudorf/orbithunter/issues",
-        "documentation": "https://readthedocs.org/projects/orbithunter/",
-        "source": "https://github.com/mgudorf/orbithunter/",
-        "tracker": "https://github.com/orbithunter/docs/issues",
-        "home page": "https://mgudorf.github.io/orbithunter/",
-        "tutorials": "https://github.com/mgudorf/orbithunter/tree/main/notebooks",
-        "frequently asked questions": "https://github.com/mgudorf/orbithunter/tree/main/docs/faq.rst",
+                "documentation": "https://orbithunter.readthedocs.io/en/latest/index.html",
+                "issues": "https://orbithunter.readthedocs.io/en/latest/issues.html",
+                "bugs": "https://github.com/mgudorf/orbithunter/issues",
+                "source": "https://github.com/mgudorf/orbithunter",
+                "guide": "https://orbithunter.readthedocs.io/en/latest/guide.html",
+                "tutorials": "https://github.com/mgudorf/orbithunter/tree/main/notebooks",
+                "faq": "https://orbithunter.readthedocs.io/en/latest/faq.html"
     },
+    package_data={"orbithunter": ["requirements/*.txt"]}
 )
