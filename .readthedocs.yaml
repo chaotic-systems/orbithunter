@@ -14,7 +14,6 @@ formats:
    - htmlzip
 
 python:
-   setup_py_install: true
    system_packages: true
    version: 3.7
    install:
