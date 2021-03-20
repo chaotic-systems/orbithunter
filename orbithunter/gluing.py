@@ -3,11 +3,13 @@ import numpy as np
 import itertools
 from collections import Counter
 
-__all__ = ["tile", "glue", "populate_symbol_arrays", "rediscretize_tileset"]
+__all__ = ["tile", "glue", "generate_symbol_arrays", "rediscretize_tileset", "expensive_pairwise_glue",
+           "aspect_ratio_correction"]
 
 
-def _correct_aspect_ratios(orbit_array, axis=0, conserve_parity=True):
-    """ Correct aspect ratios of a one-dimensional strip of orbits.
+def aspect_ratio_correction(orbit_array, axis=0, conserve_parity=True):
+    """
+    Resize a collection of Orbits' discretizations according to their sizes in the dimension specified by axis.
 
     Parameters
     ----------
@@ -22,17 +24,19 @@ def _correct_aspect_ratios(orbit_array, axis=0, conserve_parity=True):
     Returns
     -------
     ndarray :
-        An array of resized orbits, same shape as the original array.
+        An array of resized orbits, same shape as `orbit_array`.
 
     Notes
     -----
     Note that this *will* allow equilibria tiles to become very distorted; this can be managed by gluing
     order but typically when including equilibria, strip-wise corrections cause too much distortion to be useful.
+    This is not an issue, however, as this method should never really be used for dramatically different sized Orbits
+    unless the distortions are permitted.
 
     """
+    # Get the dimensions and corresponding discretization sizes.
     dims = np.array([o.dimensions()[axis] for o in orbit_array])
     sizes = np.array([o.shapes()[0][axis] for o in orbit_array])
-
     disc_total = np.sum(sizes)
     dim_total = np.sum(dims)
 
@@ -105,8 +109,9 @@ def _correct_aspect_ratios(orbit_array, axis=0, conserve_parity=True):
     return np.array([o.resize(shp) for o, shp in zip(orbit_array, new_shapes)])
 
 
-def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
-    """ Function for combining spatiotemporal fields
+def glue(orbit_array, orbit_type, strip_wise=False, **kwargs):
+    """
+    Combines the state arrays of a configuration of Orbits
 
     Parameters
     ----------
@@ -115,45 +120,39 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
         representative to how the orbits are going to be glued. See notes for more details. The orbits must all
         have the same discretization size if gluing is occuring along more than one axis. The orbits should
         all be in the physical field basis.
-    class_constructor : Orbit class
-        Not an instance.
+    orbit_type : Orbit type
+        The class that the final result will be returned as.
     strip_wise : bool
-        If True, then "strip-wise aspect ratio correction" is applied.
+        If True, then the "strip-wise aspect ratio correction" is applied. See :func:`aspect_ratio_correction`.
+
     Returns
     -------
-    glued_orbit : Orbit instance
-        Instance of type class_constructor
+    glued_orbit : Orbit
+        Instance of type orbit_type, whose state and dimensions are the combination of the original array of orbits.
 
     Notes
     -----
-    Assumes that each orbit in the array has identical dimensions in all other axes other than the one specified.
-    Assumes no symmetries of the different orbits in the array. There are too many complications if handled otherwise.
-
     Because of how the concatenation of fields works, wherein the discretization must match along the boundaries. It
-    is quite complicated to write a generalized code that glues all dimensions together at once, so instead this is
-    designed to iterate through the axes of the orbit_array.
+    is quite complicated to write a generalized code that glues all dimensions together at once for differently sized,
+    orbit, so instead this is designed to iterate through the axes of the orbit_array.
 
-    To prevent confusion, there are many different "shapes" and discretizations that are possibly floating around.
+    To prevent confusion, there are many different notions of 'shape' and 'discretization' that are relevant.
     There are three main array shapes or dimensions that are involved in this function. The first is the array
     of orbits, which represents a spatiotemporal symbolic "dynamics" block. This array can have as many dimensions
     as the solutions to the equation have. An array of orbits of shape (2,1,1,1) means that the fields have four
-    continuous dimensions; they need not be scalar fields either. The specific shape means that two such fields
-    are being concatenated in time (because the first axis should always be time).
+    continuous dimensions. The specific shape means that two such fields
+    are being concatenated in time (because the first axis should always be time) by orbithunter convention.
 
     Example for the spatiotemporal Navier-stokes equation. The spacetime is (1+3) dimensional. Let's assume we're gluing
     two vector fields with the same discretization size, (N, X, Y, Z). We can think of this discretization as a
     collection of 3D vector field snapshots in time. Therefore, there are actually (N, X, Y, Z, 3) degrees of freedom.
-    Therefore
-    the actually tensor before the gluing will be of the shape (2, 1, 1, 1, N, X, Y, Z, 3). Because we are gluing the
-    orbits along the time axis, The final shape will be (1, 1, 1, 1, 2*N, X, Y, Z, 3), given that the original
-    X, Y, Z, are all the same size. Being forced to have everything the same size is what makes this difficult, because
-    this dramatically complicates things for a multi-dimensional symbol array.
-
-    It's so complicated that for gluing along more than one axis its only really viable to start with tiles with the
-    same shape.
+    Therefore the actually tensor before the gluing will be of the shape (2, 1, 1, 1, N, X, Y, Z, 3).
+    Because we are gluing the orbits along the time axis, The final shape will be (1, 1, 1, 1, 2*N, X, Y, Z, 3),
+    given that the original X, Y, Z, are all the same size. Being forced to have everything the same size is what
+    makes this difficult, because this dramatically complicates things for a multi-dimensional symbol array.
 
     For a symbol array of shape (a, b, c, d) and orbit field with shape (N, X, Y, Z, 3) the final dimensions
-    would be (a*N, b*X, c*Y, d*Z, 3). I believe that this can be achieved by repeated concatenation along the
+    would be (a*N, b*X, c*Y, d*Z, 3). This is achieved by repeated concatenation along the
     axis corresponding to the last axis of the symbol array. i.e. for (a,b,c,d) this would be concatenation along
     axis=3, 4 times in a row. I believe that this generalizes for all equations but it has not been tested yet.
 
@@ -163,7 +162,7 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
     gluing_order = kwargs.get("gluing_order", np.argsort(glue_shape))
     conserve_parity = kwargs.get("conserve_parity", True)
     nzero = kwargs.get("exclude_nonpositive", True)
-    gluing_basis = kwargs.get("basis", class_constructor.bases()[0])
+    gluing_basis = kwargs.get("basis", orbit_type.bases()[0])
     # This joins the dictionary of all orbits' dimensions by zipping the values together. i.e.
     # (T_1, L_1, ...), (T_2, L_2, ...) transforms into  ((T_1, T_2, ...) , (L_1, L_2, ...))
 
@@ -191,7 +190,7 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
                 tuple_of_zipped_dimensions = tuple(
                     zip(*(o.dimensions() for o in orbit_array[gs].ravel()))
                 )
-                strip_parameters = class_constructor.glue_dimensions(
+                strip_parameters = orbit_type.glue_dimensions(
                     tuple_of_zipped_dimensions,
                     glue_shape=strip_shape,
                     exclude_nonpositive=nzero,
@@ -200,7 +199,7 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
                 strip_of_orbits = orbit_array[gs].ravel()
 
                 # Correct the proportions of the dimensions along the current gluing axis.
-                orbit_array_corrected = _correct_aspect_ratios(
+                orbit_array_corrected = aspect_ratio_correction(
                     strip_of_orbits, axis=gluing_axis, conserve_parity=conserve_parity
                 )
                 # Concatenate the states with corrected proportions.
@@ -208,7 +207,7 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
                     tuple(x.state for x in orbit_array_corrected), axis=gluing_axis
                 )
                 # Put the glued strip's state back into a class instance.
-                glued_strip_orbit = class_constructor(
+                glued_strip_orbit = orbit_type(
                     state=glued_strip_state,
                     basis=gluing_basis,
                     parameters=strip_parameters,
@@ -234,7 +233,7 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
         # Bundle all of the parameters at once, instead of "stripwise"
         zipped_dimensions = tuple(zip(*(o.dimensions() for o in orbit_array.ravel())))
         # Default parameter gluing strategy is to average all tile dimensions
-        glued_parameters = class_constructor.glue_dimensions(
+        glued_parameters = orbit_type.glue_dimensions(
             zipped_dimensions, glue_shape=glue_shape, exclude_nonpositive=nzero
         )
         # If we want a much simpler method of gluing, we can do "arraywise" which simply concatenates everything at
@@ -247,7 +246,7 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
         # arrange the orbit states into an array of the same shape as the symbol array.
         orbit_field_list = np.array(
             [
-                o.transform(to=class_constructor.bases()[0]).state
+                o.transform(to=orbit_type.bases()[0]).state
                 for o in orbit_array.ravel()
             ]
         )
@@ -258,7 +257,7 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
         while len(glued_orbit_state.shape) > len(tile_shape):
             glued_orbit_state = np.concatenate(glued_orbit_state, axis=gluing_axis)
 
-        glued_orbit = class_constructor(
+        glued_orbit = orbit_type(
             state=glued_orbit_state,
             basis=gluing_basis,
             parameters=glued_parameters,
@@ -267,54 +266,59 @@ def glue(orbit_array, class_constructor, strip_wise=False, **kwargs):
     return glued_orbit
 
 
-def tile(symbol_array, tiling_dictionary, class_constructor, **kwargs):
+def tile(symbol_array, tiling_dictionary, orbit_type, **kwargs):
     """
+    Wraps the glue function so that configurations of symbols may be provided instead of configurations of Orbits.
+
     Parameters
     ----------
     symbol_array : numpy.ndarray
         An array of dictionary keys which exist in tiling_dictionary
     tiling_dictionary : dict
         A dictionary whose values are Orbit instances.
-    class_constructor : object
-        The class object that the result will be initialized as.
+    orbit_type : type
+        The type of Orbit that will be returned.
     kwargs :
-        Orbit kwargs relevant to instantiation and gluing. See glue for details.
+        Orbit kwargs relevant to instantiation and gluing. See :func:`glue` for details.
 
     Returns
     -------
-    Orbit :
+    Orbit : `orbit_type`
         An instance containing the glued state
-
-    Notes
-    -----
-    This is simply a wrapper for gluing that allows the user to submit symbol arrays and dictionaries instead
-    of orbit arrays.
 
     """
     symbol_array_shape = symbol_array.shape
     orbit_array = np.array(
         [tiling_dictionary[symbol] for symbol in symbol_array.ravel()]
     ).reshape(*symbol_array_shape)
-    glued_orbit = glue(orbit_array, class_constructor, **kwargs)
+    glued_orbit = glue(orbit_array, orbit_type, **kwargs)
     return glued_orbit
 
 
-def populate_symbol_arrays(tiling_dictionary, glue_shape, unique=True):
-    """ Produce all d-dimensional symbol arrays for a given dictionary and shape.
+def generate_symbol_arrays(tiling_dictionary, glue_shape, unique=True):
+    """
+    Produce all d-dimensional symbol arrays for a given dictionary and shape.
 
     Parameters
     ----------
-    tiling_dictionary
-    glue_shape
-    unique
+    tiling_dictionary : dict
+        Dictionary whose keys are the orbit symbols and whose values are Orbits
+    glue_shape : tuple
+        The shape of the gluing configuration (i.e. symbol array)
+    unique : bool
+        If True, then rotations of symbol arrays are treated as redundant.
 
     Returns
     -------
+    list of ndarray :
+        A list of numpy arrays containing configurations of symbols (`tiling_dictionary` keys).
 
     Notes
     -----
     If unique = False then this produces a list of d^N elements, d being the dimension and N being the number
-    of symbols in the dictionary.
+    of symbols in the dictionary. Clearly this can be a huge drain on resources in certain cases. If possible,
+    it is better to take the group orbit of the glued orbits resulting from a symbol array than all possible symbol
+    arrays.
 
     """
     symbol_array_generator = itertools.product(
@@ -343,6 +347,25 @@ def populate_symbol_arrays(tiling_dictionary, glue_shape, unique=True):
 
 
 def rediscretize_tileset(tiling_dictionary, new_shape=None, **kwargs):
+    """
+    Convenience tool for resizing all orbits in a tiling dictionary in a single function call
+
+    Parameters
+    ----------
+    tiling_dictionary : dict
+        Keys are symbol alphabet, values are Orbits.
+    new_shape : tuple, optional, default None
+        If provided as a shape tuple then all orbits in the tiling dictionary will be
+        resized to this shape.
+    kwargs : dict
+        Keyword arguments for :meth:`Orbit.dimension_based_discretization` method
+        
+    Returns
+    -------
+    dict :
+        Tiling dictionary whose values (Orbits) have been resized.
+
+    """
     orbits = list(tiling_dictionary.values())
     if new_shape is None:
         # If the user is really lazy this will make the dictionary uniform by
@@ -364,66 +387,101 @@ def rediscretize_tileset(tiling_dictionary, new_shape=None, **kwargs):
 
 
 def pairwise_group_orbit(orbit_pair, **kwargs):
-    """ Generate all pairwise elements from two group orbits. I.e. all symmetry combinations.
+    """
+    Generate all pairs of elements from two group orbits.
 
     Parameters
     ----------
+    orbit_pair : array-like
+        Two orbits whose group orbit product is to be computed; all possible pairs of group
+        orbit members.
     kwargs :
-        keyword arguments relevant for group orbit generators; most notably, whether or not to use the
-        fundamental domain of each orbit or not.
+        keyword arguments relevant for group orbit generators; specific to symmetries of governing equation.
 
+    Yields
+    ------
+    tuple :
+        Pairs of Orbits 
+    
     Notes
     -----
-    Keeping this as a generator saves a *lot* of time, hence the reason for the function instead of just
-    instantiating the itertools product.
+    Group orbits are the sets of Orbits resulting from applying a group of equivariant symmetry operations to an Orbit.
+
     """
+    orbit_pair = np.array(orbit_pair)
     yield from itertools.product(
         orbit_pair.ravel()[0].group_orbit(**kwargs),
         orbit_pair.ravel()[1].group_orbit(**kwargs),
     )
 
 
-def expensive_glue(orbit_pair_array, class_constructor, method="residual", **kwargs):
-    """ Gluing that searches group orbit for the best gluing.
+def expensive_pairwise_glue(orbit_pair_array, orbit_type, objective="residual", **kwargs):
+    """
+    Gluing that searches pairs of group orbit members for the best combination.
+    
+    Parameters
+    ----------
+    orbit_pair_array : np.ndarray
+        An array with the same number of dimensions as the orbits within them; i.e. (2, 1, 1, 1), (1, 2, 1, 1), ...
+        for Orbits with 4 dimensions.
+    orbit_type : type
+        The Orbit type to return the result as.
+    objective : str
+        The manner that orbit combinations are graded; options are 'residual' or 'boundary_residual'.
+        The former calls the Orbit's built in residual function, the latter computes the
+        L2 difference of the boundaries that are joined together.
 
+    Returns
+    -------
+    best_glued_orbit_so_far : Orbit
+        The orbit combination in the pairwise group orbit that had the smallest objective function value.
+    
     Notes
     -----
-    This can not only be expensive, it can be VERY expensive depending on the generator x.group_orbit().
-    It is highly advised to have some way of controlling how many members of each group orbit are being used.
-    For example, for the K-S equation and its translational symmetries, the field arrays are being rolled; the
-    option exists to roll by an integer "stride" value s.t. instead of shifting by one unit, a number of units
-    equal to stride is shifted.
+    Expensive gluing only supported for pairs of Orbits. For larger arrays of orbits, apply this function in
+    an iterative manner if so desired.
 
-    With regards to discrete symmetries
+    This function can not only be expensive, it can be VERY expensive depending on the generator x.group_orbit().
+    It is highly advised to have some way of controlling how many members of each group orbit are being used.
+    For example, for the K-S equation and its translational symmetries, the field arrays are typically being rolled; the
+    option exists to roll by an integer "stride" value s.t. instead of shifting by one unit, a number of units
+    equal to stride is shifted. Note that for group orbits of size 1000, this would construct and search over 1000000
+    combinations, unless a subset of the group orbit is specified.
+
     """
     # Aspect ratio correction prior to gluing means that it does not have to be done for each combination.
     gluing_axis = int(np.argmax(orbit_pair_array.shape))
     # The best orbit pair at the start is by default the first one.
-    best_glued_orbit_so_far = glue(orbit_pair_array, class_constructor, **kwargs)
+    best_glued_orbit_so_far = glue(orbit_pair_array, orbit_type, **kwargs)
     smallest_residual_so_far = best_glued_orbit_so_far.residual()
     # iterate over all combinations of group orbit members; keyword arguments can be passed to control sampling rate.
     for ga, gb in pairwise_group_orbit(orbit_pair_array, **kwargs):
-        if method == "boundary_residual":
+        if objective == "boundary_residual":
             # Ugly way of slicing the state arrays at the boundaries. This is assuming periodic boundary conditions.
             aslice = tuple(
-                (0, -1) if i == gluing_axis else slice(None)
-                for i in range(orbit_pair_array.ndim)
+                           (0, -1) if i == gluing_axis and periodic else
+                           -1 if i == gluing_axis else
+                           slice(None)
+                           for i, periodic in enumerate(ga.periodic_dimension())
             )
             bslice = tuple(
-                (-1, 0) if i == gluing_axis else slice(None)
-                for i in range(orbit_pair_array.ndim)
+                           (-1, 0) if i == gluing_axis and periodic else
+                           0 if i == gluing_axis else
+                           slice(None)
+                           for i, periodic in enumerate(ga.periodic_dimension())
             )
+            # Slice the state and not the orbit, as slices may not be valid (do not retain number of dimensions)
             boundary_residual = np.linalg.norm(ga.state[aslice] - gb.state[bslice])
             if boundary_residual < smallest_residual_so_far:
                 best_glued_orbit_so_far = glue(
                     np.array([ga, gb]).reshape(orbit_pair_array.shape),
-                    class_constructor,
+                    orbit_type,
                     **kwargs
                 )
                 smallest_residual_so_far = boundary_residual
         else:
             g_orbit_array = np.array([ga, gb]).reshape(orbit_pair_array.shape)
-            best_glued_orbit_so_far = glue(g_orbit_array, class_constructor, **kwargs)
+            best_glued_orbit_so_far = glue(g_orbit_array, orbit_type, **kwargs)
             residual = best_glued_orbit_so_far.residual()
             if residual < smallest_residual_so_far:
                 smallest_residual_so_far = residual

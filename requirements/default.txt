@@ -1,0 +1,6 @@
+numpy>=1.18.1
+scipy>=1.4.1
+h5py>=2.10.0
+# matplotlib backend will sometimes use qt4; edit matplotlibrc is alternative to install of pyqt5 I think; needs testing
+pyqt5>=5.15.4
+matplotlib>=3.1.3

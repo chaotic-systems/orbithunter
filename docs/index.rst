@@ -7,26 +7,20 @@ Framework for Solving Spatiotemporal PDEs
 
 orbithunter serves as a framework for solving chaotic nonlinear partial differential equations.
 
-.. `PhD thesis <https://github.com/mgudorf/orbithunter/tree/main/docs/spatiotemporal_tiling_of_the_KSe.pdf>`_
 
 Features
 --------
 
 - An object oriented approach to solutions of partial differential equations
 - A general-purpose framework for finding, visualizing and manipulating these solutions
-- High-level access to SciPy API, particularly its minimize and optimize packages.
-- New spatiotemporal techniques developed in <PhD thesis>'_
+- High-level access to SciPy API for usage with partial differential equations (and other). 
+- New spatiotemporal techniques developed in `PhD thesis <https://github.com/mgudorf/orbithunter/blob/main/docs/spatiotemporal_tiling_of_the_KSe.pdf>`_
 
-Orbithunter uses `NumPy <https://numpy.org/doc/>`_ and `SciPy <https://www.scipy.org/docs.html>`_
+Orbithunter uses [NumPy]_ and [SciPy]_
 for its numerical calculations. Its design emphasizes user-friendliness and modularity;
-giving quick and easy access to high-level numerical operations.
-Currently there is only an implementation of the Kuramoto-Sivashinsky equation (KSE);
+giving quick and easy access to high-level numerical operations
 
-Checkout the resources included in the github repository for help and tutorials! 
-
-.. `Tutorial notebooks <https://github.com/mgudorf/orbithunter/tree/main/notebooks>`_
-
-Check out these jupyter notebooks for a walkthrough of the various tools and utilities. 
+Checkout the resources included in the github repository for more help and tutorials! 
 
 Documentation
 -------------
@@ -40,16 +34,15 @@ Documentation
    :maxdepth: 1
 
    install
-   tutorial
-   reference/index
    guide
+   reference/index
    agenda
-   faq
    issues
+   extra_resources
+   faq
+   bibliography
    news
    license
-   external
-   bibliography
 
 Indices and tables
 ------------------
@@ -58,3 +51,11 @@ Indices and tables
 * :ref:`modindex`
 * :ref:`search`
 * :ref:`glossary`
+
+
+Special Thanks
+--------------
+
+I'd like to thank the open source projects [Networkx]_, [NumPy]_, [SciPy]_ and many other packages
+for being great guides of how to setup, document, and structure Python packages, in addition to the great tools
+they provide. 

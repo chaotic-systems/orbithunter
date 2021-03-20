@@ -1,17 +1,21 @@
 Reference
-=========
+*********
+
+   :Release: |release|
+   :Date: |today|
 
 .. toctree::
    :maxdepth: 2
 
-   introduction
    core
    ks/index
    optimize
-   io
    clipping
+   continuation
    gluing
-   continuation   
+   persistent_homology
+   machine_learning
    shadowing
-   gudhi
+   io
    glossary
+   

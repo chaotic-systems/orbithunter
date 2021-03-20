@@ -1,8 +1,12 @@
-=====
-Orbit
-=====
+.. _core:
 
+================
+Base Orbit Class
+================
 
+The base Orbit class
+
+.. _coreoverview:
 
 Overview
 ========
@@ -13,8 +17,25 @@ Overview
 Methods
 =======
 
-Binary Operators
-----------------
+Initialization
+--------------
+
+Examples of these methods are included in in :ref:`coreoverview`
+
+.. autosummary::
+   :toctree: generated/
+
+   Orbit.__init__
+   Orbit.populate
+   Orbit._populate_state
+   Orbit._populate_parameters
+   Orbit._parse_state
+   Orbit._parse_parameters
+
+See `Python Docs <https://docs.python.org/2/reference/datamodel.html#special-method-names>`_ for the definition of 'special'
+
+Special Methods
+---------------
 
 .. autosummary::
    :toctree: generated/
@@ -29,13 +50,6 @@ Binary Operators
    Orbit.__floordiv__
    Orbit.__pow__
    Orbit.__mod__
-
-Assignment Operators
---------------------
-
-.. autosummary::
-   :toctree: generated/
-
    Orbit.__iadd__
    Orbit.__isub__
    Orbit.__imul__
@@ -43,37 +57,24 @@ Assignment Operators
    Orbit.__itruediv__
    Orbit.__ifloordiv__
    Orbit.__imod__
-
-Miscellaneous Built-ins
-------------------------
-
-.. autosummary::
-   :toctree: generated/
-
    Orbit.__str__
    Orbit.__repr__
    Orbit.__getattr__
    Orbit.__getitem__
 
-Properties and Defaults
------------------------
+Properties
+----------
 
 .. autosummary::
    :toctree: generated/
 
    Orbit.shape
    Orbit.size
+   Orbit.ndim
+
 
 State Transformations
 ---------------------
-.. autosummary::
-   :toctree: generated/
-
-   Orbit.populate
-   Orbit.resize
-
-Symmetry Transformations
-------------------------
 
 .. autosummary::
    :toctree: generated/
@@ -83,9 +84,12 @@ Symmetry Transformations
    Orbit.cell_shift
    Orbit.to_fundamental_domain
    Orbit.from_fundamental_domain
+   Orbit.resize
+   Orbit._pad
+   Orbit._truncate
 
-Numerical Methods
------------------
+Math Functions
+--------------
 
 .. autosummary::
    :toctree: generated/
@@ -95,18 +99,14 @@ Numerical Methods
    Orbit.norm
    Orbit.orbit_vector
    Orbit.residual
-   Orbit.dx
-   Orbit.dt
    Orbit.eqn
    Orbit.matvec
    Orbit.rmatvec
-   Orbit.cost_function_gradient
-   Orbit.precondition
+   Orbit.objgrad
    Orbit.rescale
    Orbit.from_numpy_array
    Orbit.increment
    Orbit.jacobian
-
 
 Discretization and Dimension
 ----------------------------
@@ -117,6 +117,7 @@ Discretization and Dimension
    Orbit.shapes
    Orbit.dimensions
    Orbit.glue_dimensions
+   Orbit.periodic_dimensions
    Orbit.dimension_based_discretization
 
 Reading and Writing
@@ -130,6 +131,7 @@ Reading and Writing
 
 Static
 ------
+
 .. autosummary::
    :toctree: generated/
 
@@ -137,10 +139,8 @@ Static
    Orbit.parameter_labels
    Orbit.dimension_labels
    Orbit.discretization_labels
-   Orbit.default_shape
    Orbit.minimal_shape
    Orbit.minimal_shape_increments
-
 
 Other
 -----
@@ -151,6 +151,22 @@ Other
    Orbit.copy
    Orbit.mask
    Orbit.constrain
-   Orbit.glue_dimensions
-   Orbit.periodic_dimensions
+   Orbit.preprocess
+
+Defaults
+--------
+
+.. autosummary::
+   :toctree: generated/
+
+   Orbit.defaults
+   Orbit._default_shape
+   Orbit._default_parameter_ranges
+   Orbit._default_constraints
+
+
+Utility Functions
+=================
+
+.. autofunction:: convert_class
 

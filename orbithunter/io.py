@@ -1,6 +1,5 @@
 import os
 import numpy as np
-import itertools
 import h5py
 import sys
 import importlib
@@ -8,10 +7,6 @@ import importlib
 __all__ = [
     "read_h5",
     "read_tileset",
-    "convergence_log",
-    "refurbish_log",
-    "write_symbolic_log",
-    "read_symbolic_log",
     "to_symbol_string",
     "to_symbol_array",
 ]
@@ -33,29 +28,29 @@ def read_h5(filename, *datanames, validate=False, **orbitkwargs):
     ----------
     filename : str
         Absolute or relative path to .h5 file
-    datanames : str or tuple
+    datanames : str or tuple, optional
         Names of either h5py.Datasets or h5py.Groups within .h5 file. Recursively returns all orbits (h5py.Datasets)
         associated with all names provided. If nothing provided, return all datasets in file.
     validate : bool
-        Whether or not to access Orbit().preprocess, presumably checking the integrity of the imported data.
+        Whether or not to access Orbit().preprocess a method which checks the 'integrity' of the imported data;
+        in terms of its status as a solution to its equations, NOT the actual file integrity.
     orbitkwargs : dict
-        Any additional keyword arguments relevant for instantiation.
+        Any additional keyword arguments relevant for construction of specified Orbit instances. .
 
     Returns
     -------
     Orbit or list of Orbits or list of list of Orbits
-        The imported data; either a single orbit instance or a list of orbit instances.
+        The imported data; If a single h5py.Dataset's name is specified, an Orbit is returned.
+        If multiple Datasets are specified, a list of Orbits are returned.
+        If a h5py.Group name is specified, then a list of Orbits is returned.
+        If a combination of h5py.Dataset and h5py.Group names are provided, then the result is a list interspersed
+        with either Orbits or lists of Orbits, arranged in the order based on the provided names.
 
     Notes
     -----
-    datanames can either be a single string, iterable, or nothing at all. If nothing provided then all datasets
-    in the h5 file are imported. This function is to make importation of multiple orbits more efficient,
-    i.e. avoiding multiple dynamic imports of the same package. The purpose of this function is only to import data
-    whose file and group names are known. Querying .h5 files must be done through the h5py API instead.
-
-    The state data should be saved as a dataset. The attributes which are required for expected output
-     are 'basis', 'class', 'parameters'; all attributes included by default are 'discretization'
-     (state shape in physical basis, not necessarily the shape of the saved state).
+    The 'state' data should be saved as a dataset. The other attributes which define an Orbit,
+    which are required for expected output are 'basis', 'class', 'parameters'; all attributes included by
+    default are 'discretization' (state shape in physical basis, not necessarily the shape of the saved state).
 
     This searches through provided h5py.Groups recursively to extract all datasets. If you need to distinguish
     between two groups which are in the same parent group, both names must be provided separately.
@@ -65,6 +60,7 @@ def read_h5(filename, *datanames, validate=False, **orbitkwargs):
     one value to the same keyword argument.
     This passes all saved attributes, tuple or None for parameters, and any additional keyword
     arguments to the class
+
     """
 
     # unpack tuples so providing multiple strings or strings in a tuple yield same results.
@@ -92,7 +88,6 @@ def read_h5(filename, *datanames, validate=False, **orbitkwargs):
         # If no Dataset/Group names were provided, iterate through the entire file.
         for name in datanames or file:
             if isinstance(file[name], h5py.Group):
-                # Separate groups as lists?
                 groupsets = []
                 file[name].visititems(parse_datasets)
                 datasets.append(groupsets)
@@ -145,7 +140,7 @@ def read_h5(filename, *datanames, validate=False, **orbitkwargs):
 
 
 def read_tileset(filename, keys, orbit_names, validate=False, **orbitkwargs):
-    """ Importation of data as tiling dictionary
+    """Importation of data as tiling dictionary
 
     Parameters
     ----------

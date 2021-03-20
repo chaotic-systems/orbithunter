@@ -1,10 +1,10 @@
 include pyproject.toml
 
 # Include the README
-include *.rst
+include README.rst
 
 # Include the license file
-include LICENSE.txt
+include LICENSE.rst
 
 # Include setup.py
 include setup.py

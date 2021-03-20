@@ -4,27 +4,137 @@ import numpy as np
 __all__ = ["clip", "clipping_mask"]
 
 
-def _slices_from_window(orbit_, window_dimensions, time_ordering="decreasing"):
-    """ Get slices
+def clip(orbit_instance, window_dimensions, **kwargs):
+    """ Create Orbit instance whose state array is a subdomain of the provided Orbit.
 
     Parameters
     ----------
-    orbit_
-    window_dimensions
-    time_ordering : str
-        The convention for orbithunter is that time is always in decreasing order, this makes the positive time
-        direction "up", an artifact
+    orbit_instance : Orbit
+        The orbit whose state the subdomain is extracted from.
+    window_dimensions : tuple of tuples.
+        Contains one tuple for each continuous dimension, each defining the interval of the dimension to slice out.
+
+    kwargs : dict
+        Keyword arguments for Orbit instantiate.
 
     Returns
     -------
+    Orbit :
+        Orbit whose state and parameters reflect the subdomain defined by the provided dimensions.
+
+    Notes
+    -----
+    The intervals provided refer to the :meth:`Orbit._plotting_dimensions()` method. The motivation
+    here is to allow for clipping using visualization techniques as a direct guide.
+    If a dimension has zero extent; i.e. equilibrium in that dimension, then the corresponding window_dimension
+    tuple must be passed as (None, None).
+
+
+
+
+    Examples
+    --------
+
+    Extract subdomain from an Orbit
+
+    >>> orb = Orbit(state=np.ones([128, 128, 128, 128]), basis='physical',
+    ...                              parameters=(100, 100, 100, 100))
+    >>> one_sixteeth_subdomain_orbit = clip(orb, ((0, 50), (0, 50), (0, 50), (0, 50)))
+
+    It is 1/16th the size because it takes half of the points in 4 different dimensions.
+
+
 
     """
-    shape = orbit_.shapes()[0]
+    clipping_type = kwargs.get("clipping_type", orbit_instance.__class__)
+    slices, dimensions = _slices_from_window(orbit_instance, window_dimensions)
+
+    # It of course is better to get the dimensions/parameters from the clipping directly, but if the user wants to
+    # this gives them the ability to override.
+    parameters = kwargs.pop(
+        "parameters",
+        tuple(
+            dimensions[i] if i < len(dimensions) else p
+            for i, p in enumerate(orbit_instance.parameters)
+        ),
+    )
+
+    clipped_orbit = clipping_type(
+        state=orbit_instance.transform(to=orbit_instance.bases()[0]).state[slices],
+        basis=orbit_instance.bases()[0],
+        parameters=parameters,
+        **kwargs
+    )
+    return clipped_orbit
+
+
+def clipping_mask(orbit_instance, windows, invert=True):
+    """
+    Produce an array mask which shows the clipped regions corresponding to windows upon plotting.
+
+    Parameters
+    ----------
+    orbit_instance : Orbit
+        An instance whose state is to be masked.
+    windows : list or tuple
+        An iterable of window tuples; see Notes below.
+    invert : bool
+        Whether to logically invert the boolean mask; equivalent to showing the "interior" or "exterior" of the clipping
+        if True or False, respectively.
+
+    Returns
+    -------
+    Orbit :
+        Orbit instance whose state is a numpy masked array.
+
+    """
+    # Create boolean mask to manipulate for numpy masked arrays.
+    mask = np.zeros(orbit_instance.shapes()[0]).astype(bool)
+    if type(windows) in [list, tuple]:
+        for window in windows:
+            # Do not need dimensions, as we are not clipping technically.
+            window_slices, _ = _slices_from_window(orbit_instance, window)
+            mask[window_slices] = True
+    else:
+        # Do not need dimensions, as we are not clipping technically.
+        window_slices, _ = _slices_from_window(orbit_instance, windows)
+        mask[window_slices] = True
+
+    if invert:
+        mask = np.invert(mask)
+    masked_field = np.ma.masked_array(
+        orbit_instance.transform(to=orbit_instance.bases()[0]).state, mask=mask
+    )
+    return orbit_instance.__class__(
+        state=masked_field,
+        basis=orbit_instance.bases()[0],
+        parameters=orbit_instance.parameters,
+    )
+
+
+def _slices_from_window(orbit_instance, window_dimensions):
+    """
+    Slices for Orbit state which represents the subdomain defined by provided window_dimensions
+
+    Parameters
+    ----------
+    orbit_instance : Orbit
+        The orbit instance whose state will be sliced.
+    window_dimensions : tuple of tuples
+        A tuple containing the intervals which define the dimensions of the new slice.
+
+    Returns
+    -------
+    tuple, tuple :
+        Tuples containing the slices for the Orbit state and the new corresponding dimensions
+
+    """
+    shape = orbit_instance.shapes()[0]
     # Returns the dimensions which would be shown on a plot (easier to eye-ball clipping then), including units.
     # Should be a tuple of tuples (d_min, d_max), one for each dimension.
-    plot_dimensions = orbit_.plotting_dimensions()
+    plot_dimensions = orbit_instance.plotting_dimensions()
     # Returns a tuple of the "length" > 0 of each axis.
-    actual_dimensions = orbit_.dimensions()
+    actual_dimensions = orbit_instance.dimensions()
 
     clipping_slices = []
     clipping_dimensions = []
@@ -58,8 +168,8 @@ def _slices_from_window(orbit_, window_dimensions, time_ordering="decreasing"):
             )
             slice_end = int(shape[i] * rescaled_domain_max)
 
-        if i == 0 and time_ordering == "decreasing":
-            # From the "top down convention for time.
+        # Apply a transformation if increasing the index corresponds to the negative dimension direction.
+        if not orbit_instance.positive_indexing()[i]:
             slice_start = shape[i] - slice_start
             slice_end = shape[i] - slice_end
             slice_start, slice_end = slice_end, slice_start
@@ -77,100 +187,3 @@ def _slices_from_window(orbit_, window_dimensions, time_ordering="decreasing"):
         clipping_dimensions.append(ith_clipping_dim)
 
     return tuple(clipping_slices), tuple(clipping_dimensions)
-
-
-def clip(orbit_, window_dimensions, **kwargs):
-    """ Take subdomain of field from Orbit instance. Aperiodic by definition.
-    Parameters
-    ----------
-    orbit_ : Orbit
-        Instance to clip from
-    window_dimensions : tuple of tuples.
-        Contains one tuple for each continuous field dimension, each of the form (Dimension_minimum, Dimension_maximum).
-        If a dimension has zero extent; i.e. equilibrium in that dimension, then the corresponding window_dimension
-        tuple must be passed as (None, None).
-    clipping_class : Orbit type class
-        Class to put the clipping state into.
-    kwargs :
-
-    Returns
-    -------
-
-    Notes
-    -----
-    This function allows for slicing based on providing the dimensions of the window; slicing of the Orbit state array
-    is done directly via the __getitem__ method; this updates the dimensions as well.
-
-    For Kuramoto-Sivashinsky, the window_dimensions would be of the form ((T_min, T_max), (X_min, X_max)).
-    Originally contemplated allowing window_dimensions to be iterable of windows but if this is desired then
-    just iterate outside the function. I think that is more reasonable and cleaner.
-
-    """
-    clipping_class = kwargs.get("clipping_class", orbit_.__class__)
-    slices, dimensions = _slices_from_window(
-        orbit_, window_dimensions, kwargs.get("time_ordering", "decreasing")
-    )
-
-    # It of course is better to get the dimensions/parameters from the clipping directly, but if the user wants to
-    # this gives them the ability to override.
-    parameters = kwargs.pop(
-        "parameters",
-        tuple(
-            dimensions[i] if i < len(dimensions) else p
-            for i, p in enumerate(orbit_.parameters)
-        ),
-    )
-
-    clipped_orbit = clipping_class(
-        state=orbit_.transform(to=orbit_.bases()[0]).state[slices],
-        basis=orbit_.bases()[0],
-        parameters=parameters,
-        **kwargs
-    )
-    return clipped_orbit
-
-
-def clipping_mask(orbit_, windows, mask_region="exterior"):
-    """
-
-    Parameters
-    ----------
-    orbit_ :
-    windows : list
-
-
-    mask_region : str
-        takes values 'exterior' or 'interior', masks the corresponding regions relative to the windows.
-
-    Returns
-    -------
-    Orbit :
-        Orbit instance whose state is a numpy masked array.
-    Notes
-    -----
-
-    `window tuples' are tuples whose elements are d-dimensional tuples
-    indicating the dimensions which define the window. i.e.
-    for window_tuple = ((0, 10), (0, 5)) would mean to mask the values outside the subdomain defined
-    by t=(0,10) x=(0,5) (example for KS equation).
-    """
-    # Create boolean mask to manipulate for numpy masked arrays.
-    mask = np.zeros(orbit_.shapes()[0]).astype(bool)
-    if type(windows) in [list, tuple]:
-        for window in windows:
-            # Do not need dimensions, as we are not clipping technically.
-            window_slices, _ = _slices_from_window(orbit_, window)
-            mask[window_slices] = True
-    else:
-        # Do not need dimensions, as we are not clipping technically.
-        window_slices, _ = _slices_from_window(orbit_, windows)
-        mask[window_slices] = True
-
-    if mask_region == "exterior":
-        mask = np.invert(mask)
-    masked_field = np.ma.masked_array(
-        orbit_.transform(to=orbit_.bases()[0]).state, mask=mask
-    )
-    return orbit_.__class__(
-        state=masked_field, basis=orbit_.bases()[0], parameters=orbit_.parameters
-    )

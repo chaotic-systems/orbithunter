@@ -10,22 +10,33 @@
 #
 import os
 import sys
-import sphinx_rtd_theme
 
+# import sphinx_rtd_theme
 sys.path.insert(0, os.path.abspath(".."))
+
+# The full version, including dev info
+import orbithunter
+
+version = orbithunter.__version__
+
+# The short X.Y version.
+release = orbithunter.__version__[:3]
 
 # -- Project information -----------------------------------------------------
 project = "orbithunter"
 copyright = "2021, Matthew Gudorf"
 author = "Matthew Gudorf"
 
-# The full version, including alpha/beta/rc tags
-release = "0.5b1"
+# generate autosummary pages
+autosummary_generate = True
+numpydoc_show_class_members = False
+numpydoc_show_inherited_class_members = False
 
 
 # -- General configuration ---------------------------------------------------
 master_doc = "index"
 extensions = [
+    "numpydoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.autodoc",
     "sphinx.ext.coverage",
@@ -37,8 +48,9 @@ extensions = [
     "sphinxcontrib.log_cabinet",
     "sphinx_issues",
     "sphinx_rtd_theme",
-    "sphinx.ext.autosectionlabel"
-    # "sphinx_tabs.tabs",
+    # "sphinx.ext.autosectionlabel",
+    "nb2plots",
+    "texext",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -47,8 +59,16 @@ templates_path = ["_templates"]
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store",
+                    "changelog/*"
+                    ]
 
+
+# The suffix of source filenames.
+source_suffix = ".rst"
+
+# The encoding of source files.
+source_encoding = "utf-8"
 
 # -- Options for HTML output -------------------------------------------------
 

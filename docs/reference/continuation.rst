@@ -1,5 +1,9 @@
 Numerical continuation 
 ----------------------
 
-.. automodule:: orbithunter.continuation
-   :members:
+.. autofunction:: orbithunter.continuation.continuation
+.. autofunction:: orbithunter.continuation.discretization_continuation
+.. autofunction:: orbithunter.continuation.span_family
+   
+   
+   

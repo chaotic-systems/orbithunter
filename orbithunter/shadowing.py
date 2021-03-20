@@ -4,21 +4,43 @@ __all__ = ["shadow", "fill", "cover"]
 
 
 def amplitude_difference(base_slice, window, *args, **kwargs):
+    """
+    Experimental shadowing metric
+
+    Parameters
+    ----------
+    base_slice : Orbit
+        Orbit whose state is the same shape as `window`
+
+    window : Orbit
+        Orbit whose state is the same shape as `window`
+
+    Returns
+    -------
+    The 'amplitude difference' metric between `base_slice` and `window`
+
+    """
     return np.linalg.norm(base_slice.state ** 2 - window.state ** 2)
 
 
-def l2_difference(base_slice, window, *args, **kwargs):
-    return np.linalg.norm(base_slice - window)
-
-
-def masked_l2_difference(base_slice, window, *args, **kwargs):
-    base_mask = base_slice.copy().astype(bool)
-    norm = np.linalg.norm(base_slice[base_mask] - window[base_mask])
-    norm_density = norm / max([1, base_mask.sum()])
-    return norm_density
-
-
 def masked_l2_difference_density(base_slice, window, *args, **kwargs):
+    """
+    Experimental shadowing metric
+
+    Parameters
+    ----------
+    base_slice : Orbit
+        Orbit whose state is the same shape as `window`
+
+    window : Orbit
+        Orbit whose state is the same shape as `window`
+
+    Returns
+    -------
+    norm_density : float
+        The density of $L_2$ difference score
+
+    """
     base_mask = base_slice.copy().astype(bool)
     norm = np.linalg.norm(base_slice[base_mask] - window[base_mask])
     norm_density = norm / max([1, base_mask.sum()])
@@ -26,11 +48,43 @@ def masked_l2_difference_density(base_slice, window, *args, **kwargs):
 
 
 def l2_difference(base_slice, window, *args, **kwargs):
+    """
+    Experimental shadowing metric
+
+    Parameters
+    ----------
+    base_slice : Orbit
+        Orbit whose state is the same shape as `window`
+
+    window : Orbit
+        Orbit whose state is the same shape as `window`
+
+    Returns
+    -------
+    The 'amplitude difference' metric between `base_slice` and `window`
+
+    """
     # account for local mean flow by normalization; windows have zero mean flow by definition
     return np.linalg.norm(base_slice.state - window.state)
 
 
 def l2_difference_density(base_slice, window, *args, **kwargs):
+    """
+    Experimental shadowing metric
+
+    Parameters
+    ----------
+    base_slice : Orbit
+        Orbit whose state is the same shape as `window`
+
+    window : Orbit
+        Orbit whose state is the same shape as `window`
+
+    Returns
+    -------
+    The 'amplitude difference' metric between `base_slice` and `window`
+
+    """
     # account for local mean flow by normalization; windows have zero mean flow by definition
     norm = np.linalg.norm(base_slice - window)
     norm_density = norm / base_slice.size
@@ -40,6 +94,23 @@ def l2_difference_density(base_slice, window, *args, **kwargs):
 def masked_l2_difference_mean_flow_correction_density(
     base_slice, window, *args, **kwargs
 ):
+    """
+    Experimental shadowing metric
+
+    Parameters
+    ----------
+    base_slice : Orbit
+        Orbit whose state is the same shape as `window`
+
+    window : Orbit
+        Orbit whose state is the same shape as `window`
+
+    Returns
+    -------
+    norm_density : float
+        The density of $L_2$ difference score
+
+    """
     base_mask = base_slice.copy().astype(bool)
     # account for local mean flow by normalization; windows have zero mean flow by definition
     norm = np.linalg.norm(
@@ -50,11 +121,45 @@ def masked_l2_difference_mean_flow_correction_density(
 
 
 def l2_difference_mean_flow_correction(base_slice, window, *args, **kwargs):
+    """
+    Experimental shadowing metric
+
+    Parameters
+    ----------
+    base_slice : Orbit
+        Orbit whose state is the same shape as `window`
+
+    window : Orbit
+        Orbit whose state is the same shape as `window`
+
+    Returns
+    -------
+    float :
+        $L_2$ difference between normalized base slice and window.
+
+    """
     # account for local mean flow by normalization; windows have zero mean flow by definition
     return np.linalg.norm((base_slice - base_slice.mean()) - window)
 
 
 def l2_difference_mean_flow_correction_density(base_slice, window, *args, **kwargs):
+    """
+    Experimental shadowing metric
+
+    Parameters
+    ----------
+    base_slice : Orbit
+        Orbit whose state is the same shape as `window`
+
+    window : Orbit
+        Orbit whose state is the same shape as `window`
+
+    Returns
+    -------
+    norm_density : float
+        The density of $L_2$ difference score between normalized base slice and window.
+
+    """
     # account for local mean flow by normalization; windows have zero mean flow by definition
     norm = np.linalg.norm((base_slice - base_slice.mean()) - window)
     norm_density = norm / base_slice.size
@@ -62,6 +167,23 @@ def l2_difference_mean_flow_correction_density(base_slice, window, *args, **kwar
 
 
 def absolute_threshold(score_array, threshold):
+    """
+    Experimental shadowing metric
+
+    Parameters
+    ----------
+    score_array : np.ndarray
+        An array of scores
+
+    threshold : float
+        Upper bound for the shadowing metric to be labeled a 'detection'
+
+    Returns
+    -------
+    mask : np.ndarray
+        An array which masks the regions of spacetime which do not represent detections of Orbits.
+
+    """
     # Depending on the pivots supplied, some places in the scoring array may be empty; do not threshold these elements.
     mask = np.zeros(score_array.shape, dtype=bool)
     mask[score_array <= threshold] = True
@@ -72,10 +194,11 @@ def pivot_iterator(
     pivot_array_shape, base_shape, window_shape, hull, periodicity, **kwargs
 ):
     """
+    Generator for the valid window pivots for shadowing metric evaluation
 
     Parameters
     ----------
-    padded_shape : tuple of int
+    pivot_array_shape : tuple of int
         Shape of the numpy array corresponding to the padded base orbit
     base_shape : tuple of int
         Shape of the numpy array corresponding to the base orbit
@@ -107,7 +230,9 @@ def pivot_iterator(
 
     Could likely reduce memory costs by using np.ndindex and not np.indices but it would likely be a speed trade-off
     Instead of returning a generator, yield from is used; in case of errors this function will be in the traceback
+
     """
+
     min_overlap_proportion = kwargs.get("min_overlap", 1)
     if isinstance(kwargs.get("mask", None), np.ndarray):
         mask = kwargs.get("mask", None)
@@ -149,7 +274,30 @@ def pivot_iterator(
     return ordered_pivots
 
 
-def subdomain_slices(pivot, base_orbit, window_orbit, hull, periodicity, **kwargs):
+def _subdomain_slices(pivot, base_orbit, window_orbit, hull, periodicity, **kwargs):
+    """
+    The slices for the window at the current pivot before any transformations.
+
+    Parameters
+    ----------
+    pivot : tuple of int
+        Shape of the numpy array corresponding to the padded base orbit
+    base_orbit : Orbit
+        The orbit being scanned
+    window_orbit : Orbit
+        The orbit being used to scan with
+    hull : tuple of int
+        Convex hull of the set of windows of the current run.
+    periodicity : tuple of bool
+        Elements indicate if corresponding axis is periodic. i.e. (True, False) implies axis=0 is periodic.
+
+    Returns
+    -------
+    tuple, tuple
+        The slices which produce the correct subdomains of the base orbit and window orbit for
+        the shadowing metric function.
+
+    """
     base_slices = []
     window_slices = []
     for pivot, base_size, span, hull_size, periodic in zip(
@@ -169,7 +317,7 @@ def subdomain_slices(pivot, base_orbit, window_orbit, hull, periodicity, **kwarg
     return tuple(base_slices), tuple(window_slices)
 
 
-def subdomains(
+def _subdomains(
     pivot,
     orbit_with_hull,
     base_orbit,
@@ -179,8 +327,34 @@ def subdomains(
     periodicity,
     **kwargs
 ):
+    """
+
+    Parameters
+    ----------
+    pivot : tuple of int
+        Shape of the numpy array corresponding to the padded base orbit
+    base_orbit : Orbit
+        The orbit being scanned
+    window_orbit : Orbit
+        The orbit being used to scan with
+    hull : tuple of int
+        Convex hull of the set of windows of the current run.
+    hull_grid : tuple of ndarray
+        Equal to np.indices(hull); saved because it is re-used constantly.
+    periodicity : tuple of bool
+        Elements indicate if corresponding axis is periodic. i.e. (True, False) implies axis=0 is periodic.
+    kwargs : dict
+        Keyword arguments for when user provides masking or pivot information.
+        mask : np.ndarray or None
+            numpy array, dtype boolean which indicates which pivots to mask. values of True imply exclusion of pivot.
+        pivots : iterable
+            Either a generator or iterable container containing the (unmasked) pivot positions to iterate over
+        scanning_region : str
+            Default 'all', if equals 'interior' then only permits pivots within the original base orbit's span.
+
+    """
     coordinate_mapping_function = kwargs.get("coordinate_map", None)
-    base_slices, window_slices = subdomain_slices(
+    base_slices, window_slices = _subdomain_slices(
         pivot, base_orbit, window_orbit, hull, periodicity, **kwargs
     )
     broadcasting_shaped_pivot = np.array(pivot).reshape(
@@ -245,6 +419,7 @@ def subdomains(
 
 def shadow(base_orbit, window_orbit, **kwargs):
     """
+    Evaluate a scoring function with a window at all valid pivots of a base.
 
     Parameters
     ----------
@@ -252,12 +427,11 @@ def shadow(base_orbit, window_orbit, **kwargs):
         The orbit instance to scan over
     window_orbit : Orbit
         The orbit to scan with (the orbit that is translated around)
-    threshold : float
-        The threshold value for the masking function to use to decide which regions are shadowing, based on the
-        scoring function passed to scan.
+
     Returns
     -------
-    tuple :
+    ndarray, ndarray :
+        The scores at each pivot and their mapping onto an array the same shape as `base_orbit.state`
 
     Notes
     -----
@@ -269,8 +443,8 @@ def shadow(base_orbit, window_orbit, **kwargs):
 
     Therefore, it is important to score at every possible position and so there needs to be a function which converts
     these scores into the appropriately sized (the same size as base_orbit) array.
-
     Masking is only applied within the call to function 'score'
+
     """
     # retrieve the function for scoring, using a default function based on the l2 difference.
     scoring_function = kwargs.get(
@@ -298,7 +472,7 @@ def shadow(base_orbit, window_orbit, **kwargs):
     if kwargs.get("padded_orbit", None) is not None:
         padded_orbit = kwargs.get("padded_orbit", None)
     else:
-        padded_orbit = pad_orbit_with_hull(
+        padded_orbit = _pad_orbit_with_hull(
             base_orbit, hull, kwargs.get("periodicity", tuple(len(hull) * [False]))
         )
 
@@ -319,7 +493,7 @@ def shadow(base_orbit, window_orbit, **kwargs):
             if i != 0 and i % max([1, len(ordered_pivots) // 10]) == 0:
                 print("-", end="")
 
-        subdomain_tuple = subdomains(
+        subdomain_tuple = _subdomains(
             each_pivot,
             padded_orbit,
             base_orbit,
@@ -349,7 +523,26 @@ def shadow(base_orbit, window_orbit, **kwargs):
     return pivot_scores, orbit_scores
 
 
-def pad_orbit_with_hull(base_orbit, hull, periodicity):
+def _pad_orbit_with_hull(base_orbit, hull, periodicity):
+    """
+    Pad the base orbit with the convex hull of the set of scanning windows.
+
+    Parameters
+    ----------
+    base_orbit : Orbit
+        The Orbit to be padded (and scanned)
+    hull : tuple of int
+        The shape of the convex hull of the set of windows
+    periodicity : tuple of bool
+        Flags indicating whether or not base_orbit state array axes represent periodic dimensions or not.
+
+    Returns
+    -------
+    padded_orbit : Orbit
+        An orbit whose state array has been padded with zeros (aperiodic dimensions) or padded by wrapping values
+        around the array (periodic dimensions).
+
+    """
     # This looks redundant but it is not because two padding calls with different modes are required.
     periodic_padding = tuple(
         (pad - 1, pad - 1) if bc else (0, 0) for bc, pad in zip(periodicity, hull)
@@ -373,7 +566,8 @@ def cover(
     reorder_by_size=True,
     **kwargs
 ):
-    """ Function to perform multiple shadowing computations given a collection of orbits.
+    """
+    Function to perform multiple shadowing computations given a collection of orbits.
 
     Parameters
     ----------
@@ -386,10 +580,10 @@ def cover(
     window_orbits : array_like of Orbits
         Orbits to cover the base_orbit with. Typically a group orbit, as threshold is a single constant. Handling
         group orbits not included because it simply is another t
-    dtype : type
-        The dtype of mask to return
     replacement : bool
         If False, then once a position in the score array is filled by a detection
+    reorder_by_size : bool
+        If True, then algorithm scans with largest windows first. Only matters if replacement is False.
 
     Returns
     -------
@@ -397,8 +591,6 @@ def cover(
         NumPy arrays whose indices along the first axis correspond to the window orbits' position in ```window_orbits```
         and whose other dimensions consist of scores or masking values. If return_pivot_arrays==True then also
         return the score and masking arrays for the pivots in addition to the orbit scores and pivots.
-    Notes
-    -----
 
     """
     thresholds, window_orbits = np.array(thresholds), np.array(window_orbits)
@@ -418,7 +610,7 @@ def cover(
     masking_function = kwargs.get("masking_function", absolute_threshold)
     periodicity = kwargs.get("base_orbit_periodicity", tuple(len(hull) * [False]))
     return_type = kwargs.get("return_type", "all")
-    padded_orbit = pad_orbit_with_hull(base_orbit, hull, periodicity)
+    padded_orbit = _pad_orbit_with_hull(base_orbit, hull, periodicity)
     # The largest possible range of pivots is decided upon by the initial mask.
     mask = kwargs.get("mask", None)
     if mask is None:
@@ -495,23 +687,19 @@ def cover(
 
 
 def fill(base_orbit, window_orbits, thresholds, **kwargs):
-    """ Function to perform multiple shadowing computations given a collection of orbits.
+    """
+    Function to perform multiple shadowing computations given a collection of orbits.
 
     Parameters
     ----------
     base_orbit : Orbit
-        The Orbit to be "covered"
-    thresholds : determined by masking_function
+        The Orbit to be covered
         The threshold for the masking function. Typically numerical in nature but need not be. The reason
         why threshold does not have a default value even though the functions DO have defaults is because the
         statistics of the scoring function depend on the base orbit and window orbits.
     window_orbits : array_like of Orbits
         Orbits to cover the base_orbit with. Typically a group orbit, as threshold is a single constant. Handling
         group orbits not included because it simply is another t
-    dtype : type
-        The dtype of mask to return
-    replacement : bool
-        If False, then once a position in the score array is filled by a detection
 
     Returns
     -------
@@ -521,20 +709,10 @@ def fill(base_orbit, window_orbits, thresholds, **kwargs):
 
     Notes
     -----
-    This function is similar to cover, except that it checks the scores for each orbit at once, taking the "best"
+    This function is similar to cover, except that it checks the scores for each orbit at once, taking the best
     value as the winner. Now, it used to fill in the area after a successful detection but I changed this because
-    it does not account for the fuzziness of shadowing.
-
-    Thresholds need to be threshold densities, if following burak's u - u_p methodology.
-
-    ***Note that the following can be completely skipped if scanning_region != 'interior' (i.e. use the default setting)
-    Using heterogeneously sized orbits wit constraint scanning_region=='interior' will only be able to
-    scan the pivots which are valid for the *largest* orbit. Therefore, this may miss valid detections along the
-    boundaries. To avoid this issue, call 'fill' multiple times, decreasing the size of the subset of orbits and
-    passing a mask each time. Cannot simply call the function multiple times, once for each sized orbit, because
-    that will miss out on comparison on the "interior" pivots between all valid orbits.
+    it does not account for the fuzziness of shadowing. Thresholds need to be threshold densities if subtracting field.
     """
-
     # retrieve the function for scoring, using a default function based on the l2 difference.
     scoring_function = kwargs.get(
         "scoring_function", l2_difference_mean_flow_correction
@@ -557,7 +735,7 @@ def fill(base_orbit, window_orbits, thresholds, **kwargs):
     if kwargs.get("padded_orbit", None) is not None:
         padded_orbit = kwargs.get("padded_orbit", None)
     else:
-        padded_orbit = pad_orbit_with_hull(
+        padded_orbit = _pad_orbit_with_hull(
             base_orbit, hull, kwargs.get("periodicity", tuple(len(hull) * [False]))
         )
 
@@ -597,17 +775,17 @@ def fill(base_orbit, window_orbits, thresholds, **kwargs):
             pass
         else:
             # Need the correct slice of the base orbit with which to compute metric. Take the largest possible
-            # slice based on the largest shape that contains all windows, then take subdomains of this slice accordingly
+            # slice based on the largest shape that contains all windows, then take _subdomains of this slice accordingly
             window_scores = []
             window_slices = []
             # Once the correct field slice has been retrieved, score it against all of the windows.
             for orbit in window_orbits:
-                slices = subdomain_slices(
+                slices = _subdomain_slices(
                     each_pivot, base_orbit, orbit, hull, periodicity, **kwargs
                 )
                 # Need the base orbit slice and window to be the same size (typically), therefore, take slices
                 # with respect to the smaller size in each dimension. If the same size, this slicing does nothing.
-                subdomain_tuple = subdomains(
+                subdomain_tuple = _subdomains(
                     each_pivot,
                     padded_orbit,
                     base_orbit,
@@ -660,52 +838,3 @@ def fill(base_orbit, window_orbits, thresholds, **kwargs):
         orbit_scores,
         orbit_key_scores,
     )
-
-    # if pivot_scores[minimum_score_orbit_index] <= thresholds[minimum_score_orbit_index]:
-    #     grid = tuple(g + p * s for g, p, s in zip(np.indices(window_orbits[minimum_score_orbit_index].shape),
-    #                                               pivot, strides))
-    #     # To account for wrapping, fold indices which extend beyond the base orbit's extent using periodicity.
-    #     # If aperiodic then this has no effect, as the coordinates are dependent upon the *padded* base state
-    #     # If one of the dimensions is not periodic, then need to ensure that all coordinates of the
-    #     # window slice are within the boundaries of the base orbit.
-    #     # if False in base_orbit_periodicity:
-    #     window_hull = window_orbits[minimum_score_orbit_index].shape
-    #     valid_coordinates = np.ones(window_hull, dtype=bool)
-    #     wrap_valid_coordinates = np.ones(valid_coordinates.shape, dtype=bool)
-    #     base_coordinates = []
-    #     wrapped_periodic_coordinates = []
-    #     periodic_coordinates = []
-    #     # The scores only account for the points used to compute the metric; error in previous methods.
-    #     for coordinates, base_extent, periodic, h in zip(grid, base_orbit.shape,
-    #                                                      base_orbit_periodicity, window_hull):
-    #         # The point is to construct the filling of the base orbit, but to do so we also need to keep
-    #         # track of the filling of the padded orbit.
-    #         coord = coordinates.copy()
-    #         if periodic:
-    #             if coordinates.min() < h:
-    #                 wrap = coordinates + base_extent
-    #             elif coordinates.max() > base_extent + h:
-    #                 wrap = coordinates - base_extent
-    #             else:
-    #                 # if the window is completely on the interior then wrap is redundant, but still need all
-    #                 # coordinates for later slicing.
-    #                 wrap = coordinates
-    #             wrapped_periodic_coordinates.append(wrap)
-    #             periodic_coordinates.append(coordinates)
-    #             # Due to the way pivots and wrapping works, it can accidentally extend beyond even the
-    #             # padded region. Cannot include these points, of course.
-    #             wrap_valid_coordinates = np.logical_and(wrap_valid_coordinates, (wrap < (base_extent+2*h)))
-    #             wrap_valid_coordinates = np.logical_and(wrap_valid_coordinates, (wrap > 0))
-    #
-    #             # If periodic then all coordinates in this dimension are valid.
-    #             coord[coord >= (base_extent+h)] = coord[coord >= (base_extent+h)] - base_extent
-    #             coord[coord < h] = coord[coord < h] + base_extent
-    #         else:
-    #             if True in base_orbit_periodicity:
-    #                 # only need to add to the
-    #                 wrapped_periodic_coordinates.append(coordinates)
-    #                 periodic_coordinates.append(coordinates)
-    #             # If out of bounds in any of the dimensions, need to exclude.
-    #             valid_coordinates = np.logical_and(valid_coordinates, (coord < base_extent+h) & (coord >= h))
-    #         base_coordinates.append(coord)
-    #

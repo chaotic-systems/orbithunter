@@ -1,5 +1,6 @@
 Shadowing 
 ---------
 
-.. automodule:: orbithunter.shadowing
-   :members:
+.. autofunction:: orbithunter.shadowing.shadow
+.. autofunction:: orbithunter.shadowing.cover
+.. autofunction:: orbithunter.shadowing.fill

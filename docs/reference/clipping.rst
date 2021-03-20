@@ -1,5 +1,6 @@
 Clipping 
 ========
 
-.. automodule:: orbithunter.clipping
-   :members:
+.. autofunction:: orbithunter.clipping.clip
+.. autofunction:: orbithunter.clipping.clipping_mask
+   

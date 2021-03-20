@@ -10,8 +10,9 @@
 *.ini
 *.jpg
 *.JPG
-3rd_party/*
+
 publications/latex/*
+**/generated/*.rst
 
 # Pycharm
 .idea/*

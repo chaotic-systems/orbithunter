@@ -1,0 +1,11 @@
+ipython
+sphinx==3.5.2
+sphinxcontrib-log-cabinet==1.0.1
+sphinx-issues>=1.2.0
+sphinx_rtd_theme==0.5.1
+sphinx-gallery==0.8.2
+numpydoc>=1.1
+pillow>=8.0
+nb2plots>=0.6
+texext>=0.6.6
+sphinx-tabs>=2.1.0

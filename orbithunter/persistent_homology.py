@@ -4,11 +4,12 @@ import inspect
 import numpy as np
 from gudhi.hera import wasserstein_distance, bottleneck_distance
 
-__all__ = ["orbit_complex", "produce_orbit_persistence", "gudhi_plot", "gudhi_distance"]
+__all__ = ["orbit_complex", "orbit_persistence", "persistence_plot", "persistence_distance"]
 
 
 def orbit_complex(orbit_instance, **kwargs):
-    """ Wrapper for Gudhi persistent homology package
+    """
+    Wrapper for Gudhi persistent homology package
 
     Parameters
     ----------
@@ -44,8 +45,8 @@ def orbit_complex(orbit_instance, **kwargs):
     return cubical_complex
 
 
-def produce_orbit_persistence(orbit_instance, **kwargs):
-    """
+def orbit_persistence(orbit_instance, **kwargs):
+    """ Evaluate the persistence of an orbit complex
 
     Parameters
     ----------
@@ -54,6 +55,8 @@ def produce_orbit_persistence(orbit_instance, **kwargs):
     Returns
     -------
     ndarray or list :
+        NumPy or Gudhi format. Numpy format returns an array of shape (N, 3). Gudhi format is a list whose elements
+        are of the form (int, (float, float)), which can be annoying to slice.
 
     Notes
     -----
@@ -69,16 +72,16 @@ def produce_orbit_persistence(orbit_instance, **kwargs):
             "periodic_dimensions", orbit_instance.periodic_dimensions()
         )
     }
-    orbit_persistence = orbit_complex(orbit_instance, **complex_kwargs).persistence(
+    opersist = orbit_complex(orbit_instance, **complex_kwargs).persistence(
         **persistence_kwargs
     )
     if kwargs.get("persistence_format", "numpy") == "numpy":
-        return np.array([[x[0], x[1][0], x[1][1]] for x in orbit_persistence])
+        return np.array([[x[0], x[1][0], x[1][1]] for x in opersist])
     else:
-        return orbit_persistence
+        return opersist
 
 
-def gudhi_plot(orbit_instance, gudhi_method="diagram", **kwargs):
+def persistence_plot(orbit_instance, gudhi_method="diagram", **kwargs):
     """
     Parameters
     ----------
@@ -91,23 +94,23 @@ def gudhi_plot(orbit_instance, gudhi_method="diagram", **kwargs):
         kwargs related to gudhi plotting functions. See Gudhi docs for details.
 
     """
-    orbit_persistence = produce_orbit_persistence(
-        orbit_instance, **{**kwargs, "persistence_format": "gudhi"}
-    )
+
+    opersist = orbit_persistence(orbit_instance, **{**kwargs, "persistence_format": "gudhi"})
     plot_kwargs = {
         k: v
         for k, v in kwargs.items()
         if k in inspect.getfullargspec(gh.plot_persistence_diagram).args
     }
     if gudhi_method in ["diagram", "barcode", "density"]:
-        gh.plot_persistence_diagram(orbit_persistence, **plot_kwargs)
+        gh.plot_persistence_diagram(opersist, **plot_kwargs)
     else:
         raise ValueError("Gudhi plotting gudhi_method not recognized.")
     plt.show()
 
 
-def gudhi_distance(orbit1, orbit2, gudhi_metric="bottleneck", **kwargs):
-    """ Compute the distance between two Orbits' persistence diagrams.
+def persistence_distance(orbit1, orbit2, gudhi_metric="bottleneck", **kwargs):
+    """
+    Compute the distance between two Orbits' persistence diagrams.
 
     Parameters
     ----------
@@ -121,8 +124,8 @@ def gudhi_distance(orbit1, orbit2, gudhi_metric="bottleneck", **kwargs):
     -------
 
     """
-    diagram1 = produce_orbit_persistence(orbit1, **kwargs)[:, 1:]
-    diagram2 = produce_orbit_persistence(orbit2, **kwargs)[:, 1:]
+    diagram1 = orbit_persistence(orbit1, **kwargs)[:, 1:]
+    diagram2 = orbit_persistence(orbit2, **kwargs)[:, 1:]
     if gudhi_metric == "bottleneck":
         distance_func = bottleneck_distance
     elif gudhi_metric == "wasserstein":
@@ -132,45 +135,3 @@ def gudhi_distance(orbit1, orbit2, gudhi_metric="bottleneck", **kwargs):
     return distance_func(diagram1, diagram2)
 
 
-def gudhi_distance_from_persistence(
-    orbit_persistence1,
-    orbit_persistence2,
-    gudhi_metric="bottleneck",
-    with_betti=True,
-    **kwargs,
-):
-    """ Compute the distance between two Orbits' persistence diagrams.
-
-    Parameters
-    ----------
-    orbit_persistence1 : Orbit
-    orbit_persistence2 : Orbit
-    gudhi_metric : str
-        The persistence diagram distance gudhi_metric to use
-    kwargs
-
-    Returns
-    -------
-    float : 
-        Distance gudhi_metric computed with respect to two provided orbit persistences
-        
-    Notes
-    -----
-    It is often more efficient to calculate the persistences en masse and store them; the other distance function
-    does not account for this and I do not want to do type checking for persistence objects from Gudhi. 
-
-    """
-    if with_betti:
-        diagram1 = np.array(orbit_persistence1)[:, 1:]
-        diagram2 = np.array(orbit_persistence2)[:, 1:]
-    else:
-        diagram1 = orbit_persistence1
-        diagram2 = orbit_persistence2
-
-    if gudhi_metric == "bottleneck":
-        distance_func = bottleneck_distance
-    elif gudhi_metric == "wasserstein":
-        distance_func = wasserstein_distance
-    else:
-        raise ValueError(f"{gudhi_metric} not recognized as gudhi metric.")
-    return distance_func(diagram1, diagram2)

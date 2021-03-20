@@ -1,13 +1,14 @@
-.. _ks:
-
 Kuramoto-Sivashinsky Equation
 -----------------------------
 
-.. note:: For the Kuramoto-Sivashinsky equation there are six different :class:`~orbithunter.core.Orbit` types
+.. note:: For the Kuramoto-Sivashinsky equation there are six different :class:`~orbithunter.core.Orbit` subclasses
 
 Which orbit class should I use?
 ===============================
-$$G = (e, r_x, t/2, r_x t/2)$$
+
+Let $G$ denote a group of discrete spatiotemporal symmetries $G = \{e, \sigma, \tau, \sigma\tau\}$ which
+represent the identity, spatial reflection, half-period time translation and spatiotemporal shift reflection (glide)
+which is the composition of spatial reflection and half-period time translation.
 
 +-----------------------------+---------------------------------------------------+--------------------+
 | Orbit Class                 | Invariance                                        | Equivariance       |
@@ -16,14 +17,15 @@ $$G = (e, r_x, t/2, r_x t/2)$$
 +-----------------------------+---------------------------------------------------+--------------------+
 | RelativeOrbitKS             | None                                              | Discrete rotations |
 +-----------------------------+---------------------------------------------------+--------------------+
-| ShiftReflectionOrbitKS      | Spatial reflection + half-period time translation | $D2$               |
+| RelativeEquilibriumOrbitKS  | None                                              | Discrete rotations |
 +-----------------------------+---------------------------------------------------+--------------------+
-| AntisymmetricOrbitKS        | Spatial reflection                                | $D2$               |
+| ShiftReflectionOrbitKS      | Spatial reflection + half-period time translation | $G$                |
 +-----------------------------+---------------------------------------------------+--------------------+
-| EquilibriumOrbitKS          | Spatial Reflection and time translation           | $D2$ /             |
+| AntisymmetricOrbitKS        | Spatial reflection                                | $G$                |
 +-----------------------------+---------------------------------------------------+--------------------+
-| RelativeEquilibriumOrbitKS  | None                                              | $D2$               |
+| EquilibriumOrbitKS          | Spatial Reflection and time translation           | $G$                |
 +-----------------------------+---------------------------------------------------+--------------------+
+
 
 
 Orbit Types
@@ -32,15 +34,13 @@ Orbit Types
 .. toctree::
    :maxdepth: 1
 
-   antisymmetricorbitks
-   equilibriumorbitks
    orbitks
    relativeorbitks
+   antisymmetricorbitks
+   equilibriumorbitks
    relativeequilibriumorbitks
    shiftreflectionorbitks
    physics
-
-
 
 
 

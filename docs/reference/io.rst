@@ -1,5 +1,5 @@
 Reading and Writing Orbit Data 
 ------------------------------
 
-.. automodule:: orbithunter.io
-   :members:
+.. autofunction:: orbithunter.io.read_h5
+.. autofunction:: orbithunter.io.read_tileset

@@ -7,55 +7,80 @@ import warnings
 __all__ = ["continuation", "discretization_continuation", "span_family"]
 
 
-def _equals_target(orbit_, target_extent, parameter_label):
-    # For the sake of floating point error, round to 13 decimals.
-    return np.round(getattr(orbit_, parameter_label), 13) == np.round(target_extent, 13)
-
-
-def _increment_orbit_parameter(orbit_, target_extent, increment, parameter_label):
+def _equals_target(orbit_instance, target_extent, parameter_label):
     """
+    Helper function that checks if the target has been reached, approximately.
+    
+    """
+    # For the sake of floating point error, round to 13 decimals.
+    return np.round(getattr(orbit_instance, parameter_label), 13) == np.round(
+        target_extent, 13
+    )
+
+
+def _increment_parameter(orbit_instance, target_extent, increment, parameter_label):
+    """
+    Increment an Orbit's constrained parameter by a fixed amount, bounded by target value.
+    
     Parameters
     ----------
-    orbit_
-    target_extent
-    increment
-    label
+    orbit_instance : Orbit
+        The Orbit whose parameter is to be incremented
+    target_extent : float, int, complex
+        The upper or lower bound of the continuation process.
+    increment : float, int, complex
+        The step size with which to increment by
+    parameter_label : str
+        The label which specifies the parameter attribute to be incremented.
 
     Returns
     -------
+    Orbit :
+        Instance with identical attributes as orbit_instance other than the incremented parameter.
 
     """
     # increments the target dimension but checks to see if incrementing places us out of bounds.
-    current_extent = getattr(orbit_, parameter_label)
+    current_extent = getattr(orbit_instance, parameter_label)
     # If the next step would overshoot, then the target value is the next step.
     if np.sign(target_extent - (current_extent + increment)) != np.sign(increment):
         next_extent = target_extent
     else:
         next_extent = current_extent + increment
     parameters = tuple(
-        next_extent if lab == parameter_label else getattr(orbit_, lab)
-        for lab in orbit_.parameter_labels()
+        next_extent if lab == parameter_label else getattr(orbit_instance, lab)
+        for lab in orbit_instance.parameter_labels()
     )
     # This overwrites current parameters with updated parameters, while also keeping all necessary attributes
-    return orbit_.__class__(**{**vars(orbit_), "parameters": parameters})
+    return orbit_instance.__class__(
+        **{**vars(orbit_instance), "parameters": parameters}
+    )
 
 
-def continuation(orbit_, constraint_item, *extra_constraints, step_size=0.01, **kwargs):
+def continuation(
+    orbit_instance, constraint_item, *extra_constraints, step_size=0.01, **kwargs
+):
     """
+    Continuation with respect to provided parameter up until a target value.
 
     Parameters
     ----------
-    orbit_
-    constraint_item
-    step_size :
-    kwargs :
+    orbit_instance : Orbit
+        Instance whose state's shape is being changed.
+    constraint_item : dict, tuple, dict_items
+        A key value pair indicating the parameter being continued and its target value.
+    extra_constraints : dict
+        When constraining for continuation, it can be important to constrain other parameters which are not directly
+        changed or incremented.
+    axis : int
+        Orbit state array axis to change discretization of
 
     Returns
     -------
-
+    Orbit :
+        Orbit resized according to the discretization increment
 
     """
-    # check that the orbit_ instance is converged when having constraints
+    # check that the orbit_instance instance is converged when having constraints
     if isinstance(constraint_item, type({}.items())):
         constraint_label, target_value = tuple(*constraint_item)
     elif isinstance(constraint_item, dict):
@@ -67,8 +92,8 @@ def continuation(orbit_, constraint_item, *extra_constraints, step_size=0.01, **
             "constraint_item is expected to be dict, dict_item, tuple containing a single key, value pair."
         )
 
-    orbit_.constrain((constraint_label, *extra_constraints))
-    minimize_result = hunt(orbit_, **kwargs)
+    orbit_instance.constrain((constraint_label, *extra_constraints))
+    minimize_result = hunt(orbit_instance, **kwargs)
 
     # Derive step size with correct sign.
     step_size = np.sign(
@@ -92,7 +117,7 @@ def continuation(orbit_, constraint_item, *extra_constraints, step_size=0.01, **
             ).replace(".", "p")
             dname = "".join([constraint_label, valstr])
             fname = kwargs.get("filename", None) or "".join(
-                ["continuation_", orbit_.filename()]
+                ["continuation_", orbit_instance.filename()]
             )
             gname = kwargs.get("groupname", "")
             # pass keywords like this to avoid passing multiple values to same keyword.
@@ -100,46 +125,55 @@ def continuation(orbit_, constraint_item, *extra_constraints, step_size=0.01, **
                 **{**kwargs, "filename": fname, "dataname": dname, "groupname": gname}
             )
 
-        incremented_orbit = _increment_orbit_parameter(
+        incremented_orbit = _increment_parameter(
             minimize_result.orbit, target_value, step_size, constraint_label
         )
         minimize_result = hunt(incremented_orbit, **kwargs)
     return minimize_result
 
 
-def _increment_discretization(orbit_, target_size, increment, axis=0):
-    """
+def _increment_discretization(orbit_instance, target_size, increment, axis=0):
+    """ Increment the discretization of an Orbit for discretization continuation.
 
     Parameters
     ----------
-    orbit_
-    target_size
-    increment
-    axis
+    orbit_instance : Orbit
+        Instance whose state's shape is being changed.
+    target_size : int
+        The final target of the discretization
+    increment : int
+        The amount to change the change discretization by
+    axis : int
+        Orbit state array axis to change discretization of
 
     Returns
     -------
+    Orbit :
+        Orbit resized according to the discretization increment
 
     """
     # increments the target dimension but checks to see if incrementing places us out of bounds.
-    current_size = orbit_.shapes()[0][axis]
+    current_size = orbit_instance.shapes()[0][axis]
     # The affirmative occurs when overshooting the target value of the param.
     if np.sign(target_size - (current_size + increment)) != np.sign(increment):
         next_size = target_size
     else:
         next_size = current_size + increment
     incremented_shape = tuple(
-        d if i != axis else next_size for i, d in enumerate(orbit_.shapes()[0])
+        d if i != axis else next_size for i, d in enumerate(orbit_instance.shapes()[0])
     )
-    return orbit_.resize(*incremented_shape)
+    return orbit_instance.resize(*incremented_shape)
 
 
-def discretization_continuation(orbit_, target_discretization, cycle=False, **kwargs):
-    """ Incrementally change discretization while maintaining convergence
+def discretization_continuation(
+    orbit_instance, target_discretization, cycle=False, **kwargs
+):
+    """
+    Incrementally change discretization while maintaining convergence
 
     Parameters
     ----------
-    orbit_ : Orbit or Orbit child
+    orbit_instance : Orbit or Orbit child
         The instance whose discretization is to be changed.
     target_discretization :
         The shape that will be incremented towards; failure to converge will terminate this process.
@@ -151,6 +185,8 @@ def discretization_continuation(orbit_, target_discretization, cycle=False, **kw
 
     Returns
     -------
+    minimize_result : OrbitResult
+        The result of minimization returned by orbithunter.optimize.hunt
 
     Notes
     -----
@@ -159,12 +195,12 @@ def discretization_continuation(orbit_, target_discretization, cycle=False, **kw
 
     """
     # check that we are starting from converged solution, first of all.
-    minimize_result = hunt(orbit_, **kwargs)
+    minimize_result = hunt(orbit_instance, **kwargs)
     axes_order = kwargs.get("axes_order", np.argsort(target_discretization)[::-1])
     # The minimum step size is inferred from the minimal shapes if not provided; the idea here is that if
     # the minimum shape is odd then
     step_sizes = kwargs.get(
-        "step_sizes", np.array(orbit_.minimal_shape_increments())[axes_order]
+        "step_sizes", np.array(orbit_instance.minimal_shape_increments())[axes_order]
     )
     # To be efficient, always do the smallest target axes first.
     # We need to be incrementing in the correct direction. i.e. to get smaller we need to have a negative increment.
@@ -183,7 +219,7 @@ def discretization_continuation(orbit_, target_discretization, cycle=False, **kw
                 # When generating an orbits' continuous family, it is useful to save the intermediate states
                 # so that they may be referenced in future calculations
                 fname = kwargs.get("filename", None) or "".join(
-                    ["discretization_continuation_", orbit_.filename()]
+                    ["discretization_continuation_", orbit_instance.filename()]
                 )
                 gname = kwargs.get("groupname", "")
                 # pass keywords like this to avoid passing multiple values to same keyword.
@@ -224,7 +260,7 @@ def discretization_continuation(orbit_, target_discretization, cycle=False, **kw
                 # so that they may be referenced in future calculations
                 if kwargs.get("save", False):
                     fname = kwargs.get("filename", None) or "".join(
-                        ["discretization_continuation_", orbit_.filename()]
+                        ["discretization_continuation_", orbit_instance.filename()]
                     )
                     gname = kwargs.get("groupname", "")
                     # pass keywords like this to avoid passing multiple values to same keyword.
@@ -243,41 +279,38 @@ def discretization_continuation(orbit_, target_discretization, cycle=False, **kw
     return minimize_result
 
 
-def span_family(orbit_, **kwargs):
-    """ Explore and span an orbit's family (continuation and group orbit)
+def span_family(orbit_instance, **kwargs):
+    """
+    Explore and span an orbit's family (continuation and group orbit)
 
     Parameters
     ----------
-    orbit_ : Orbit
+    orbit_instance : Orbit
         The orbit whose family is to be spanned.
+
     kwargs :
         Keyword arguments accepted by to_h5 and continuation methods (and hunt function, by proxy),
         and Orbit.group_orbit
 
     Returns
     -------
-    orbit_family :
-        A list of double ended queues, each queue being a branch of orbit states (NOT the group orbits, for memory
-        considerations).
-
-    -------
+    orbit_family : list of list
+        A list of lists where each list is a branch of orbit states generated by continuation.
 
     Notes
     -----
     The ability to continue all continuations and hence span the family geometrically has been removed. It simply
-    is too much to allow in a single function call. To span the *entire* family, run this function on 
+    is too much to allow in a single function call. To span the entire family, run this function on
     various members of the family, possibly those populated by a previous function call. In that instance, using
-    same filename between runs is beneficial. 
-
-    This function saves everything by default. To disable all saving, **BOTH** save=None AND filename=None are required
-    in keyword arguments. 
+    same filename between runs is beneficial.
     
     How naming conventions work: family name is the filename. Each branch is a group or subgroup, depending on 
     root only. If root_only=False then this behaves recursively and can get incredibly large. Use at your own risk.
+
     """
     # Check and make sure the root orbit is actually a converged orbit.
-    root_orbit_result = hunt(orbit_, **kwargs)
-    if root_orbit_result.status != -1:
+    root_orbit_instanceresult = hunt(orbit_instance, **kwargs)
+    if root_orbit_instanceresult.status != -1:
         warn_str = "\nunconverged root orbit in family spanning. Change tol or orbit to avoid this message."
         warnings.warn(warn_str, RuntimeWarning)
 
@@ -286,50 +319,64 @@ def span_family(orbit_, **kwargs):
     step_sizes = kwargs.get("step_sizes", {})
 
     # Step the bounds of the continuation per dimension, provided as dict much like step sizes.
-    bounds = kwargs.get("bounds", {k: (0, np.inf) for k in orbit_.dimension_labels()})
-    kwargs.setdefault("filename", "".join(["family_", orbit_.filename()]))
+    bounds = kwargs.get(
+        "bounds", {k: (0, np.inf) for k in orbit_instance.dimension_labels()}
+    )
+    kwargs.setdefault("filename", "".join(["family_", orbit_instance.filename()]))
 
     # This is to avoid default producing excessively large families.
-    kwargs.setdefault("strides", (n_points // 4 for n_points in orbit_.discretization))
+    kwargs.setdefault(
+        "strides", (n_points // 4 for n_points in orbit_instance.discretization)
+    )
 
     # Only save the root orbit once. Save as deque, even though single element, simply for consistency.
-    family = [deque([orbit_])]
+    family = [deque([orbit_instance])]
     for dim in bounds:
         # If a dimension is 0 then its continuation is not meaningful.
-        if getattr(root_orbit_result.orbit, dim) == 0.0:
+        if getattr(root_orbit_instanceresult.orbit, dim) == 0.0:
             continue
         branch = deque()
         # Regardless of what the user says, do the saving here and not inside continuation function
         step_size = step_sizes.get(dim, 0.01)
         kwargs = {"step_size": step_size, "save": False, **kwargs}
 
-        branch_orbit_result = root_orbit_result
+        branch_orbit_instanceresult = root_orbit_instanceresult
         # While converged and in bounds, step in the positive direction, starting from the root orbit
-        while branch_orbit_result.status == -1 and (
-            getattr(branch_orbit_result.orbit, dim) < bounds.get(dim)[1]
+        while branch_orbit_instanceresult.status == -1 and (
+            getattr(branch_orbit_instanceresult.orbit, dim) < bounds.get(dim)[1]
         ):
             # Do not want to redundantly add root node
-            if getattr(branch_orbit_result.orbit, dim) != getattr(orbit_, dim):
-                branch.append(branch_orbit_result.orbit)
-            constraint_item = (dim, getattr(branch_orbit_result.orbit, dim) + step_size)
-            branch_orbit_result = continuation(
-                branch_orbit_result.orbit, constraint_item, **kwargs
+            if getattr(branch_orbit_instanceresult.orbit, dim) != getattr(
+                orbit_instance, dim
+            ):
+                branch.append(branch_orbit_instanceresult.orbit)
+            constraint_item = (
+                dim,
+                getattr(branch_orbit_instanceresult.orbit, dim) + step_size,
+            )
+            branch_orbit_instanceresult = continuation(
+                branch_orbit_instanceresult.orbit, constraint_item, **kwargs
             )
         # Span the dimension in the negative direction, starting from the root orbit.
-        branch_orbit_result = root_orbit_result
+        branch_orbit_instanceresult = root_orbit_instanceresult
         # bounds.get using 'interval' tuple as default only then to slice it is consistently expect bounds
         # to be given as interval.
 
         # While converged and in bounds, step in the negative direction, starting from the root orbit
-        while branch_orbit_result.status == -1 and (
-            getattr(branch_orbit_result.orbit, dim) > bounds.get(dim)[0]
+        while branch_orbit_instanceresult.status == -1 and (
+            getattr(branch_orbit_instanceresult.orbit, dim) > bounds.get(dim)[0]
         ):
             # Do not want to redundantly add root node
-            if getattr(branch_orbit_result.orbit, dim) != getattr(orbit_, dim):
-                branch.appendleft(branch_orbit_result.orbit)
-            constraint_item = (dim, getattr(branch_orbit_result.orbit, dim) - step_size)
-            branch_orbit_result = continuation(
-                branch_orbit_result.orbit, constraint_item, **kwargs
+            if getattr(branch_orbit_instanceresult.orbit, dim) != getattr(
+                orbit_instance, dim
+            ):
+                branch.appendleft(branch_orbit_instanceresult.orbit)
+            constraint_item = (
+                dim,
+                getattr(branch_orbit_instanceresult.orbit, dim) - step_size,
+            )
+            branch_orbit_instanceresult = continuation(
+                branch_orbit_instanceresult.orbit, constraint_item, **kwargs
             )
         # After the family branch is populated, iterate over each branch members' group orbit. This can
         # be a LOT of orbits if you are not careful with sampling/keyword arguments.
@@ -341,5 +388,5 @@ def span_family(orbit_, **kwargs):
             else:
                 dataname = None
             leaf.to_h5(dataname=dataname, **kwargs)
-        family.append(branch)
+        family.append(list(branch))
     return family

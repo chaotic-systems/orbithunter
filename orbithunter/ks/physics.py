@@ -6,8 +6,8 @@ __all__ = ["integrate", "dissipation", "energy", "energy_variation", "power"]
 
 
 def _averaging_wrapper(instance_with_state_to_average, average="spacetime"):
-    """ Apply time, space, or spacetime average to field of instance.
-
+    """
+    Average with respect to time, space, spacetime, or discretization.
 
     Parameters
     ----------
@@ -48,16 +48,17 @@ def _averaging_wrapper(instance_with_state_to_average, average="spacetime"):
 
 
 def dissipation(orbit_instance, average="spacetime"):
-    """ Average energy dissipation or corresponding field.
+    """
+    Average energy dissipation or corresponding field.
 
-    Returns
-    -------
+    Parameters
+    ----------
     float or ndarray :
         Spatiotemporal dissipation returned as a field, or averaged along an axis (ndarray) or spacetime (float).
 
     Notes
     -----
-    Dissipation = u_xx^2.
+    Dissipation $= u_xx^2$.
 
     """
     return _averaging_wrapper(
@@ -66,10 +67,11 @@ def dissipation(orbit_instance, average="spacetime"):
 
 
 def energy(orbit_instance, average="spacetime"):
-    """ Average energy or corresponding field
+    """
+    Average energy or corresponding field
 
-    Returns
-    -------
+    Parameters
+    ----------
     float or ndarray :
         Spatiotemporal power returned as a field, or averaged along an axis (ndarray) or spacetime (float).
 
@@ -84,12 +86,14 @@ def energy(orbit_instance, average="spacetime"):
 
 
 def energy_variation(orbit_instance, average="spacetime"):
-    """ The field u_t * u whose spatial average should equal power - dissipation.
+    """
+    The field u_t * u whose spatial average should equal power - dissipation.
 
-    Returns
-    -------
+    Parameters
+    ----------
     float or ndarray :
         Spatiotemporal energy variation returned as a field, or averaged along an axis (ndarray) or spacetime (float).
+
     Returns
     -------
     Field equivalent to u_t * u.
@@ -103,10 +107,11 @@ def energy_variation(orbit_instance, average="spacetime"):
 
 
 def power(orbit_instance, average="spacetime"):
-    """ Average power or corresponding field
+    """
+    Average power or corresponding field
 
-    Returns
-    -------
+    Parameters
+    ----------
     float or ndarray :
         Spatiotemporal power returned as a field, or averaged along an axis (ndarray) or spacetime (float).
 
@@ -121,7 +126,8 @@ def power(orbit_instance, average="spacetime"):
 
 
 def integrate(orbit_, **kwargs):
-    """ Exponential time-differencing Runge-Kutta 4th order integration scheme.
+    """
+    Exponential time-differencing Runge-Kutta 4th order integration scheme.
 
     Parameters
     ----------

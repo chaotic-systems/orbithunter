@@ -1,5 +1,4 @@
 Numerical Optimization
 ----------------------
 
-.. automodule:: orbithunter.optimize
-   :members:
+.. autofunction:: orbithunter.optimize.hunt

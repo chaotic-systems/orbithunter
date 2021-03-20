@@ -1,8 +1,8 @@
-from .context import orbithunter as oh
 import pytest
 import numpy as np
 import h5py
 import pathlib
+import orbithunter as oh  # tests are setup to run against installed version only
 
 here = pathlib.Path(__file__).parent.resolve()
 data_path = here / "tests_data.h5"
@@ -64,7 +64,7 @@ def test_Orbit_attributes(fixed_orbit_data):
     assert orbit_.discretization[1] == orbit_.i
     assert orbit_.discretization[2] == orbit_.j
     assert orbit_.discretization[3] == orbit_.k
-    assert oh.Orbit().state.shape == tuple(len(orbit_.default_shape()) * [0])
+    assert oh.Orbit().state.shape == tuple(len(orbit_._default_shape()) * [0])
     assert oh.Orbit().basis is None
     with pytest.raises(AttributeError):
         _ = oh.Orbit().fakeattr
@@ -255,7 +255,7 @@ def test_matrix_free_methods(fixed_orbit_data, fixed_kwarg_dict):
         state=fixed_orbit_data, basis="physical", parameters=(10, 10, 10, 10)
     )
     f = orbit_.eqn(fixed_kwarg_dict)
-    grad = orbit_.cost_function_gradient(fixed_kwarg_dict)
+    grad = orbit_.objgrad(fixed_kwarg_dict)
     res = orbit_.residual(fixed_kwarg_dict)
     assert (f.state == np.zeros((2, 2, 2, 2))).all()
     assert (grad.state == np.zeros((2, 2, 2, 2))).all()
@@ -279,7 +279,7 @@ def test_properties(fixed_orbit_data):
     _ = orbit_.parameter_labels()
     _ = orbit_.discretization_labels()
     _ = orbit_.dimension_labels()
-    _ = orbit_.default_shape()
+    _ = orbit_._default_shape()
     _ = orbit_.minimal_shape()
     _ = orbit_._default_parameter_ranges()
 
@@ -538,7 +538,7 @@ def test_OrbitKS_attributes(fixed_OrbitKS_data, fixed_ks_parameters, kse_classes
         assert orbit_.parameters[2] == orbit_.s
         assert orbit_.discretization[0] == orbit_.n
         assert orbit_.discretization[1] == orbit_.m
-        assert cls().state.shape == tuple(len(orbit_.default_shape()) * [0])
+        assert cls().state.shape == tuple(len(orbit_._default_shape()) * [0])
         assert cls().basis is None
         with pytest.raises(AttributeError):
             _ = oh.Orbit().fakeattr
@@ -633,13 +633,13 @@ def test_rmatvec(fixed_OrbitKS_data, fixed_ks_parameters):
         ).transform(to="modes")
 
     assert pytest.approx(relorbit_.rmatvec(relorbit_).norm(), 60.18805016)
-    assert pytest.approx(relorbit_.cost_function_gradient(relorbit_).norm(), 0.0)
+    assert pytest.approx(relorbit_.objgrad(relorbit_).norm(), 0.0)
 
     orbit_ = oh.OrbitKS(
         state=fixed_OrbitKS_data, parameters=fixed_ks_parameters[0], basis="field"
     ).transform(to="modes")
     assert pytest.approx(orbit_.rmatvec(orbit_).norm(), 1.295386)
-    assert pytest.approx(orbit_.cost_function_gradient(orbit_.eqn()).norm(), 1.0501956)
+    assert pytest.approx(orbit_.objgrad(orbit_.eqn()).norm(), 1.0501956)
 
 
 def test_matvec(fixed_OrbitKS_data, fixed_ks_parameters):

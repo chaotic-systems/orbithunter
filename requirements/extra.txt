@@ -1,0 +1,7 @@
+ipykernel>=5.1.4
+jupyterlab>=1.2.6
+ipython>=7.21.0
+gudhi>=3.3.0
+pot>=0.7.0
+scikit-learn>=0.24.1
+tensorflow>=1.14.0

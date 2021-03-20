@@ -6,6 +6,25 @@ here = pathlib.Path(__file__).parent.resolve()
 # Get the long description from the README file
 long_description = (here / "README.rst").read_text(encoding="utf-8")
 
+with open("orbithunter/__init__.py") as file:
+    for line in file:
+        if line.startswith("__version__"):
+            version = line.strip().split()[-1][1:-1]
+            break
+
+
+def parse_requirements_file(filename):
+    with open(filename) as file:
+        requires = [l.strip() for l in file.readlines() if not l.startswith("#")]
+    return requires
+
+
+install_requires = parse_requirements_file("requirements/default.txt")
+extras_require = {
+    dep: parse_requirements_file("requirements/" + dep + ".txt")
+    for dep in ["developer", "doc", "extra", "full", "test"]
+}
+
 setup(
     # There are some restrictions on what makes a valid project name
     # specification here:
@@ -14,10 +33,10 @@ setup(
     # For a discussion on single-sourcing the version across setup.py and the
     # project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version="0.5b1",  # Required
-    description="Framework for solving spatiotemporal partial differential equations.",
+    version=version,  # Required
+    description="Framework for Nonlinear Dynamics and Chaos",
     long_description=long_description,
-    long_description_content_type="text/markdown",
+    long_description_content_type="text/x-rst",
     url="https://mgudorf.github.io/orbithunter/",  # Optional
     author="Matthew Gudorf",
     author_email="matthew.gudorf@gmail.com",  # Optional
@@ -54,18 +73,8 @@ setup(
     ],
     packages=find_packages(include=["orbithunter", "orbithunter.*"]),
     python_requires=">=3.7",
-    install_requires=[
-        "matplotlib>=3.1.3",
-        "pyqt5>=5.15.4",  # matplotlib backend prone to failure; this is immediate remedy.
-        "numpy>=1.18.1",
-        "scipy>=1.4.1",
-        "h5py>=2.10.0",
-    ],
-    extras_require={
-        "test": ["pytest>=5.3.5", "pytest-datafiles>=2.0"],
-        "notebooks": ["ipykernel>=5.1.4", "jupyterlab>=1.2.6"],
-        "tools": ["gudhi", "scikit-learn", "tensorflow"],
-    },
+    install_requires=install_requires,
+    extras_require=extras_require,
     project_urls={
         "bug reports": "https://github.com/mgudorf/orbithunter/issues",
         "documentation": "https://readthedocs.org/projects/orbithunter/",
