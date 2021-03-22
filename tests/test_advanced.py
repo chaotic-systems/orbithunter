@@ -61,8 +61,8 @@ def test_orbit_data():
     )
     automatic = oh.read_h5(data_path, keys)
     for static, read in zip(manual, automatic):
-        assert static.residual() < 1e-7
-        assert static.residual() == read.residual()
+        assert static.cost() < 1e-7
+        assert static.cost() == read.cost()
         assert np.isclose(static.state, read.state).all()
         assert static.parameters == read.parameters
 

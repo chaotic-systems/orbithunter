@@ -1,7 +1,10 @@
-orbithunter 0.5rc1
-==================
+orbithunter 0.5
+===============
 
 .. currentmodule:: orbithunter
+
+
+
 
 Minor Changes
 -------------

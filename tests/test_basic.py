@@ -244,8 +244,8 @@ def test_matrix_free_methods(fixed_orbit_data, fixed_kwarg_dict):
         state=fixed_orbit_data, basis="physical", parameters=(10, 10, 10, 10)
     )
     f = orbit_.eqn(fixed_kwarg_dict)
-    grad = orbit_.objgrad(fixed_kwarg_dict)
-    res = orbit_.residual(fixed_kwarg_dict)
+    grad = orbit_.costgrad(fixed_kwarg_dict)
+    res = orbit_.cost(fixed_kwarg_dict)
     assert (f.state == np.zeros((2, 2, 2, 2))).all()
     assert (grad.state == np.zeros((2, 2, 2, 2))).all()
     assert res == 0.0
@@ -368,8 +368,8 @@ def test_orbit_data():
     )
     automatic = oh.read_h5(data_path, keys)
     for static, read in zip(manual, automatic):
-        assert static.residual() < 1e-7
-        assert static.residual() == read.residual()
+        assert static.cost() < 1e-7
+        assert static.cost() == read.cost()
         assert np.isclose(static.state, read.state).all()
         assert static.parameters == read.parameters
 
@@ -620,13 +620,13 @@ def test_rmatvec(fixed_OrbitKS_data, fixed_ks_parameters):
         ).transform(to="modes")
 
     assert pytest.approx(relorbit_.rmatvec(relorbit_).norm(), 60.18805016)
-    assert pytest.approx(relorbit_.objgrad(relorbit_).norm(), 0.0)
+    assert pytest.approx(relorbit_.costgrad(relorbit_).norm(), 0.0)
 
     orbit_ = oh.OrbitKS(
         state=fixed_OrbitKS_data, parameters=fixed_ks_parameters[0], basis="field"
     ).transform(to="modes")
     assert pytest.approx(orbit_.rmatvec(orbit_).norm(), 1.295386)
-    assert pytest.approx(orbit_.objgrad(orbit_.eqn()).norm(), 1.0501956)
+    assert pytest.approx(orbit_.costgrad(orbit_.eqn()).norm(), 1.0501956)
 
 
 def test_matvec(fixed_OrbitKS_data, fixed_ks_parameters):

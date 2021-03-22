@@ -16,13 +16,13 @@ class Orbit:
     state : ndarray, default None
         If an array, it should contain the state values congruent with the 'basis' argument.
     basis : str, default None
-        Which basis the array state is currently in.
+        Which basis the array state is currently in. Must be str if type(state) is np.ndarray
     parameters : tuple, default None
         Parameters required to uniquely define the Orbit.
     discretization : tuple, default None
         The shape of the state array in configuration space, i.e. the 'physical' basis.
     constraints : dict, default None
-        Dictionary whose labels are parameter labels, and values are bool. If True, then corresponding parameter
+        Dictionary whose keys are parameter labels, and values are bool. If True, then corresponding parameter
         will be treated as a constant during optimization routines.
     kwargs :
         Extra arguments for _parse_parameters and _parse_state (future/subclass usage only).
@@ -869,7 +869,7 @@ class Orbit:
         This returns an average of parameter tuples, used exclusively in the gluing method; wherein the new tile
         dimensions needs to be decided upon/inferred from the original tiles. As this average is only a very
         crude approximation, it can be worthwhile to also simply search the parameter space for a combination
-        of dimensions which reduces the residual. The strategy produced by this method is simply a baseline; there
+        of dimensions which reduces the cost. The strategy produced by this method is simply a baseline; there
         may be way better ways but it is likely highly dependent on equation.
 
         """
@@ -929,9 +929,31 @@ class Orbit:
         """
         return (self.state.shape,)
 
-    def objgrad(self, eqn, **kwargs):
+    def cost(self, eqn=True):
         """
-        Gradient of scalar cost functional 0.5*|eqn|^2
+        Cost function evaluated at current state.
+
+        Returns
+        -------
+        float :
+            The value of the cost function, equal to 1/2 of the squared $L_2$ norm of the spatiotemporal mapping,
+            $R = 1/2 F^2$ by default. The current form generalizes to any equation.
+
+        Notes
+        -----
+        In certain optimization methods, storing evaluations of the governing equation in instances can cut down on the
+        number of function calls.
+
+        """
+        if eqn:
+            v = self.transform(to=self.bases_labels()[-1]).eqn().state.ravel()
+        else:
+            v = self.state.ravel()
+        return 0.5 * v.dot(v)
+
+    def costgrad(self, eqn, **kwargs):
+        """
+        Matrix-vector product corresponding to gradient of scalar cost functional $1/2 F^2$
 
         Parameters
         ----------
@@ -947,13 +969,73 @@ class Orbit:
 
         Notes
         -----
+
         Withing optimization routines, the eqn orbit is used for other calculations and hence should not be
         recalculated; this is why eqn is passed rather than recalculated.
 
-        Default cost functional is 1/2 ||eqn||^2.
+        Default cost functional is $1/2 F^2$.
 
         """
         return self.rmatvec(eqn, **kwargs)
+
+    def costhess(self, other, **kwargs):
+        """
+        Matrix-vector product with the Hessian of the cost function.
+
+        Parameters
+        ----------
+        other : Orbit
+            Orbit instance whose state is an evaluation of the governing equations
+        kwargs : dict
+            extra arguments for rmatvec method.
+
+        Returns
+        -------
+        hess : np.ndarray
+            Hessian matrix of Orbit.cost()
+
+        Notes
+        -----
+
+        The hessian is the combination of jacobian-transpose multiplied with jacobian plus a second term, equal
+        to the dot product of the hessian of the governing equations (tensor) dotted with the equations, resulting in a
+        2-d matrix. This method has not been implemented for any equation,
+        but the recipe is given below. While there are tensor product functions I think the easiest way to
+        compute this is by broadcasting and dot product.
+
+        """
+        J = self.jacobian(**kwargs)
+        return J.T.dot(J) + self.hess().dot(self.eqn(**kwargs).orbit_vector.ravel())
+
+    def costhessp(self, other, **kwargs):
+        """
+        Matrix-vector product with the Hessian of the cost function.
+
+        Parameters
+        ----------
+        other : Orbit
+            Orbit instance whose state is an evaluation of the governing equations
+        kwargs : dict
+            extra arguments for rmatvec method.
+
+        Returns
+        -------
+        hess : np.ndarray
+            Hessian matrix of Orbit.cost()
+
+        Notes
+        -----
+
+        The hessian is the combination of jacobian-transpose multiplied with jacobian plus a second term, equal
+        to the dot product of the hessian of the governing equations (tensor) dotted with the equations, resulting in a
+        2-d matrix. This method has not been implemented for any equation,
+        but the recipe is given below. While there are tensor product functions I think the easiest way to
+        compute this is by broadcasting and dot product.
+
+        """
+
+        JTJ = self.rmatvec(self.matvec(other, **kwargs), **kwargs)
+        return (JTJ + self.hessp(self.eqn(**kwargs), **kwargs)) * other
 
     def resize(self, *new_discretization, **kwargs):
         """
@@ -1143,33 +1225,16 @@ class Orbit:
         spatiotemporal domain (tile), it makes sense for these values to be assigned to the "eqn" orbit. That is,
         the evaluation of the governing equations yields a state defined on the same domain.
 
+        .. warning::
+           If equation has components for any parameters:
+           However, if the equations of motion have components for the parameters; this will in correctly overwrite
+           the components stored in parameters and this will need an overwrite.
+
         """
         assert (
             self.basis == self.bases_labels()[-1]
         ), "Convert to spatiotemporal basis before computing governing equations."
         return self.__class__(**{**vars(self), "state": np.zeros(self.shapes()[-1])})
-
-    def residual(self, eqn=True):
-        """
-        Cost function evaluated at current state.
-
-        Returns
-        -------
-        float :
-            The value of the cost function, equal to 1/2 of the squared $L_2$ norm of the spatiotemporal mapping,
-            $R = 1/2 ||F||^2$ by default. The current form generalizes to any equation.
-
-        Notes
-        -----
-        In certain optimization methods, storing evaluations of the governing equation in instances can cut down on the
-        number of function calls.
-
-        """
-        if eqn:
-            v = self.transform(to=self.bases_labels()[-1]).eqn().state.ravel()
-        else:
-            v = self.state.ravel()
-        return 0.5 * v.dot(v)
 
     def matvec(self, other, **kwargs):
         """
@@ -1229,6 +1294,51 @@ class Orbit:
             }
         )
 
+    def hess(self):
+        """
+        Matrix of second derivatives of the governing equations.
+
+        Returns
+        -------
+        np.ndarray :
+            The tensor of second derivatives of the governing equations. Will typically have dimensions equal
+            to (self.orbit_vector.size, self.orbit_vector.size, self.size).
+
+        Notes
+        -----
+
+        The components of the tensor $H_{kj}$ is the vector of derivatives with respect to $x_k, x_j$
+        of equation component $F_i$. The governing equations will typically have vector valued output;
+        in general the matrix of second derivatives of each component is a tensor.
+
+
+
+        """
+        # General case
+        return np.zeros([self.orbit_vector().size, self.orbit_vector().size, self.eqn().size])
+
+    def hessp(self, other, **kwargs):
+        """
+        Tensor product of `other` with matrix of second derivatives of governing equations.
+
+        Parameters
+        ----------
+        other : Orbit
+            Orbit whose state represents the vector in the matrix-vector product.
+
+        Returns
+        -------
+        Orbit :
+            Orbit whose state and parameters are the product of :meth:`~orbithunter.core.Orbit.orbit_vector` with
+            matrix of second derivatives.
+
+        Notes
+        -----
+        Requires an equation to define, just like rmatvec and matvec.
+
+        """
+        return self.from_numpy_array(np.zeros(other.orbit_vector().shape))
+
     def orbit_vector(self):
         """
         Vector representation of Orbit instance.
@@ -1280,14 +1390,17 @@ class Orbit:
         This function is mainly to retrieve output from (scipy) optimization methods and convert it back into Orbit
         instances. Because constrained parameters are not included in the optimization process, this is not
         as simple as merely slicing the parameters from the array, as the order of the elements is determined by
-        the constraints.
+        the constraints. If non-scalar parameters are used, user will need to overwrite the Orbit.from_numpy_array() method.
 
-        If non-scalar parameters are used, user will need to overwrite the Orbit.from_numpy_array() method.
+        .. warning::
+           If equation has components for any parameters:
+           However, if the equations of motion have components for the parameters; this will in correctly overwrite
+           the components stored in parameters and this will need an overwrite.
 
         """
         # orbit_vector is defined to be concatenation of state and parameters;
         # slice out the parameters; cast as list to gain access to pop
-        param_list = list(kwargs.pop("parameters", orbit_vector.ravel()[self.size :]))
+        param_list = list(kwargs.pop("extra_parameters", orbit_vector.ravel()[self.size :]))
 
         # The issue with parsing the parameters is that we do not know which list element corresponds to
         # which parameter unless the constraints are checked. Parameter keys which are not in the constraints dict
@@ -1367,7 +1480,7 @@ class Orbit:
         self, show=True, save=False, padding=False, fundamental_domain=False, **kwargs
     ):
         """
-        Signature for plotting method.
+        Visualization method is equation/dimension dependent.
 
         """
         ...
@@ -1403,7 +1516,7 @@ class Orbit:
         dataname="",
         h5mode="a",
         verbose=False,
-        include_residual=False,
+        include_cost=False,
         **kwargs,
     ):
         """
@@ -1424,8 +1537,8 @@ class Orbit:
             to write to the file.
         verbose : bool
             Whether or not to print save location and group
-        include_residual : bool
-            Whether or not to include residual as metadata; requires equation to be well-defined for current instance.
+        include_cost : bool
+            Whether or not to include cost as metadata; requires equation to be well-defined for current instance.
         kwargs : dict
             extra keyword arguments, in signature to allow for generalization
 
@@ -1483,13 +1596,13 @@ class Orbit:
                 except TypeError:
                     continue
 
-            if include_residual:
+            if include_cost:
                 # This is included as a conditional statement because it seems strange to make importing/exporting
                 # dependent upon full implementation of the governing equations
                 try:
-                    orbitset.attrs["residual"] = self.residual()
+                    orbitset.attrs["cost"] = self.cost()
                 except (ZeroDivisionError, ValueError):
-                    print("Unable to compute residual for {}".format(repr(self)))
+                    print("Unable to compute cost for {}".format(repr(self)))
 
     def filename(self, extension=".h5", decimals=3, cls_name=True):
         """
@@ -1685,6 +1798,18 @@ class Orbit:
             )
         return self.__class__(**{**vars(self), "state": masked_state})
 
+    def plotting_dimensions(self):
+        """
+        Return the dimension intervals displayed in visualization techniques; only used in clipping function.
+
+        Returns
+        -------
+        tuple of tuple :
+            return the intervals of the dimensions; default is from 0 to period
+
+        """
+        return ((0, dim) for dim in self.dimensions())
+
     @classmethod
     def defaults(cls):
         """
@@ -1743,6 +1868,7 @@ class Orbit:
         """
         return {p_label: (0, 1) for p_label in cls.parameter_labels()}
 
+    @classmethod
     def _default_constraints(self):
         """
         Sometimes parameters are necessary but constant; this allows for exclusion from optimization without hassle.

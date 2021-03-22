@@ -415,7 +415,7 @@ def pairwise_group_orbit(orbit_pair, **kwargs):
     )
 
 
-def expensive_pairwise_glue(orbit_pair_array, orbit_type, objective="residual", **kwargs):
+def expensive_pairwise_glue(orbit_pair_array, orbit_type, objective="cost", **kwargs):
     """
     Gluing that searches pairs of group orbit members for the best combination.
     
@@ -427,8 +427,8 @@ def expensive_pairwise_glue(orbit_pair_array, orbit_type, objective="residual", 
     orbit_type : type
         The Orbit type to return the result as.
     objective : str
-        The manner that orbit combinations are graded; options are 'residual' or 'boundary_residual'.
-        The former calls the Orbit's built in residual function, the latter computes the
+        The manner that orbit combinations are graded; options are 'cost' or 'boundary_cost'.
+        The former calls the Orbit's built in cost function, the latter computes the
         L2 difference of the boundaries that are joined together.
 
     Returns
@@ -453,10 +453,10 @@ def expensive_pairwise_glue(orbit_pair_array, orbit_type, objective="residual", 
     gluing_axis = int(np.argmax(orbit_pair_array.shape))
     # The best orbit pair at the start is by default the first one.
     best_glued_orbit_so_far = glue(orbit_pair_array, orbit_type, **kwargs)
-    smallest_residual_so_far = best_glued_orbit_so_far.residual()
+    smallest_cost_so_far = best_glued_orbit_so_far.cost()
     # iterate over all combinations of group orbit members; keyword arguments can be passed to control sampling rate.
     for ga, gb in pairwise_group_orbit(orbit_pair_array, **kwargs):
-        if objective == "boundary_residual":
+        if objective == "boundary_cost":
             # Ugly way of slicing the state arrays at the boundaries. This is assuming periodic boundary conditions.
             aslice = tuple(
                            (0, -1) if i == gluing_axis and periodic else
@@ -471,19 +471,19 @@ def expensive_pairwise_glue(orbit_pair_array, orbit_type, objective="residual", 
                            for i, periodic in enumerate(ga.periodic_dimension())
             )
             # Slice the state and not the orbit, as slices may not be valid (do not retain number of dimensions)
-            boundary_residual = np.linalg.norm(ga.state[aslice] - gb.state[bslice])
-            if boundary_residual < smallest_residual_so_far:
+            boundary_cost = np.linalg.norm(ga.state[aslice] - gb.state[bslice])
+            if boundary_cost < smallest_cost_so_far:
                 best_glued_orbit_so_far = glue(
                     np.array([ga, gb]).reshape(orbit_pair_array.shape),
                     orbit_type,
                     **kwargs
                 )
-                smallest_residual_so_far = boundary_residual
+                smallest_cost_so_far = boundary_cost
         else:
             g_orbit_array = np.array([ga, gb]).reshape(orbit_pair_array.shape)
             best_glued_orbit_so_far = glue(g_orbit_array, orbit_type, **kwargs)
-            residual = best_glued_orbit_so_far.residual()
-            if residual < smallest_residual_so_far:
-                smallest_residual_so_far = residual
+            cost = best_glued_orbit_so_far.cost()
+            if cost < smallest_cost_so_far:
+                smallest_cost_so_far = cost
 
     return best_glued_orbit_so_far

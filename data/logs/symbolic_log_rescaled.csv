@@ -1,4 +1,4 @@
-,symbol_string,parameters,field_shape,residual,status,tileset,comoving,tile_shape
+,symbol_string,parameters,field_shape,cost,status,tileset,comoving,tile_shape
 0,01,"(36.86410772925148, 19.76861783341166, 0)","(32, 32)",0.10774961506340365,0,rescaled,True,"(1, 2)"
 1,02,"(17.24640872378997, 24.05132470704072, 0)","(32, 32)",2.949034545506304e-12,-1,rescaled,True,"(1, 2)"
 2,12,"(26.251324653921554, 32.48827304622197, 0)","(32, 32)",1.1979340393340681e-09,-1,rescaled,True,"(1, 2)"

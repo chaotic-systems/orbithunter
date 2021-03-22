@@ -494,12 +494,12 @@ class OrbitKS(Orbit):
 
         if not self.constraints["t"]:
             # Compute the product of the partial derivative with respect to T with the vector's value of T.
-            # This is only relevant when other.t an incremental value dT from a numerical method.
+            # This is only relevant when other.t an incremental value dt from a numerical method.
             matvec_modes += other.t * (-1.0 / self.t) * self.dt(array=True)
 
         if not self.constraints["x"]:
             # Compute the product of the partial derivative with respect to L with the vector's value of L.
-            # This is only relevant when other.x an incremental value dL from a numerical method.
+            # This is only relevant when other.x an incremental value dx from a numerical method.
             dfdl = (
                 (-2.0 / self.x) * self.dx(order=2, array=True)
                 + (-4.0 / self.x) * self.dx(order=4, array=True)
@@ -529,7 +529,7 @@ class OrbitKS(Orbit):
         evaluation of -v_t + v_xx + v_xxxx  - (u .* v_x). In regards to preconditioning (which is very useful
         for certain numerical methods, right preconditioning and left preconditioning switch meanings when the
         jacobian is transposed. i.e. Right preconditioning of the Jacobian can include preconditioning of the state
-        parameters (which in this case are usually incremental corrections dT, dL, dS);
+        parameters (which in this case are usually incremental corrections dt, dx, ds);
         this corresponds to LEFT preconditioning of the adjoint.
 
         """
@@ -551,7 +551,7 @@ class OrbitKS(Orbit):
             }
         )
 
-    def objgrad(self, eqn, **kwargs):
+    def costgrad(self, eqn, **kwargs):
         """
         Derivative of $1/2 |F|^2$
 
@@ -865,13 +865,13 @@ class OrbitKS(Orbit):
         # Precondition the change in T and L
         pexp = kwargs.get("pexp", (1, 4))
         if not self.constraints["t"]:
-            # self is the orbit being preconditioned, i.e. the correction orbit; by default this is dT = dT / T
+            # self is the orbit being preconditioned, i.e. the correction orbit; by default this is dt = dt / T
             t = self.t * (pmult[0][0] ** -pexp[0])
         else:
             t = self.t
 
         if not self.constraints["x"]:
-            # self is the orbit being preconditioned, i.e. the correction orbit; by default this is dL = dL / L^4
+            # self is the orbit being preconditioned, i.e. the correction orbit; by default this is dx = dx / L^4
             x = self.x * (pmult[1][0] ** -pexp[1])
         else:
             x = self.x
@@ -1358,7 +1358,7 @@ class OrbitKS(Orbit):
         dataname=None,
         h5mode="a",
         verbose=False,
-        include_residual=True,
+        include_cost=True,
         **kwargs,
     ):
         """
@@ -1374,12 +1374,12 @@ class OrbitKS(Orbit):
             The writing mode, see core.py for details
         verbose : bool
             Whether or not to print save destination.
-        include_residual :
-            Whether to save residual to h5 file.
+        include_cost :
+            Whether to save cost to h5 file.
 
         Notes
         -----
-        Mainly an overload simply to get a different default behavior for include_residual.
+        Mainly an overload simply to get a different default behavior for include_cost.
 
         """
         super().to_h5(
@@ -1387,7 +1387,7 @@ class OrbitKS(Orbit):
             dataname=dataname,
             h5mode=h5mode,
             verbose=verbose,
-            include_residual=include_residual,
+            include_cost=include_cost,
             **kwargs,
         )
 
@@ -1753,15 +1753,15 @@ class OrbitKS(Orbit):
         other_modes_in_vector_form = other.state.ravel()
         if not self.constraints["t"]:
             # partial derivative with respect to period times the adjoint/co-state variable state.
-            rmatvec_T = (-1.0 / self.t) * self.dt(array=True).ravel().dot(
+            rmatvec_t = (-1.0 / self.t) * self.dt(array=True).ravel().dot(
                 other_modes_in_vector_form
             )
         else:
-            rmatvec_T = 0
+            rmatvec_t = 0
 
         if not self.constraints["x"]:
-            # change in L, dL, equal to DF/DL * v
-            rmatvec_L = (
+            # change in L, dx, equal to DF/DL * v
+            rmatvec_x = (
                 (
                     (-2.0 / self.x) * self.dx(order=2, array=True)
                     + (-4.0 / self.x) * self.dx(order=4, array=True)
@@ -1771,9 +1771,9 @@ class OrbitKS(Orbit):
                 .dot(other_modes_in_vector_form)
             )
         else:
-            rmatvec_L = 0
+            rmatvec_x = 0
 
-        return rmatvec_T, rmatvec_L
+        return rmatvec_t, rmatvec_x
 
     def _rmatvec_linear_component(self, array=False):
         """
@@ -1848,14 +1848,14 @@ class OrbitKS(Orbit):
             space period in optimization process.
 
         """
-        # If period is not fixed, need to include dF/dT in jacobian matrix
+        # If period is not fixed, need to include dF/dt in jacobian matrix
         if not self.constraints["t"]:
             time_period_derivative = (-1.0 / self.t) * self.dt(array=True).reshape(
                 -1, 1
             )
             jac_ = np.concatenate((jac_, time_period_derivative), axis=1)
 
-        # If spatial period is not fixed, need to include dF/dL in jacobian matrix
+        # If spatial period is not fixed, need to include dF/dx in jacobian matrix
         if not self.constraints["x"]:
             self_field = self.transform(to="field")
             spatial_period_derivative = (
@@ -2512,9 +2512,9 @@ class RelativeOrbitKS(OrbitKS):
         orbit_with_inverted_shift = self.__class__(
             **{**vars(self), "parameters": (self.t, self.x, -self.s)}
         )
-        residual_imported_S = self.residual()
-        residual_negated_S = orbit_with_inverted_shift.residual()
-        if residual_imported_S > residual_negated_S:
+        cost_imported_S = self.cost()
+        cost_negated_S = orbit_with_inverted_shift.cost()
+        if cost_imported_S > cost_negated_S:
             orbit_ = orbit_with_inverted_shift
         else:
             orbit_ = self.copy()
@@ -2598,15 +2598,15 @@ class RelativeOrbitKS(OrbitKS):
         self_dx_modes = self.dx(array=True)
         if not self.constraints["t"]:
             # Derivative with respect to T term equal to DF/DT * v
-            rmatvec_T = (-1.0 / self.t) * (
+            rmatvec_t = (-1.0 / self.t) * (
                 self.dt(array=True) + (-self.s / self.t) * self_dx_modes
             ).ravel().dot(other_modes)
         else:
-            rmatvec_T = 0
+            rmatvec_t = 0
 
         if not self.constraints["x"]:
-            # change in L, dL, equal to DF/DL * v
-            rmatvec_L = (
+            # change in L, dx, equal to DF/DL * v
+            rmatvec_x = (
                 (
                     (-2.0 / self.x) * self.dx(order=2, array=True)
                     + (-4.0 / self.x) * self.dx(order=4, array=True)
@@ -2621,14 +2621,14 @@ class RelativeOrbitKS(OrbitKS):
             )
 
         else:
-            rmatvec_L = 0
+            rmatvec_x = 0
 
         if not self.constraints["s"]:
-            rmatvec_S = (-1.0 / self.t) * self_dx_modes.ravel().dot(other_modes)
+            rmatvec_s = (-1.0 / self.t) * self_dx_modes.ravel().dot(other_modes)
         else:
-            rmatvec_S = 0.0
+            rmatvec_s = 0.0
 
-        return rmatvec_T, rmatvec_L, rmatvec_S
+        return rmatvec_t, rmatvec_x, rmatvec_s
 
     def _rmatvec_linear_component(self, array=False):
         """
@@ -2688,14 +2688,14 @@ class RelativeOrbitKS(OrbitKS):
         methods.
 
         """
-        # If period is not fixed, need to include dF/dT in jacobian matrix
+        # If period is not fixed, need to include dF/dt in jacobian matrix
         if not self.constraints["t"]:
             time_period_derivative = (-1.0 / self.t) * (
                 self.dt(array=True) + (-self.s / self.t) * self.dx(array=True)
             ).reshape(-1, 1)
             jac_ = np.concatenate((jac_, time_period_derivative), axis=1)
 
-        # If spatial period is not fixed, need to include dF/dL in jacobian matrix
+        # If spatial period is not fixed, need to include dF/dx in jacobian matrix
         if not self.constraints["x"]:
             self_field = self.transform(to="field")
             spatial_period_derivative = (
@@ -3557,7 +3557,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         # Precondition the change in T and L so that they do not dominate
         if not self.constraints["x"]:
-            # self is the orbit being preconditioned, i.e. the correction orbit; by default this is dL = dL / L^4
+            # self is the orbit being preconditioned, i.e. the correction orbit; by default this is dx = dx / L^4
             x = self.x * (pmult[1][0] ** -pexp[1])
         else:
             x = self.x
@@ -3696,8 +3696,8 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
     def _rmatvec_parameters(self, self_field, other):
         other_modes_in_vector_form = other.state.ravel()
         if not self.constraints["x"]:
-            # change in L, dL, equal to DF/DL * v
-            rmatvec_L = (
+            # change in L, dx, equal to DF/DL * v
+            rmatvec_x = (
                 (
                     (-2.0 / self.x) * self.dx(order=2, array=True)
                     + (-4.0 / self.x) * self.dx(order=4, array=True)
@@ -3707,9 +3707,9 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
                 .dot(other_modes_in_vector_form)
             )
         else:
-            rmatvec_L = 0
+            rmatvec_x = 0
 
-        return 0.0, rmatvec_L, 0.0
+        return 0.0, rmatvec_x, 0.0
 
     def _rmatvec_linear_component(self, array=False):
         """
@@ -3887,7 +3887,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         methods.
 
         """
-        # If spatial period is not fixed, need to include dF/dL in jacobian matrix
+        # If spatial period is not fixed, need to include dF/dx in jacobian matrix
         if not self.constraints["x"]:
             self_field = self.transform(to="field")
             spatial_period_derivative = (
@@ -4050,9 +4050,9 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         # Take the L_2 norm of the field, if uniformly close to zero, the magnitude will be very small.
         orbit_with_inverted_shift = self.copy()
         orbit_with_inverted_shift.s = -self.s
-        residual_imported_S = self.residual()
-        residual_negated_S = orbit_with_inverted_shift.residual()
-        if residual_imported_S > residual_negated_S:
+        cost_imported_S = self.cost()
+        cost_negated_S = orbit_with_inverted_shift.cost()
+        if cost_imported_S > cost_negated_S:
             orbit_ = orbit_with_inverted_shift
         else:
             orbit_ = self.copy()
@@ -4362,7 +4362,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         methods.
 
         """
-        # If period is not fixed, need to include dF/dT in jacobian matrix
+        # If period is not fixed, need to include dF/dt in jacobian matrix
         if not self.constraints["t"]:
             time_period_derivative = (
                 (-1.0 / self.t)
@@ -4371,7 +4371,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
             )
             jac_ = np.concatenate((jac_, time_period_derivative), axis=1)
 
-        # If spatial period is not fixed, need to include dF/dL in jacobian matrix
+        # If spatial period is not fixed, need to include dF/dx in jacobian matrix
         if not self.constraints["x"]:
             self_field = self.transform(to="field")
             spatial_period_derivative = (

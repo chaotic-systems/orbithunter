@@ -1,5 +1,5 @@
-orbithunter 0.5rc2
-==================
+orbithunter 0.5
+===============
 orbithunter serves as a framework for solving chaotic nonlinear partial differential equations.
 
 Features

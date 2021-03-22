@@ -52,7 +52,7 @@ class OrbitResult(dict):
     0 : Minimum backtracking step size requirement not met.
     1 : Converged
     2 : Maximum number of iterations reached
-    3 : Insufficient residual decrease.
+    3 : Insufficient cost decrease.
 
     """
 
@@ -104,7 +104,7 @@ def hunt(orbit_instance, *methods, **kwargs):
             maxiter=100 for adjoint descent and lstsq have very very different computational times.
 
         `tol : float, optional`
-            The threshold for the residual function for an orbit approximation to be declared successful.
+            The threshold for the cost function for an orbit approximation to be declared successful.
 
         `scipy_kwargs : dict, optional`
             Additional arguments for SciPy solvers. There are too many to describe and they depend on the
@@ -116,14 +116,22 @@ def hunt(orbit_instance, *methods, **kwargs):
     Returns
     -------
     `OrbitResult :`
-        Object which includes optimization properties like exit code, residuals, tol, maxiter, etc. and
+        Object which includes optimization properties like exit code, costs, tol, maxiter, etc. and
         the final resulting orbit approximation.
 
     Notes
     -----
-    Support for Hessian based methods `['trust-constr', 'dogleg', 'trust-ncg', 'trust-exact', 'trust-krylov']`
-    has not been tested as they are only available if developer implements their own hessp (hessian product) or
-    objhess (Hessian matrix) methods.
+    Support for Hessian based methods `['trust-constr', 'dogleg', 'trust-ncg', 'trust-exact', 'trust-krylov']`.
+    For the 'dogleg' method, an argument ``hess`` is required to be passed to hunt in ``scipy_kwargs``
+
+        `hess{callable, ‘2-point’, ‘3-point’, ‘cs’, HessianUpdateStrategy}`
+
+    For the other mehods, ``hessp`` is sufficient, but usage of ``hess`` is viable.
+
+        `hessp{callable, optional}`
+
+    These methods have not been tested as they the Hessian or its product was never included for the KSe.
+    The class methods which are relevant for deployment of this
 
     References
     ----------
@@ -211,10 +219,11 @@ def hunt(orbit_instance, *methods, **kwargs):
                 # had to use an alias because this is also defined for scipy.sparse.linalg
                 method = "cg"
             elif (method in ["trust-constr", "dogleg", "trust-ncg", "trust-exact", "trust-krylov"]
-                  and (not hasattr(orbit_instance, "hessp") and not hasattr(orbit_instance, 'objhess'))):
+                  and (not hasattr(orbit_instance, "costhessp") and not hasattr(orbit_instance, 'costhess'))):
                 err_str = ''.join([f"Hessian based algorithm {method} is not supported for {orbit_instance.__class__}",
-                                   f" because neither {orbit_instance.__class__}.objhess() (Hessian matrix) nor",
-                                   f" {orbit_instance.__class__}.hessp() (Hessian product) are defined."])
+                                   f" because neither {orbit_instance.__class__}.costhess() nor",
+                                   f" {orbit_instance.__class__}.costhessp() are defined"
+                                   f" and no SciPy option was passed. See scipy.optimize.minimize docs for details."])
                 raise AttributeError(err_str)
             orbit_instance, method_statistics = _scipy_optimize_minimize_wrapper(
                 orbit_instance, method=method, **hunt_kwargs
@@ -266,7 +275,7 @@ def hunt(orbit_instance, *methods, **kwargs):
         final_tol = min(final_tol)
 
     final_status = runtime_statistics["status"]
-    if final_status == -1 and orbit_instance.residual() <= final_tol:
+    if final_status == -1 and orbit_instance.cost() <= final_tol:
         # If exited numerical methods with "has not failed yet" value, and mets tolerance requirements, then success!
         runtime_statistics["status"] = 1
     runtime_statistics["message"] = _exit_messages(
@@ -322,7 +331,7 @@ def _adjoint_descent(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **k
     runtime_statistics = {
         "method": "adj",
         "nit": 0,
-        "residuals": [orbit_instance.residual()],
+        "costs": [orbit_instance.cost()],
         "maxiter": maxiter,
         "tol": tol,
         "status": -1,
@@ -336,35 +345,39 @@ def _adjoint_descent(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **k
         print("Starting adjoint descent")
         print("Initial guess : {}".format(repr(orbit_instance)))
         print("Constraints : {}".format(orbit_instance.constraints))
-        print("Initial residual : {}".format(orbit_instance.residual()))
-        print("Target residual tolerance : {}".format(tol))
+        print("Initial cost : {}".format(orbit_instance.cost()))
+        print("Target cost tolerance : {}".format(tol))
         print("Maximum iteration number : {}".format(maxiter))
         print(
             "-------------------------------------------------------------------------------------------------"
         )
         sys.stdout.flush()
+    # Simplest solution to exclusion of simple backtracking.
+    if not kwargs.get('backtracking', True):
+        min_step = 1
+
     mapping = orbit_instance.eqn(**kwargs)
-    residual = mapping.residual(eqn=False)
+    cost = mapping.cost(eqn=False)
     step_size = 1
-    while residual > tol and runtime_statistics["status"] == -1:
+    while cost > tol and runtime_statistics["status"] == -1:
         # Calculate the step
-        gradient = orbit_instance.objgrad(mapping, **kwargs)
+        gradient = orbit_instance.costgrad(mapping, **kwargs)
         # Negative sign -> 'descent'
         next_orbit_instance = orbit_instance.increment(
             gradient, step_size=-1.0 * step_size
         )
-        # Calculate the mapping and store; need it for next step and to compute residual.
+        # Calculate the mapping and store; need it for next step and to compute cost.
         next_mapping = next_orbit_instance.eqn(**kwargs)
-        # Compute residual to see if step succeeded
-        next_residual = next_mapping.residual(eqn=False)
-        while next_residual >= residual and step_size > min_step:
-            # reduce the step size until minimum is reached or residual decreases.
+        # Compute cost to see if step succeeded
+        next_cost = next_mapping.cost(eqn=False)
+        while next_cost >= cost and step_size > min_step:
+            # reduce the step size until minimum is reached or cost decreases.
             step_size /= 2
             next_orbit_instance = orbit_instance.increment(
                 gradient, step_size=-1.0 * step_size
             )
             next_mapping = next_orbit_instance.eqn(**kwargs)
-            next_residual = next_mapping.residual(eqn=False)
+            next_cost = next_mapping.cost(eqn=False)
         else:
             orbit_instance, runtime_statistics = _process_correction(
                 orbit_instance,
@@ -375,18 +388,18 @@ def _adjoint_descent(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **k
                 ftol,
                 step_size,
                 min_step,
-                residual,
-                next_residual,
+                cost,
+                next_cost,
                 "adj",
                 verbose=verbose,
-                residual_logging=kwargs.get("residual_logging", False),
+                cost_logging=kwargs.get("cost_logging", False),
             )
             mapping = next_mapping
-            residual = next_residual
+            cost = next_cost
     else:
-        if orbit_instance.residual() <= tol:
+        if orbit_instance.cost() <= tol:
             runtime_statistics["status"] = -1
-        runtime_statistics["residuals"].append(orbit_instance.residual())
+        runtime_statistics["costs"].append(orbit_instance.cost())
         return orbit_instance, runtime_statistics
 
 
@@ -438,11 +451,11 @@ def _newton_descent(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwar
 
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
     step_size = kwargs.get("step_size", 0.001)
-    residual = orbit_instance.residual()
+    cost = orbit_instance.cost()
     runtime_statistics = {
         "method": "newton_descent",
         "nit": 0,
-        "residuals": [residual],
+        "costs": [cost],
         "maxiter": maxiter,
         "tol": tol,
         "status": -1,
@@ -455,30 +468,35 @@ def _newton_descent(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwar
         print("Starting Newton descent optimization")
         print("Initial guess : {}".format(repr(orbit_instance)))
         print("Constraints : {}".format(orbit_instance.constraints))
-        print("Initial residual : {}".format(orbit_instance.residual()))
-        print("Target residual tolerance : {}".format(tol))
+        print("Initial cost : {}".format(orbit_instance.cost()))
+        print("Target cost tolerance : {}".format(tol))
         print("Maximum iteration number : {}".format(maxiter))
         print(
             "-------------------------------------------------------------------------------------------------"
         )
         sys.stdout.flush()
+
+    # Simplest solution to exclusion of simple backtracking.
+    if not kwargs.get('backtracking', True):
+        min_step = 1
+
     mapping = orbit_instance.eqn(**kwargs)
-    residual = mapping.residual(eqn=False)
-    while residual > tol and runtime_statistics["status"] == -1:
+    cost = mapping.cost(eqn=False)
+    while cost > tol and runtime_statistics["status"] == -1:
         # Solve A dx = b <--> J dx = - f, for dx.
         A, b = orbit_instance.jacobian(), -1 * mapping.state.ravel()
         inv_A = pinv(A)
         dx = orbit_instance.from_numpy_array(np.dot(inv_A, b))
         next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
         next_mapping = next_orbit_instance.eqn(**kwargs)
-        next_residual = next_mapping.residual(eqn=False)
+        next_cost = next_mapping.cost(eqn=False)
         # This modifies the step size if too large; i.e. its a very crude way of handling curvature.
-        while next_residual > residual and step_size > min_step:
-            # Continues until either step is too small or residual decreases
+        while next_cost > cost and step_size > min_step:
+            # Continues until either step is too small or cost decreases
             step_size /= 2.0
             next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
             next_mapping = next_orbit_instance.eqn(**kwargs)
-            next_residual = next_mapping.residual(eqn=False)
+            next_cost = next_mapping.cost(eqn=False)
         else:
             inner_nit = 1
             if kwargs.get("approximation", True):
@@ -487,24 +505,24 @@ def _newton_descent(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwar
                 dx = orbit_instance.from_numpy_array(np.dot(inv_A, b))
                 inner_orbit = next_orbit_instance.increment(dx, step_size=step_size)
                 inner_mapping = inner_orbit.eqn(**kwargs)
-                inner_residual = inner_mapping.residual(eqn=False)
-                while inner_residual < next_residual:
+                inner_cost = inner_mapping.cost(eqn=False)
+                while inner_cost < next_cost:
                     next_orbit_instance = inner_orbit
                     next_mapping = inner_mapping
-                    next_residual = inner_residual
+                    next_cost = inner_cost
                     b = -1 * next_mapping.state.ravel()
                     dx = orbit_instance.from_numpy_array(np.dot(inv_A, b))
                     inner_orbit = next_orbit_instance.increment(dx, step_size=step_size)
                     inner_mapping = inner_orbit.eqn(**kwargs)
-                    inner_residual = inner_mapping.residual(eqn=False)
+                    inner_cost = inner_mapping.cost(eqn=False)
                     inner_nit += 1
-                    if inner_residual < tol:
+                    if inner_cost < tol:
                         next_orbit_instance = inner_orbit
                         next_mapping = inner_mapping
-                        next_residual = inner_residual
+                        next_cost = inner_cost
                         break
             # If the trigger that broke the while loop was step_size then
-            # assume next_residual < residual was not met.
+            # assume next_cost < cost was not met.
             orbit_instance, runtime_statistics = _process_correction(
                 orbit_instance,
                 next_orbit_instance,
@@ -514,19 +532,19 @@ def _newton_descent(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwar
                 ftol,
                 step_size,
                 min_step,
-                residual,
-                next_residual,
+                cost,
+                next_cost,
                 "newton_descent",
                 inner_nit=inner_nit,
-                residual_logging=kwargs.get("residual_logging", False),
+                cost_logging=kwargs.get("cost_logging", False),
                 verbose=kwargs.get("verbose", False),
             )
             mapping = next_mapping
-            residual = next_residual
+            cost = next_cost
     else:
-        if orbit_instance.residual() <= tol:
+        if orbit_instance.cost() <= tol:
             runtime_statistics["status"] = -1
-        runtime_statistics["residuals"].append(orbit_instance.residual())
+        runtime_statistics["costs"].append(orbit_instance.cost())
         return orbit_instance, runtime_statistics
 
 
@@ -574,11 +592,11 @@ def _lstsq(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
     ftol = kwargs.get("ftol", 1e-9)
     mapping = orbit_instance.eqn(**kwargs)
-    residual = mapping.residual(eqn=False)
+    cost = mapping.cost(eqn=False)
     runtime_statistics = {
         "method": "lstsq",
         "nit": 0,
-        "residuals": [residual],
+        "costs": [cost],
         "maxiter": maxiter,
         "tol": tol,
         "status": -1,
@@ -590,13 +608,18 @@ def _lstsq(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
         print("Starting lstsq optimization")
         print("Initial guess : {}".format(repr(orbit_instance)))
         print("Constraints : {}".format(orbit_instance.constraints))
-        print("Initial residual : {}".format(orbit_instance.residual()))
-        print("Target residual tolerance : {}".format(tol))
+        print("Initial cost : {}".format(orbit_instance.cost()))
+        print("Target cost tolerance : {}".format(tol))
         print("Maximum iteration number : {}".format(maxiter))
         print(
             "-------------------------------------------------------------------------------------------------"
         )
-    while residual > tol and runtime_statistics["status"] == -1:
+
+    # Simplest solution to exclusion of simple backtracking.
+    if not kwargs.get('backtracking', True):
+        min_step = 1
+
+    while cost > tol and runtime_statistics["status"] == -1:
         step_size = 1
         # Solve A dx = b <--> J dx = - f, for dx.
         A = orbit_instance.jacobian(**kwargs)
@@ -604,13 +627,13 @@ def _lstsq(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
         dx = orbit_instance.from_numpy_array(lstsq(A, b)[0], **kwargs)
         next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
         next_mapping = next_orbit_instance.eqn(**kwargs)
-        next_residual = next_mapping.residual(eqn=False)
-        while next_residual > residual and step_size > min_step:
-            # Continues until either step is too small or residual decreases
+        next_cost = next_mapping.cost(eqn=False)
+        while next_cost > cost and step_size > min_step:
+            # Continues until either step is too small or cost decreases
             step_size /= 2.0
             next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
             next_mapping = next_orbit_instance.eqn(**kwargs)
-            next_residual = next_mapping.residual(eqn=False)
+            next_cost = next_mapping.cost(eqn=False)
         else:
             orbit_instance, runtime_statistics = _process_correction(
                 orbit_instance,
@@ -621,18 +644,18 @@ def _lstsq(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
                 ftol,
                 step_size,
                 min_step,
-                residual,
-                next_residual,
+                cost,
+                next_cost,
                 "lstsq",
-                residual_logging=kwargs.get("residual_logging", False),
+                cost_logging=kwargs.get("cost_logging", False),
                 verbose=kwargs.get("verbose", False),
             )
             mapping = next_mapping
-            residual = next_residual
+            cost = next_cost
     else:
-        if orbit_instance.residual() <= tol:
+        if orbit_instance.cost() <= tol:
             runtime_statistics["status"] = -1
-        runtime_statistics["residuals"].append(orbit_instance.residual())
+        runtime_statistics["costs"].append(orbit_instance.cost())
         return orbit_instance, runtime_statistics
 
 
@@ -679,12 +702,12 @@ def _solve(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **kwargs):
 
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
     mapping = orbit_instance.eqn(**kwargs)
-    residual = mapping.residual(eqn=False)
+    cost = mapping.cost(eqn=False)
     ftol = kwargs.get("ftol", 1e-9)
     runtime_statistics = {
         "method": "solve",
         "nit": 0,
-        "residuals": [residual],
+        "costs": [cost],
         "maxiter": maxiter,
         "tol": tol,
         "status": -1,
@@ -696,13 +719,18 @@ def _solve(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **kwargs):
         print("Starting lstsq optimization")
         print("Initial guess : {}".format(repr(orbit_instance)))
         print("Constraints : {}".format(orbit_instance.constraints))
-        print("Initial residual : {}".format(orbit_instance.residual()))
-        print("Target residual tolerance : {}".format(tol))
+        print("Initial cost : {}".format(orbit_instance.cost()))
+        print("Target cost tolerance : {}".format(tol))
         print("Maximum iteration number : {}".format(maxiter))
         print(
             "-------------------------------------------------------------------------------------------------"
         )
-    while residual > tol and runtime_statistics["status"] == -1:
+
+    # Simplest solution to exclusion of simple backtracking.
+    if not kwargs.get('backtracking', True):
+        min_step = 1
+
+    while cost > tol and runtime_statistics["status"] == -1:
         step_size = 1
         # Solve A dx = b <--> J dx = - f, for dx.
         A = orbit_instance.jacobian(**kwargs)
@@ -710,13 +738,13 @@ def _solve(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **kwargs):
         dx = orbit_instance.from_numpy_array(solve(A, b)[0], **kwargs)
         next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
         next_mapping = next_orbit_instance.eqn(**kwargs)
-        next_residual = next_mapping.residual(eqn=False)
-        while next_residual > residual and step_size > min_step:
-            # Continues until either step is too small or residual decreases
+        next_cost = next_mapping.cost(eqn=False)
+        while next_cost > cost and step_size > min_step:
+            # Continues until either step is too small or cost decreases
             step_size /= 2.0
             next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
             next_mapping = next_orbit_instance.eqn(**kwargs)
-            next_residual = next_mapping.residual(eqn=False)
+            next_cost = next_mapping.cost(eqn=False)
         else:
             orbit_instance, runtime_statistics = _process_correction(
                 orbit_instance,
@@ -727,18 +755,18 @@ def _solve(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **kwargs):
                 ftol,
                 step_size,
                 min_step,
-                residual,
-                next_residual,
+                cost,
+                next_cost,
                 "lstsq",
-                residual_logging=kwargs.get("residual_logging", False),
+                cost_logging=kwargs.get("cost_logging", False),
                 verbose=kwargs.get("verbose", False),
             )
             mapping = next_mapping
-            residual = next_residual
+            cost = next_cost
     else:
-        if orbit_instance.residual() <= tol:
+        if orbit_instance.cost() <= tol:
             runtime_statistics["status"] = -1
-        runtime_statistics["residuals"].append(orbit_instance.residual())
+        runtime_statistics["costs"].append(orbit_instance.cost())
         return orbit_instance, runtime_statistics
 
 
@@ -769,6 +797,13 @@ def _scipy_sparse_linalg_solver_wrapper(
     orbit_instance, runtime_statistics : Orbit, dict
         The result of the numerical optimization and its statistics
 
+    Notes
+    -----
+    Currently the deployment of rmatvec assumes that the eqn() and state have the same number of components,
+    i.e. there is no "parameter component" of the equation. This may not always be the case, but the argument is that
+    if there is a component in the governing equation then the variable should be included in the state attribute
+    and not the parameter attribute; will likely need to revist in the future.
+
     """
     try:
         assert type(tol) in [int, float, list, np.float64, np.int32]
@@ -787,7 +822,7 @@ def _scipy_sparse_linalg_solver_wrapper(
             ": parameters for hunt need to be iterables of same length as the number of methods."
         ) from ie
 
-    residual = orbit_instance.residual()
+    cost = orbit_instance.cost()
     if kwargs.get("verbose", False):
         print(
             "\n------------------------------------------------------------------------------------------------"
@@ -795,8 +830,8 @@ def _scipy_sparse_linalg_solver_wrapper(
         print("Starting {} optimization".format(method))
         print("Initial guess : {}".format(repr(orbit_instance)))
         print("Constraints : {}".format(orbit_instance.constraints))
-        print("Initial residual : {}".format(orbit_instance.residual()))
-        print("Target residual tolerance : {}".format(tol))
+        print("Initial cost : {}".format(orbit_instance.cost()))
+        print("Target cost tolerance : {}".format(tol))
         print("Maximum iteration number : {}".format(maxiter))
         print(
             "-------------------------------------------------------------------------------------------------"
@@ -806,18 +841,22 @@ def _scipy_sparse_linalg_solver_wrapper(
     runtime_statistics = {
         "method": method,
         "nit": 0,
-        "residuals": [residual],
+        "costs": [cost],
         "maxiter": maxiter,
         "tol": tol,
         "status": -1,
     }
-    while residual > tol and runtime_statistics["status"] == -1:
+    # Simplest solution to exclusion of simple backtracking.
+    if not kwargs.get('backtracking', True):
+        min_step = 1
+
+    while cost > tol and runtime_statistics["status"] == -1:
         step_size = 1
         if method in ["lsmr", "lsqr"]:
             if runtime_statistics["nit"] == 0:
                 scipy_kwargs = kwargs.pop("scipy_kwargs", {"atol": 1e-6, "btol": 1e-6})
-            # Solving least-squares equations, A x = b
 
+            # Solving least-squares equations, A x = b
             def matvec_func(v):
                 # _orbit_vector_to_orbit turns state vector into class object.
                 nonlocal orbit_instance
@@ -827,8 +866,9 @@ def _scipy_sparse_linalg_solver_wrapper(
             def rmatvec_func(v):
                 # _orbit_vector_to_orbit turns state vector into class object.
                 nonlocal orbit_instance
+                # General case this does not work. Needs to be built into rmatvec?
                 v_orbit = orbit_instance.from_numpy_array(
-                    v, parameters=orbit_instance.parameters
+                    v, extra_parameters=orbit_instance.parameters
                 )
                 return (
                     orbit_instance.rmatvec(v_orbit, **kwargs)
@@ -911,15 +951,15 @@ def _scipy_sparse_linalg_solver_wrapper(
         dx = orbit_instance.from_numpy_array(x, **kwargs)
         next_orbit_instance = orbit_instance.increment(dx)
         next_mapping = next_orbit_instance.eqn(**kwargs)
-        next_residual = next_mapping.residual(eqn=False)
-        while next_residual > residual and step_size > min_step:
-            # Continues until either step is too small or residual decreases
+        next_cost = next_mapping.cost(eqn=False)
+        while next_cost > cost and step_size > min_step:
+            # Continues until either step is too small or cost decreases
             step_size /= 2.0
             next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
             next_mapping = next_orbit_instance.eqn(**kwargs)
-            next_residual = next_mapping.residual(eqn=False)
+            next_cost = next_mapping.cost(eqn=False)
         else:
-            # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
+            # If the trigger that broke the while loop was step_size then assume next_cost < cost was not met.
             orbit_instance, runtime_statistics = _process_correction(
                 orbit_instance,
                 next_orbit_instance,
@@ -927,20 +967,20 @@ def _scipy_sparse_linalg_solver_wrapper(
                 tol,
                 maxiter,
                 ftol,
-                1,
-                0,
-                residual,
-                next_residual,
+                step_size,  # step_size; no backtracking
+                min_step,  # minstep=step_size
+                cost,
+                next_cost,
                 method,
-                residual_logging=kwargs.get("residual_logging", False),
+                cost_logging=kwargs.get("cost_logging", False),
                 verbose=kwargs.get("verbose", False),
             )
-            residual = next_residual
+            cost = next_cost
 
     else:
-        if orbit_instance.residual() <= tol:
+        if orbit_instance.cost() <= tol:
             runtime_statistics["status"] = -1
-        runtime_statistics["residuals"].append(orbit_instance.residual())
+        runtime_statistics["costs"].append(orbit_instance.cost())
         return orbit_instance, runtime_statistics
 
 
@@ -969,6 +1009,11 @@ def _scipy_optimize_minimize_wrapper(
     orbit_instance, runtime_statistics : Orbit, dict
         The result of the numerical optimization and its statistics
 
+    Notes
+    -----
+    This function is written as though the cost function, its jacobian and hessian are to be evaluated
+    at `x` which is the vector of independent variables, not at the current `orbit_instance`
+
     """
     try:
         assert type(tol) in [int, float, list, np.float64, np.int32]
@@ -985,12 +1030,12 @@ def _scipy_optimize_minimize_wrapper(
             ": parameters for hunt need to be iterables of same length as the number of methods."
         ) from ie
 
-    residual = orbit_instance.residual()
+    cost = orbit_instance.cost()
     ftol = kwargs.get("ftol", 1e-9)
     runtime_statistics = {
         "method": method,
         "nit": 0,
-        "residuals": [residual],
+        "costs": [cost],
         "maxiter": maxiter,
         "tol": tol,
         "status": -1,
@@ -1003,8 +1048,8 @@ def _scipy_optimize_minimize_wrapper(
         print("Starting {} optimization".format(method))
         print("Initial guess : {}".format(repr(orbit_instance)))
         print("Constraints : {}".format(orbit_instance.constraints))
-        print("Initial residual : {}".format(orbit_instance.residual()))
-        print("Target residual tolerance : {}".format(tol))
+        print("Initial cost : {}".format(orbit_instance.cost()))
+        print("Target cost tolerance : {}".format(tol))
         print("Maximum iteration number : {}".format(maxiter))
         print(
             "-------------------------------------------------------------------------------------------------"
@@ -1013,7 +1058,7 @@ def _scipy_optimize_minimize_wrapper(
 
     def _minfunc(x):
         """
-    Function which returns evaluation of residual
+        Function which returns evaluation of cost
 
         Parameters
         ----------
@@ -1028,11 +1073,11 @@ def _scipy_optimize_minimize_wrapper(
         """
         nonlocal orbit_instance
         x_orbit = orbit_instance.from_numpy_array(x, **kwargs)
-        return x_orbit.residual()
+        return x_orbit.cost()
 
     def _minjac(x):
         """
-    The jacobian of the cost function (scalar) can be expressed as a matrix-vector product
+        The jacobian of the cost function (scalar) can be expressed as a matrix-vector product
 
         Parameters
         ----------
@@ -1052,51 +1097,70 @@ def _scipy_optimize_minimize_wrapper(
         nonlocal orbit_instance
         x_orbit = orbit_instance.from_numpy_array(x)
         return (
-            x_orbit.objgrad(x_orbit.eqn(**kwargs), **kwargs)
+            x_orbit.costgrad(x_orbit.eqn(**kwargs), **kwargs)
             .orbit_vector()
             .ravel()
         )
 
     if method in ["trust-constr", "dogleg", "trust-ncg", "trust-exact", "trust-krylov"]:
+        hess_strategy = kwargs.get('hess_strategy', None)
+        if hess_strategy == 'costhessp':
+            # Use the class' definition of costhessp
+            def _minhessp(x):
+                """
+                Returns the matrix-vector product with the cost function's Hessian.
+                """
+                nonlocal orbit_instance
+                x_orbit = orbit_instance.from_numpy_array(x)
+                return orbit_instance.costhessp(x_orbit, **kwargs)
 
-        def _minhess(x):
-            """
-    The jacobian of the cost function (scalar) can be expressed as a vector product
-            Parameters
-            ----------
-            x
-            args
-            Returns
-            -------
-            Notes
-            -----
-            The gradient of 1/2 F^2 = J^T F, rmatvec is a function which does this matrix vector product
-            Will always use preconditioned version by default, not sure if wise.
-            """
-            nonlocal orbit_instance
-            x_orbit = orbit_instance.from_numpy_array(x)
-            return x_orbit.objhess(**kwargs)
+            scipy_kwargs = {
+                            **scipy_kwargs,
+                            "method": method,
+                            "jac": _minjac,
+                            "hessp": _minhessp,
+                            }
+        elif hess_strategy == 'costhess':
+            # Use the class' definition of costhess
 
-        scipy_kwargs = {
+            def _minhess(x):
+                """
+                Returns the matrix-vector product with the cost function's Hessian.
+                """
+                nonlocal orbit_instance
+                x_orbit = orbit_instance.from_numpy_array(x)
+                return x_orbit.costhess(**kwargs)
+            scipy_kwargs = {
+                        **scipy_kwargs,
+                        "method": method,
+                        "jac": _minjac,
+                        "hess": _minhess,
+                        }
+        elif hess_strategy is not None:
+            # Other possible options include callables, HessianUpdateStategy, str
+            scipy_kwargs = {
             **scipy_kwargs,
             "method": method,
             "jac": _minjac,
-            "hessp": _minhess,
-        }
+            "hess": hess_strategy,
+            }
+        else:
+            raise ValueError('invalid value for hess_strategy keyword argument. Check and try again')
+
     elif method in ["linearmixing"]:
         scipy_kwargs = {**scipy_kwargs, "method": method}
     else:
         scipy_kwargs = {**scipy_kwargs, "method": method, "jac": _minjac}
 
-    while residual > tol and runtime_statistics["status"] == -1:
+    while cost > tol and runtime_statistics["status"] == -1:
         result = minimize(_minfunc, orbit_instance.orbit_vector(), **scipy_kwargs)
         if kwargs.get("progressive", False):
-            # When solving the system repeatedly, a more stringent tolerance may be required to reduce the residual
+            # When solving the system repeatedly, a more stringent tolerance may be required to reduce the cost
             # by a sufficient amount due to vanishing gradients.
             scipy_kwargs["tol"] /= 10.0
         next_orbit_instance = orbit_instance.from_numpy_array(result.x)
-        next_residual = next_orbit_instance.residual()
-        # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
+        next_cost = next_orbit_instance.cost()
+        # If the trigger that broke the while loop was step_size then assume next_cost < cost was not met.
         orbit_instance, runtime_statistics = _process_correction(
             orbit_instance,
             next_orbit_instance,
@@ -1106,17 +1170,17 @@ def _scipy_optimize_minimize_wrapper(
             ftol,
             1,
             0,
-            residual,
-            next_residual,
+            cost,
+            next_cost,
             method,
-            residual_logging=kwargs.get("residual_logging", False),
+            cost_logging=kwargs.get("cost_logging", False),
             verbose=kwargs.get("verbose", False),
         )
-        residual = next_residual
+        cost = next_cost
     else:
-        if orbit_instance.residual() <= tol:
+        if orbit_instance.cost() <= tol:
             runtime_statistics["status"] = -1
-        runtime_statistics["residuals"].append(orbit_instance.residual())
+        runtime_statistics["costs"].append(orbit_instance.cost())
         return orbit_instance, runtime_statistics
 
 
@@ -1161,13 +1225,13 @@ def _scipy_optimize_root_wrapper(
             ": parameters for hunt need to be iterables of same length as the number of methods."
         ) from ie
 
-    residual = orbit_instance.residual()
+    cost = orbit_instance.cost()
     parameter_eqn_components = kwargs.get("parameter_eqn_components", True)
     ftol = kwargs.get("ftol", 1e-9)
     runtime_statistics = {
         "method": method,
         "nit": 0,
-        "residuals": [residual],
+        "costs": [cost],
         "maxiter": maxiter,
         "tol": tol,
         "status": -1,
@@ -1179,8 +1243,8 @@ def _scipy_optimize_root_wrapper(
         print("Starting {} optimization".format(method))
         print("Initial guess : {}".format(repr(orbit_instance)))
         print("Constraints : {}".format(orbit_instance.constraints))
-        print("Initial residual : {}".format(orbit_instance.residual()))
-        print("Target residual tolerance : {}".format(tol))
+        print("Initial cost : {}".format(orbit_instance.cost()))
+        print("Target cost tolerance : {}".format(tol))
         print("Maximum iteration number : {}".format(maxiter))
         print(
             "-------------------------------------------------------------------------------------------------"
@@ -1189,7 +1253,7 @@ def _scipy_optimize_root_wrapper(
 
     def _rootfunc(x):
         """
-    Function which returns evaluation of equations using `orbit_vector` x
+        Function which returns evaluation of equations using `orbit_vector` x
 
         Returns
         -------
@@ -1209,7 +1273,7 @@ def _scipy_optimize_root_wrapper(
 
     def _rootjac(x):
         """
-    The jacobian of the cost function (scalar) can be expressed as a vector product
+        The jacobian of the cost function (scalar) can be expressed as a vector product
 
         Parameters
         ----------
@@ -1232,12 +1296,12 @@ def _scipy_optimize_root_wrapper(
         x_orbit = orbit_instance.from_numpy_array(x)
         # gradient does not have the same problem that the equation
         return (
-            x_orbit.objgrad(x_orbit.eqn(**kwargs), **kwargs)
+            x_orbit.costgrad(x_orbit.eqn(**kwargs), **kwargs)
             .orbit_vector()
             .ravel()
         )
 
-    while residual > tol and runtime_statistics["status"] == -1:
+    while cost > tol and runtime_statistics["status"] == -1:
         if method == "newton_krylov":
             scipy_kwargs = dict({"f_tol": ftol}, **kwargs.get("scipy_kwargs", {}))
             result_orbit_vector = newton_krylov(
@@ -1270,11 +1334,11 @@ def _scipy_optimize_root_wrapper(
             )
             result_orbit_vector = result.x
         else:
-            runtime_statistics["residuals"].append(orbit_instance.residual())
+            runtime_statistics["costs"].append(orbit_instance.cost())
             return orbit_instance, runtime_statistics
         next_orbit_instance = orbit_instance.from_numpy_array(result_orbit_vector)
-        next_residual = next_orbit_instance.residual()
-        # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
+        next_cost = next_orbit_instance.cost()
+        # If the trigger that broke the while loop was step_size then assume next_cost < cost was not met.
         orbit_instance, runtime_statistics = _process_correction(
             orbit_instance,
             next_orbit_instance,
@@ -1284,17 +1348,17 @@ def _scipy_optimize_root_wrapper(
             ftol,
             1,
             0,
-            residual,
-            next_residual,
+            cost,
+            next_cost,
             method,
-            residual_logging=kwargs.get("residual_logging", False),
+            cost_logging=kwargs.get("cost_logging", False),
             verbose=kwargs.get("verbose", False),
         )
-        residual = next_residual
+        cost = next_cost
     else:
-        if orbit_instance.residual() <= tol:
+        if orbit_instance.cost() <= tol:
             runtime_statistics["status"] = -1
-        runtime_statistics["residuals"].append(orbit_instance.residual())
+        runtime_statistics["costs"].append(orbit_instance.cost())
         return orbit_instance, runtime_statistics
 
 
@@ -1319,18 +1383,18 @@ def _exit_messages(orbit_instance, status, verbose=False):
     if status == 0:
         msg = f"\nMinimal backtracking step size requirements not met."
     elif status == 1:
-        msg = f"\nConverged. Terminating hunt with residual"
+        msg = f"\nConverged. Terminating hunt with cost"
     elif status == 2:
         msg = f"\nMaximum number of iterations reached."
     elif status == 3:
-        msg = f"\nInsufficient residual decrease."
+        msg = f"\nInsufficient cost decrease."
     else:
         # A general catch all for custom/future status flag values; typically when multiple methods given.
         msg = f"\nUnspecified exit message."
     if verbose:
         print(
             " ".join(
-                [msg, f" Terminating hunt with residual = {orbit_instance.residual()}"]
+                [msg, f" Terminating hunt with cost = {orbit_instance.cost()}"]
             )
         )
         sys.stdout.flush()
@@ -1346,10 +1410,10 @@ def _process_correction(
     ftol,
     step_size,
     min_step,
-    residual,
-    next_residual,
+    cost,
+    next_cost,
     method,
-    residual_logging=False,
+    cost_logging=False,
     inner_nit=None,
     verbose=False,
 ):
@@ -1369,19 +1433,19 @@ def _process_correction(
     maxiter : int
         The maximum number of "steps" per numerical method
     ftol : float
-        Minimal change in residual allowed per step (approximate gradient norm).
+        Minimal change in cost allowed per step (approximate gradient norm).
     step_size : float
         The current numerical step size for the numerical method. Would always 1 if backtracking not allowed.
     min_step : float
         The smallest step size allowed; lower bound of backtracking.
-    residual : float
+    cost : float
         The value of the cost functional evaluated at the previous iterate
-    next_residual : float
+    next_cost : float
         The value of the cost functional evaluated at the next iterate
     method : str
         The numerical method currently being employed
-    residual_logging : bool, default False
-        Whether or not to append the residual from every step of the numerical methods. Can cause dramatic slow down
+    cost_logging : bool, default False
+        Whether or not to append the cost from every step of the numerical methods. Can cause dramatic slow down
         for numerical methods with many steps.
     inner_nit : int
         Only valid for Newton-descent when approximate inverses are used; essentially line-searching using step of
@@ -1395,9 +1459,9 @@ def _process_correction(
         The next Orbit corresponding to numerical stepping, and the updated runtime statistics dict.
 
     """
-    # If the trigger that broke the while loop was step_size then assume next_residual < residual was not met.
+    # If the trigger that broke the while loop was step_size then assume next_cost < cost was not met.
     runtime_statistics["nit"] += 1
-    if next_residual <= tol:
+    if next_cost <= tol:
         runtime_statistics["status"] = -1
         return next_orbit_instance, runtime_statistics
     elif step_size <= min_step:
@@ -1406,7 +1470,7 @@ def _process_correction(
     elif runtime_statistics["nit"] == maxiter:
         runtime_statistics["status"] = 2
         return next_orbit_instance, runtime_statistics
-    elif (residual - next_residual) / max([residual, next_residual, 1]) < ftol:
+    elif (cost - next_cost) / max([cost, next_cost, 1]) < ftol:
         runtime_statistics["status"] = 3
         return orbit_instance, runtime_statistics
     else:
@@ -1415,7 +1479,7 @@ def _process_correction(
                 if np.mod(runtime_statistics["nit"], 5000) == 0:
                     print(
                         "\n Residual={:.7f} after {} adjoint descent steps. Parameters={}".format(
-                            next_residual,
+                            next_cost,
                             runtime_statistics["nit"],
                             orbit_instance.parameters,
                         )
@@ -1423,33 +1487,33 @@ def _process_correction(
                 elif np.mod(runtime_statistics["nit"], 100) == 0:
                     print("#", end="")
             # Too many steps elapse for adjoint descent; this would eventually cause dramatic slow down.
-            if residual_logging and np.mod(runtime_statistics["nit"], 1000) == 0:
-                runtime_statistics["residuals"].append(next_residual)
+            if cost_logging and np.mod(runtime_statistics["nit"], 1000) == 0:
+                runtime_statistics["costs"].append(next_cost)
 
         elif method == "newton_descent":
             if verbose and inner_nit is not None:
                 print(
                     "Residual={} after {} inner loops, for a total Newton descent step with size {}".format(
-                        next_residual, inner_nit, step_size * inner_nit
+                        next_cost, inner_nit, step_size * inner_nit
                     )
                 )
             elif verbose and np.mod(runtime_statistics["nit"], 25) == 0:
                 print(
                     "Residual={} after {} Newton descent steps ".format(
-                        next_residual, runtime_statistics["nit"]
+                        next_cost, runtime_statistics["nit"]
                     )
                 )
 
-            if residual_logging:
-                runtime_statistics["residuals"].append(next_residual)
+            if cost_logging:
+                runtime_statistics["costs"].append(next_cost)
         else:
-            if residual_logging:
-                runtime_statistics["residuals"].append(next_residual)
+            if cost_logging:
+                runtime_statistics["costs"].append(next_cost)
             if verbose:
                 if np.mod(runtime_statistics["nit"], 25) == 0:
                     print(
                         " Residual={:.7f} after {} {} iterations. Parameters={}".format(
-                            next_residual,
+                            next_cost,
                             runtime_statistics["nit"],
                             method,
                             orbit_instance.parameters,

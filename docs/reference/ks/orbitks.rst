@@ -10,12 +10,8 @@ Overview
 .. currentmodule:: orbithunter
 .. autoclass:: OrbitKS
 
-
 Methods
 =======
-
-.. note::
-    See also :class:`~orbithunter.core.Orbit`
 
 Initialization
 --------------
@@ -148,6 +144,7 @@ Reading and Writing Data
 
    OrbitKS.filename
    OrbitKS.to_h5
+
 
 
 

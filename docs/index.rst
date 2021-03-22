@@ -13,14 +13,15 @@ boundary conditions) which manifest as `differential algebraic equations <https:
 Features
 --------
 
-- An object oriented approach to solutions of partial differential equations
+- An object oriented approach of differential algebraic equations.
+- Vectorized (tensorized really) computations using NumPy broadcasting and tensor operations.
 - A general-purpose framework for finding, visualizing and manipulating these solutions
-- High-level access to SciPy API for usage with partial differential equations (and other). 
+- High-level access to SciPy API for usage with differential algebraic equations. 
 - New spatiotemporal techniques developed in `PhD thesis <https://github.com/mgudorf/orbithunter/blob/main/docs/spatiotemporal_tiling_of_the_KSe.pdf>`_
 
 Orbithunter uses [NumPy]_ and [SciPy]_
 for its numerical calculations. Its design emphasizes user-friendliness and modularity;
-giving quick and easy access to high-level numerical operations
+giving quick and easy access to high-level numerical operations.
 
 Checkout the resources included in the github repository for more help and tutorials! 
 
@@ -33,7 +34,7 @@ Documentation
     :Date: |today|
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
    install
    guide

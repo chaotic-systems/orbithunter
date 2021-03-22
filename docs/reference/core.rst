@@ -94,19 +94,23 @@ Math Functions
 .. autosummary::
    :toctree: generated/
 
-   Orbit.abs
-   Orbit.dot
-   Orbit.norm
    Orbit.orbit_vector
-   Orbit.residual
    Orbit.eqn
    Orbit.matvec
    Orbit.rmatvec
-   Orbit.objgrad
+   Orbit.jacobian
+   Orbit.hess
+   Orbit.hessp
+   Orbit.cost
+   Orbit.costgrad
+   Orbit.costhess
+   Orbit.costhessp
+   Orbit.abs
+   Orbit.dot
+   Orbit.norm
    Orbit.rescale
    Orbit.from_numpy_array
    Orbit.increment
-   Orbit.jacobian
 
 Discretization and Dimension
 ----------------------------
