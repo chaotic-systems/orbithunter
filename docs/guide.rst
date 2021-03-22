@@ -64,19 +64,6 @@ Methods decorated with ``@staticmethod``
    SymmetryOrbitEQN.minimal_shape_increments
    SymmetryOrbitEQN.continuous_dimensions
 
-Class Methods
-^^^^^^^^^^^^^
-
-Methods decorated with ``@classmethod`` and also 'semi^static' methods; those methods which are
-typically but not necessarily static.
-
-.. autosummary::
-   :nosignatures:
-   :toctree: generated/
-
-   SymmetryOrbitEQN.dimension_based_discretization
-
-
 Governing Equations
 ^^^^^^^^^^^^^^^^^^^
 
@@ -153,17 +140,6 @@ These methods are recommended but optional methods; the base orbit class has sim
    SymmetryOrbitEQN._truncate
 
 
-Semi^static
-^^^^^^^^^^^
-
-These are methods which may very well be constant, or dependent on, for example, reference frame for relative
-periodic orbits.
-
-.. autosummary::
-   :toctree: generated/
-
-   SymmetryOrbitEQN.periodic_dimensions
-
 Other
 ^^^^^
 
@@ -175,4 +151,5 @@ on equation and methods which do not really fit anywhere else on this list. .
 
    SymmetryOrbitEQN.plot
    SymmetryOrbitEQN.from_numpy_array
-
+   SymmetryOrbitEQN.dimension_based_discretization
+   SymmetryOrbitEQN.periodic_dimensions
