@@ -22,7 +22,7 @@ Be sure to check out these resources for help and development!
 - `Bug reports <https://github.com/mgudorf/orbithunter/issues>`_
 - `Source <https://github.com/mgudorf/orbithunter>`_
 - `Developer Guide <https://orbithunter.readthedocs.io/en/latest/guide.html>`_
-- `Notebook Tutorials: <https://github.com/mgudorf/orbithunter/tree/main/notebooks>`_
+- `Tutorial Notebooks <https://github.com/mgudorf/orbithunter/tree/main/tutorial>`_
 - `FAQ <https://orbithunter.readthedocs.io/en/latest/faq.html>`_
 
 Support
