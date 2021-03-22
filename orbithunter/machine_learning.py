@@ -12,6 +12,9 @@ __all__ = ["orbit_cnn"]
 
 def orbit_cnn(orbits, target, **kwargs):
     """
+    Create and train a deep learning model with 2 convolutional and 2 dense layers with Orbit state input
+    Should be used as a crude reference due to its hard-coding.
+
     Parameters
     ----------
     orbits : numpy.ndarray of orbits.
@@ -20,15 +23,14 @@ def orbit_cnn(orbits, target, **kwargs):
         are the 'image' dimensions, i.e. the two dimensions to convolve over. I.e. shape for KSE fields is
 
     target : numpy.ndarray
-        Must have same length along first axis as X. Contains the "true" values of whatever is being predicted; the
+        Must have same length along first axis as `orbits`. Can be any type of labels/values the
         dimension of each sample is the same as the dimension of the prediction/output layer.
 
     `**kwargs` : dict, optional
         May contain any and all extra keyword arguments required for numerical methods and Orbit specific methods.
 
         `hyper_parameters : tuple`
-            The maximum number of steps; computation time can be highly dependent on this number i.e.
-            maxiter=100 for adjoint descent and lstsq have very very different computational times.
+            Hyper parameters for deep learning layers.
 
 
     Returns
@@ -37,14 +39,6 @@ def orbit_cnn(orbits, target, **kwargs):
         The model, its History (training and testing error as a function of epoch number) and tuple containing
         the train test splits of the regressors and target data. Train test split returned as
         (X_train, X_test, y_train, y_test).
-
-    Notes
-    -----
-    Currently all arrays provided in data must be the same shape; typical way around this is padding of smaller inputs.
-
-    Examples
-    --------
-    Getting the correct format of input data from orbits is as simple as:
 
     """
     # In order for this to be an option, pool_size has to be an integer i.e. N-dimensional cube.
