@@ -54,6 +54,7 @@ def orbit_persistence(orbit_instance, **kwargs):
         Minimum persistence interval size for returned values.
         `periodic_dimensions : tuple of bool`
         Flags the dimensions of Orbit.state which are periodic.
+
     Notes
     -----
     Mainly a convenience function because of how Gudhi structures its output.

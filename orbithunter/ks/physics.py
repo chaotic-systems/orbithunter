@@ -150,6 +150,7 @@ def integrate(orbit_, **kwargs):
     -------
     Orbit :
         Orbit instance with either an integrated trajectory or its final value as a state.
+
     Notes
     -----
     Adapter https://epubs.siam.org/doi/abs/10.1137/S1064827502410633?journalCode=sjoce3
