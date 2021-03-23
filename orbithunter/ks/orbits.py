@@ -2659,7 +2659,7 @@ class RelativeOrbitKS(OrbitKS):
         assert (
             self.frame == "comoving"
         ), "Mode padding requires comoving frame; set padding=False if plotting"
-        return super().pad(size, axis=axis)
+        return super()._pad(size, axis=axis)
 
     def _truncate(self, size, axis=0):
         """
@@ -2669,7 +2669,7 @@ class RelativeOrbitKS(OrbitKS):
         assert (
             self.frame == "comoving"
         ), "Mode truncation requires comoving frame; set padding=False if plotting"
-        return super().truncate(size, axis=axis)
+        return super()._truncate(size, axis=axis)
 
     def _jacobian_parameter_derivatives_concat(self, jac_):
         """
