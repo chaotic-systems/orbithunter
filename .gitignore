@@ -1,5 +1,4 @@
-
-# Personal stuff
+# data related; add manually if desired. 
 *.pdf
 *.eps
 *.png
@@ -13,6 +12,9 @@
 
 publications/latex/*
 **/generated/*.rst
+
+# empty so removed for now 3/23/2021
+scripts/*
 
 # Pycharm
 .idea/*

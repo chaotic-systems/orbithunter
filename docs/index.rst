@@ -1,9 +1,7 @@
 .. _contents:
 
-Orbithunter |version|
-
-Framework for Nonlinear Dynamics and Chaos
-==========================================
+Orbithunter v |version|: Framework for Nonlinear Dynamics and Chaos
+==================================================================
 
 Orbithunter serves as a framework for solving chaotic nonlinear partial differential equations
 via variational formulation. In other words, equations are posed as `boundary value problems <https://en.wikipedia.org/wiki/Boundary_value_problem>`_ (typically with periodic
