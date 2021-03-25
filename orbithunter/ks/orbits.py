@@ -778,7 +778,8 @@ class OrbitKS(Orbit):
         plt.rc("font", family="serif")
         plt.rcParams["text.usetex"] = True
         if scale == "log":
-            modes = np.log10(np.abs(self.transform(to="modes").state))
+            modes = np.abs(self.transform(to="modes").state)
+            modes[modes > 0.] = np.log10(modes[modes > 0.])
         else:
             modes = self.transform(to="modes").state
 
@@ -2353,7 +2354,7 @@ class RelativeOrbitKS(OrbitKS):
         cosinek = np.cos(thetak)
         sinek = np.sin(thetak)
         real_modes = spatial_modes[:, : -(int(self.m // 2) - 1)]
-        imag_modes = spatial_modes[:, -(int(self.m // 2) - 1) :]
+        imag_modes = spatial_modes[:, -(int(self.m // 2) - 1):]
         frame_rotated_spatial_modes_real = cosinek * real_modes + sinek * imag_modes
         frame_rotated_spatial_modes_imag = -sinek * real_modes + cosinek * imag_modes
         frame_rotated_spatial_modes = np.concatenate(

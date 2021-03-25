@@ -1,6 +1,8 @@
 Issues
 ======
 
+.. currentmodule:: orbithunter
+
 **Slicing**
 
 The current implementation :meth:`orbithunter.core.Orbit.__getitem__` infers the sliced state array's
@@ -13,6 +15,16 @@ state array has shape (2, 2, 2, 2). Slicing via state[:, 0, : , :] and state[:, 
 array of shape (2, 2, 2); but they are not physically equivalent, as one should be (2, 1, 2, 2) and the other
 should be (2, 2, 1, 2). This can technically be alleviated by using a slice instead, i.e. state[:, :1, :, :] but
 this leaves much to be desired.
+
+**Parameter parsing/passing**
+
+Creating an instance w/o parsing; by passing values for the five main attributes allows for
+fewer parameters than labels; normally this would be filled with zeros. If not designed carefully, then an IndexError
+may be raised when trying to access a labelled parameter attribute that doesn't exist. This is being recorded here
+because while it is actually intended, it can still be confusing in the traceback; chaining an AttributeError in
+future release to indicate this is where this is coming from. The clause in :meth:`Orbit.__init__` details this
+somewhat but I feel it needs to be more obvious. 
+
 
 
 

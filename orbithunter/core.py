@@ -503,22 +503,29 @@ class Orbit:
         Although to be fair I would probably just use `np.prod` in this case. This also goes for discretization parameters.
 
         """
+        # hasattr safety
         try:
             attr = str(attr)
         except ValueError:
             print("Attribute is not of readable type")
 
-        if attr in self.parameter_labels():
-            # parameters must be cast as tuple, (p,) if singleton.
-            return self.parameters[self.parameter_labels().index(attr)]
-        elif attr in self.discretization_labels():
-            # discretization must be tuple, (d,) if singleton.
-            return self.discretization[self.discretization_labels().index(attr)]
-        else:
-            error_message = " ".join(
-                [self.__class__.__name__, "has no attribute'{}'".format(attr)]
-            )
-            raise AttributeError(error_message)
+        try:
+            if attr in self.parameter_labels():
+                # parameters must be cast as tuple, (p,) if singleton.
+                return self.parameters[self.parameter_labels().index(attr)]
+            elif attr in self.discretization_labels():
+                # discretization must be tuple, (d,) if singleton.
+                return self.discretization[self.discretization_labels().index(attr)]
+            else:
+                error_message = " ".join(
+                    [self.__class__.__name__, "has no attribute'{}'".format(attr)]
+                )
+                raise AttributeError(error_message)
+        except IndexError as ie:
+            errstr = ' '.join([f"{self.__class__} is trying to access '{attr}' which does not exist.",
+                               f"Occurs when instances created without parsing receive fewer parameters"
+                               f"than expected."])
+            raise AttributeError(errstr)
 
     def __getitem__(self, key):
         """
