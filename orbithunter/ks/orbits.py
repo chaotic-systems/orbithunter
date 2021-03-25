@@ -1773,7 +1773,7 @@ class OrbitKS(Orbit):
         else:
             rmatvec_x = 0
 
-        return rmatvec_t, rmatvec_x
+        return rmatvec_t, rmatvec_x, 0.
 
     def _rmatvec_linear_component(self, array=False):
         """
