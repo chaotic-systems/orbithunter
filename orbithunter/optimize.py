@@ -96,7 +96,7 @@ def hunt(orbit_instance, *methods, **kwargs):
         'lm','broyden1', 'broyden2', 'root_anderson', 'linearmixing','diagbroyden', 'excitingmixing', 'root_krylov',
         ' df-sane', 'newton_krylov', 'anderson'
 
-    `**kwargs` : dict, optional
+    kwargs : dict, optional
         May contain any and all extra keyword arguments required for numerical methods and Orbit specific methods.
 
         `maxiter : int, optional`
@@ -162,7 +162,7 @@ def hunt(orbit_instance, *methods, **kwargs):
     """
     hunt_kwargs = {k: v.copy() if hasattr(v, "copy") else v for k, v in kwargs.items()}
     # so that list.pop() method can be used, cast tuple as lists
-    methods = tuple(*methods) or kwargs.pop("methods", "adj")
+    methods = tuple(*methods) or hunt_kwargs.pop("methods", "adj")
 
     if len(methods) == 1 and isinstance(*methods, tuple):
         methods = tuple(*methods)
@@ -484,7 +484,7 @@ def _newton_descent(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwar
     cost = mapping.cost(eqn=False)
     while cost > tol and runtime_statistics["status"] == -1:
         # Solve A dx = b <--> J dx = - f, for dx.
-        A, b = orbit_instance.jacobian(), -1 * mapping.state.ravel()
+        A, b = orbit_instance.jacobian(**kwargs), -1 * mapping.state.ravel()
         inv_A = pinv(A)
         dx = orbit_instance.from_numpy_array(np.dot(inv_A, b))
         next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
