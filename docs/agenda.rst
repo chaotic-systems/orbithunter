@@ -1,5 +1,5 @@
-Future Plans
-============
+Future Changes
+==============
 
 - Re-do shadowing.py and how orbit scores are handled.
   Currently "orbit scores", pivot scores mapped back onto the original tile

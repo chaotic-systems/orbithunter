@@ -25,6 +25,26 @@ because while it is actually intended, it can still be confusing in the tracebac
 future release to indicate this is where this is coming from. The clause in :meth:`Orbit.__init__` details this
 somewhat but I feel it needs to be more obvious. 
 
+**Shadowing**
+
+The mapping from pivot scores to spacetime regions of the base orbit field
+is holding the performance of :func:`orbithunter.shadowing.shadow` and :func:`orbithunter.shadowing.cover`
+back. It's still required for :func:`orbithunter.shadowing.fill`, but currently
+the distinction between cover and fill seems blurred. It is still useful to map the scores
+to orbit spacetime for masking purposes, though. Therefore the changes moving forward are going
+to map scores only if the threshold is met; it's not very useful information otherwise. 
+
+**OrbitKS and its subclasses' speed**
+
+Future releases will allow for assignment of ```Orbit.workers = int``` so that SciPy parallelism can be
+utilized in OrbitKS transforms; included in ``Orbit`` so others can use as well. This will increase speed
+of numerical calculations; in the large dimension limit. Additionally, it was realized that the current
+deployment of how Jacobian matrices are constructed is incredibly inefficient and scales terribly. 
+A test case of rewrite brought the time (for a very large array) from 6 minute to 1 minute and RAM usage
+from 12 gb to 8 gb. Theoretical lower bound for RAM usage in this case is 2 GB but I believe it would
+require allowing overwrites in the SciPy FFTs which would require yet another property akin to ``workers``
+unless inplace operations are included in the transform methods. Still under development. 
+
 
 
 

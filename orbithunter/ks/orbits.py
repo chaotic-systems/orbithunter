@@ -3793,7 +3793,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         else:
             modes = self.transform(to="modes")
             truncate_number = int(size // 2) - 1
-            truncated_modes = modes.state[:, :truncate_number]
+            truncated_modes = np.sqrt(size / modes.m) * modes.state[:, :truncate_number]
             # cannot distinguish between n != 1 and n == 1 when in modes basis; therefore, pass the shape to keep track
             return self.__class__(
                 **{
