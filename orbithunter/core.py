@@ -130,6 +130,9 @@ class Orbit:
             self.parameters = parameters
             self.constraints = constraints
 
+        # Unused unless implemented for your class, like :meth:`orbithunter.ks.OrbitKS.transform`
+        self._workers = None
+
     def __add__(self, other):
         """
         Addition of Orbit state and other numerical quantity.
@@ -503,29 +506,38 @@ class Orbit:
         Although to be fair I would probably just use `np.prod` in this case. This also goes for discretization parameters.
 
         """
-        # hasattr safety
+        # hasattr usage mainly
         try:
             attr = str(attr)
-        except ValueError:
-            print("Attribute is not of readable type")
+        except ValueError("Attribute is not of readable type"):
+            ...
 
+        label_index = None
+        label_error_type = None
+        # I opt for nested try-except statements to be more precise in catching exceptions.
         try:
+            # If parameters are NoneType then this raises TypeError; if fewer discretization parameters
+            # than expected,  raises IndexError
             if attr in self.parameter_labels():
-                # parameters must be cast as tuple, (p,) if singleton.
-                return self.parameters[self.parameter_labels().index(attr)]
+                label_index = self.parameter_labels().index(attr)
+                label_error_type = 'parameters'
+                return self.parameters[label_index]
             elif attr in self.discretization_labels():
-                # discretization must be tuple, (d,) if singleton.
-                return self.discretization[self.discretization_labels().index(attr)]
+                label_index = self.discretization_labels().index(attr)
+                label_error_type = 'discretization'
+                return self.discretization[label_index]
             else:
-                error_message = " ".join(
-                    [self.__class__.__name__, "has no attribute'{}'".format(attr)]
-                )
-                raise AttributeError(error_message)
+                # Trying to access an attribute that does not exist.
+                raise AttributeError(f"{str(self)} has no attribute {attr}")
+
+        except TypeError as te:
+            raise AttributeError(f"Cannot retrieve '{attr}' when {label_error_type} attribute is NoneType") from te
+
         except IndexError as ie:
-            errstr = ' '.join([f"{self.__class__} is trying to access '{attr}' which does not exist.",
-                               f"Occurs when instances created without parsing receive fewer parameters"
-                               f"than expected."])
-            raise AttributeError(errstr)
+            errstr = ' '.join([f"'{attr}' parameter expected at index {label_index} but {str(self)} only has",
+                               f"{len(self.parameters)} parameters. This occurs when an unparsed instance receives",
+                               f"fewer parameters than the user intended"])
+            raise AttributeError(errstr) from ie
 
     def __getitem__(self, key):
         """
@@ -810,6 +822,14 @@ class Orbit:
 
         """
         return self.state.ndim
+
+    @property
+    def workers(self):
+        return self._workers
+
+    @workers.setter
+    def workers(self, value):
+        self._workers = value
 
     def abs(self):
         """
@@ -1187,7 +1207,7 @@ class Orbit:
 
         return self.__class__(**{**vars(self), "state": reflected_field})
 
-    def transform(self, to=None):
+    def transform(self, to=None, **kwargs):
         """
         Method that handles all basis transformations. Undefined/trivial for Orbits with only one basis.
 
@@ -1195,6 +1215,10 @@ class Orbit:
         ----------
         to : str
             The basis to transform into. If already in said basis, returns self (not a copy!)
+
+        kwargs : dict
+            Allows for keyword arguments to be passed for various scientific computing packages' transform methods.
+            The first to come to mind is SciPy's FFT's 'workers' keyword, which enables parallelization.
 
         Returns
         -------
@@ -2003,6 +2027,13 @@ class Orbit:
             Numpy array containing state information, can have any number of dimensions.
         basis : str
             The basis that the array 'state' is in.
+
+        Notes
+        -----
+
+        Must assign attributes 'state', 'basis', 'discretization' as None if no input received, even though technically
+        shape of empty array will be, for example, (0, 0). In other words, discretization being NoneType acts as a flag
+        that the state is unpopulated.
 
         """
         if isinstance(state, np.ndarray):

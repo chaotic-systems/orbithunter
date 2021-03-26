@@ -26,7 +26,7 @@ def orbit_cnn(orbits, target, **kwargs):
         Must have same length along first axis as `orbits`. Can be any type of labels/values the
         dimension of each sample is the same as the dimension of the prediction/output layer.
 
-    `**kwargs` : dict, optional
+    kwargs : dict, optional
         May contain any and all extra keyword arguments required for numerical methods and Orbit specific methods.
 
         `hyper_parameters : tuple`
