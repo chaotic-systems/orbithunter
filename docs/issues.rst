@@ -3,6 +3,18 @@ Issues
 
 .. currentmodule:: orbithunter
 
+** Trust Region (second-order, Hessian based) Numerical Methods ** 
+
+Using the built-in finite difference strategies 
+
+
+** Conflicts with SciPy kwargs **
+
+Certain :func:`orbithunter.optimize.hunt` keyword argumentts are conflicting with keyword arguments of SciPy routines.
+For example, the ``maxiter`` keyword argument which is meant to control the 'outer iteration' of various methods is
+being passed to ``scopy.optimize.newton_krylov`` and affecting the ability to converge there; as it is saying essentially
+only use the first Krylov vector $Jx$ to form the Krylov subspace. 
+
 **Slicing**
 
 The current implementation :meth:`orbithunter.core.Orbit.__getitem__` infers the sliced state array's

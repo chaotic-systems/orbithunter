@@ -1226,7 +1226,6 @@ def _scipy_optimize_root_wrapper(
         ) from ie
 
     cost = orbit_instance.cost()
-    parameter_eqn_components = kwargs.get("parameter_eqn_components", True)
     ftol = kwargs.get("ftol", 1e-9)
     runtime_statistics = {
         "method": method,
@@ -1250,6 +1249,97 @@ def _scipy_optimize_root_wrapper(
             "-------------------------------------------------------------------------------------------------"
         )
         sys.stdout.flush()
+
+    while cost > tol and runtime_statistics["status"] == -1:
+        # Use factory function to produce two callables required for SciPy routine. Need to be included under
+        # the while statement so they are updated.
+        _rootfunc, _rootjac = _root_wrapper_funcjac_factory(orbit_instance, **kwargs)
+        if method == "newton_krylov":
+            scipy_kwargs = dict({"f_tol": ftol}, **kwargs.get("scipy_kwargs", {}))
+            result_orbit_vector = newton_krylov(
+                _rootfunc, orbit_instance.orbit_vector(), **scipy_kwargs
+            )
+        elif method == "anderson":
+            # Calling the anderson function directly
+            scipy_kwargs = dict({"f_tol": ftol}, **kwargs.get("scipy_kwargs", {}))
+            result_orbit_vector = anderson(
+                _rootfunc, orbit_instance.orbit_vector().ravel(), **scipy_kwargs
+            )
+        elif method == "root_anderson":
+            scipy_kwargs = {"tol": tol, **kwargs.get("scipy_kwargs", {}), "method": "anderson", "jac": _rootjac}
+            # Returns an OptimizeResult, .x attribute is where array is stored.
+            result = root(
+                _rootfunc,
+                orbit_instance.orbit_vector().ravel(),
+                **scipy_kwargs,
+            )
+            result_orbit_vector = result.x
+        elif method in [
+            "linearmixing",
+            "diagbroyden",
+            "excitingmixing",
+            "krylov",
+            "df-sane",
+        ]:
+
+            scipy_kwargs = {"tol": tol, **kwargs.get("scipy_kwargs", {}), "method": method, "jac": _rootjac}
+            # Returns an OptimizeResult, .x attribute is where array is stored.
+            result = root(
+                _rootfunc,
+                orbit_instance.orbit_vector().ravel(),
+                **scipy_kwargs,
+            )
+            result_orbit_vector = result.x
+        else:
+            runtime_statistics["costs"].append(orbit_instance.cost())
+            return orbit_instance, runtime_statistics
+        next_orbit_instance = orbit_instance.from_numpy_array(result_orbit_vector)
+        next_cost = next_orbit_instance.cost()
+        # If the trigger that broke the while loop was step_size then assume next_cost < cost was not met.
+        orbit_instance, runtime_statistics = _process_correction(
+            orbit_instance,
+            next_orbit_instance,
+            runtime_statistics,
+            tol,
+            maxiter,
+            ftol,
+            1,
+            0,
+            cost,
+            next_cost,
+            method,
+            cost_logging=kwargs.get("cost_logging", False),
+            verbose=kwargs.get("verbose", False),
+        )
+        cost = next_cost
+    else:
+        if orbit_instance.cost() <= tol:
+            runtime_statistics["status"] = -1
+        runtime_statistics["costs"].append(orbit_instance.cost())
+        return orbit_instance, runtime_statistics
+
+
+def _sparse_linalg_wrapper_funcjac_factory(orbit_instance, **kwargs):
+    """
+    Function to that produces callables evaluated at current Orbit state for root function $F$ only.
+
+    Parameters
+    ----------
+    orbit_instance : Orbit
+        The state to use to construct the root function.
+
+    kwargs : dict
+        Keyword arguments for evaluation of governing equations e.g. :meth:`orbithunter.core.Orbit.eqn()`
+
+    Returns
+    -------
+    callable, callable
+        The functions which take NumPy arrays of size Orbit.orbit_vector.size and return F and grad F, respectively.
+        In other words, the first callable evaluates the governing equations using NumPy array input, and the second
+        callable evaluates the Jacobian using NumPy array input.
+
+    """
+    parameter_eqn_components = kwargs.get("parameter_eqn_components", True)
 
     def _rootfunc(x):
         """
@@ -1300,66 +1390,155 @@ def _scipy_optimize_root_wrapper(
             .orbit_vector()
             .ravel()
         )
+    return _rootfunc, _rootjac
 
-    while cost > tol and runtime_statistics["status"] == -1:
-        if method == "newton_krylov":
-            scipy_kwargs = dict({"f_tol": ftol}, **kwargs.get("scipy_kwargs", {}))
-            result_orbit_vector = newton_krylov(
-                _rootfunc, orbit_instance.orbit_vector(), **scipy_kwargs
-            )
-        elif method == "anderson":
-            scipy_kwargs = dict({"f_tol": ftol}, **kwargs.get("scipy_kwargs", {}))
-            result_orbit_vector = anderson(
-                _rootfunc, orbit_instance.orbit_vector().ravel(), **scipy_kwargs
-            )
 
-        elif method in [
-            "root_anderson",
-            "linearmixing",
-            "diagbroyden",
-            "excitingmixing",
-            "krylov",
-            "df-sane",
-        ]:
-            if method == "root_anderson":
-                method = "anderson"
-            scipy_kwargs = dict({"tol": tol}, **kwargs.get("scipy_kwargs", {}))
-            # Returns an OptimizeResult, .x attribute is where array is stored.
-            result = root(
-                _rootfunc,
-                orbit_instance.orbit_vector().ravel(),
-                method=method,
-                jac=_rootjac,
-                **scipy_kwargs,
-            )
-            result_orbit_vector = result.x
-        else:
-            runtime_statistics["costs"].append(orbit_instance.cost())
-            return orbit_instance, runtime_statistics
-        next_orbit_instance = orbit_instance.from_numpy_array(result_orbit_vector)
-        next_cost = next_orbit_instance.cost()
-        # If the trigger that broke the while loop was step_size then assume next_cost < cost was not met.
-        orbit_instance, runtime_statistics = _process_correction(
-            orbit_instance,
-            next_orbit_instance,
-            runtime_statistics,
-            tol,
-            maxiter,
-            ftol,
-            1,
-            0,
-            cost,
-            next_cost,
-            method,
-            cost_logging=kwargs.get("cost_logging", False),
-            verbose=kwargs.get("verbose", False),
+def _minimize_wrapper_funcjac_factory(orbit_instance, **kwargs):
+    """
+    Function to that produces callables evaluated at current Orbit state for root function $F$ only.
+
+    Parameters
+    ----------
+    orbit_instance : Orbit
+        The state to use to construct the root function.
+
+    kwargs : dict
+        Keyword arguments for evaluation of governing equations e.g. :meth:`orbithunter.core.Orbit.eqn()`
+
+    Returns
+    -------
+    callable, callable
+        The functions which take NumPy arrays of size Orbit.orbit_vector.size and return F and grad F, respectively.
+        In other words, the first callable evaluates the governing equations using NumPy array input, and the second
+        callable evaluates the Jacobian using NumPy array input.
+
+    """
+    parameter_eqn_components = kwargs.get("parameter_eqn_components", True)
+
+    def _rootfunc(x):
+        """
+        Function which returns evaluation of equations using `orbit_vector` x
+
+        Returns
+        -------
+        xvec : ndarray
+            The orbit vector equivalent to `Orbit(x).eqn().orbit_vector`
+
+        """
+        nonlocal orbit_instance
+        nonlocal parameter_eqn_components
+        x_orbit = orbit_instance.from_numpy_array(x, **kwargs)
+        xvec = x_orbit.eqn(**kwargs).orbit_vector().ravel()
+        # Need components for the parameters, but typically they will not have an associated component in the equation;
+        # however, I do not think it should be by default.
+        if not parameter_eqn_components:
+            xvec[-len(orbit_instance.parameters) :] = 0
+        return xvec
+
+    def _rootjac(x):
+        """
+        The jacobian of the cost function (scalar) can be expressed as a vector product
+
+        Parameters
+        ----------
+        x : ndarray
+            Same dimensions as orbit_vector
+
+        Returns
+        -------
+        ndarray :
+            Contains values of the gradient of whatever cost function is being used. Shape is consistent with SciPy
+            methods.
+
+        Notes
+        -----
+        The gradient of 1/2 F^2 = J^T F, rmatvec is a function which does this matrix vector product
+        Will always use preconditioned version by default, not sure if wise.
+
+        """
+        nonlocal orbit_instance
+        x_orbit = orbit_instance.from_numpy_array(x)
+        # gradient does not have the same problem that the equation
+        return (
+            x_orbit.costgrad(x_orbit.eqn(**kwargs), **kwargs)
+            .orbit_vector()
+            .ravel()
         )
-        cost = next_cost
-    else:
-        if orbit_instance.cost() <= tol:
-            runtime_statistics["status"] = -1
-        runtime_statistics["costs"].append(orbit_instance.cost())
-        return orbit_instance, runtime_statistics
+    return _rootfunc, _rootjac
+
+
+def _root_wrapper_funcjac_factory(orbit_instance, **kwargs):
+    """
+    Function to that produces callables evaluated at current Orbit state for root function $F$ only.
+
+    Parameters
+    ----------
+    orbit_instance : Orbit
+        The state to use to construct the root function.
+
+    kwargs : dict
+        Keyword arguments for evaluation of governing equations e.g. :meth:`orbithunter.core.Orbit.eqn()`
+
+    Returns
+    -------
+    callable, callable
+        The functions which take NumPy arrays of size Orbit.orbit_vector.size and return F and grad F, respectively.
+        In other words, the first callable evaluates the governing equations using NumPy array input, and the second
+        callable evaluates the Jacobian using NumPy array input.
+
+    """
+    parameter_eqn_components = kwargs.get("parameter_eqn_components", True)
+
+    def _rootfunc(x):
+        """
+        Function which returns evaluation of equations using `orbit_vector` x
+
+        Returns
+        -------
+        xvec : ndarray
+            The orbit vector equivalent to `Orbit(x).eqn().orbit_vector`
+
+        """
+        nonlocal orbit_instance
+        nonlocal parameter_eqn_components
+        x_orbit = orbit_instance.from_numpy_array(x, **kwargs)
+        xvec = x_orbit.eqn(**kwargs).orbit_vector().ravel()
+        # Need components for the parameters, but typically they will not have an associated component in the equation;
+        # however, I do not think it should be by default.
+        if not parameter_eqn_components:
+            xvec[-len(orbit_instance.parameters) :] = 0
+        return xvec
+
+    def _rootjac(x):
+        """
+        The jacobian of the cost function (scalar) can be expressed as a vector product
+
+        Parameters
+        ----------
+        x : ndarray
+            Same dimensions as orbit_vector
+
+        Returns
+        -------
+        ndarray :
+            Contains values of the gradient of whatever cost function is being used. Shape is consistent with SciPy
+            methods.
+
+        Notes
+        -----
+        The gradient of 1/2 F^2 = J^T F, rmatvec is a function which does this matrix vector product
+        Will always use preconditioned version by default, not sure if wise.
+
+        """
+        nonlocal orbit_instance
+        x_orbit = orbit_instance.from_numpy_array(x)
+        # gradient does not have the same problem that the equation
+        return (
+            x_orbit.costgrad(x_orbit.eqn(**kwargs), **kwargs)
+            .orbit_vector()
+            .ravel()
+        )
+    return _rootfunc, _rootjac
 
 
 def _exit_messages(orbit_instance, status, verbose=False):
