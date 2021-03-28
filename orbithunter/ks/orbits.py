@@ -527,20 +527,24 @@ class OrbitKS(Orbit):
         The adjoint vector product in this case is defined as J^T * v,  where J is the jacobian matrix. Equivalent to
         evaluation of -v_t + v_xx + v_xxxx  - (u .* v_x). In regards to preconditioning (which is very useful
         for certain numerical methods, right preconditioning and left preconditioning switch meanings when the
-        jacobian is transposed. i.e. Right preconditioning of the Jacobian can include preconditioning of the state
+        jacobian is transposed. i.e. Right preconditi oning of the Jacobian can include preconditioning of the state
         parameters (which in this case are usually incremental corrections dt, dx, ds);
         this corresponds to LEFT preconditioning of the adjoint.
+
+        The derivatives always occur with respect to the parameters of u. therefore, the evaluation of
+        _rmatvec_linear_component and _rnonlinear require the parameters from self.
 
         """
         assert (self.basis == "modes") and (other.basis == "modes")
         # store the state in the field basis for the pseudospectral products
         self_field = self.transform(to="field", **kwargs)
-        rmatvec_modes = other._rmatvec_linear_component(
+        other_modes = other.__class__(**{**vars(other), 'parameters': self.parameters})
+        rmatvec_modes = other_modes._rmatvec_linear_component(
             array=True
-        ) + self_field._rnonlinear(other, array=True)
+        ) + self_field._rnonlinear(other_modes, array=True)
 
         # parameters are derived by multiplying partial derivatives w.r.t. parameters with the other orbit.
-        rmatvec_params = self._rmatvec_parameters(self_field, other)
+        rmatvec_params = self._rmatvec_parameters(self_field, other_modes)
         return self.__class__(
             **{
                 **vars(self),
@@ -550,7 +554,7 @@ class OrbitKS(Orbit):
             }
         )
 
-    def costgrad(self, eqn, **kwargs):
+    def costgrad(self, *args, **kwargs):
         """
         Derivative of $1/2 |F|^2$
 
@@ -572,16 +576,18 @@ class OrbitKS(Orbit):
         methods.
 
         """
-        preconditioning = kwargs.get("preconditioning", False)
 
-        if preconditioning:
-            # This preconditions with respect to the current state. not J^T F
-            gradient = (self.rmatvec(eqn, **kwargs)).precondition(
-                pmult=self.preconditioning_parameters()
-            )
+        if args:
+            eqn = args[0]
         else:
-            gradient = self.rmatvec(eqn, **kwargs)
-        return gradient
+            eqn = self.eqn()
+
+        grad = self.rmatvec(eqn, **kwargs)
+        if kwargs.get("preconditioning", False):
+            # This preconditions with respect to the current state. not J^T F
+            grad = grad.precondition(pmult=self.preconditioning_parameters())
+
+        return grad
 
     def plot(
         self, show=True, save=False, padding=False, fundamental_domain=False, **kwargs
@@ -2303,19 +2309,19 @@ class RelativeOrbitKS(OrbitKS):
         # this is needed unless all parameters are fixed, but that isn't ever a realistic choice.
         self_dx = self.dx(array=True)
         if not self.constraints["t"]:
-            matvec_orbit.state += (
+            matvec_orbit += (
                 other.t * (-1.0 / self.t) * (-self.s / self.t) * self_dx
             )
 
         if not self.constraints["x"]:
             # Derivative of mapping with respect to T is the same as -1/T * u_t
-            matvec_orbit.state += (
+            matvec_orbit += (
                 other.x * (-1.0 / self.x) * (-self.s / self.t) * self_dx
             )
 
         if not self.constraints["s"]:
             # technically could do self_comoving / self.s but this can be numerically unstable when self.s is small
-            matvec_orbit.state += other.s * (-1.0 / self.t) * self_dx
+            matvec_orbit += other.s * (-1.0 / self.t) * self_dx
 
         return matvec_orbit
 

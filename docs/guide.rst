@@ -66,6 +66,11 @@ Methods decorated with ``@staticmethod``
 Governing Equations
 ^^^^^^^^^^^^^^^^^^^
 
+Implementation of the governing equations is the lion's share of the work and the most
+important part; matvec and rmatvec return the product of Jacobian and Jacobian transpose with a matrix;
+preferably without construction of the matrix itself. For certain numerical methods to work, these methods
+must handle parameters in a special way. See each individual method for details. 
+
 .. autosummary::
    :nosignatures:
    :toctree: generated/
@@ -87,9 +92,10 @@ Numerical Optimization
 Second Order Numerical Optimization
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The methods for usage of second^order numerical methods which returns the Hessian matrix or
-the matrix^vector product thereof. The SciPy implementations of the numerical methods that use these
-are fully developed but the orbithunter API still requires testing.
+Certain algorithms require the Hessian matrix of the matrix vector product thereof. The SciPy implementations of the numerical methods that use these
+are fully developed but the orbithunter API still requires testing. Likewise, there are issues that
+are on SciPy's end with using finite difference methods. They've been reported to their github issues
+page, see `github issues <https://github.com/scipy/scipy/issues/13754>`_ for details. 
 
 
 .. autosummary::

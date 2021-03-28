@@ -93,8 +93,8 @@ def hunt(orbit_instance, *methods, **kwargs):
         'newton_descent', 'lstsq', 'solve', 'adj', 'lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
         'cg', 'cgs', 'qmr', 'minres', 'gcrotmk','nelder-mead', 'powell', 'cg_min', 'bfgs', 'newton-cg', 'l-bfgs-b',
         'tnc', 'cobyla', 'slsqp', 'trust-constr', 'dogleg', 'trust-ncg', 'trust-exact', 'trust-krylov', 'hybr',
-        'lm','broyden1', 'broyden2', 'root_anderson', 'linearmixing','diagbroyden', 'excitingmixing', 'root_krylov',
-        ' df-sane', 'newton_krylov', 'anderson'
+        'lm','broyden1', 'broyden2', 'linearmixing','diagbroyden', 'excitingmixing',
+        ' df-sane', 'krylov', 'anderson'
 
     kwargs : dict, optional
         May contain any and all extra keyword arguments required for numerical methods and Orbit specific methods.
@@ -131,7 +131,6 @@ def hunt(orbit_instance, *methods, **kwargs):
         `hessp{callable, optional}`
 
     These methods have not been tested as they the Hessian or its product was never included for the KSe.
-    The class methods which are relevant for deployment of this
 
     References
     ----------
@@ -145,19 +144,34 @@ def hunt(orbit_instance, *methods, **kwargs):
 
     `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/populated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_
 
-    `['cg_min', 'newton-cg', 'l-bfgs-b', 'tnc', 'bfgs']`
+   Does not take jacobian information
+   "nelder-mead", "powell", "cobyla"
+
+   The methods that take Jacobian information
+   "cg_min", "bfgs", "newton-cg", "l-bfgs-b", "tnc",  "slsqp"
+
+   Methods that either require the Hessian matrix (dogleg) or some method of computing it or its product.
+   "trust-constr", "dogleg", "trust-ncg", "trust-exact", "trust-krylov"
 
     **Root function documentation**
-
     `scipy.optimize.root <https://docs.scipy.org/doc/scipy/reference/populated/scipy.optimize.root.html>`_
 
-    `['hybr', 'lm', 'broyden1', 'broyden2', 'root_anderson', 'linearmixing', 'diagbroyden', 'excitingmixing', 'root_krylov',' df-sane', 'newton_krylov', 'anderson']`
+    Methods that take jacobian as argument
+        `['hybr', 'lm']`
+
+    Methods which approximate the jacobian; take keyword argument "jac_options"
+        `['broyden1', 'broyden2', 'anderson', 'linearmixing', 'diagbroyden', 'excitingmixing', 'krylov', ' df-sane']`
+
 
     **Linalg functions documentation**
-
     `scipy.sparse.linalg <https://docs.scipy.org/doc/scipy/reference/sparse.linalg.html>`_
 
-    `['lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres', 'cg', 'cgs', 'qmr', 'minres', 'gcrotmk']`
+    Methods that this function form two main categories.
+    Solves $Ax=b$ in least squares fashion :
+        `['lsmr', 'lsqr']`
+
+    Solves $Ax=b$ if A square (n, n) else solve normal equations $A^T A x = A^T b$ in iterative/inexact fashion.
+        `['minres', 'bicg', 'bicgstab', 'gmres', 'lgmres', 'cg', 'cgs', 'qmr', 'gcrotmk']`
 
     """
     hunt_kwargs = {k: v.copy() if hasattr(v, "copy") else v for k, v in kwargs.items()}
@@ -233,13 +247,11 @@ def hunt(orbit_instance, *methods, **kwargs):
             "lm",
             "broyden1",
             "broyden2",
-            "root_anderson",
             "linearmixing",
             "diagbroyden",
             "excitingmixing",
-            "root_krylov",
+            "krylov",
             " df-sane",
-            "newton_krylov",
             "anderson",
         ]:
             orbit_instance, method_statistics = _scipy_optimize_root_wrapper(
@@ -314,7 +326,8 @@ def _adjoint_descent(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **k
         assert type(tol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
     except AssertionError as assrt:
-        raise TypeError("tol and maxiter must be numerical scalars or list.") from assrt
+                raise TypeError("tol and maxiter must be scalars or list when multiple methods provided") from assrt
+
 
     try:
         if isinstance(tol, list):
@@ -379,7 +392,7 @@ def _adjoint_descent(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **k
             next_mapping = next_orbit_instance.eqn(**kwargs)
             next_cost = next_mapping.cost(eqn=False)
         else:
-            orbit_instance, runtime_statistics = _process_correction(
+            orbit_instance, cost, runtime_statistics = _process_correction(
                 orbit_instance,
                 next_orbit_instance,
                 runtime_statistics,
@@ -395,7 +408,6 @@ def _adjoint_descent(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **k
                 cost_logging=kwargs.get("cost_logging", False),
             )
             mapping = next_mapping
-            cost = next_cost
     else:
         if orbit_instance.cost() <= tol:
             runtime_statistics["status"] = -1
@@ -435,7 +447,8 @@ def _newton_descent(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwar
         assert type(tol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
     except AssertionError as assrt:
-        raise TypeError("tol and maxiter must be numerical scalars or list.") from assrt
+                raise TypeError("tol and maxiter must be scalars or list when multiple methods provided") from assrt
+
 
     try:
         if isinstance(tol, list):
@@ -523,7 +536,7 @@ def _newton_descent(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwar
                         break
             # If the trigger that broke the while loop was step_size then
             # assume next_cost < cost was not met.
-            orbit_instance, runtime_statistics = _process_correction(
+            orbit_instance, cost, runtime_statistics = _process_correction(
                 orbit_instance,
                 next_orbit_instance,
                 runtime_statistics,
@@ -540,7 +553,6 @@ def _newton_descent(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwar
                 verbose=kwargs.get("verbose", False),
             )
             mapping = next_mapping
-            cost = next_cost
     else:
         if orbit_instance.cost() <= tol:
             runtime_statistics["status"] = -1
@@ -576,7 +588,8 @@ def _lstsq(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
         assert type(tol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
     except AssertionError as assrt:
-        raise TypeError("tol and maxiter must be numerical scalars or list.") from assrt
+                raise TypeError("tol and maxiter must be scalars or list when multiple methods provided") from assrt
+
     try:
         if isinstance(tol, list):
             tol = tol.pop(0)
@@ -635,7 +648,7 @@ def _lstsq(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
             next_mapping = next_orbit_instance.eqn(**kwargs)
             next_cost = next_mapping.cost(eqn=False)
         else:
-            orbit_instance, runtime_statistics = _process_correction(
+            orbit_instance, cost, runtime_statistics = _process_correction(
                 orbit_instance,
                 next_orbit_instance,
                 runtime_statistics,
@@ -651,7 +664,6 @@ def _lstsq(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
                 verbose=kwargs.get("verbose", False),
             )
             mapping = next_mapping
-            cost = next_cost
     else:
         if orbit_instance.cost() <= tol:
             runtime_statistics["status"] = -1
@@ -687,7 +699,8 @@ def _solve(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **kwargs):
         assert type(tol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
     except AssertionError as assrt:
-        raise TypeError("tol and maxiter must be numerical scalars or list.") from assrt
+                raise TypeError("tol and maxiter must be scalars or list when multiple methods provided") from assrt
+
     try:
         if isinstance(tol, list):
             tol = tol.pop(0)
@@ -746,7 +759,7 @@ def _solve(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **kwargs):
             next_mapping = next_orbit_instance.eqn(**kwargs)
             next_cost = next_mapping.cost(eqn=False)
         else:
-            orbit_instance, runtime_statistics = _process_correction(
+            orbit_instance, cost, runtime_statistics = _process_correction(
                 orbit_instance,
                 next_orbit_instance,
                 runtime_statistics,
@@ -762,7 +775,6 @@ def _solve(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **kwargs):
                 verbose=kwargs.get("verbose", False),
             )
             mapping = next_mapping
-            cost = next_cost
     else:
         if orbit_instance.cost() <= tol:
             runtime_statistics["status"] = -1
@@ -804,12 +816,24 @@ def _scipy_sparse_linalg_solver_wrapper(
     if there is a component in the governing equation then the variable should be included in the state attribute
     and not the parameter attribute; will likely need to revist in the future.
 
+    This function wraps the following routines. They are partitioned by the functions that they use if not require.
+
+    Methods that this function form two main categories.
+
+    Solves $Ax=b$ in least squares fashion :
+        lsmr, lsqr
+
+    Solves $Ax=b$ if A square (n, n) else solve normal equations $A^T A x = A^T b$ in iterative/inexact fashion.
+        minres, bicg, bicgstab, gmres, lgmres, cg, cgs, qmr, gcrotmk
+
+
     """
     try:
         assert type(tol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
     except AssertionError as assrt:
-        raise TypeError("tol and maxiter must be numerical scalars or list.") from assrt
+                raise TypeError("tol and maxiter must be scalars or list when multiple methods provided") from assrt
+
     try:
         if isinstance(tol, list):
             tol = tol.pop(0)
@@ -852,94 +876,43 @@ def _scipy_sparse_linalg_solver_wrapper(
 
     while cost > tol and runtime_statistics["status"] == -1:
         step_size = 1
+        A, b = _sparse_linalg_factory(orbit_instance, method, **kwargs)
+        
         if method in ["lsmr", "lsqr"]:
-            if runtime_statistics["nit"] == 0:
+            # different defaults for lsqr, lsmr
+            if kwargs.get('runtime_statistics', {'nit': 0})["nit"] == 0:
                 scipy_kwargs = kwargs.pop("scipy_kwargs", {"atol": 1e-6, "btol": 1e-6})
+                # Solving least-squares equations, A x = b
 
-            # Solving least-squares equations, A x = b
-            def matvec_func(v):
-                # _orbit_vector_to_orbit turns state vector into class object.
-                nonlocal orbit_instance
-                v_orbit = orbit_instance.from_numpy_array(v)
-                return orbit_instance.matvec(v_orbit, **kwargs).state.reshape(-1, 1)
-
-            def rmatvec_func(v):
-                # _orbit_vector_to_orbit turns state vector into class object.
-                nonlocal orbit_instance
-                # General case this does not work. Needs to be built into rmatvec?
-                v_orbit = orbit_instance.from_numpy_array(
-                    v, extra_parameters=orbit_instance.parameters
-                )
-                return (
-                    orbit_instance.rmatvec(v_orbit, **kwargs)
-                    .orbit_vector()
-                    .reshape(-1, 1)
-                )
-
-            linear_operator_shape = (
-                orbit_instance.state.size,
-                orbit_instance.orbit_vector().size,
-            )
-            A = LinearOperator(
-                linear_operator_shape, matvec_func, rmatvec=rmatvec_func, dtype=float
-            )
-            b = -1.0 * orbit_instance.eqn(**kwargs).state.reshape(-1, 1)
             if method == "lsmr":
                 result_tuple = lsmr(A, b, **scipy_kwargs)
             else:
                 result_tuple = lsqr(A, b, **scipy_kwargs)
 
         else:
-            if runtime_statistics["nit"] == 0:
+
+        # If orbit vector size does not equal equation state's size, then this implies a rectangular Jacobian.
+            if kwargs.get('runtime_statistics', {'nit': 0})["nit"] == 0:
                 scipy_kwargs = kwargs.pop("scipy_kwargs", {"tol": 1e-3})
-
-            # Solving `normal equations, A^T A x = A^T b. A^T A is its own transpose hence matvec_func=rmatvec_func
-            def matvec_func(v):
-                # _orbit_vector_to_orbit turns state vector into class object.
-                nonlocal orbit_instance
-                v_orbit = orbit_instance.from_numpy_array(v)
-                return (
-                    orbit_instance.rmatvec(
-                        orbit_instance.matvec(v_orbit, **kwargs), **kwargs
-                    )
-                    .orbit_vector()
-                    .reshape(-1, 1)
-                )
-
-            # Currently only allows solving of the normal equations. A^T A x = A^T b
-            linear_operator_shape = (
-                orbit_instance.orbit_vector().size,
-                orbit_instance.orbit_vector().size,
-            )
-            ATA = LinearOperator(
-                linear_operator_shape, matvec_func, rmatvec=matvec_func, dtype=float
-            )
-            ATb = (
-                orbit_instance.rmatvec(-1.0 * orbit_instance.eqn(**kwargs))
-                .orbit_vector()
-                .reshape(-1, 1)
-            )
-
-            ############################################################################################################
-
+                
             if method == "minres":
-                result_tuple = (minres(ATA, ATb, **scipy_kwargs),)
+                result_tuple = (minres(A, b, **scipy_kwargs),)
             elif method == "bicg":
-                result_tuple = (bicg(ATA, ATb, **scipy_kwargs),)
+                result_tuple = (bicg(A, b, **scipy_kwargs),)
             elif method == "bicgstab":
-                result_tuple = (bicgstab(ATA, ATb, **scipy_kwargs),)
+                result_tuple = (bicgstab(A, b, **scipy_kwargs),)
             elif method == "gmres":
-                result_tuple = (gmres(ATA, ATb, **scipy_kwargs),)
+                result_tuple = (gmres(A, b, **scipy_kwargs),)
             elif method == "lgmres":
-                result_tuple = (lgmres(ATA, ATb, **scipy_kwargs),)
+                result_tuple = (lgmres(A, b, **scipy_kwargs),)
             elif method == "cg":
-                result_tuple = (cg(ATA, ATb, **scipy_kwargs),)
+                result_tuple = (cg(A, b, **scipy_kwargs),)
             elif method == "cgs":
-                result_tuple = (cgs(ATA, ATb, **scipy_kwargs),)
+                result_tuple = (cgs(A, b, **scipy_kwargs),)
             elif method == "qmr":
-                result_tuple = (qmr(ATA, ATb, **scipy_kwargs),)
+                result_tuple = (qmr(A, b, **scipy_kwargs),)
             elif method == "gcrotmk":
-                result_tuple = (gcrotmk(ATA, ATb, **scipy_kwargs),)
+                result_tuple = (gcrotmk(A, b, **scipy_kwargs),)
             else:
                 raise ValueError("Unknown solver %s" % method)
 
@@ -960,7 +933,7 @@ def _scipy_sparse_linalg_solver_wrapper(
             next_cost = next_mapping.cost(eqn=False)
         else:
             # If the trigger that broke the while loop was step_size then assume next_cost < cost was not met.
-            orbit_instance, runtime_statistics = _process_correction(
+            orbit_instance, cost, runtime_statistics = _process_correction(
                 orbit_instance,
                 next_orbit_instance,
                 runtime_statistics,
@@ -975,8 +948,6 @@ def _scipy_sparse_linalg_solver_wrapper(
                 cost_logging=kwargs.get("cost_logging", False),
                 verbose=kwargs.get("verbose", False),
             )
-            cost = next_cost
-
     else:
         if orbit_instance.cost() <= tol:
             runtime_statistics["status"] = -1
@@ -1014,12 +985,15 @@ def _scipy_optimize_minimize_wrapper(
     This function is written as though the cost function, its jacobian and hessian are to be evaluated
     at `x` which is the vector of independent variables, not at the current `orbit_instance`
 
+    This function wraps the following routines. They are partitioned by the fucntions that they use if not require.
+
     """
     try:
         assert type(tol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
     except AssertionError as assrt:
-        raise TypeError("tol and maxiter must be numerical scalars or list.") from assrt
+                raise TypeError("tol and maxiter must be scalars or list when multiple methods provided") from assrt
+
     try:
         if isinstance(tol, list):
             tol = tol.pop(0)
@@ -1040,7 +1014,7 @@ def _scipy_optimize_minimize_wrapper(
         "tol": tol,
         "status": -1,
     }
-    scipy_kwargs = kwargs.get("scipy_kwargs", {"tol": tol})
+
     if kwargs.get("verbose", False):
         print(
             "\n-------------------------------------------------------------------------------------------------"
@@ -1056,112 +1030,20 @@ def _scipy_optimize_minimize_wrapper(
         )
         sys.stdout.flush()
 
-    def _minfunc(x):
-        """
-        Function which returns evaluation of cost
-
-        Parameters
-        ----------
-        x : ndarray
-            array of same shape as orbit_vector of current instance.
-
-        Returns
-        -------
-        xvec : ndarray
-            The orbit vector equivalent to `Orbit(x).eqn().orbit_vector`
-
-        """
-        nonlocal orbit_instance
-        x_orbit = orbit_instance.from_numpy_array(x, **kwargs)
-        return x_orbit.cost()
-
-    def _minjac(x):
-        """
-        The jacobian of the cost function (scalar) can be expressed as a matrix-vector product
-
-        Parameters
-        ----------
-        x : ndarray
-            array of same shape as orbit_vector of current instance.
-
-        Returns
-        -------
-        xvec : ndarray
-            The orbit vector equivalent to `Orbit(x).eqn().orbit_vector`
-
-        Notes
-        -----
-        The gradient of 1/2 F^2 = J^T F, rmatvec is a function which does this matrix vector product
-
-        """
-        nonlocal orbit_instance
-        x_orbit = orbit_instance.from_numpy_array(x)
-        return (
-            x_orbit.costgrad(x_orbit.eqn(**kwargs), **kwargs)
-            .orbit_vector()
-            .ravel()
-        )
-
-    if method in ["trust-constr", "dogleg", "trust-ncg", "trust-exact", "trust-krylov"]:
-        hess_strategy = kwargs.get('hess_strategy', None)
-        if hess_strategy == 'costhessp':
-            # Use the class' definition of costhessp
-            def _minhessp(x):
-                """
-                Returns the matrix-vector product with the cost function's Hessian.
-                """
-                nonlocal orbit_instance
-                x_orbit = orbit_instance.from_numpy_array(x)
-                return orbit_instance.costhessp(x_orbit, **kwargs)
-
-            scipy_kwargs = {
-                            **scipy_kwargs,
-                            "method": method,
-                            "jac": _minjac,
-                            "hessp": _minhessp,
-                            }
-        elif hess_strategy == 'costhess':
-            # Use the class' definition of costhess
-
-            def _minhess(x):
-                """
-                Returns the matrix-vector product with the cost function's Hessian.
-                """
-                nonlocal orbit_instance
-                x_orbit = orbit_instance.from_numpy_array(x)
-                return x_orbit.costhess(**kwargs)
-            scipy_kwargs = {
-                        **scipy_kwargs,
-                        "method": method,
-                        "jac": _minjac,
-                        "hess": _minhess,
-                        }
-        elif hess_strategy is not None:
-            # Other possible options include callables, HessianUpdateStategy, str
-            scipy_kwargs = {
-            **scipy_kwargs,
-            "method": method,
-            "jac": _minjac,
-            "hess": hess_strategy,
-            }
-        else:
-            raise ValueError('invalid value for hess_strategy keyword argument. Check and try again')
-
-    elif method in ["linearmixing"]:
-        scipy_kwargs = {**scipy_kwargs, "method": method}
-    else:
-        scipy_kwargs = {**scipy_kwargs, "method": method, "jac": _minjac}
-
+    scipy_kwargs = kwargs.get("scipy_kwargs", {"tol": tol})
     while cost > tol and runtime_statistics["status"] == -1:
-        result = minimize(_minfunc, orbit_instance.orbit_vector(), **scipy_kwargs)
+        minfunc, jac_and_hess_options = _minimize_callable_factory(orbit_instance, method, **kwargs)
+        result = minimize(minfunc, orbit_instance.orbit_vector(),
+                          **{**scipy_kwargs, 'method': method, **jac_and_hess_options})
         if kwargs.get("progressive", False):
             # When solving the system repeatedly, a more stringent tolerance may be required to reduce the cost
             # by a sufficient amount due to vanishing gradients.
             scipy_kwargs["tol"] /= 10.0
+
         next_orbit_instance = orbit_instance.from_numpy_array(result.x)
         next_cost = next_orbit_instance.cost()
         # If the trigger that broke the while loop was step_size then assume next_cost < cost was not met.
-        orbit_instance, runtime_statistics = _process_correction(
+        orbit_instance, cost, runtime_statistics = _process_correction(
             orbit_instance,
             next_orbit_instance,
             runtime_statistics,
@@ -1176,7 +1058,6 @@ def _scipy_optimize_minimize_wrapper(
             cost_logging=kwargs.get("cost_logging", False),
             verbose=kwargs.get("verbose", False),
         )
-        cost = next_cost
     else:
         if orbit_instance.cost() <= tol:
             runtime_statistics["status"] = -1
@@ -1214,7 +1095,8 @@ def _scipy_optimize_root_wrapper(
         assert type(tol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
     except AssertionError as assrt:
-        raise TypeError("tol and maxiter must be numerical scalars or list.") from assrt
+                raise TypeError("tol and maxiter must be scalars or list when multiple methods provided") from assrt
+
     try:
         if isinstance(tol, list):
             tol = tol.pop(0)
@@ -1253,50 +1135,14 @@ def _scipy_optimize_root_wrapper(
     while cost > tol and runtime_statistics["status"] == -1:
         # Use factory function to produce two callables required for SciPy routine. Need to be included under
         # the while statement so they are updated.
-        _rootfunc, _rootjac = _root_wrapper_funcjac_factory(orbit_instance, **kwargs)
-        if method == "newton_krylov":
-            scipy_kwargs = dict({"f_tol": ftol}, **kwargs.get("scipy_kwargs", {}))
-            result_orbit_vector = newton_krylov(
-                _rootfunc, orbit_instance.orbit_vector(), **scipy_kwargs
-            )
-        elif method == "anderson":
-            # Calling the anderson function directly
-            scipy_kwargs = dict({"f_tol": ftol}, **kwargs.get("scipy_kwargs", {}))
-            result_orbit_vector = anderson(
-                _rootfunc, orbit_instance.orbit_vector().ravel(), **scipy_kwargs
-            )
-        elif method == "root_anderson":
-            scipy_kwargs = {"tol": tol, **kwargs.get("scipy_kwargs", {}), "method": "anderson", "jac": _rootjac}
-            # Returns an OptimizeResult, .x attribute is where array is stored.
-            result = root(
-                _rootfunc,
-                orbit_instance.orbit_vector().ravel(),
-                **scipy_kwargs,
-            )
-            result_orbit_vector = result.x
-        elif method in [
-            "linearmixing",
-            "diagbroyden",
-            "excitingmixing",
-            "krylov",
-            "df-sane",
-        ]:
-
-            scipy_kwargs = {"tol": tol, **kwargs.get("scipy_kwargs", {}), "method": method, "jac": _rootjac}
-            # Returns an OptimizeResult, .x attribute is where array is stored.
-            result = root(
-                _rootfunc,
-                orbit_instance.orbit_vector().ravel(),
-                **scipy_kwargs,
-            )
-            result_orbit_vector = result.x
-        else:
-            runtime_statistics["costs"].append(orbit_instance.cost())
-            return orbit_instance, runtime_statistics
-        next_orbit_instance = orbit_instance.from_numpy_array(result_orbit_vector)
+        _rootfunc, _rootjac = _root_callable_factory(orbit_instance, **kwargs)
+        scipy_kwargs = {"tol": tol, **kwargs.get("scipy_kwargs", {}), "method": method, "jac": _rootjac}
+        # Returns an OptimizeResult, .x attribute is where array is stored.
+        result = root(_rootfunc, orbit_instance.orbit_vector().ravel(), **scipy_kwargs)
+        next_orbit_instance = orbit_instance.from_numpy_array(result.x)
         next_cost = next_orbit_instance.cost()
         # If the trigger that broke the while loop was step_size then assume next_cost < cost was not met.
-        orbit_instance, runtime_statistics = _process_correction(
+        orbit_instance, cost, runtime_statistics = _process_correction(
             orbit_instance,
             next_orbit_instance,
             runtime_statistics,
@@ -1311,7 +1157,6 @@ def _scipy_optimize_root_wrapper(
             cost_logging=kwargs.get("cost_logging", False),
             verbose=kwargs.get("verbose", False),
         )
-        cost = next_cost
     else:
         if orbit_instance.cost() <= tol:
             runtime_statistics["status"] = -1
@@ -1319,7 +1164,227 @@ def _scipy_optimize_root_wrapper(
         return orbit_instance, runtime_statistics
 
 
-def _sparse_linalg_wrapper_funcjac_factory(orbit_instance, **kwargs):
+def _sparse_linalg_factory(orbit_instance, method, **kwargs):
+    """
+    Function to that produces callables evaluated at current Orbit state for root function $F$ only.
+
+    Parameters
+    ----------
+    orbit_instance : Orbit
+        The state to use to construct the root function.
+
+    kwargs : dict
+        Keyword arguments for evaluation of governing equations e.g. :meth:`orbithunter.core.Orbit.eqn()`
+
+    Returns
+    -------
+    callable, callable
+        The functions which take NumPy arrays of size Orbit.orbit_vector.size and return F and grad F, respectively.
+        In other words, the first callable evaluates the governing equations using NumPy array input, and the second
+        callable evaluates the Jacobian using NumPy array input.
+
+    """
+    # Because this function is only called once per outer iteration this incurs minimal cost unless
+    # eqn is very expensive to evaluate; however, in that case, the sparse linalg algorithms would be a very poor choice
+
+    # If least squares routine, need LinearOperator representing Jacobian
+    if method in ['lsqr', 'lsmr']:
+
+        def matvec_func(v):
+            # matvec needs state and parameters from v.
+            nonlocal orbit_instance
+            v_orbit = orbit_instance.from_numpy_array(v)
+            return orbit_instance.matvec(v_orbit, **kwargs).state.reshape(-1, 1)
+
+        def rmatvec_func(v):
+            # in this case, v is only state information, if rectangular system
+            nonlocal orbit_instance
+            # The rmatvec typically requires state information from v and parameters from current instance.
+            v_orbit = orbit_instance.from_numpy_array(v)
+            return orbit_instance.rmatvec(v_orbit, **kwargs).orbit_vector().reshape(-1, 1)
+
+        linear_operator_shape = (
+            orbit_instance.state.size,
+            orbit_instance.orbit_vector().size,
+        )
+        A = LinearOperator(
+            linear_operator_shape, matvec_func, rmatvec=rmatvec_func, dtype=orbit_instance.state.dtype
+        )
+        b = -1.0 * orbit_instance.eqn(**kwargs).state.reshape(-1, 1)
+        return A, b
+    elif orbit_instance.orbit_vector().size != orbit_instance.eqn().size:
+        # Solving `normal equations, A^T A x = A^T b. A^T A is its own transpose hence matvec_func=rmatvec_func
+        # in this instance. The matrix is evaluated at the current orbit state; i.e. it is constant with
+        # respect to the optimization routines.
+        def matvec_(v):
+            nonlocal orbit_instance
+            # matvec needs parameters and orbit info from v; evaluation of matvec should take instance
+            # parameters from orbit_instance; is this reasonable to expect to work.
+            v_orbit = orbit_instance.from_numpy_array(v)
+            return (
+                orbit_instance.rmatvec(
+                    orbit_instance.matvec(v_orbit, **kwargs), **kwargs
+                )
+                .orbit_vector()
+                .reshape(-1, 1)
+            )
+
+        # Currently only allows solving of the normal equations. A^T A x = A^T b, b = -F
+        linear_operator_shape = (orbit_instance.orbit_vector().size, orbit_instance.orbit_vector().size)
+        # Your IDE might tell you the following has "unexpected arguments" but that's only because the signature
+        # of LinearOperator does not match the signature of the _CustomLinearOperator class that it actually
+        # calls when user provides callables and not a 2-d array.
+        ATA = LinearOperator(linear_operator_shape, matvec_, rmatvec=matvec_, dtype=orbit_instance.state.dtype)
+        ATb = orbit_instance.rmatvec(-1.0 * orbit_instance.eqn(**kwargs), **kwargs).orbit_vector().reshape(-1, 1)
+        return ATA, ATb
+    else:
+        # If square system of equations, then likely solving Ax = b, not the normal equations; matvec and
+        # rmatvec are separate then.
+        def matvec_(v):
+            # _orbit_vector_to_orbit turns state vector into class object.
+            nonlocal orbit_instance
+            v_orbit = orbit_instance.from_numpy_array(v)
+            return orbit_instance.matvec(v_orbit, **kwargs).orbit_vector().reshape(-1, 1)
+
+        def rmatvec_(v):
+            # _orbit_vector_to_orbit turns state vector into class object.
+            nonlocal orbit_instance
+            v_orbit = orbit_instance.from_numpy_array(v)
+            return orbit_instance.rmatvec(v_orbit, **kwargs).orbit_vector().reshape(-1, 1)
+
+        # Currently only allows solving of the normal equations. A^T A x = A^T b
+        linear_operator_shape = (
+            orbit_instance.orbit_vector().size,
+            orbit_instance.orbit_vector().size,
+        )
+        # Your IDE might tell you the following has "unexpected arguments" but that's only because the signature
+        # of LinearOperator does not match the signature of the _CustomLinearOperator class that it actually
+        # calls when user provides callables and not a 2-d array.
+        A = LinearOperator(linear_operator_shape, matvec_, rmatvec=rmatvec_, dtype=orbit_instance.state.dtype)
+        b = -1.0 * orbit_instance.eqn(**kwargs).orbit_vector().reshape(-1, 1)
+        return A, b
+
+
+def _minimize_callable_factory(orbit_instance, method, **kwargs):
+    """
+    Function to that produces callables evaluated at current Orbit state for root function $F$ only.
+
+    Parameters
+    ----------
+    orbit_instance : Orbit
+        The state to use to construct the root function.
+
+    kwargs : dict
+        Keyword arguments for evaluation of governing equations e.g. :meth:`orbithunter.core.Orbit.eqn()`
+
+    Returns
+    -------
+    callable, callable
+        The functions which take NumPy arrays of size Orbit.orbit_vector.size and return F and grad F, respectively.
+        In other words, the first callable evaluates the governing equations using NumPy array input, and the second
+        callable evaluates the Jacobian using NumPy array input.
+
+    Notes
+    -----
+    Unfortunately either hessp or hess keyword arguments can be passed to scipy, and so the hessian information
+    is returned as a dict.
+
+    """
+    hess_strategy = kwargs.get('hess_strategy', None)
+    jac_strategy = kwargs.get('jac_strategy', 'costgrad')
+    jac_and_hess_options = {}
+
+    def _minfunc(x):
+        """
+        Function which returns evaluation of cost
+
+        Parameters
+        ----------
+        x : ndarray
+            array of same shape as orbit_vector of current instance.
+
+        Returns
+        -------
+        xvec : ndarray
+            The orbit vector equivalent to `Orbit(x).eqn().orbit_vector`
+
+        """
+        nonlocal orbit_instance
+        x_orbit = orbit_instance.from_numpy_array(x, **kwargs)
+        return x_orbit.cost()
+
+    # Jacobian defaults to costgrad method, but could be provided as either a string for finite difference approximation
+    # or other options.
+    if method not in ["nelder-mead", "powell", "cobyla"]:
+        if jac_strategy == 'costgrad':
+            def _minjac(x):
+                """
+                The jacobian of the cost function (scalar) can be expressed as a matrix-vector product
+
+                Parameters
+                ----------
+                x : ndarray
+                    array of same shape as orbit_vector of current instance.
+
+                Returns
+                -------
+                xvec : ndarray
+                    The orbit vector equivalent to `Orbit(x).eqn().orbit_vector`
+
+                Notes
+                -----
+                The gradient of 1/2 F^2 = J^T F, rmatvec is a function which does this matrix vector product
+
+                """
+                nonlocal orbit_instance
+                x_orbit = orbit_instance.from_numpy_array(x)
+                # For cases when costgrad does not require eqn
+                return (
+                    x_orbit.costgrad(**kwargs).orbit_vector().ravel()
+                )
+            jac_ = _minjac
+        else:
+            jac_ = jac_strategy
+        jac_and_hess_options['jac'] = jac_
+
+    if method in ["trust-constr", "dogleg", "trust-ncg", "trust-exact", "trust-krylov"]:
+        if hess_strategy == 'costhessp':
+            # Use the class' definition of costhessp
+            def _minhessp(x, p):
+                """
+                Returns the matrix-vector product with the cost function's Hessian. H(x) * p
+                """
+                nonlocal orbit_instance
+                x_orbit = orbit_instance.from_numpy_array(x)
+                p_orbit = orbit_instance.from_numpy_array(p)
+                return x_orbit.costhessp(p_orbit, **kwargs).orbit_vector().ravel()
+
+            hess_dict = {"hessp": _minhessp}
+
+        elif hess_strategy == 'costhess':
+            # Use the class' definition of costhess
+
+            def _minhessfunc(x):
+                """
+                Returns the matrix-vector product with the cost function's Hessian.
+                """
+                nonlocal orbit_instance
+                x_orbit = orbit_instance.from_numpy_array(x)
+                return x_orbit.costhess(**kwargs)
+
+            hess_dict = {"hess": _minhessfunc}
+        elif hess_strategy is not None:
+            hess_dict = {"hess": hess_strategy}
+        else:
+            raise ValueError('invalid value for hess_strategy keyword argument. Check and try again')
+        jac_and_hess_options = {**jac_and_hess_options, **hess_dict}
+
+    # Jacobian and hessian callables/infomation passed as keyword arguments to minimize function; might
+    # as well store as dict.
+    return _minfunc, jac_and_hess_options
+
+
+def _root_callable_factory(orbit_instance, **kwargs):
     """
     Function to that produces callables evaluated at current Orbit state for root function $F$ only.
 
@@ -1361,183 +1426,31 @@ def _sparse_linalg_wrapper_funcjac_factory(orbit_instance, **kwargs):
             xvec[-len(orbit_instance.parameters) :] = 0
         return xvec
 
-    def _rootjac(x):
-        """
-        The jacobian of the cost function (scalar) can be expressed as a vector product
 
-        Parameters
-        ----------
-        x : ndarray
-            Same dimensions as orbit_vector
+    if kwargs.get('jac_strategy', "jacobian") == "jacobian":
+        def _jac(x):
+            """
+            The jacobian of the root function, matrix.
 
-        Returns
-        -------
-        ndarray :
-            Contains values of the gradient of whatever cost function is being used. Shape is consistent with SciPy
-            methods.
+            Parameters
+            ----------
+            x : ndarray
+                Same dimensions as orbit_vector
 
-        Notes
-        -----
-        The gradient of 1/2 F^2 = J^T F, rmatvec is a function which does this matrix vector product
-        Will always use preconditioned version by default, not sure if wise.
+            Returns
+            -------
+            ndarray :
+                Jacobian, of F (dF/dX)
 
-        """
-        nonlocal orbit_instance
-        x_orbit = orbit_instance.from_numpy_array(x)
-        # gradient does not have the same problem that the equation
-        return (
-            x_orbit.costgrad(x_orbit.eqn(**kwargs), **kwargs)
-            .orbit_vector()
-            .ravel()
-        )
-    return _rootfunc, _rootjac
+            """
+            nonlocal orbit_instance
+            x_orbit = orbit_instance.from_numpy_array(x)
+            # gradient does not have the same problem that the equation
+            return x_orbit.jacobian(**kwargs)
+        _rootjac = _jac
+    else:
+        _rootjac = kwargs.get('jac_strategy', "jacobian")
 
-
-def _minimize_wrapper_funcjac_factory(orbit_instance, **kwargs):
-    """
-    Function to that produces callables evaluated at current Orbit state for root function $F$ only.
-
-    Parameters
-    ----------
-    orbit_instance : Orbit
-        The state to use to construct the root function.
-
-    kwargs : dict
-        Keyword arguments for evaluation of governing equations e.g. :meth:`orbithunter.core.Orbit.eqn()`
-
-    Returns
-    -------
-    callable, callable
-        The functions which take NumPy arrays of size Orbit.orbit_vector.size and return F and grad F, respectively.
-        In other words, the first callable evaluates the governing equations using NumPy array input, and the second
-        callable evaluates the Jacobian using NumPy array input.
-
-    """
-    parameter_eqn_components = kwargs.get("parameter_eqn_components", True)
-
-    def _rootfunc(x):
-        """
-        Function which returns evaluation of equations using `orbit_vector` x
-
-        Returns
-        -------
-        xvec : ndarray
-            The orbit vector equivalent to `Orbit(x).eqn().orbit_vector`
-
-        """
-        nonlocal orbit_instance
-        nonlocal parameter_eqn_components
-        x_orbit = orbit_instance.from_numpy_array(x, **kwargs)
-        xvec = x_orbit.eqn(**kwargs).orbit_vector().ravel()
-        # Need components for the parameters, but typically they will not have an associated component in the equation;
-        # however, I do not think it should be by default.
-        if not parameter_eqn_components:
-            xvec[-len(orbit_instance.parameters) :] = 0
-        return xvec
-
-    def _rootjac(x):
-        """
-        The jacobian of the cost function (scalar) can be expressed as a vector product
-
-        Parameters
-        ----------
-        x : ndarray
-            Same dimensions as orbit_vector
-
-        Returns
-        -------
-        ndarray :
-            Contains values of the gradient of whatever cost function is being used. Shape is consistent with SciPy
-            methods.
-
-        Notes
-        -----
-        The gradient of 1/2 F^2 = J^T F, rmatvec is a function which does this matrix vector product
-        Will always use preconditioned version by default, not sure if wise.
-
-        """
-        nonlocal orbit_instance
-        x_orbit = orbit_instance.from_numpy_array(x)
-        # gradient does not have the same problem that the equation
-        return (
-            x_orbit.costgrad(x_orbit.eqn(**kwargs), **kwargs)
-            .orbit_vector()
-            .ravel()
-        )
-    return _rootfunc, _rootjac
-
-
-def _root_wrapper_funcjac_factory(orbit_instance, **kwargs):
-    """
-    Function to that produces callables evaluated at current Orbit state for root function $F$ only.
-
-    Parameters
-    ----------
-    orbit_instance : Orbit
-        The state to use to construct the root function.
-
-    kwargs : dict
-        Keyword arguments for evaluation of governing equations e.g. :meth:`orbithunter.core.Orbit.eqn()`
-
-    Returns
-    -------
-    callable, callable
-        The functions which take NumPy arrays of size Orbit.orbit_vector.size and return F and grad F, respectively.
-        In other words, the first callable evaluates the governing equations using NumPy array input, and the second
-        callable evaluates the Jacobian using NumPy array input.
-
-    """
-    parameter_eqn_components = kwargs.get("parameter_eqn_components", True)
-
-    def _rootfunc(x):
-        """
-        Function which returns evaluation of equations using `orbit_vector` x
-
-        Returns
-        -------
-        xvec : ndarray
-            The orbit vector equivalent to `Orbit(x).eqn().orbit_vector`
-
-        """
-        nonlocal orbit_instance
-        nonlocal parameter_eqn_components
-        x_orbit = orbit_instance.from_numpy_array(x, **kwargs)
-        xvec = x_orbit.eqn(**kwargs).orbit_vector().ravel()
-        # Need components for the parameters, but typically they will not have an associated component in the equation;
-        # however, I do not think it should be by default.
-        if not parameter_eqn_components:
-            xvec[-len(orbit_instance.parameters) :] = 0
-        return xvec
-
-    def _rootjac(x):
-        """
-        The jacobian of the cost function (scalar) can be expressed as a vector product
-
-        Parameters
-        ----------
-        x : ndarray
-            Same dimensions as orbit_vector
-
-        Returns
-        -------
-        ndarray :
-            Contains values of the gradient of whatever cost function is being used. Shape is consistent with SciPy
-            methods.
-
-        Notes
-        -----
-        The gradient of 1/2 F^2 = J^T F, rmatvec is a function which does this matrix vector product
-        Will always use preconditioned version by default, not sure if wise.
-
-        """
-        nonlocal orbit_instance
-        x_orbit = orbit_instance.from_numpy_array(x)
-        # gradient does not have the same problem that the equation
-        return (
-            x_orbit.costgrad(x_orbit.eqn(**kwargs), **kwargs)
-            .orbit_vector()
-            .ravel()
-        )
     return _rootfunc, _rootjac
 
 
@@ -1642,16 +1555,16 @@ def _process_correction(
     runtime_statistics["nit"] += 1
     if next_cost <= tol:
         runtime_statistics["status"] = -1
-        return next_orbit_instance, runtime_statistics
+        return next_orbit_instance, next_cost, runtime_statistics
     elif step_size <= min_step:
         runtime_statistics["status"] = 0
-        return orbit_instance, runtime_statistics
+        return orbit_instance, cost, runtime_statistics
     elif runtime_statistics["nit"] == maxiter:
         runtime_statistics["status"] = 2
-        return next_orbit_instance, runtime_statistics
+        return next_orbit_instance, next_cost, runtime_statistics
     elif (cost - next_cost) / max([cost, next_cost, 1]) < ftol:
         runtime_statistics["status"] = 3
-        return orbit_instance, runtime_statistics
+        return orbit_instance, cost, runtime_statistics
     else:
         if method == "adj":
             if verbose:
@@ -1701,4 +1614,4 @@ def _process_correction(
                 else:
                     print("#", end="")
             sys.stdout.flush()
-        return next_orbit_instance, runtime_statistics
+        return next_orbit_instance, next_cost, runtime_statistics

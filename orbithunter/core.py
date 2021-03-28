@@ -978,7 +978,7 @@ class Orbit:
             v = self.state.ravel()
         return 0.5 * v.dot(v)
 
-    def costgrad(self, eqn, **kwargs):
+    def costgrad(self, *args, **kwargs):
         """
         Matrix-vector product corresponding to gradient of scalar cost functional $1/2 F^2$
 
@@ -1003,7 +1003,10 @@ class Orbit:
         Default cost functional is $1/2 F^2$.
 
         """
-        return self.rmatvec(eqn, **kwargs)
+        if args:
+            return self.rmatvec(*args, **kwargs)
+        else:
+            return self.rmatvec(self.eqn(), **kwargs)
 
     def costhess(self, other, **kwargs):
         """
@@ -1032,7 +1035,7 @@ class Orbit:
 
         """
         J = self.jacobian(**kwargs)
-        return J.T.dot(J) + self.hess().dot(self.eqn(**kwargs).orbit_vector.ravel())
+        return J.T.dot(J) + self.hess(**kwargs).dot(self.eqn(**kwargs).orbit_vector.ravel())
 
     def costhessp(self, other, **kwargs):
         """
