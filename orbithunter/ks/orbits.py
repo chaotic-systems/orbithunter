@@ -434,27 +434,69 @@ class OrbitKS(Orbit):
             **{**vars(self), "state": mapping_modes, "basis": "modes"}
         )
 
+    # def jacobian(self, **kwargs):
+    #     """
+    #     Jacobian matrix evaluated at the current state.
+    #
+    #     kwargs :
+    #         Unused, included to match signature in Orbit class.
+    #
+    #     Returns
+    #     -------
+    #     jac_ : 2-d ndarray
+    #         Jacobian matrix whose columns are derivatives with respect to all unconstrained state variables;
+    #         including periods. Has dimensions dependent on number of spatiotemporal modes and free parameters,
+    #         (self.shapes()[-1].size, self.shapes()[-1].size + n_params)
+    #         Jacobian matrix of the KSe where n_params = 2 - sum(self.constraints)
+    #
+    #     """
+    #     # The Jacobian components for the spatiotemporal Fourier modes
+    #     jac_ = self._jac_lin() + self._jac_nonlin()
+    #     # Augment the jacobian with the partial derivatives with respect to parameters.
+    #     jac_ = self._jacobian_parameter_derivatives_concat(jac_, **kwargs)
+    #     return jac_
+
     def jacobian(self, **kwargs):
-        """
-        Jacobian matrix evaluated at the current state.
+        field_size, smode_size, mode_size = (np.prod(shp) for shp in self.shapes())
+        # Begin with nonlinear term. Apply matrix operators in matrix-free fashion. begin with diag(u)
+        J = np.diag(self.transform(to='field', array=True, inplace=True).ravel()).reshape(-1, self.m)
+        # By creatively reshaping J, can apply FFTs to 3-d tensor.
+        J = OrbitKS(state=J, basis='field', discretization=J.shape).transform(to='spatial_modes',
+                                                                              array=True, inplace=True)
 
-        kwargs :
-            Unused, included to match signature in Orbit class.
+        J = J.reshape(field_size, smode_size).T.reshape(-1, self.m)
+        # After transforming the columns, transpose and transform again.
+        J = OrbitKS(state=J, basis='field', discretization=J.shape)
 
-        Returns
-        -------
-        jac_ : 2-d ndarray
-            Jacobian matrix whose columns are derivatives with respect to all unconstrained state variables;
-            including periods. Has dimensions dependent on number of spatiotemporal modes and free parameters,
-            (self.shapes()[-1].size, self.shapes()[-1].size + n_params)
-            Jacobian matrix of the KSe where n_params = 2 - sum(self.constraints)
+        # Reshape back into a matrix, and then into another 3-d tensor after transposing back.
+        J = J.transform(to='spatial_modes', array=True).reshape(smode_size, smode_size)
+        J = OrbitKS(state=J.T.reshape(-1, self.m-2), basis='spatial_modes',
+                    parameters=self.parameters).dx(computation_basis='spatial_modes', array=True, inplace=True)
 
-        """
-        # The Jacobian components for the spatiotemporal Fourier modes
-        jac_ = self._jac_lin() + self._jac_nonlin()
-        # Augment the jacobian with the partial derivatives with respect to parameters.
-        jac_ = self._jacobian_parameter_derivatives_concat(jac_, **kwargs)
-        return jac_
+        # At this point J represents D_x F_x Diag(u) F_x^{-1}; reshape into 3-d tensor again and transform
+        J = J.reshape(-1, smode_size).T.reshape(self.n, self.m-2, -1)
+        J = OrbitKS(state=J, discretization=J.shape,
+                    basis='spatial_modes').transform(to='modes', array=True, inplace=True)
+        # reshape, transpose and transform.
+        J = J.reshape((*self.shapes()[2], -1)).reshape(-1, smode_size).T.reshape(self.n, self.m-2, -1)
+        J = OrbitKS(state=J, discretization=J.shape,
+                    basis='spatial_modes').transform(to='modes', array=True, inplace=True)
+        J = J.reshape((*self.shapes()[2], -1)).reshape(J.shape[-1], J.shape[-1]).T
+
+        # Produce the linear term; spatial derivatives are diagonal; time is more complicated due to SO(2) operator.
+        e = np.ones(self.shapes()[2])
+        dx2 = OrbitKS(state=e, basis='modes', parameters=self.parameters).dx(order=2)
+        J[np.diag_indices(J.shape[0])] += dx2.state.ravel() + dx2.state.ravel()**2
+        e = e.ravel()
+        # For time, get the correct frequency by taking the derivative of individual elements; swapping of real
+        # and imaginary components handled by .dt()
+        for i in range(J.shape[0]):
+            e *= 0
+            e[i] = 1.
+            J[:, i] += OrbitKS(state=e.reshape(self.shape), basis='modes',
+                               parameters=self.parameters).dt().state.ravel()
+        J = self._jacobian_parameter_derivatives_concat(J)
+        return J
 
     def matvec(self, other, **kwargs):
         """
@@ -1983,18 +2025,28 @@ class OrbitKS(Orbit):
             OrbitKS whose state is in the spatial Fourier mode basis.
 
         """
-        # Take rfft, accounting for unitary normalization.
-        modes = rfft(self.state, workers=self.workers, norm="ortho", axis=0)
-        modes_real = modes.real[:-1, :]
-        modes_imag = modes.imag[1:-1, :]
-        spacetime_modes = np.concatenate((modes_real, modes_imag), axis=0)
-        spacetime_modes[1:, :] = np.sqrt(2) * spacetime_modes[1:, :]
-        if array:
-            return spacetime_modes
+
+        if inplace:
+            # Take rfft, accounting for unitary normalization.
+            self.state = rfft(self.state, workers=self.workers, norm="ortho", axis=0)
+            self.state = np.concatenate((self.state.real[:-1, :], self.state.imag[1:-1, :]), axis=0)
+            self.state[1:, :] = np.sqrt(2) * self.state[1:, :]
+            self.basis = "modes"
+            if array:
+                return self.state
+            else:
+                return self
         else:
-            return self.__class__(
-                **{**vars(self), "state": spacetime_modes, "basis": "modes"}
-            )
+            # Take rfft, accounting for unitary normalization.
+            modes = rfft(self.state, workers=self.workers, norm="ortho", axis=0)
+            spacetime_modes = np.concatenate((modes.real[:-1, :], modes.imag[1:-1, :]), axis=0)
+            spacetime_modes[1:, :] = np.sqrt(2) * spacetime_modes[1:, :]
+            if array:
+                return spacetime_modes
+            else:
+                return self.__class__(
+                    **{**vars(self), "state": spacetime_modes, "basis": "modes"}
+                )
 
     def _inv_time_transform(self, array=False, inplace=False):
         """
@@ -2012,23 +2064,35 @@ class OrbitKS(Orbit):
             OrbitKS whose state is in the temporal Fourier mode basis or the corresponding array.
 
         """
-        modes = self.state
-        padding = np.zeros([1, modes.shape[1]])
-        time_real = np.concatenate(
-            (modes[: -max([int(self.n // 2) - 1, 1]), :], padding), axis=0
-        )
-        time_imaginary = np.concatenate(
-            (padding, modes[-max([int(self.n // 2) - 1, 1]) :, :], padding), axis=0
-        )
-        complex_modes = time_real + 1j * time_imaginary
-        complex_modes[1:, :] *= 1.0 / np.sqrt(2)
-        space_modes = irfft(complex_modes, workers=self.workers, norm="ortho", axis=0)
-        if array:
-            return space_modes
+        if inplace:
+            self.state[1:-max([int(self.n // 2) - 1, 1]), :] += 1j * self.state[-max([int(self.n // 2) - 1, 1]):, :]
+            self.state = self.state[:-max([int(self.n // 2) - 1, 1])+1, :]
+            self.state[-1, :] = 0
+            self.state[1:, :] *= 1.0 / np.sqrt(2)
+            self.state = irfft(self.state, workers=self.workers, norm="ortho", axis=0)
+            self.basis = "spatial_modes"
+            if array:
+                return self.state
+            else:
+                return self
         else:
-            return self.__class__(
-                **{**vars(self), "state": space_modes, "basis": "spatial_modes"}
+            modes = self.state
+            padding = np.zeros([1, modes.shape[1]])
+            time_real = np.concatenate(
+                (modes[: -max([int(self.n // 2) - 1, 1]), :], padding), axis=0
             )
+            time_imaginary = np.concatenate(
+                (padding, modes[-max([int(self.n // 2) - 1, 1]) :, :], padding), axis=0
+            )
+            complex_modes = time_real + 1j * time_imaginary
+            complex_modes[1:, :] *= 1.0 / np.sqrt(2)
+            space_modes = irfft(complex_modes, workers=self.workers, norm="ortho", axis=0)
+            if array:
+                return space_modes
+            else:
+                return self.__class__(
+                    **{**vars(self), "state": space_modes, "basis": "spatial_modes"}
+                )
 
     def _space_transform(self, array=False, inplace=False):
         """
@@ -2045,19 +2109,33 @@ class OrbitKS(Orbit):
             OrbitKS instance in the physical field basis or corresponding array.
 
         """
-        # Take rfft, accounting for unitary normalization.
-        space_modes_complex = (
-            np.sqrt(2) * rfft(self.state, workers=self.workers, norm="ortho", axis=1)[:, 1:-1]
-        )
-        spatial_modes = np.concatenate(
-            (space_modes_complex.real, space_modes_complex.imag), axis=1
-        )
-        if array:
-            return spatial_modes
-        else:
-            return self.__class__(
-                **{**vars(self), "state": spatial_modes, "basis": "spatial_modes"}
+        if inplace:
+            # Take rfft, accounting for unitary normalization.
+            self.state = (
+                np.sqrt(2) * rfft(self.state, workers=self.workers, norm="ortho", axis=1)[:, 1:-1]
             )
+            self.state = np.concatenate(
+                (self.state.real, self.state.imag), axis=1
+            )
+            self.basis = "spatial_modes"
+            if array:
+                return self.state
+            else:
+                return self
+        else:
+            # Take rfft, accounting for unitary normalization.
+            spatial_modes = (
+                np.sqrt(2) * rfft(self.state, workers=self.workers, norm="ortho", axis=1)[:, 1:-1]
+            )
+            spatial_modes = np.concatenate(
+                (spatial_modes.real, spatial_modes.imag), axis=1
+            )
+            if array:
+                return spatial_modes
+            else:
+                return self.__class__(
+                    **{**vars(self), "state": spatial_modes, "basis": "spatial_modes"}
+                )
 
     def _inv_space_transform(self, array=False, inplace=False):
         """
@@ -2087,6 +2165,10 @@ class OrbitKS(Orbit):
                 np.concatenate((z, self.state, z), axis=1), workers=self.workers, norm="ortho", axis=1
             )
             self.basis = 'field'
+            if array:
+                return self.state
+            else:
+                return self
         else:
             # Make the modes complex valued again.
             complex_modes = (
@@ -3463,21 +3545,6 @@ class ShiftReflectionOrbitKS(OrbitKS):
 
         """
         if inplace:
-            modes = self.state
-            padding = np.zeros([1, (int(self.m // 2) - 1)])
-            time_real = np.concatenate(
-                (modes[: -max([int(self.n // 2) - 1, 1]), :], padding), axis=0
-            )
-            time_imaginary = np.concatenate(
-                (padding, modes[-max([int(self.n // 2) - 1, 1]) :, :], padding), axis=0
-            )
-            complex_modes = time_real + 1j * time_imaginary
-            complex_modes = np.concatenate((complex_modes, complex_modes), axis=1)
-            complex_modes[1:, :] /= np.sqrt(2)
-            complex_modes[::2, : -(int(self.m // 2) - 1)] = 0
-            complex_modes[1::2, -(int(self.m // 2) - 1) :] = 0
-            spatial_modes = irfft(complex_modes, workers=self.workers, norm="ortho", axis=0)
-
             # can take advantage of the array sizes by adding to current array and multiplying by zero instead
             # of concatenating.
             self.state[1: -max([int(self.n // 2) - 1, 1]), :] += 1j * self.state[-max([int(self.n // 2) - 1, 1]):, :]
@@ -3487,8 +3554,10 @@ class ShiftReflectionOrbitKS(OrbitKS):
             self.state = irfft(self.state, workers=self.workers, norm="ortho", axis=0)
             self.state = np.concatenate((np.zeros(self.state.shape), self.state), axis=1)
             self.basis = 'spatial_modes'
-
-            return self
+            if array:
+                return self.state
+            else:
+                return self
         else:
             modes = self.state
             padding = np.zeros([1, (int(self.m // 2) - 1)])
@@ -4046,13 +4115,21 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
 
         """
         # Select the nonzero (imaginary) components of modes and transform in time (w.r.t. axis=0).
-        spacetime_modes = self.state[0, -(int(self.m // 2) - 1) :].reshape(1, -1)
-        if array:
-            return spacetime_modes
+        if inplace:
+            self.state = self.state[0, -(int(self.m // 2) - 1) :].reshape(1, -1)
+            self.basis = "modes"
+            if array:
+                return self.state
+            else:
+                return self
         else:
-            return self.__class__(
-                **{**vars(self), "state": spacetime_modes, "basis": "modes"}
-            )
+            spacetime_modes = self.state[0, -(int(self.m // 2) - 1) :].reshape(1, -1)
+            if array:
+                return spacetime_modes
+            else:
+                return self.__class__(
+                    **{**vars(self), "state": spacetime_modes, "basis": "modes"}
+                )
 
     def _inv_time_transform(self, array=False, inplace=False):
         """
@@ -4064,15 +4141,25 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         there would only be
 
         """
-        real = np.zeros(self.state.shape)
-        imaginary = self.state
-        spatial_modes = np.tile(np.concatenate((real, imaginary), axis=1), (self.n, 1))
-        if array:
-            return spatial_modes
+        if inplace:
+            real = np.zeros(self.state.shape)
+            imaginary = self.state
+            self.state = np.tile(np.concatenate((real, imaginary), axis=1), (self.n, 1))
+            self.basis = 'spatial_modes'
+            if array:
+                return self.state
+            else:
+                return self
         else:
-            return self.__class__(
-                **{**vars(self), "state": spatial_modes, "basis": "spatial_modes"}
-            )
+            real = np.zeros(self.state.shape)
+            imaginary = self.state
+            spatial_modes = np.tile(np.concatenate((real, imaginary), axis=1), (self.n, 1))
+            if array:
+                return spatial_modes
+            else:
+                return self.__class__(
+                    **{**vars(self), "state": spatial_modes, "basis": "spatial_modes"}
+                )
 
 
 class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
