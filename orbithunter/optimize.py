@@ -99,6 +99,10 @@ def hunt(orbit_instance, *methods, **kwargs):
     kwargs : dict, optional
         May contain any and all extra keyword arguments required for numerical methods and Orbit specific methods.
 
+        `factory : callable`
+            Callable with signature: factory(orbit_instance, method, **kwargs) that yields relevant callables
+            or options for root, minimize, or sparse.linalg methods. See Notes for details.
+
         `maxiter : int, optional`
             The maximum number of steps; computation time can be highly dependent on this number i.e.
             maxiter=100 for adjoint descent and lstsq have very very different computational times.
@@ -121,6 +125,14 @@ def hunt(orbit_instance, *methods, **kwargs):
 
     Notes
     -----
+
+    Minimize
+    ^^^^^^^^
+
+    1. Do not take jacobian information: "nelder-mead", "powell", "cobyla"
+    2. Take Jacobian (product/matrix) "cg_min", "bfgs", "newton-cg", "l-bfgs-b", "tnc",  "slsqp"
+    3. Methods that either require the Hessian matrix (dogleg) or some method of computing it or its product. "trust-constr", "dogleg", "trust-ncg", "trust-exact", "trust-krylov"
+
     Support for Hessian based methods `['trust-constr', 'dogleg', 'trust-ncg', 'trust-exact', 'trust-krylov']`.
     For the 'dogleg' method, an argument ``hess`` is required to be passed to hunt in ``scipy_kwargs``
 
@@ -130,48 +142,43 @@ def hunt(orbit_instance, *methods, **kwargs):
 
         `hessp{callable, optional}`
 
-    These methods have not been tested as they the Hessian or its product was never included for the KSe.
+    Alternatively, SciPy accepts the finite difference methods str '2-point', '3-point', 'cs'
+    or HessianUpdateStrategy objects. The Hessian based methods have never been tested as they were never used
+    with the KSe.
+
+    Factory function returns a (callable, dict) pair. The callable is cost function C(orbit_instance, **kwargs).
+    The dict contains keywords "jac" and one of the following "hess", "hessp" with the relevant callables/str see
+    SciPy scipy.optimize.minimize for more details
+
+    Root
+    ^^^^
+
+    1. Methods that take jacobian as argument: 'hybr', 'lm'
+
+    2. Methods which approximate the jacobian; take keyword argument "jac_options" `['broyden1', 'broyden2', 'anderson',  'krylov', ' df-sane']`
+
+    3. Methods whose performance, SciPy warns, is highly dependent on the problem.
+        `['linearmixing', 'diagbroyden', 'excitingmixing']`
+
+    Factory function should return root function F(x) (Orbit.eqn()) and if 'hybr' or 'lm' then also jac as dict.
+
+    Sparse Linear Algebra
+    ^^^^^^^^^^^^^^^^^^^^^
+
+    1. Methods that solve $Ax=b$ in least squares fashion : 'lsmr', 'lsqr'
+    2. Solves $Ax=b$ if A square (n, n) else solve normal equations $A^T A x = A^T b$ in iterative/inexact fashion: 'minres', 'bicg', 'bicgstab', 'gmres', 'lgmres', 'cg', 'cgs', 'qmr', 'gcrotmk'
+
+    Factory function should return (A, b) where A is Linear operator or matrix and b is vector.
 
     References
     ----------
     User should be aware of the existence of :func:`scipy.optimize.show_options()`
 
-    **General documentation**
-
     `scipy.optimize <https://docs.scipy.org/doc/scipy/reference/optimize.html>`_
-
-    **Minimize function documentation**
-
     `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/populated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_
-
-   Does not take jacobian information
-   "nelder-mead", "powell", "cobyla"
-
-   The methods that take Jacobian information
-   "cg_min", "bfgs", "newton-cg", "l-bfgs-b", "tnc",  "slsqp"
-
-   Methods that either require the Hessian matrix (dogleg) or some method of computing it or its product.
-   "trust-constr", "dogleg", "trust-ncg", "trust-exact", "trust-krylov"
-
-    **Root function documentation**
     `scipy.optimize.root <https://docs.scipy.org/doc/scipy/reference/populated/scipy.optimize.root.html>`_
-
-    Methods that take jacobian as argument
-        `['hybr', 'lm']`
-
-    Methods which approximate the jacobian; take keyword argument "jac_options"
-        `['broyden1', 'broyden2', 'anderson', 'linearmixing', 'diagbroyden', 'excitingmixing', 'krylov', ' df-sane']`
-
-
-    **Linalg functions documentation**
     `scipy.sparse.linalg <https://docs.scipy.org/doc/scipy/reference/sparse.linalg.html>`_
 
-    Methods that this function form two main categories.
-    Solves $Ax=b$ in least squares fashion :
-        `['lsmr', 'lsqr']`
-
-    Solves $Ax=b$ if A square (n, n) else solve normal equations $A^T A x = A^T b$ in iterative/inexact fashion.
-        `['minres', 'bicg', 'bicgstab', 'gmres', 'lgmres', 'cg', 'cgs', 'qmr', 'gcrotmk']`
 
     """
     hunt_kwargs = {k: v.copy() if hasattr(v, "copy") else v for k, v in kwargs.items()}
@@ -826,6 +833,7 @@ def _scipy_sparse_linalg_solver_wrapper(
     Solves $Ax=b$ if A square (n, n) else solve normal equations $A^T A x = A^T b$ in iterative/inexact fashion.
         minres, bicg, bicgstab, gmres, lgmres, cg, cgs, qmr, gcrotmk
 
+    ``scipy_kwargs`` is passed instead of ``kwargs`` because of conflicts between ``tol`` and ``maxiter`` keywords.
 
     """
     try:
@@ -873,16 +881,17 @@ def _scipy_sparse_linalg_solver_wrapper(
     # Simplest solution to exclusion of simple backtracking.
     if not kwargs.get('backtracking', True):
         min_step = 1
-
+    linear_system_factory = kwargs.get("factory", None) or _sparse_linalg_factory
+    scipy_kwargs = None
     while cost > tol and runtime_statistics["status"] == -1:
         step_size = 1
-        A, b = _sparse_linalg_factory(orbit_instance, method, **kwargs)
-        
+        A, b = linear_system_factory(orbit_instance, method, **kwargs)
         if method in ["lsmr", "lsqr"]:
             # different defaults for lsqr, lsmr
-            if kwargs.get('runtime_statistics', {'nit': 0})["nit"] == 0:
-                scipy_kwargs = kwargs.pop("scipy_kwargs", {"atol": 1e-6, "btol": 1e-6})
+            if scipy_kwargs is None:
+                scipy_kwargs = kwargs.get("scipy_kwargs", {"atol": 1e-6, "btol": 1e-6})
                 # Solving least-squares equations, A x = b
+
 
             if method == "lsmr":
                 result_tuple = lsmr(A, b, **scipy_kwargs)
@@ -890,10 +899,8 @@ def _scipy_sparse_linalg_solver_wrapper(
                 result_tuple = lsqr(A, b, **scipy_kwargs)
 
         else:
-
-        # If orbit vector size does not equal equation state's size, then this implies a rectangular Jacobian.
-            if kwargs.get('runtime_statistics', {'nit': 0})["nit"] == 0:
-                scipy_kwargs = kwargs.pop("scipy_kwargs", {"tol": 1e-3})
+            if scipy_kwargs is None:
+                scipy_kwargs = kwargs.get("scipy_kwargs", {"tol": 1e-3})
                 
             if method == "minres":
                 result_tuple = (minres(A, b, **scipy_kwargs),)
@@ -1030,11 +1037,14 @@ def _scipy_optimize_minimize_wrapper(
         )
         sys.stdout.flush()
 
-    scipy_kwargs = kwargs.get("scipy_kwargs", {"tol": tol})
+    scipy_kwargs = kwargs.get("scipy_kwargs", {})
+    func_jac_hess_factory = kwargs.get("factory", None) or _minimize_callable_factory
     while cost > tol and runtime_statistics["status"] == -1:
-        minfunc, jac_and_hess_options = _minimize_callable_factory(orbit_instance, method, **kwargs)
+        # jacobian and hessian passed as keyword arguments to scipy not arguments.
+        minfunc, jac_and_hess_options = func_jac_hess_factory(orbit_instance, method, **kwargs)
         result = minimize(minfunc, orbit_instance.orbit_vector(),
                           **{**scipy_kwargs, 'method': method, **jac_and_hess_options})
+
         if kwargs.get("progressive", False):
             # When solving the system repeatedly, a more stringent tolerance may be required to reduce the cost
             # by a sufficient amount due to vanishing gradients.
@@ -1090,6 +1100,13 @@ def _scipy_optimize_root_wrapper(
     orbit_instance, runtime_statistics : Orbit, dict
         The result of the numerical optimization and its statistics
 
+    Notes
+    -----
+    Because of how scipy.optimize.root is setup; The provided equations F=0 need to have a component for each parameter;
+    because these typically do not exist for the dimensions of configuration space. Because root is trying to solve
+    F=0, it onyl makes sense to append zeros to F until the requisite dimension is reached. This is only to give access
+    to the root function; it is likely a bad idea numerically to even use the root function in this instance.
+
     """
     try:
         assert type(tol) in [int, float, list, np.float64, np.int32]
@@ -1131,12 +1148,12 @@ def _scipy_optimize_root_wrapper(
             "-------------------------------------------------------------------------------------------------"
         )
         sys.stdout.flush()
-
+    func_jac_factory = kwargs.get('factory', None) or _root_callable_factory
     while cost > tol and runtime_statistics["status"] == -1:
         # Use factory function to produce two callables required for SciPy routine. Need to be included under
         # the while statement so they are updated.
-        _rootfunc, _rootjac = _root_callable_factory(orbit_instance, **kwargs)
-        scipy_kwargs = {"tol": tol, **kwargs.get("scipy_kwargs", {}), "method": method, "jac": _rootjac}
+        _rootfunc, jac_options = func_jac_factory(orbit_instance, **kwargs)
+        scipy_kwargs = {"tol": tol, **kwargs.get("scipy_kwargs", {}), "method": method, **jac_options}
         # Returns an OptimizeResult, .x attribute is where array is stored.
         result = root(_rootfunc, orbit_instance.orbit_vector().ravel(), **scipy_kwargs)
         next_orbit_instance = orbit_instance.from_numpy_array(result.x)
@@ -1384,7 +1401,7 @@ def _minimize_callable_factory(orbit_instance, method, **kwargs):
     return _minfunc, jac_and_hess_options
 
 
-def _root_callable_factory(orbit_instance, **kwargs):
+def _root_callable_factory(orbit_instance, method, **kwargs):
     """
     Function to that produces callables evaluated at current Orbit state for root function $F$ only.
 
@@ -1398,13 +1415,12 @@ def _root_callable_factory(orbit_instance, **kwargs):
 
     Returns
     -------
-    callable, callable
+    callable, dict
         The functions which take NumPy arrays of size Orbit.orbit_vector.size and return F and grad F, respectively.
         In other words, the first callable evaluates the governing equations using NumPy array input, and the second
         callable evaluates the Jacobian using NumPy array input.
 
     """
-    parameter_eqn_components = kwargs.get("parameter_eqn_components", True)
 
     def _rootfunc(x):
         """
@@ -1413,45 +1429,47 @@ def _root_callable_factory(orbit_instance, **kwargs):
         Returns
         -------
         xvec : ndarray
-            The orbit vector equivalent to `Orbit(x).eqn().orbit_vector`
+            Vector containing F(x), padded with as many zeros as necessary to make this vector have as many dimensions
+            as orbit_instance.orbit_vector().size
 
         """
         nonlocal orbit_instance
-        nonlocal parameter_eqn_components
         x_orbit = orbit_instance.from_numpy_array(x, **kwargs)
-        xvec = x_orbit.eqn(**kwargs).orbit_vector().ravel()
+        xvec = x_orbit.eqn(**kwargs).state.ravel()
         # Need components for the parameters, but typically they will not have an associated component in the equation;
         # however, I do not think it should be by default.
-        if not parameter_eqn_components:
-            xvec[-len(orbit_instance.parameters) :] = 0
-        return xvec
+        return np.pad(xvec, (0, x_orbit.orbit_vector().size - xvec.size))
 
+    if method in ['hybr', 'lm']:
+        if kwargs.get('jac_strategy', "jacobian") == "jacobian":
+            def _jac(x):
+                """
+                The jacobian of the root function, matrix.
 
-    if kwargs.get('jac_strategy', "jacobian") == "jacobian":
-        def _jac(x):
-            """
-            The jacobian of the root function, matrix.
+                Parameters
+                ----------
+                x : ndarray
+                    Same dimensions as orbit_vector
 
-            Parameters
-            ----------
-            x : ndarray
-                Same dimensions as orbit_vector
+                Returns
+                -------
+                ndarray :
+                    Jacobian, of F (dF/dX)
 
-            Returns
-            -------
-            ndarray :
-                Jacobian, of F (dF/dX)
-
-            """
-            nonlocal orbit_instance
-            x_orbit = orbit_instance.from_numpy_array(x)
-            # gradient does not have the same problem that the equation
-            return x_orbit.jacobian(**kwargs)
-        _rootjac = _jac
+                """
+                nonlocal orbit_instance
+                x_orbit = orbit_instance.from_numpy_array(x)
+                # gradient does not have the same problem that the equation
+                J = x_orbit.jacobian(**kwargs)
+                J = np.pad(J, ((0, J.shape[1]-J.shape[0]), (0, 0)))
+                return J
+            jac_options = {"jac", _jac}
+        else:
+            jac_options = {"jac": kwargs.get('jac_strategy', "jacobian")}
     else:
-        _rootjac = kwargs.get('jac_strategy', "jacobian")
+        jac_options = {"jac": None}
 
-    return _rootfunc, _rootjac
+    return _rootfunc, jac_options
 
 
 def _exit_messages(orbit_instance, status, verbose=False):
