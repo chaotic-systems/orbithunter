@@ -30,4 +30,4 @@ __all__ += ["continuation", "discretization_continuation", "span_family"]
 __all__ += ["shadow", "cover", "fill"]
 __all__ += ["convert_class", "Orbit"]
 
-__version__ = "0.7.0dev"
+__version__ = "0.7b0"
