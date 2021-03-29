@@ -128,8 +128,7 @@ def hunt(orbit_instance, *methods, **kwargs):
 
     The following describe particularly useful options and comments for the various methods that are available.
 
-    scipy.optimize.minimize
-    ^^^^^^^^^^^^^^^^^^^^^^^
+    **scipy.optimize.minimize**
 
     1. Do not take jacobian information: "nelder-mead", "powell", "cobyla"
     2. Take Jacobian (product/matrix) "cg_min", "bfgs", "newton-cg", "l-bfgs-b", "tnc",  "slsqp"
@@ -152,8 +151,7 @@ def hunt(orbit_instance, *methods, **kwargs):
     The dict contains keywords "jac" and one of the following "hess", "hessp" with the relevant callables/str see
     SciPy scipy.optimize.minimize for more details
 
-    scipy.optimize.root
-    ^^^^^^^^^^^^^^^^^^^
+    **scipy.optimize.root**
 
     1. Methods that take jacobian as argument: 'hybr', 'lm'
 
@@ -164,8 +162,7 @@ def hunt(orbit_instance, *methods, **kwargs):
 
     Factory function should return root function F(x) (Orbit.eqn()) and if 'hybr' or 'lm' then also jac as dict.
 
-    scipy.sparse.linalg
-    ^^^^^^^^^^^^^^^^^^^
+    **scipy.sparse.linalg**
 
     1. Methods that solve $Ax=b$ in least squares fashion : 'lsmr', 'lsqr'
     2. Solves $Ax=b$ if A square (n, n) else solve normal equations $A^T A x = A^T b$ in iterative/inexact fashion: 'minres', 'bicg', 'bicgstab', 'gmres', 'lgmres', 'cg', 'cgs', 'qmr', 'gcrotmk'
