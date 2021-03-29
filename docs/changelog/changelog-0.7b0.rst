@@ -1,5 +1,5 @@
-orbithunter 0.7.0dev
-====================
+orbithunter 0.7.0b
+==================
 
 .. currentmodule:: orbithunter
 
