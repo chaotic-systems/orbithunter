@@ -351,6 +351,9 @@ def _subdomains(
             Either a generator or iterable container containing the (unmasked) pivot positions to iterate over
         scanning_region : str
             Default 'all', if equals 'interior' then only permits pivots within the original base orbit's span.
+        coordinate_map : callable
+            A function which maps a "rectangular" array shape into the desired shadowing shape
+            (typically parallelipiped)
 
     """
     coordinate_mapping_function = kwargs.get("coordinate_map", None)
