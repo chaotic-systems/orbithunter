@@ -458,7 +458,7 @@ class OrbitKS(Orbit):
         ), "Convert to spatiotemporal Fourier mode basis before computing K-S equation DAEs."
 
         # to avoid two IFFT calls, convert before nonlinear product
-        orbit_field = self.transform(to="field", **kwargs)
+        orbit_field = self.transform(to="field")
 
         # Compute the Kuramoto-sivashinsky equation; linear components differ between subclasses.
         mapping_modes = self._eqn_linear_component(array=True) + orbit_field._nonlinear(
@@ -558,13 +558,13 @@ class OrbitKS(Orbit):
 
         """
         assert (self.basis == "modes") and (other.basis == "modes")
-        self_field = self.transform(to="field", **kwargs)
+        self_field = self.transform(to="field")
         # The correct derivative of the vector in the matrix vector product needs the current state parameters in
         # self but the state stored in other.
         other_mode_component = other.__class__(
             **{**vars(self), "state": other.state, "basis": other.basis}
         )
-        other_field = other_mode_component.transform(to="field", **kwargs)
+        other_field = other_mode_component.transform(to="field")
 
         # Factor of two corrects the 1/2 u^2 from differentiation of nonlinear term.
         matvec_modes = other_mode_component._eqn_linear_component(
@@ -617,7 +617,7 @@ class OrbitKS(Orbit):
         """
         assert (self.basis == "modes") and (other.basis == "modes")
         # store the state in the field basis for the pseudospectral products
-        self_field = self.transform(to="field", **kwargs)
+        self_field = self.transform(to="field")
         other_modes = other.__class__(**{**vars(other), 'parameters': self.parameters})
         rmatvec_modes = other_modes._rmatvec_linear_component(
             array=True
@@ -1812,10 +1812,11 @@ class OrbitKS(Orbit):
         if array:
             return (
                 -1.0
-                * (self * other.dx().transform(to="field", **kwargs)).transform(to="modes", **kwargs).state
+                * (self * other.dx().transform(to="field")).transform(to="modes", array=True)
             )
         else:
-            return -1.0 * (self * other.dx().transform(to="field", **kwargs)).transform(
+            # inplace is fine here because dx() is making a new array
+            return -1.0 * (self * other.dx().transform(to="field")).transform(
                 to="modes"
             )
 

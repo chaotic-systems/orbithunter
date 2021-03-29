@@ -1,5 +1,5 @@
 from scipy.linalg import lstsq, pinv, solve
-from scipy.optimize import minimize, root, newton_krylov, anderson
+from scipy.optimize import minimize, root
 from scipy.sparse.linalg import (
     LinearOperator,
     bicg,
@@ -80,14 +80,14 @@ class OrbitResult(dict):
 
 def hunt(orbit_instance, *methods, **kwargs):
     """
-    Main optimization function for orbithunter
+    Main optimization function for orbithunter; wraps many different SciPy and custom routines
 
     Parameters
     ----------
     orbit_instance : Orbit
         The orbit instance serving as the initial condition for optimization.
 
-    `*methods` : str or multiple str or tuple of str
+    methods : str or multiple str or tuple of str
         Represents the numerical methods to hunt with, in order of indexing. Not all methods will work for all classes,
         performance testing is part of the development process. Options include:
         'newton_descent', 'lstsq', 'solve', 'adj', 'lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
@@ -100,7 +100,7 @@ def hunt(orbit_instance, *methods, **kwargs):
         May contain any and all extra keyword arguments required for numerical methods and Orbit specific methods.
 
         `factory : callable`
-            Callable with signature: factory(orbit_instance, method, **kwargs) that yields relevant callables
+            Callable with signature: factory(orbit_instance, method, kwargs) that yields relevant callables
             or options for root, minimize, or sparse.linalg methods. See Notes for details.
 
         `maxiter : int, optional`
@@ -119,7 +119,7 @@ def hunt(orbit_instance, *methods, **kwargs):
 
     Returns
     -------
-    `OrbitResult :`
+    OrbitResult :
         Object which includes optimization properties like exit code, costs, tol, maxiter, etc. and
         the final resulting orbit approximation.
 
@@ -128,8 +128,8 @@ def hunt(orbit_instance, *methods, **kwargs):
 
     The following describe particularly useful options and comments for the various methods that are available.
 
-    Minimize
-    ^^^^^^^^
+    scipy.optimize.minimize
+    ^^^^^^^^^^^^^^^^^^^^^^^
 
     1. Do not take jacobian information: "nelder-mead", "powell", "cobyla"
     2. Take Jacobian (product/matrix) "cg_min", "bfgs", "newton-cg", "l-bfgs-b", "tnc",  "slsqp"
@@ -148,12 +148,12 @@ def hunt(orbit_instance, *methods, **kwargs):
     or HessianUpdateStrategy objects. The Hessian based methods have never been tested as they were never used
     with the KSe.
 
-    Factory function returns a (callable, dict) pair. The callable is cost function C(orbit_instance, **kwargs).
+    Factory function returns a (callable, dict) pair. The callable is cost function C(orbit_instance, kwargs).
     The dict contains keywords "jac" and one of the following "hess", "hessp" with the relevant callables/str see
     SciPy scipy.optimize.minimize for more details
 
-    Root
-    ^^^^
+    scipy.optimize.root
+    ^^^^^^^^^^^^^^^^^^^
 
     1. Methods that take jacobian as argument: 'hybr', 'lm'
 
@@ -164,8 +164,8 @@ def hunt(orbit_instance, *methods, **kwargs):
 
     Factory function should return root function F(x) (Orbit.eqn()) and if 'hybr' or 'lm' then also jac as dict.
 
-    Sparse Linear Algebra
-    ^^^^^^^^^^^^^^^^^^^^^
+    scipy.sparse.linalg
+    ^^^^^^^^^^^^^^^^^^^
 
     1. Methods that solve $Ax=b$ in least squares fashion : 'lsmr', 'lsqr'
     2. Solves $Ax=b$ if A square (n, n) else solve normal equations $A^T A x = A^T b$ in iterative/inexact fashion: 'minres', 'bicg', 'bicgstab', 'gmres', 'lgmres', 'cg', 'cgs', 'qmr', 'gcrotmk'
@@ -180,7 +180,6 @@ def hunt(orbit_instance, *methods, **kwargs):
     `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/populated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_
     `scipy.optimize.root <https://docs.scipy.org/doc/scipy/reference/populated/scipy.optimize.root.html>`_
     `scipy.sparse.linalg <https://docs.scipy.org/doc/scipy/reference/sparse.linalg.html>`_
-
 
     """
     hunt_kwargs = {k: v.copy() if hasattr(v, "copy") else v for k, v in kwargs.items()}
