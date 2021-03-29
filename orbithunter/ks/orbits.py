@@ -362,20 +362,22 @@ class OrbitKS(Orbit):
                 )
                 return orbit_dtn.transform(to=self.basis)
 
-    def dx(self, order=1, array=False, **kwargs):
+    def dx(self, **kwargs):
         """
         Spatial derivative of the current state.
 
         Parameters
         ----------
-        order :int
-            The order of the derivative.
-        array : bool
-            Whether or not to return a numpy array. Used for efficiency/avoiding construction of redundant
-            Orbit instances.
-        kwargs : dict
-            `computation_basis : str`
-                The basis in which to perform the tensor products
+        kwargs :
+            order :int
+                The order of the derivative.
+            array : bool
+                Whether or not to return a numpy array. Used for efficiency/avoiding construction of redundant
+                Orbit instances.
+            computation_basis : str
+                The basis in which to compute the derivative.
+            return_basis : str
+                Which basis to return the ShiftReflectionOrbitKS in, if array=False.
 
 
         Returns
@@ -396,16 +398,18 @@ class OrbitKS(Orbit):
         # for orbits with discrete symmetry as they are orthogonal to the dx() direction.
         computation_basis = kwargs.get("computation_basis", "modes")
         inplace = kwargs.get('inplace', False)
-
+        order = kwargs.get('order', 1)
+        array = kwargs.get('array', False)
+        return_basis = kwargs.get("return_basis", self.basis)
+        
         if inplace:
-            return_basis = kwargs.get("return_basis", self.basis)
             self.transform(to=computation_basis, array=True, inplace=True)
             self.state = spatial_frequencies(self.x, self.m, order)[:, : self.state.shape[1]] * self.state
             # If the order of the differentiation is odd, need to swap imaginary and real components.
             if np.mod(order, 2):
                 self.state = swap_modes(self.state, axis=1)
 
-            self.transform(to=kwargs.get("return_basis", return_basis), inplace=True)
+            self.transform(to=return_basis, inplace=True)
             if array:
                 return self.state
             else:
@@ -436,7 +440,7 @@ class OrbitKS(Orbit):
                 orbit_dxn = self.__class__(
                     **{**vars(self), "state": dxn_modes, "basis": computation_basis}
                 )
-                return orbit_dxn.transform(to=kwargs.get("return_basis", self.basis))
+                return orbit_dxn.transform(to=return_basis, inplace=True)
 
     def eqn(self, **kwargs):
         """
@@ -509,7 +513,7 @@ class OrbitKS(Orbit):
         J = J.transform(to='spatial_modes', array=True, inplace=True).reshape(smode_size, smode_size)
         J = J.T.reshape(-1, self.m-2)
         J = self.__class__(**{**vars(self),"state":J, "basis":'spatial_modes', "discretization":(J.shape[0], self.m)})
-        J = J.dx(array=True, computation_basis='spatial_modes')
+        J = J.dx(array=True, computation_basis='spatial_modes', inplace=True)
 
         # At this point J represents D_x F_x Diag(u) F_x^{-1}; reshape into 3-d tensor again and apply
         # time transforms
@@ -1812,11 +1816,11 @@ class OrbitKS(Orbit):
         if array:
             return (
                 -1.0
-                * (self * other.dx().transform(to="field")).transform(to="modes", array=True)
+                * (self * other.dx(return_basis='field')).transform(to="modes", array=True)
             )
         else:
             # inplace is fine here because dx() is making a new array
-            return -1.0 * (self * other.dx().transform(to="field")).transform(
+            return -1.0 * (self * other.dx(return_basis='field')).transform(
                 to="modes"
             )
 
@@ -2939,20 +2943,24 @@ class RelativeOrbitKS(OrbitKS):
 
 class AntisymmetricOrbitKS(OrbitKS):
 
-    def dx(self, order=1, array=False, **kwargs):
+    def dx(self, **kwargs):
         """
         Spatial derivative of the current state.
 
         Parameters
         ----------
-        order :int
-            The order of the derivative.
-        array : bool
-            Whether or not to return a numpy array. Used for efficiency/avoiding construction of redundant
-            Orbit instances.
+
         kwargs :
+            order :int
+                The order of the derivative.
+            array : bool
+                Whether or not to return a numpy array. Used for efficiency/avoiding construction of redundant
+                Orbit instances.
+            computation_basis : str
+                The basis in which to compute the derivative.
             return_basis : str
                 Which basis to return the ShiftReflectionOrbitKS in, if array=False.
+
         Returns
         ----------
         ShiftReflectionOrbitKS :
@@ -2964,15 +2972,15 @@ class AntisymmetricOrbitKS(OrbitKS):
         See OrbitKS.dx() for more details
 
         """
+        order = kwargs.get('order', 1)
         # can compute spatial derivative in spatial mode or spatiotemporal mode basis. spatial_modes basis is required
         # for orbits with discrete symmetry as they are orthogonal to the dx() direction.
         if order % 2:
             # odd ordered derivatives NEED to be in spatial mode basis
-            kwargs["computation_basis"] = "spatial_modes"
+            return super().dx(**{**kwargs,  "computation_basis": "spatial_modes"})
         else:
             # even ordered derivatives CAN be in the spatial mode basis or the spatiotemporal mode basis.
-            kwargs.setdefault("computational_basis", "modes")
-        return super().dx(order=order, array=array, **kwargs)
+            return super().dx(**kwargs)
 
     def from_fundamental_domain(self, **kwargs):
         """
@@ -3321,20 +3329,23 @@ class AntisymmetricOrbitKS(OrbitKS):
 
 
 class ShiftReflectionOrbitKS(OrbitKS):
-    def dx(self, order=1, array=False, **kwargs):
+    def dx(self, **kwargs):
         """
         Spatial derivative of the current state.
 
         Parameters
         ----------
-        order :int
-            The order of the derivative.
-        array : bool
-            Whether or not to return a numpy array. Used for efficiency/avoiding construction of redundant
-            Orbit instances.
         kwargs :
+            order :int
+                The order of the derivative.
+            array : bool
+                Whether or not to return a numpy array. Used for efficiency/avoiding construction of redundant
+                Orbit instances.
+            computation_basis : str
+                The basis in which to compute the derivative.
             return_basis : str
                 Which basis to return the ShiftReflectionOrbitKS in, if array=False.
+
         Returns
         ----------
         ShiftReflectionOrbitKS :
@@ -3346,15 +3357,15 @@ class ShiftReflectionOrbitKS(OrbitKS):
         See OrbitKS.dx() for more details
 
         """
+        order = kwargs.get('order', 1)
         # can compute spatial derivative in spatial mode or spatiotemporal mode basis. spatial_modes basis is required
         # for orbits with discrete symmetry as they are orthogonal to the dx() direction.
         if order % 2:
             # odd ordered derivatives NEED to be in spatial mode basis
-            kwargs["computation_basis"] = "spatial_modes"
+            return super().dx(**{**kwargs,  "computation_basis": "spatial_modes"})
         else:
             # even ordered derivatives CAN be in the spatial mode basis or the spatiotemporal mode basis.
-            kwargs.setdefault("computational_basis", "modes")
-        return super().dx(order=order, array=array, **kwargs)
+            return super().dx(**kwargs)
 
     def selection_rules(self):
         """

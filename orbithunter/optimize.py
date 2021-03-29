@@ -519,7 +519,7 @@ def _newton_descent(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwar
             next_cost = next_mapping.cost(eqn=False)
         else:
             inner_nit = 1
-            if kwargs.get("approximation", True):
+            if kwargs.get("approximation", False):
                 # Re-use the same pseudoinverse for many inexact solutions to dx_n = - A^+(x) F(x + dx_{n-1})
                 b = -1 * next_mapping.state.ravel()
                 dx = orbit_instance.from_numpy_array(np.dot(inv_A, b))
@@ -892,7 +892,6 @@ def _scipy_sparse_linalg_solver_wrapper(
                 scipy_kwargs = kwargs.get("scipy_kwargs", {"atol": 1e-6, "btol": 1e-6})
                 # Solving least-squares equations, A x = b
 
-
             if method == "lsmr":
                 result_tuple = lsmr(A, b, **scipy_kwargs)
             else:
@@ -901,7 +900,6 @@ def _scipy_sparse_linalg_solver_wrapper(
         else:
             if scipy_kwargs is None:
                 scipy_kwargs = kwargs.get("scipy_kwargs", {"tol": 1e-3})
-                
             if method == "minres":
                 result_tuple = (minres(A, b, **scipy_kwargs),)
             elif method == "bicg":
@@ -1042,7 +1040,7 @@ def _scipy_optimize_minimize_wrapper(
     while cost > tol and runtime_statistics["status"] == -1:
         # jacobian and hessian passed as keyword arguments to scipy not arguments.
         minfunc, jac_and_hess_options = func_jac_hess_factory(orbit_instance, method, **kwargs)
-        result = minimize(minfunc, orbit_instance.orbit_vector(),
+        result = minimize(minfunc, orbit_instance.orbit_vector().ravel(),
                           **{**scipy_kwargs, 'method': method, **jac_and_hess_options})
 
         if kwargs.get("progressive", False):
@@ -1152,7 +1150,7 @@ def _scipy_optimize_root_wrapper(
     while cost > tol and runtime_statistics["status"] == -1:
         # Use factory function to produce two callables required for SciPy routine. Need to be included under
         # the while statement so they are updated.
-        _rootfunc, jac_options = func_jac_factory(orbit_instance, **kwargs)
+        _rootfunc, jac_options = func_jac_factory(orbit_instance, method, **kwargs)
         scipy_kwargs = {"tol": tol, **kwargs.get("scipy_kwargs", {}), "method": method, **jac_options}
         # Returns an OptimizeResult, .x attribute is where array is stored.
         result = root(_rootfunc, orbit_instance.orbit_vector().ravel(), **scipy_kwargs)

@@ -2,9 +2,6 @@ import pytest
 import numpy as np
 import h5py
 import pathlib
-import sys
-# import orbithunter as oh  # tests are setup to run against installed version only
-sys.path.insert(0, "C:\\Users\\Matt\\Desktop\\orbithunter\\")
 import orbithunter as oh
 
 here = pathlib.Path(__file__).parent.resolve()
