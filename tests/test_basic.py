@@ -724,4 +724,5 @@ def test_jacobian(
         ).transform(to="modes")
         # The jacobians have all other matrices within them; just use this as a proxy to test.
         jac_ = orbit_.jacobian()
+        test = np.abs(jac_).sum()
         pytest.approx(np.abs(jac_).sum(), jacsum)

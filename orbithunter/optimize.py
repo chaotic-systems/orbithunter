@@ -126,6 +126,8 @@ def hunt(orbit_instance, *methods, **kwargs):
     Notes
     -----
 
+    The following describe particularly useful options and comments for the various methods that are available.
+
     Minimize
     ^^^^^^^^
 

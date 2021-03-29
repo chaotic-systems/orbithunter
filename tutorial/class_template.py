@@ -2,7 +2,7 @@ import numpy as np
 import os
 import sys
 
-# import sphinx_rtd_theme
+# Only because this file is located in the tutorial folder; if orbithunter installed then replace
 sys.path.insert(0, os.path.abspath(".."))
 from orbithunter.core import Orbit
 
