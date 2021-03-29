@@ -492,38 +492,39 @@ class OrbitKS(Orbit):
         $J = D_t + D_xx + D_xxxx + F_t D_x F_x Diag(u) F_x^{-1} F_t^{-1}$ in the following steps:
 
         """
-        assert self.basis == "modes"
+        assert self.basis == "modes", "Convert to spatiotemporal Fourier mode basis before computing Jacobian"
         field_size, smode_size, mode_size = (np.prod(shp) for shp in self.shapes())
         # Begin with nonlinear term. Apply matrix operators in matrix-free fashion. begin with diag(u)
         J = np.diag(self.transform(to='field', array=True).ravel()).reshape(-1, self.m)
         # By creatively reshaping J, can apply FFTs to 3-d tensor.
-        J = self.__class__(state=J, basis='field',
-                           discretization=J.shape).transform(to='spatial_modes', array=True, inplace=True)
+        J = self.__class__(**{**vars(self), "state":J, "basis":"field",
+                           "discretization":J.shape}).transform(to='spatial_modes', array=True, inplace=True)
         J = J.reshape(field_size, smode_size).T.reshape(-1, self.m)
 
         # After transforming the columns, transpose and transform again to get F_x Diag(u) F_x^{-1}
-        J = self.__class__(state=J, basis='field', discretization=J.shape)
+        J = self.__class__(**{**vars(self),"state":J, "basis":"field",
+                           "discretization":J.shape})
 
         # Reshape back into a matrix, and then into another 3-d tensor after transposing back, to take derivative.
         J = J.transform(to='spatial_modes', array=True, inplace=True).reshape(smode_size, smode_size)
         J = J.T.reshape(-1, self.m-2)
-        J = self.__class__(state=J, basis='spatial_modes', discretization=(J.shape[0], self.m),
-                           parameters=self.parameters)
+        J = self.__class__(**{**vars(self),"state":J, "basis":'spatial_modes', "discretization":(J.shape[0], self.m)})
         J = J.dx(array=True, computation_basis='spatial_modes')
 
         # At this point J represents D_x F_x Diag(u) F_x^{-1}; reshape into 3-d tensor again and apply
         # time transforms
         J = J.reshape(-1, smode_size).T.reshape(self.n, self.m-2, -1)
-        J = self.__class__(state=J, discretization=(*self.discretization, J.shape[-1]),
-                           basis='spatial_modes').transform(to='modes', array=True, inplace=True)
+        J = self.__class__(**{**vars(self),"state":J, "discretization":(*self.discretization, J.shape[-1]),
+                           "basis":'spatial_modes'}).transform(to='modes', array=True, inplace=True)
         # reshape, transpose and transform.
         J = J.reshape((*self.shapes()[2], -1)).reshape(-1, smode_size).T.reshape(self.n, self.m-2, -1)
-        J = self.__class__(state=J, discretization=(*self.discretization, J.shape[-1]), basis='spatial_modes').transform(to='modes', array=True, inplace=True)
+        J = self.__class__(**{**vars(self),"state":J, "discretization":(*self.discretization, J.shape[-1]),
+                              "basis":'spatial_modes'}).transform(to='modes', array=True, inplace=True)
         J = J.reshape((*self.shapes()[2], -1)).reshape(J.shape[-1], J.shape[-1]).T
 
         # Produce the linear term; spatial derivatives are diagonal; time is more complicated due to SO(2) operator.
         e = np.ones(self.shapes()[2])
-        dx2 = self.__class__(state=e, basis='modes', parameters=self.parameters).dx(order=2)
+        dx2 = self.__class__(**{**vars(self), "state":e, "basis":'modes'}).dx(order=2)
         J[np.diag_indices(J.shape[0])] += dx2.state.ravel() + dx2.state.ravel()**2
         e = e.ravel()
         # For time, get the correct frequency by taking the derivative of individual elements; swapping of real
@@ -531,8 +532,7 @@ class OrbitKS(Orbit):
         for i in range(J.shape[0]):
             e *= 0
             e[i] = 1.
-            J[:, i] += self.__class__(state=e.reshape(self.shape), basis='modes',
-                                      parameters=self.parameters).dt().state.ravel()
+            J[:, i] += self.__class__(**{**vars(self),"state":e.reshape(self.shape), "basis":'modes'}).dt().state.ravel()
         J = self._jacobian_parameter_derivatives_concat(J)
         return J
 
@@ -2476,27 +2476,29 @@ class RelativeOrbitKS(OrbitKS):
         # Begin with nonlinear term. Apply matrix operators in matrix-free fashion. begin with diag(u)
         J = np.diag(self.transform(to='field', array=True).ravel()).reshape(-1, self.m)
         # By creatively reshaping J, can apply FFTs to 3-d tensor.
-        J = self.__class__(state=J, basis='field',
-                           discretization=J.shape).transform(to='spatial_modes', array=True, inplace=True)
+        J = self.__class__(**{**vars(self), "state":J, "basis":"field",
+                           "discretization":J.shape}).transform(to='spatial_modes', array=True, inplace=True)
         J = J.reshape(field_size, smode_size).T.reshape(-1, self.m)
 
         # After transforming the columns, transpose and transform again to get F_x Diag(u) F_x^{-1}
-        J = self.__class__(state=J, basis='field', discretization=J.shape)
+        J = self.__class__(**{**vars(self),"state":J, "basis":"field",
+                           "discretization":J.shape})
 
         # Reshape back into a matrix, and then into another 3-d tensor after transposing back, to take derivative.
         J = J.transform(to='spatial_modes', array=True, inplace=True).reshape(smode_size, smode_size)
         J = J.T.reshape(-1, self.m-2)
-        J = self.__class__(state=J, basis='spatial_modes', discretization=(J.shape[0], self.m),
-                           parameters=self.parameters)
-        J = J.dx(array=True, computation_basis='spatial_modes', inplace=True)
+        J = self.__class__(**{**vars(self),"state":J, "basis":'spatial_modes', "discretization":(J.shape[0], self.m)})
+        J = J.dx(array=True, computation_basis='spatial_modes')
 
         # At this point J represents D_x F_x Diag(u) F_x^{-1}; reshape into 3-d tensor again and apply
         # time transforms
         J = J.reshape(-1, smode_size).T.reshape(self.n, self.m-2, -1)
-        J = self.__class__(state=J, discretization=J.shape, basis='spatial_modes').transform(to='modes', array=True, inplace=True)
+        J = self.__class__(**{**vars(self),"state":J, "discretization":(*self.discretization, J.shape[-1]),
+                           "basis":'spatial_modes'}).transform(to='modes', array=True, inplace=True)
         # reshape, transpose and transform.
         J = J.reshape((*self.shapes()[2], -1)).reshape(-1, smode_size).T.reshape(self.n, self.m-2, -1)
-        J = self.__class__(state=J, discretization=J.shape, basis='spatial_modes').transform(to='modes', array=True, inplace=True)
+        J = self.__class__(**{**vars(self),"state":J, "discretization":(*self.discretization, J.shape[-1]),
+                              "basis":'spatial_modes'}).transform(to='modes', array=True, inplace=True)
         J = J.reshape((*self.shapes()[2], -1)).reshape(J.shape[-1], J.shape[-1]).T
 
         # Produce the linear term; spatial derivatives are diagonal; time is more complicated due to SO(2) operator.
@@ -3812,28 +3814,28 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         # Begin with nonlinear term. Apply matrix operators in matrix-free fashion. begin with diag(u)
         J = np.diag(self.transform(to='field', array=True).ravel()).reshape(-1, self.m)
         # By creatively reshaping J, can apply FFTs to 3-d tensor.
-        J = self.__class__(state=J, basis='field',
-                           discretization=J.shape).transform(to='spatial_modes', array=True, inplace=True)
+        J = self.__class__(**{**vars(self), "state":J, "basis":"field",
+                           "discretization":J.shape}).transform(to='spatial_modes', array=True, inplace=True)
         J = J.reshape(field_size, smode_size).T.reshape(-1, self.m)
 
         # After transforming the columns, transpose and transform again to get F_x Diag(u) F_x^{-1}
-        J = self.__class__(state=J, basis='field', discretization=J.shape)
+        J = self.__class__(**{**vars(self),"state":J, "basis":"field","discretization":J.shape})
 
         # Reshape back into a matrix, and then into another 3-d tensor after transposing back, to take derivative.
         J = J.transform(to='spatial_modes', array=True, inplace=True).reshape(smode_size, smode_size)
         J = J.T.reshape(-1, self.m-2)
-        J = self.__class__(state=J, basis='spatial_modes', discretization=(J.shape[0], self.m),
-                           parameters=self.parameters)
-        J = J.dx(array=True, computation_basis='spatial_modes', inplace=True)
+        J = self.__class__(**{**vars(self),"state":J, "basis":'spatial_modes', "discretization":(J.shape[0], self.m)})
+        J = J.dx(array=True, computation_basis='spatial_modes')
 
         # At this point J represents D_x F_x Diag(u) F_x^{-1}; reshape into 3-d tensor again and apply
         # time transforms
         J = J.reshape(-1, smode_size).T.reshape(self.n, self.m-2, -1)
-        J = self.__class__(state=J, discretization=(*self.discretization, J.shape[-1]),
-                           basis='spatial_modes').transform(to='modes', array=True, inplace=True)
+        J = self.__class__(**{**vars(self),"state":J, "discretization":(*self.discretization, J.shape[-1]),
+                           "basis":'spatial_modes'}).transform(to='modes', array=True, inplace=True)
         # reshape, transpose and transform.
         J = J.reshape((*self.shapes()[2], -1)).reshape(-1, smode_size).T.reshape(self.n, self.m-2, -1)
-        J = self.__class__(state=J, discretization=(*self.discretization, J.shape[-1]), basis='spatial_modes').transform(to='modes', array=True, inplace=True)
+        J = self.__class__(**{**vars(self),"state":J, "discretization":(*self.discretization, J.shape[-1]),
+                              "basis":'spatial_modes'}).transform(to='modes', array=True, inplace=True)
         J = J.reshape((*self.shapes()[2], -1)).reshape(J.shape[-1], J.shape[-1]).T
 
         # Produce the linear term; spatial derivatives are diagonal; time is more complicated due to SO(2) operator.
@@ -4465,28 +4467,28 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         # Begin with nonlinear term. Apply matrix operators in matrix-free fashion. begin with diag(u)
         J = np.diag(self.transform(to='field', array=True).ravel()).reshape(-1, self.m)
         # By creatively reshaping J, can apply FFTs to 3-d tensor.
-        J = self.__class__(state=J, basis='field',
-                           discretization=J.shape).transform(to='spatial_modes', array=True, inplace=True)
+        J = self.__class__(**{**vars(self), "state":J, "basis":"field",
+                           "discretization":J.shape}).transform(to='spatial_modes', array=True, inplace=True)
         J = J.reshape(field_size, smode_size).T.reshape(-1, self.m)
 
         # After transforming the columns, transpose and transform again to get F_x Diag(u) F_x^{-1}
-        J = self.__class__(state=J, basis='field', discretization=J.shape)
+        J = self.__class__(**{**vars(self),"state":J, "basis":"field","discretization":J.shape})
 
         # Reshape back into a matrix, and then into another 3-d tensor after transposing back, to take derivative.
         J = J.transform(to='spatial_modes', array=True, inplace=True).reshape(smode_size, smode_size)
         J = J.T.reshape(-1, self.m-2)
-        J = self.__class__(state=J, basis='spatial_modes', discretization=(J.shape[0], self.m),
-                           parameters=self.parameters)
-        J = J.dx(array=True, computation_basis='spatial_modes', inplace=True)
+        J = self.__class__(**{**vars(self),"state":J, "basis":'spatial_modes', "discretization":(J.shape[0], self.m)})
+        J = J.dx(array=True, computation_basis='spatial_modes')
 
         # At this point J represents D_x F_x Diag(u) F_x^{-1}; reshape into 3-d tensor again and apply
         # time transforms
         J = J.reshape(-1, smode_size).T.reshape(self.n, self.m-2, -1)
-        J = self.__class__(state=J, discretization=(*self.discretization, J.shape[-1]),
-                           basis='spatial_modes').transform(to='modes', array=True, inplace=True)
+        J = self.__class__(**{**vars(self),"state":J, "discretization":(*self.discretization, J.shape[-1]),
+                           "basis":'spatial_modes'}).transform(to='modes', array=True, inplace=True)
         # reshape, transpose and transform.
         J = J.reshape((*self.shapes()[2], -1)).reshape(-1, smode_size).T.reshape(self.n, self.m-2, -1)
-        J = self.__class__(state=J, discretization=(*self.discretization, J.shape[-1]), basis='spatial_modes').transform(to='modes', array=True, inplace=True)
+        J = self.__class__(**{**vars(self),"state":J, "discretization":(*self.discretization, J.shape[-1]),
+                              "basis":'spatial_modes'}).transform(to='modes', array=True, inplace=True)
         J = J.reshape((*self.shapes()[2], -1)).reshape(J.shape[-1], J.shape[-1]).T
 
         # Produce the linear term; spatial derivatives are diagonal; time is more complicated due to SO(2) operator.
