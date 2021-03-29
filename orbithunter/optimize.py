@@ -280,13 +280,15 @@ def hunt(orbit_instance, *methods, **kwargs):
                 if key == "status":
                     runtime_statistics[key] = method_statistics.get("status", -1)
                 elif isinstance(runtime_statistics.get(key, []), list):
-                    runtime_statistics.get(key, []).extend(
-                        method_statistics.get(key, [])
-                    )
+                    method_values = method_statistics.get(key)
+                    if isinstance(method_values, list):
+                        runtime_statistics.get(key, []).extend(method_values)
+                    else:
+                        runtime_statistics.get(key, []).append(method_values)
                 else:
                     runtime_statistics[key] = [
                         runtime_statistics[key],
-                        method_statistics.get(key, []),
+                        method_statistics.get(key),
                     ]
 
     # Collection of tolerances can be passed if multiple methods; take the "final" tolerance to be the strictest.

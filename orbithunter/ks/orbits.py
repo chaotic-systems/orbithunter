@@ -509,7 +509,7 @@ class OrbitKS(Orbit):
         J = J.T.reshape(-1, self.m-2)
         J = self.__class__(state=J, basis='spatial_modes', discretization=(J.shape[0], self.m),
                            parameters=self.parameters)
-        J = J.dx(array=True, computation_basis='spatial_modes', inplace=True)
+        J = J.dx(array=True, computation_basis='spatial_modes')
 
         # At this point J represents D_x F_x Diag(u) F_x^{-1}; reshape into 3-d tensor again and apply
         # time transforms
