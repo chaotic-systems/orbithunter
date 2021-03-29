@@ -12,6 +12,9 @@ Major Changes
 -  Many fixes in SciPy wrappers
 -  Orbit not allow for assignment of `workers` attribute; determines cores to use for KSe fft transforms. Only useful if dimension approx >= 128. 
 -  :meth:`Orbit.costgrad()` now optionally takes Orbit.eqn() to be more general; i.e. allow for costgrad which do not require eqn to be passed. 
+-  Jacobian for OrbitKS subclasses now much more efficient, many matrix related helper functions have been deprecated
+   Memory usage cut down by approx 50% and time cut down by factor of 10.
+
 
 Minor Changes
 -------------
