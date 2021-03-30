@@ -889,7 +889,7 @@ def _scipy_sparse_linalg_solver_wrapper(
         if method in ["lsmr", "lsqr"]:
             # different defaults for lsqr, lsmr
             if scipy_kwargs is None:
-                scipy_kwargs = kwargs.get("scipy_kwargs", {"atol": 1e-6, "btol": 1e-6})
+                scipy_kwargs = kwargs.get("scipy_kwargs", {})
                 # Solving least-squares equations, A x = b
 
             if method == "lsmr":
@@ -899,7 +899,7 @@ def _scipy_sparse_linalg_solver_wrapper(
 
         else:
             if scipy_kwargs is None:
-                scipy_kwargs = kwargs.get("scipy_kwargs", {"tol": 1e-3})
+                scipy_kwargs = kwargs.get("scipy_kwargs", {})
             if method == "minres":
                 result_tuple = (minres(A, b, **scipy_kwargs),)
             elif method == "bicg":
