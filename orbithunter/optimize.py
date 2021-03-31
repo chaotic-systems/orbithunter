@@ -903,7 +903,7 @@ def _scipy_sparse_linalg_solver_wrapper(
     if not kwargs.get("backtracking", True):
         min_step = 1
     linear_system_factory = kwargs.get("factory", None) or _sparse_linalg_factory
-    preconditioning = kwargs.get('preconditioning', False)
+    preconditioning = kwargs.get("preconditioning", False)
     preconditioner_factory = kwargs.get("mfactory", None)
     scipy_kwargs = kwargs.get("scipy_kwargs", {})
     while cost > tol and runtime_statistics["status"] == -1:
@@ -928,12 +928,18 @@ def _scipy_sparse_linalg_solver_wrapper(
 
             if preconditioning:
                 if callable(preconditioner_factory):
-                    scipy_kwargs['M'] = preconditioner_factory(orbit_instance, method, **kwargs)
-                elif hasattr(orbit_instance, 'preconditioner'):
-                    scipy_kwargs['M'] = orbit_instance.preconditioner(**kwargs)
-                elif runtime_statistics['nit'] == 0.:
-                    warn_str = ''.join([f"\norbithunter.optimize.hunt was passed preconditioning=True but no method of",
-                                        f" computing a preconditioner was provided."])
+                    scipy_kwargs["M"] = preconditioner_factory(
+                        orbit_instance, method, **kwargs
+                    )
+                elif hasattr(orbit_instance, "preconditioner"):
+                    scipy_kwargs["M"] = orbit_instance.preconditioner(**kwargs)
+                elif runtime_statistics["nit"] == 0.0:
+                    warn_str = "".join(
+                        [
+                            f"\norbithunter.optimize.hunt was passed preconditioning=True but no method of",
+                            f" computing a preconditioner was provided.",
+                        ]
+                    )
                     warnings.warn(warn_str, RuntimeWarning)
 
             if method == "minres":

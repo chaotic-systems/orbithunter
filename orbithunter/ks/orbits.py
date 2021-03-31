@@ -748,10 +748,9 @@ class OrbitKS(Orbit):
         The time axis for EquilibriumOrbitKS is labeled by infinity to indicate that they do not change over time.
 
         """
-        plt.rcParams.update({
-            "font.family": "serif",
-            "font.serif": ["Palatino"],
-        })
+        plt.rcParams.update(
+            {"font.family": "serif", "font.serif": ["Palatino"],}
+        )
         if padding:
             padding_shape = kwargs.get("padding_shape", (16 * self.n, 16 * self.m))
             plot_orbit = self.resize(padding_shape)
@@ -903,10 +902,9 @@ class OrbitKS(Orbit):
                 The file extension to save as, .png, .pdf, etc. Values supported by matplotlib only.
 
         """
-        plt.rcParams.update({
-            "font.family": "serif",
-            "font.serif": ["Palatino"],
-        })
+        plt.rcParams.update(
+            {"font.family": "serif", "font.serif": ["Palatino"],}
+        )
         if scale == "log":
             modes = np.abs(self.transform(to="modes").state)
             modes[modes > 0.0] = np.log10(modes[modes > 0.0])
@@ -1034,9 +1032,13 @@ class OrbitKS(Orbit):
         """
         # To get the diagonal preconditioner, can apply preconditioning to an array of 1's, returning the multipliers.
         # The orbit vector of this instance represents the diagonal of a diagonal preconditioning matrix.
-        diag_M = self.__class__(**{**vars(self), "state": np.ones(self.shape),
-                                   "parameters": (1, 1, 1)}).precondition(**{'pmult': self.preconditioning_parameters(),
-                                                                             **kwargs}).orbit_vector()
+        diag_M = (
+            self.__class__(
+                **{**vars(self), "state": np.ones(self.shape), "parameters": (1, 1, 1)}
+            )
+            .precondition(**{"pmult": self.preconditioning_parameters(), **kwargs})
+            .orbit_vector()
+        )
 
         def matvec_(v):
             # v is an orbit vector,
@@ -1046,7 +1048,9 @@ class OrbitKS(Orbit):
             return v * diag_M
 
         # rmatvec = matvec because diagonal
-        return LinearOperator(shape=(diag_M.size, diag_M.size), matvec=matvec_, rmatvec=matvec_)
+        return LinearOperator(
+            shape=(diag_M.size, diag_M.size), matvec=matvec_, rmatvec=matvec_
+        )
 
     def reflection(self, axis=1, signed=True):
         """
