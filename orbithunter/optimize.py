@@ -16,6 +16,7 @@ from scipy.sparse.linalg import (
 )
 import sys
 import numpy as np
+import warnings
 
 __all__ = ["hunt"]
 
@@ -902,13 +903,13 @@ def _scipy_sparse_linalg_solver_wrapper(
     if not kwargs.get("backtracking", True):
         min_step = 1
     linear_system_factory = kwargs.get("factory", None) or _sparse_linalg_factory
-    preconditioner_factory = kwargs.get("preconditioner", None)
-    scipy_kwargs = None
+    preconditioning = kwargs.get('preconditioning', False)
+    preconditioner_factory = kwargs.get("mfactory", None)
+    scipy_kwargs = kwargs.get("scipy_kwargs", {})
     while cost > tol and runtime_statistics["status"] == -1:
         step_size = 1
         A, b = linear_system_factory(orbit_instance, method, **kwargs)
-        if callable(preconditioner_factory):
-            scipy_kwargs['M'] = preconditioner_factory(orbit_instance, method, **kwargs)
+
         if method in ["lsmr", "lsqr"]:
             # different defaults for lsqr, lsmr
             if scipy_kwargs is None:
@@ -921,8 +922,20 @@ def _scipy_sparse_linalg_solver_wrapper(
                 result_tuple = lsqr(A, b, **scipy_kwargs)
 
         else:
+
             if scipy_kwargs is None:
                 scipy_kwargs = kwargs.get("scipy_kwargs", {})
+
+            if preconditioning:
+                if callable(preconditioner_factory):
+                    scipy_kwargs['M'] = preconditioner_factory(orbit_instance, method, **kwargs)
+                elif hasattr(orbit_instance, 'preconditioner'):
+                    scipy_kwargs['M'] = orbit_instance.preconditioner(**kwargs)
+                elif runtime_statistics['nit'] == 0.:
+                    warn_str = ''.join([f"\norbithunter.optimize.hunt was passed preconditioning=True but no method of",
+                                        f" computing a preconditioner was provided."])
+                    warnings.warn(warn_str, RuntimeWarning)
+
             if method == "minres":
                 result_tuple = (minres(A, b, **scipy_kwargs),)
             elif method == "bicg":
@@ -1651,7 +1664,10 @@ def _process_correction(
         return orbit_instance, cost, runtime_statistics
     elif runtime_statistics["nit"] == maxiter:
         runtime_statistics["status"] = 2
-        return next_orbit_instance, next_cost, runtime_statistics
+        if next_cost < cost:
+            return next_orbit_instance, next_cost, runtime_statistics
+        else:
+            return orbit_instance, cost, runtime_statistics
     elif (cost - next_cost) / max([cost, next_cost, 1]) < ftol:
         runtime_statistics["status"] = 3
         return orbit_instance, cost, runtime_statistics

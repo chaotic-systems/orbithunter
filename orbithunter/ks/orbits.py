@@ -2,6 +2,7 @@ from math import pi
 from ..core import Orbit
 from scipy.fft import rfft, irfft, rfftfreq
 from scipy.linalg import block_diag
+from scipy.sparse.linalg import LinearOperator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from functools import lru_cache
 import os
@@ -747,10 +748,10 @@ class OrbitKS(Orbit):
         The time axis for EquilibriumOrbitKS is labeled by infinity to indicate that they do not change over time.
 
         """
-        plt.rc("text", usetex=True)
-        plt.rc("font", family="serif")
-        plt.rcParams["text.usetex"] = True
-
+        plt.rcParams.update({
+            "font.family": "serif",
+            "font.serif": ["Palatino"],
+        })
         if padding:
             padding_shape = kwargs.get("padding_shape", (16 * self.n, 16 * self.m))
             plot_orbit = self.resize(padding_shape)
@@ -794,7 +795,7 @@ class OrbitKS(Orbit):
         else:
             plot_orbit.t = np.min([plot_orbit.x, 1])
             yticks = np.array([0, plot_orbit.t])
-            ylabels = np.array(["0", "$\\infty$"])
+            ylabels = np.array(["0", "0"])
 
         if plot_orbit.x > 2 * pi * np.sqrt(2):
             xmult = (plot_orbit.x // 64) + 1
@@ -902,9 +903,10 @@ class OrbitKS(Orbit):
                 The file extension to save as, .png, .pdf, etc. Values supported by matplotlib only.
 
         """
-        plt.rc("text", usetex=True)
-        plt.rc("font", family="serif")
-        plt.rcParams["text.usetex"] = True
+        plt.rcParams.update({
+            "font.family": "serif",
+            "font.serif": ["Palatino"],
+        })
         if scale == "log":
             modes = np.abs(self.transform(to="modes").state)
             modes[modes > 0.0] = np.log10(modes[modes > 0.0])
@@ -1013,6 +1015,38 @@ class OrbitKS(Orbit):
                 "parameters": (t, x, self.s),
             }
         )
+
+    def preconditioner(self, **kwargs):
+        """
+        Returns a diagonal preconditioner as a scipy LinearOperator instance
+
+        Parameters
+        ----------
+        kwargs : dict
+            Any keyword arguments that are accepted by precondition.
+
+        Returns
+        -------
+        LinearOperator :
+            An object with callable methods that return matrix-vector products, for `v=vector` and `A=LinearOperator`,
+            A.matvec(v) and A.rmatvec(v) compute $A * v$ and $A^T * v$, respectively. Here the LinearOperator
+            approximates the inverse of the operator that defines the linear component of the KSe
+        """
+        # To get the diagonal preconditioner, can apply preconditioning to an array of 1's, returning the multipliers.
+        # The orbit vector of this instance represents the diagonal of a diagonal preconditioning matrix.
+        diag_M = self.__class__(**{**vars(self), "state": np.ones(self.shape),
+                                   "parameters": (1, 1, 1)}).precondition(**{'pmult': self.preconditioning_parameters(),
+                                                                             **kwargs}).orbit_vector()
+
+        def matvec_(v):
+            # v is an orbit vector,
+            nonlocal diag_M
+            if v.ndim != diag_M.ndim:
+                diag_M = diag_M.reshape(v.shape)
+            return v * diag_M
+
+        # rmatvec = matvec because diagonal
+        return LinearOperator(shape=(diag_M.size, diag_M.size), matvec=matvec_, rmatvec=matvec_)
 
     def reflection(self, axis=1, signed=True):
         """
