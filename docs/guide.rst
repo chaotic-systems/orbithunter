@@ -40,7 +40,7 @@ using a Fourier basis and for aperiodic boundary conditions Chebyshev polynomial
 .. note::
    This is also available as a ``.py`` file in the tutorials under `class_template <https://github.com/mgudorf/orbithunter/tutorial/class_template.py>`_
 
-.. currentmodule:: tutorial.class_template
+.. currentmodule:: template.class_template
 .. autoclass:: SymmetryOrbitEQN
 
 Methods

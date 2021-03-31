@@ -3,8 +3,14 @@ import numpy as np
 import itertools
 from collections import Counter
 
-__all__ = ["tile", "glue", "generate_symbol_arrays", "rediscretize_tileset", "expensive_pairwise_glue",
-           "aspect_ratio_correction"]
+__all__ = [
+    "tile",
+    "glue",
+    "generate_symbol_arrays",
+    "rediscretize_tileset",
+    "expensive_pairwise_glue",
+    "aspect_ratio_correction",
+]
 
 
 def aspect_ratio_correction(orbit_array, axis=0, conserve_parity=True):
@@ -459,16 +465,20 @@ def expensive_pairwise_glue(orbit_pair_array, orbit_type, objective="cost", **kw
         if objective == "boundary_cost":
             # Ugly way of slicing the state arrays at the boundaries. This is assuming periodic boundary conditions.
             aslice = tuple(
-                           (0, -1) if i == gluing_axis and periodic else
-                           -1 if i == gluing_axis else
-                           slice(None)
-                           for i, periodic in enumerate(ga.periodic_dimension())
+                (0, -1)
+                if i == gluing_axis and periodic
+                else -1
+                if i == gluing_axis
+                else slice(None)
+                for i, periodic in enumerate(ga.periodic_dimension())
             )
             bslice = tuple(
-                           (-1, 0) if i == gluing_axis and periodic else
-                           0 if i == gluing_axis else
-                           slice(None)
-                           for i, periodic in enumerate(ga.periodic_dimension())
+                (-1, 0)
+                if i == gluing_axis and periodic
+                else 0
+                if i == gluing_axis
+                else slice(None)
+                for i, periodic in enumerate(ga.periodic_dimension())
             )
             # Slice the state and not the orbit, as slices may not be valid (do not retain number of dimensions)
             boundary_cost = np.linalg.norm(ga.state[aslice] - gb.state[bslice])

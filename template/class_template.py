@@ -35,6 +35,7 @@ class SymmetryOrbitEQN(Orbit):
     adding a prefix which describes said symmetry.
 
     """
+
     def __init__(
         self,
         state=None,
@@ -69,9 +70,14 @@ class SymmetryOrbitEQN(Orbit):
         pass  # your code for extra operations goes here.
 
         # After custom operations, the base Orbit class' routine is called.
-        super().__init__(state=state, basis=basis, parameters=parameters, discretization=discretization,
-                         constraints=constraints, **kwargs)
-
+        super().__init__(
+            state=state,
+            basis=basis,
+            parameters=parameters,
+            discretization=discretization,
+            constraints=constraints,
+            **kwargs,
+        )
 
     @staticmethod
     def bases_labels():
@@ -397,6 +403,7 @@ class SymmetryOrbitEQN(Orbit):
     For second order and trust region methods
     
     """
+
     def costhess(self, other, **kwargs):
         """
         Hessian matrix of the cost function

@@ -7,6 +7,7 @@ import pathlib
 here = pathlib.Path(__file__).parent.resolve()
 data_path = here / "test_data.h5"
 
+
 @pytest.fixture()
 def fixed_OrbitKS_data():
     # Generated from
@@ -24,8 +25,10 @@ def fixed_OrbitKS_data():
     )
     return state
 
+
 def test_orbit_data():
     with h5py.File(data_path, "r") as file:
+
         def h5_helper(name, cls):
             nonlocal file
             attrs = dict(file["/".join([name, "0"])].attrs.items())
@@ -65,6 +68,7 @@ def test_orbit_data():
         assert static.cost() == read.cost()
         assert np.isclose(static.state, read.state).all()
         assert static.parameters == read.parameters
+
 
 def test_glue():
     with h5py.File(data_path, "r") as file:

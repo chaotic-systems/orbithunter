@@ -4,7 +4,12 @@ import inspect
 import numpy as np
 from gudhi.hera import wasserstein_distance, bottleneck_distance
 
-__all__ = ["orbit_complex", "orbit_persistence", "persistence_plot", "persistence_distance"]
+__all__ = [
+    "orbit_complex",
+    "orbit_persistence",
+    "persistence_plot",
+    "persistence_distance",
+]
 
 
 def orbit_complex(orbit_instance, **kwargs):
@@ -61,9 +66,7 @@ def orbit_persistence(orbit_instance, **kwargs):
 
     """
     # homology coeff field not supported for now
-    persistence_kwargs = {
-        "min_persistence": kwargs.get("min_persistence", 0.0)
-    }
+    persistence_kwargs = {"min_persistence": kwargs.get("min_persistence", 0.0)}
     # Keyword arguments for orbit_complex.
     complex_kwargs = {
         "periodic_dimensions": kwargs.get(
@@ -93,7 +96,9 @@ def persistence_plot(orbit_instance, gudhi_method="diagram", **kwargs):
 
     """
     # Get the persistence
-    opersist = orbit_persistence(orbit_instance, **{**kwargs, "persistence_format": "gudhi"})
+    opersist = orbit_persistence(
+        orbit_instance, **{**kwargs, "persistence_format": "gudhi"}
+    )
     # Pass the kwargs accepted by Gudhi for plotting
     plot_kwargs = {
         k: v
@@ -107,7 +112,9 @@ def persistence_plot(orbit_instance, gudhi_method="diagram", **kwargs):
     plt.show()
 
 
-def persistence_distance(orbit1, orbit2, gudhi_metric="bottleneck", **kwargs):
+def persistence_distance(
+    orbit_or_array, second_orbit_or_array, gudhi_metric="bottleneck", **kwargs
+):
     """
     Compute the distance between two Orbits' persistence diagrams.
 
@@ -126,9 +133,18 @@ def persistence_distance(orbit1, orbit2, gudhi_metric="bottleneck", **kwargs):
     -------
 
     """
-    # Get the persistences
-    diagram1 = orbit_persistence(orbit1, **kwargs)[:, 1:]
-    diagram2 = orbit_persistence(orbit2, **kwargs)[:, 1:]
+
+    if isinstance(orbit_or_array, np.ndarray):
+        diagram1 = orbit_or_array[:, 1:]
+    else:
+        # Get the persistences
+        diagram1 = orbit_persistence(orbit_or_array, **kwargs)[:, 1:]
+
+    if isinstance(second_orbit_or_array, np.ndarray):
+        diagram2 = second_orbit_or_array[:, 1:]
+    else:
+        # Get the persistences
+        diagram2 = orbit_persistence(second_orbit_or_array, **kwargs)[:, 1:]
 
     # Calculate the distance metric.
     if gudhi_metric == "bottleneck":
@@ -138,5 +154,3 @@ def persistence_distance(orbit1, orbit2, gudhi_metric="bottleneck", **kwargs):
     else:
         raise ValueError(f"{gudhi_metric} not recognized as gudhi metric.")
     return distance_func(diagram1, diagram2)
-
-

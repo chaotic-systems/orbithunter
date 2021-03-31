@@ -29,7 +29,6 @@ which is the composition of spatial reflection and half-period time translation.
 +-----------------------------+---------------------------------------------------+--------------------+
 
 
-
 Orbit Types
 ===========
 

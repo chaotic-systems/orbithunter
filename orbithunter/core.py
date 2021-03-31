@@ -107,6 +107,7 @@ class Orbit:
     >>>     return orbit_instance.__class__(**{**vars(orbit_instance), 'state': new_state_same_shape})
 
     """
+
     def __init__(
         self,
         state=None,
@@ -131,7 +132,7 @@ class Orbit:
             self.constraints = constraints
 
         # Unused unless implemented for your class, like :meth:`orbithunter.ks.OrbitKS.transform`
-        self._workers = kwargs.get('_workers', None)
+        self._workers = kwargs.get("_workers", None)
 
     def __add__(self, other):
         """
@@ -520,23 +521,29 @@ class Orbit:
             # than expected,  raises IndexError
             if attr in self.parameter_labels():
                 label_index = self.parameter_labels().index(attr)
-                label_error_type = 'parameters'
+                label_error_type = "parameters"
                 return self.parameters[label_index]
             elif attr in self.discretization_labels():
                 label_index = self.discretization_labels().index(attr)
-                label_error_type = 'discretization'
+                label_error_type = "discretization"
                 return self.discretization[label_index]
             else:
                 # Trying to access an attribute that does not exist.
                 raise AttributeError(f"{str(self)} has no attribute {attr}")
 
         except TypeError as te:
-            raise AttributeError(f"Cannot retrieve '{attr}' when {label_error_type} attribute is NoneType") from te
+            raise AttributeError(
+                f"Cannot retrieve '{attr}' when {label_error_type} attribute is NoneType"
+            ) from te
 
         except IndexError as ie:
-            errstr = ' '.join([f"'{attr}' parameter expected at index {label_index} but {str(self)} only has",
-                               f"{len(self.parameters)} parameters. This occurs when an unparsed instance receives",
-                               f"fewer parameters than the user intended"])
+            errstr = " ".join(
+                [
+                    f"'{attr}' parameter expected at index {label_index} but {str(self)} only has",
+                    f"{len(self.parameters)} parameters. This occurs when an unparsed instance receives",
+                    f"fewer parameters than the user intended",
+                ]
+            )
             raise AttributeError(errstr) from ie
 
     def __getitem__(self, key):
@@ -619,10 +626,15 @@ class Orbit:
                 new_dimensions = [
                     dim * (newsize / oldsize)
                     if newsize > 1 and continuous
-                    else 0. if continuous else newsize
+                    else 0.0
+                    if continuous
+                    else newsize
                     # If any axes are flattened by the slicing then
                     for dim, newsize, oldsize, continuous in zip(
-                        self.dimensions(), state_slice.shape, self.shape, self.continuous_dimensions()
+                        self.dimensions(),
+                        state_slice.shape,
+                        self.shape,
+                        self.continuous_dimensions(),
                     )
                 ]
                 param_dict = dict(zip(list(self.parameter_labels()), self.parameters))
@@ -1035,7 +1047,9 @@ class Orbit:
 
         """
         J = self.jacobian(**kwargs)
-        return J.T.dot(J) + self.hess(**kwargs).dot(self.eqn(**kwargs).orbit_vector.ravel())
+        return J.T.dot(J) + self.hess(**kwargs).dot(
+            self.eqn(**kwargs).orbit_vector.ravel()
+        )
 
     def costhessp(self, other, **kwargs):
         """
@@ -1349,7 +1363,9 @@ class Orbit:
 
         """
         # General case
-        return np.zeros([self.orbit_vector().size, self.orbit_vector().size, self.eqn().size])
+        return np.zeros(
+            [self.orbit_vector().size, self.orbit_vector().size, self.eqn().size]
+        )
 
     def hessp(self, other, **kwargs):
         """
@@ -1434,14 +1450,18 @@ class Orbit:
         """
         # orbit_vector is defined to be concatenation of state and parameters;
         # slice out the parameters; cast as list to gain access to pop
-        param_list = list(kwargs.pop("passed_parameters", orbit_vector.ravel()[self.size :]))
+        param_list = list(
+            kwargs.pop("passed_parameters", orbit_vector.ravel()[self.size :])
+        )
 
         # The issue with parsing the parameters is that we do not know which list element corresponds to
         # which parameter unless the constraints are checked. Parameter keys which are not in the constraints dict
         # are assumed to be constrained. Pop from param_list if parameters 1. exist, 2. are unconstrained.
         # Not having enough parameters to pop means something is going wrong in your matvec/rmatvec functions typically.
         parameters = tuple(
-            param_list.pop(0) if (not self.constraints.get(each_label, True) and param_list) else 0.0
+            param_list.pop(0)
+            if (not self.constraints.get(each_label, True) and param_list)
+            else 0.0
             for each_label in self.parameter_labels()
         )
         return self.__class__(
@@ -2257,7 +2277,9 @@ def convert_class(orbit_instance, orbit_type, **kwargs):
     return orbit_type(
         **{
             **vars(orbit_instance),
-            "state": orbit_instance.transform(to=orbit_instance.bases_labels()[0]).state,
+            "state": orbit_instance.transform(
+                to=orbit_instance.bases_labels()[0]
+            ).state,
             "basis": orbit_instance.bases_labels()[0],
             **kwargs,
         }

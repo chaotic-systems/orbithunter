@@ -237,12 +237,24 @@ def hunt(orbit_instance, *methods, **kwargs):
             if method == "cg_min":
                 # had to use an alias because this is also defined for scipy.sparse.linalg
                 method = "cg"
-            elif (method in ["trust-constr", "dogleg", "trust-ncg", "trust-exact", "trust-krylov"]
-                  and (not hasattr(orbit_instance, "costhessp") and not hasattr(orbit_instance, 'costhess'))):
-                err_str = ''.join([f"Hessian based algorithm {method} is not supported for {orbit_instance.__class__}",
-                                   f" because neither {orbit_instance.__class__}.costhess() nor",
-                                   f" {orbit_instance.__class__}.costhessp() are defined"
-                                   f" and no SciPy option was passed. See scipy.optimize.minimize docs for details."])
+            elif method in [
+                "trust-constr",
+                "dogleg",
+                "trust-ncg",
+                "trust-exact",
+                "trust-krylov",
+            ] and (
+                not hasattr(orbit_instance, "costhessp")
+                and not hasattr(orbit_instance, "costhess")
+            ):
+                err_str = "".join(
+                    [
+                        f"Hessian based algorithm {method} is not supported for {orbit_instance.__class__}",
+                        f" because neither {orbit_instance.__class__}.costhess() nor",
+                        f" {orbit_instance.__class__}.costhessp() are defined"
+                        f" and no SciPy option was passed. See scipy.optimize.minimize docs for details.",
+                    ]
+                )
                 raise AttributeError(err_str)
             orbit_instance, method_statistics = _scipy_optimize_minimize_wrapper(
                 orbit_instance, method=method, **hunt_kwargs
@@ -333,8 +345,9 @@ def _adjoint_descent(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **k
         assert type(tol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
     except AssertionError as assrt:
-                raise TypeError("tol and maxiter must be scalars or list when multiple methods provided") from assrt
-
+        raise TypeError(
+            "tol and maxiter must be scalars or list when multiple methods provided"
+        ) from assrt
 
     try:
         if isinstance(tol, list):
@@ -373,7 +386,7 @@ def _adjoint_descent(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **k
         )
         sys.stdout.flush()
     # Simplest solution to exclusion of simple backtracking.
-    if not kwargs.get('backtracking', True):
+    if not kwargs.get("backtracking", True):
         min_step = 1
 
     mapping = orbit_instance.eqn(**kwargs)
@@ -454,8 +467,9 @@ def _newton_descent(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwar
         assert type(tol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
     except AssertionError as assrt:
-                raise TypeError("tol and maxiter must be scalars or list when multiple methods provided") from assrt
-
+        raise TypeError(
+            "tol and maxiter must be scalars or list when multiple methods provided"
+        ) from assrt
 
     try:
         if isinstance(tol, list):
@@ -497,7 +511,7 @@ def _newton_descent(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwar
         sys.stdout.flush()
 
     # Simplest solution to exclusion of simple backtracking.
-    if not kwargs.get('backtracking', True):
+    if not kwargs.get("backtracking", True):
         min_step = 1
 
     mapping = orbit_instance.eqn(**kwargs)
@@ -595,7 +609,9 @@ def _lstsq(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
         assert type(tol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
     except AssertionError as assrt:
-                raise TypeError("tol and maxiter must be scalars or list when multiple methods provided") from assrt
+        raise TypeError(
+            "tol and maxiter must be scalars or list when multiple methods provided"
+        ) from assrt
 
     try:
         if isinstance(tol, list):
@@ -636,7 +652,7 @@ def _lstsq(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
         )
 
     # Simplest solution to exclusion of simple backtracking.
-    if not kwargs.get('backtracking', True):
+    if not kwargs.get("backtracking", True):
         min_step = 1
 
     while cost > tol and runtime_statistics["status"] == -1:
@@ -706,7 +722,9 @@ def _solve(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **kwargs):
         assert type(tol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
     except AssertionError as assrt:
-                raise TypeError("tol and maxiter must be scalars or list when multiple methods provided") from assrt
+        raise TypeError(
+            "tol and maxiter must be scalars or list when multiple methods provided"
+        ) from assrt
 
     try:
         if isinstance(tol, list):
@@ -747,7 +765,7 @@ def _solve(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **kwargs):
         )
 
     # Simplest solution to exclusion of simple backtracking.
-    if not kwargs.get('backtracking', True):
+    if not kwargs.get("backtracking", True):
         min_step = 1
 
     while cost > tol and runtime_statistics["status"] == -1:
@@ -840,7 +858,9 @@ def _scipy_sparse_linalg_solver_wrapper(
         assert type(tol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
     except AssertionError as assrt:
-                raise TypeError("tol and maxiter must be scalars or list when multiple methods provided") from assrt
+        raise TypeError(
+            "tol and maxiter must be scalars or list when multiple methods provided"
+        ) from assrt
 
     try:
         if isinstance(tol, list):
@@ -879,7 +899,7 @@ def _scipy_sparse_linalg_solver_wrapper(
         "status": -1,
     }
     # Simplest solution to exclusion of simple backtracking.
-    if not kwargs.get('backtracking', True):
+    if not kwargs.get("backtracking", True):
         min_step = 1
     linear_system_factory = kwargs.get("factory", None) or _sparse_linalg_factory
     scipy_kwargs = None
@@ -997,7 +1017,9 @@ def _scipy_optimize_minimize_wrapper(
         assert type(tol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
     except AssertionError as assrt:
-                raise TypeError("tol and maxiter must be scalars or list when multiple methods provided") from assrt
+        raise TypeError(
+            "tol and maxiter must be scalars or list when multiple methods provided"
+        ) from assrt
 
     try:
         if isinstance(tol, list):
@@ -1039,9 +1061,14 @@ def _scipy_optimize_minimize_wrapper(
     func_jac_hess_factory = kwargs.get("factory", None) or _minimize_callable_factory
     while cost > tol and runtime_statistics["status"] == -1:
         # jacobian and hessian passed as keyword arguments to scipy not arguments.
-        minfunc, jac_and_hess_options = func_jac_hess_factory(orbit_instance, method, **kwargs)
-        result = minimize(minfunc, orbit_instance.orbit_vector().ravel(),
-                          **{**scipy_kwargs, 'method': method, **jac_and_hess_options})
+        minfunc, jac_and_hess_options = func_jac_hess_factory(
+            orbit_instance, method, **kwargs
+        )
+        result = minimize(
+            minfunc,
+            orbit_instance.orbit_vector().ravel(),
+            **{**scipy_kwargs, "method": method, **jac_and_hess_options},
+        )
 
         if kwargs.get("progressive", False):
             # When solving the system repeatedly, a more stringent tolerance may be required to reduce the cost
@@ -1110,7 +1137,9 @@ def _scipy_optimize_root_wrapper(
         assert type(tol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
     except AssertionError as assrt:
-                raise TypeError("tol and maxiter must be scalars or list when multiple methods provided") from assrt
+        raise TypeError(
+            "tol and maxiter must be scalars or list when multiple methods provided"
+        ) from assrt
 
     try:
         if isinstance(tol, list):
@@ -1146,12 +1175,17 @@ def _scipy_optimize_root_wrapper(
             "-------------------------------------------------------------------------------------------------"
         )
         sys.stdout.flush()
-    func_jac_factory = kwargs.get('factory', None) or _root_callable_factory
+    func_jac_factory = kwargs.get("factory", None) or _root_callable_factory
     while cost > tol and runtime_statistics["status"] == -1:
         # Use factory function to produce two callables required for SciPy routine. Need to be included under
         # the while statement so they are updated.
         _rootfunc, jac_options = func_jac_factory(orbit_instance, method, **kwargs)
-        scipy_kwargs = {"tol": tol, **kwargs.get("scipy_kwargs", {}), "method": method, **jac_options}
+        scipy_kwargs = {
+            "tol": tol,
+            **kwargs.get("scipy_kwargs", {}),
+            "method": method,
+            **jac_options,
+        }
         # Returns an OptimizeResult, .x attribute is where array is stored.
         result = root(_rootfunc, orbit_instance.orbit_vector().ravel(), **scipy_kwargs)
         next_orbit_instance = orbit_instance.from_numpy_array(result.x)
@@ -1203,27 +1237,35 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
     # eqn is very expensive to evaluate; however, in that case, the sparse linalg algorithms would be a very poor choice
 
     # If least squares routine, need LinearOperator representing Jacobian
-    if method in ['lsqr', 'lsmr']:
+    if method in ["lsqr", "lsmr"]:
 
         def matvec_func(v):
             # matvec needs state and parameters from v.
             nonlocal orbit_instance
+            nonlocal kwargs
             v_orbit = orbit_instance.from_numpy_array(v)
             return orbit_instance.matvec(v_orbit, **kwargs).state.reshape(-1, 1)
 
         def rmatvec_func(v):
             # in this case, v is only state information, if rectangular system
             nonlocal orbit_instance
+            nonlocal kwargs
             # The rmatvec typically requires state information from v and parameters from current instance.
             v_orbit = orbit_instance.from_numpy_array(v)
-            return orbit_instance.rmatvec(v_orbit, **kwargs).orbit_vector().reshape(-1, 1)
+            return (
+                orbit_instance.rmatvec(v_orbit, **kwargs).orbit_vector().reshape(-1, 1)
+            )
 
         linear_operator_shape = (
             orbit_instance.state.size,
             orbit_instance.orbit_vector().size,
         )
         A = LinearOperator(
-            linear_operator_shape, matvec_func, rmatvec=rmatvec_func, dtype=orbit_instance.state.dtype
+            linear_operator_shape,
+            matvec_func,
+            rmatvec=rmatvec_func,
+            dtype=orbit_instance.state.dtype,
+            **kwargs.get('LinearOperator_options', {})
         )
         b = -1.0 * orbit_instance.eqn(**kwargs).state.reshape(-1, 1)
         return A, b
@@ -1233,6 +1275,7 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
         # respect to the optimization routines.
         def matvec_(v):
             nonlocal orbit_instance
+            nonlocal kwargs
             # matvec needs parameters and orbit info from v; evaluation of matvec should take instance
             # parameters from orbit_instance; is this reasonable to expect to work.
             v_orbit = orbit_instance.from_numpy_array(v)
@@ -1245,12 +1288,26 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
             )
 
         # Currently only allows solving of the normal equations. A^T A x = A^T b, b = -F
-        linear_operator_shape = (orbit_instance.orbit_vector().size, orbit_instance.orbit_vector().size)
+        linear_operator_shape = (
+            orbit_instance.orbit_vector().size,
+            orbit_instance.orbit_vector().size,
+        )
         # Your IDE might tell you the following has "unexpected arguments" but that's only because the signature
         # of LinearOperator does not match the signature of the _CustomLinearOperator class that it actually
         # calls when user provides callables and not a 2-d array.
-        ATA = LinearOperator(linear_operator_shape, matvec_, rmatvec=matvec_, dtype=orbit_instance.state.dtype)
-        ATb = orbit_instance.rmatvec(-1.0 * orbit_instance.eqn(**kwargs), **kwargs).orbit_vector().reshape(-1, 1)
+        ATA = LinearOperator(
+            linear_operator_shape,
+            matvec_,
+            rmatvec=matvec_,
+            dtype=orbit_instance.state.dtype,
+            **kwargs.get('LinearOperator_options', {})
+
+        )
+        ATb = (
+            orbit_instance.rmatvec(-1.0 * orbit_instance.eqn(**kwargs), **kwargs)
+            .orbit_vector()
+            .reshape(-1, 1)
+        )
         return ATA, ATb
     else:
         # If square system of equations, then likely solving Ax = b, not the normal equations; matvec and
@@ -1258,14 +1315,21 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
         def matvec_(v):
             # _orbit_vector_to_orbit turns state vector into class object.
             nonlocal orbit_instance
+            nonlocal kwargs
+
             v_orbit = orbit_instance.from_numpy_array(v)
-            return orbit_instance.matvec(v_orbit, **kwargs).orbit_vector().reshape(-1, 1)
+            return (
+                orbit_instance.matvec(v_orbit, **kwargs).orbit_vector().reshape(-1, 1)
+            )
 
         def rmatvec_(v):
             # _orbit_vector_to_orbit turns state vector into class object.
             nonlocal orbit_instance
+            nonlocal kwargs
             v_orbit = orbit_instance.from_numpy_array(v)
-            return orbit_instance.rmatvec(v_orbit, **kwargs).orbit_vector().reshape(-1, 1)
+            return (
+                orbit_instance.rmatvec(v_orbit, **kwargs).orbit_vector().reshape(-1, 1)
+            )
 
         # Currently only allows solving of the normal equations. A^T A x = A^T b
         linear_operator_shape = (
@@ -1275,7 +1339,14 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
         # Your IDE might tell you the following has "unexpected arguments" but that's only because the signature
         # of LinearOperator does not match the signature of the _CustomLinearOperator class that it actually
         # calls when user provides callables and not a 2-d array.
-        A = LinearOperator(linear_operator_shape, matvec_, rmatvec=rmatvec_, dtype=orbit_instance.state.dtype)
+        A = LinearOperator(
+            linear_operator_shape,
+            matvec_,
+            rmatvec=rmatvec_,
+            dtype=orbit_instance.state.dtype,
+            **kwargs.get('LinearOperator_options', {})
+
+        )
         b = -1.0 * orbit_instance.eqn(**kwargs).orbit_vector().reshape(-1, 1)
         return A, b
 
@@ -1305,8 +1376,8 @@ def _minimize_callable_factory(orbit_instance, method, **kwargs):
     is returned as a dict.
 
     """
-    hess_strategy = kwargs.get('hess_strategy', None)
-    jac_strategy = kwargs.get('jac_strategy', 'costgrad')
+    hess_strategy = kwargs.get("hess_strategy", None)
+    jac_strategy = kwargs.get("jac_strategy", "costgrad")
     jac_and_hess_options = {}
 
     def _minfunc(x):
@@ -1325,13 +1396,15 @@ def _minimize_callable_factory(orbit_instance, method, **kwargs):
 
         """
         nonlocal orbit_instance
+        nonlocal kwargs
         x_orbit = orbit_instance.from_numpy_array(x, **kwargs)
         return x_orbit.cost()
 
     # Jacobian defaults to costgrad method, but could be provided as either a string for finite difference approximation
     # or other options.
     if method not in ["nelder-mead", "powell", "cobyla"]:
-        if jac_strategy == 'costgrad':
+        if jac_strategy == "costgrad":
+
             def _minjac(x):
                 """
                 The jacobian of the cost function (scalar) can be expressed as a matrix-vector product
@@ -1352,31 +1425,32 @@ def _minimize_callable_factory(orbit_instance, method, **kwargs):
 
                 """
                 nonlocal orbit_instance
+                nonlocal kwargs
                 x_orbit = orbit_instance.from_numpy_array(x)
                 # For cases when costgrad does not require eqn
-                return (
-                    x_orbit.costgrad(**kwargs).orbit_vector().ravel()
-                )
+                return x_orbit.costgrad(**kwargs).orbit_vector().ravel()
+
             jac_ = _minjac
         else:
             jac_ = jac_strategy
-        jac_and_hess_options['jac'] = jac_
+        jac_and_hess_options["jac"] = jac_
 
     if method in ["trust-constr", "dogleg", "trust-ncg", "trust-exact", "trust-krylov"]:
-        if hess_strategy == 'costhessp':
+        if hess_strategy == "costhessp":
             # Use the class' definition of costhessp
             def _minhessp(x, p):
                 """
                 Returns the matrix-vector product with the cost function's Hessian. H(x) * p
                 """
                 nonlocal orbit_instance
+                nonlocal kwargs
                 x_orbit = orbit_instance.from_numpy_array(x)
                 p_orbit = orbit_instance.from_numpy_array(p)
                 return x_orbit.costhessp(p_orbit, **kwargs).orbit_vector().ravel()
 
             hess_dict = {"hessp": _minhessp}
 
-        elif hess_strategy == 'costhess':
+        elif hess_strategy == "costhess":
             # Use the class' definition of costhess
 
             def _minhessfunc(x):
@@ -1384,6 +1458,7 @@ def _minimize_callable_factory(orbit_instance, method, **kwargs):
                 Returns the matrix-vector product with the cost function's Hessian.
                 """
                 nonlocal orbit_instance
+                nonlocal kwargs
                 x_orbit = orbit_instance.from_numpy_array(x)
                 return x_orbit.costhess(**kwargs)
 
@@ -1391,7 +1466,9 @@ def _minimize_callable_factory(orbit_instance, method, **kwargs):
         elif hess_strategy is not None:
             hess_dict = {"hess": hess_strategy}
         else:
-            raise ValueError('invalid value for hess_strategy keyword argument. Check and try again')
+            raise ValueError(
+                "invalid value for hess_strategy keyword argument. Check and try again"
+            )
         jac_and_hess_options = {**jac_and_hess_options, **hess_dict}
 
     # Jacobian and hessian callables/infomation passed as keyword arguments to minimize function; might
@@ -1432,14 +1509,16 @@ def _root_callable_factory(orbit_instance, method, **kwargs):
 
         """
         nonlocal orbit_instance
+        nonlocal kwargs
         x_orbit = orbit_instance.from_numpy_array(x, **kwargs)
         xvec = x_orbit.eqn(**kwargs).state.ravel()
         # Need components for the parameters, but typically they will not have an associated component in the equation;
         # however, I do not think it should be by default.
         return np.pad(xvec, (0, x_orbit.orbit_vector().size - xvec.size))
 
-    if method in ['hybr', 'lm']:
-        if kwargs.get('jac_strategy', "jacobian") == "jacobian":
+    if method in ["hybr", "lm"]:
+        if kwargs.get("jac_strategy", "jacobian") == "jacobian":
+
             def _jac(x):
                 """
                 The jacobian of the root function, matrix.
@@ -1456,14 +1535,16 @@ def _root_callable_factory(orbit_instance, method, **kwargs):
 
                 """
                 nonlocal orbit_instance
+                nonlocal kwargs
                 x_orbit = orbit_instance.from_numpy_array(x)
                 # gradient does not have the same problem that the equation
                 J = x_orbit.jacobian(**kwargs)
-                J = np.pad(J, ((0, J.shape[1]-J.shape[0]), (0, 0)))
+                J = np.pad(J, ((0, J.shape[1] - J.shape[0]), (0, 0)))
                 return J
-            jac_options = {"jac", _jac}
+
+            jac_options = {"jac": _jac}
         else:
-            jac_options = {"jac": kwargs.get('jac_strategy', "jacobian")}
+            jac_options = {"jac": kwargs.get("jac_strategy", "jacobian")}
     else:
         jac_options = {"jac": None}
 
@@ -1500,11 +1581,7 @@ def _exit_messages(orbit_instance, status, verbose=False):
         # A general catch all for custom/future status flag values; typically when multiple methods given.
         msg = f"\nUnspecified exit message."
     if verbose:
-        print(
-            " ".join(
-                [msg, f" Terminating hunt with cost = {orbit_instance.cost()}"]
-            )
-        )
+        print(" ".join([msg, f" Terminating hunt with cost = {orbit_instance.cost()}"]))
         sys.stdout.flush()
     return msg
 

@@ -60,7 +60,9 @@ def clip(orbit_instance, window_dimensions, **kwargs):
     )
 
     clipped_orbit = clipping_type(
-        state=orbit_instance.transform(to=orbit_instance.bases_labels()[0]).state[slices],
+        state=orbit_instance.transform(to=orbit_instance.bases_labels()[0]).state[
+            slices
+        ],
         basis=orbit_instance.bases_labels()[0],
         parameters=parameters,
         **kwargs

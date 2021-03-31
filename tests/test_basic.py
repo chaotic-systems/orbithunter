@@ -7,6 +7,7 @@ import orbithunter as oh
 here = pathlib.Path(__file__).parent.resolve()
 data_path = here / "test_data.h5"
 
+
 @pytest.fixture()
 def fixed_orbit_data():
     """ Fixed test data to be used to initialize orbits"""
@@ -333,6 +334,7 @@ def fixed_OrbitKS_data():
 
 def test_orbit_data():
     with h5py.File(data_path, "r") as file:
+
         def h5_helper(name, cls):
             nonlocal file
             attrs = dict(file["/".join([name, "0"])].attrs.items())
