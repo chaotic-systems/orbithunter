@@ -902,10 +902,13 @@ def _scipy_sparse_linalg_solver_wrapper(
     if not kwargs.get("backtracking", True):
         min_step = 1
     linear_system_factory = kwargs.get("factory", None) or _sparse_linalg_factory
+    preconditioner_factory = kwargs.get("preconditioner", None)
     scipy_kwargs = None
     while cost > tol and runtime_statistics["status"] == -1:
         step_size = 1
         A, b = linear_system_factory(orbit_instance, method, **kwargs)
+        if callable(preconditioner_factory):
+            scipy_kwargs['M'] = preconditioner_factory(orbit_instance, method, **kwargs)
         if method in ["lsmr", "lsqr"]:
             # different defaults for lsqr, lsmr
             if scipy_kwargs is None:
@@ -1265,7 +1268,6 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
             matvec_func,
             rmatvec=rmatvec_func,
             dtype=orbit_instance.state.dtype,
-            **kwargs.get('LinearOperator_options', {})
         )
         b = -1.0 * orbit_instance.eqn(**kwargs).state.reshape(-1, 1)
         return A, b
@@ -1300,8 +1302,6 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
             matvec_,
             rmatvec=matvec_,
             dtype=orbit_instance.state.dtype,
-            **kwargs.get('LinearOperator_options', {})
-
         )
         ATb = (
             orbit_instance.rmatvec(-1.0 * orbit_instance.eqn(**kwargs), **kwargs)
@@ -1316,7 +1316,6 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
             # _orbit_vector_to_orbit turns state vector into class object.
             nonlocal orbit_instance
             nonlocal kwargs
-
             v_orbit = orbit_instance.from_numpy_array(v)
             return (
                 orbit_instance.matvec(v_orbit, **kwargs).orbit_vector().reshape(-1, 1)
@@ -1344,8 +1343,6 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
             matvec_,
             rmatvec=rmatvec_,
             dtype=orbit_instance.state.dtype,
-            **kwargs.get('LinearOperator_options', {})
-
         )
         b = -1.0 * orbit_instance.eqn(**kwargs).orbit_vector().reshape(-1, 1)
         return A, b
