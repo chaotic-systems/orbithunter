@@ -11,7 +11,7 @@ from .ks import (
 from .gluing import glue, tile, rediscretize_tileset
 from .clipping import clip, clipping_mask
 from .continuation import continuation, discretization_continuation, span_family
-from .shadowing import shadow, cover, fill
+from .shadowing import shadow, cover, fill, process_scores, scoring_functions
 from .core import convert_class, Orbit
 
 __all__ = [
@@ -27,7 +27,7 @@ __all__ += ["read_h5", "read_tileset"]
 __all__ += ["glue", "tile"]
 __all__ += ["clip", "clipping_mask"]
 __all__ += ["continuation", "discretization_continuation", "span_family"]
-__all__ += ["shadow", "cover", "fill"]
+__all__ += ["shadow", "cover", "fill", "scoring_functions"]
 __all__ += ["convert_class", "Orbit"]
 
 __version__ = "0.7b1"

@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-import orbithunter as oh
+import orbithunter as orb
 import h5py
 import pathlib
 
@@ -42,13 +42,13 @@ def test_orbit_data():
                 }
             )
 
-        rpo = h5_helper("rpo", oh.RelativeOrbitKS)
-        defect = h5_helper("defect", oh.RelativeOrbitKS)
-        large_defect = h5_helper("large_defect", oh.RelativeOrbitKS)
-        drifter = h5_helper("drifter", oh.RelativeEquilibriumOrbitKS)
-        wiggle = h5_helper("wiggle", oh.AntisymmetricOrbitKS)
-        streak = h5_helper("streak", oh.EquilibriumOrbitKS)
-        double_streak = h5_helper("double_streak", oh.EquilibriumOrbitKS)
+        rpo = h5_helper("rpo", orb.RelativeOrbitKS)
+        defect = h5_helper("defect", orb.RelativeOrbitKS)
+        large_defect = h5_helper("large_defect", orb.RelativeOrbitKS)
+        drifter = h5_helper("drifter", orb.RelativeEquilibriumOrbitKS)
+        wiggle = h5_helper("wiggle", orb.AntisymmetricOrbitKS)
+        streak = h5_helper("streak", orb.EquilibriumOrbitKS)
+        double_streak = h5_helper("double_streak", orb.EquilibriumOrbitKS)
         manual = [rpo, defect, large_defect, drifter, wiggle, streak, double_streak]
 
     # Read in the same orbits as above using the native orbithunter io
@@ -62,7 +62,7 @@ def test_orbit_data():
         "streak",
         "double_streak",
     )
-    automatic = oh.read_h5(data_path, keys)
+    automatic = orb.read_h5(data_path, keys)
     for static, read in zip(manual, automatic):
         assert static.cost() < 1e-7
         assert static.cost() == read.cost()

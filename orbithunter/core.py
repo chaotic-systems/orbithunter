@@ -1656,8 +1656,8 @@ class Orbit:
                 # dependent upon full implementation of the governing equations
                 try:
                     orbitset.attrs["cost"] = self.cost()
-                except (ZeroDivisionError, ValueError):
-                    print("Unable to compute cost for {}".format(repr(self)))
+                except (ZeroDivisionError, ValueError, AttributeError):
+                    print(f"Unable to compute cost for instance {repr(self)}; data will not be saved to .h5 file.")
 
     def filename(self, extension=".h5", decimals=3, cls_name=True):
         """
