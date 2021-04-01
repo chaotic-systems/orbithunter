@@ -6,7 +6,7 @@ Orbithunter is distributed with the GNU General Public License v3 (GPLv3) licens
 ::
 
 	Orbithunter, Framework for Nonlinear Dynamics and Chaos
-	Copyright (C) 2021 Matthew Gudorf
+	Copyright (C) March 2021 Matthew Gudorf
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
