@@ -749,7 +749,7 @@ class OrbitKS(Orbit):
 
         """
         plt.rcParams.update(
-            {"font.family": "serif", "font.serif": ["Palatino"],}
+            {"font.serif": ["Palatino"],}
         )
         if padding:
             padding_shape = kwargs.get("padding_shape", (16 * self.n, 16 * self.m))
@@ -903,7 +903,7 @@ class OrbitKS(Orbit):
 
         """
         plt.rcParams.update(
-            {"font.family": "serif", "font.serif": ["Palatino"],}
+            {"font.serif": ["Palatino"],}
         )
         if scale == "log":
             modes = np.abs(self.transform(to="modes").state)

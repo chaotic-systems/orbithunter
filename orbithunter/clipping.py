@@ -70,7 +70,7 @@ def clip(orbit_instance, window_dimensions, **kwargs):
     return clipped_orbit
 
 
-def clipping_mask(orbit_instance, windows, invert=True):
+def clipping_mask(orbit_instance, *windows, invert=True):
     """
     Produce an array mask which shows the clipped regions corresponding to windows upon plotting.
 
@@ -92,6 +92,9 @@ def clipping_mask(orbit_instance, windows, invert=True):
     """
     # Create boolean mask to manipulate for numpy masked arrays.
     mask = np.zeros(orbit_instance.shapes()[0]).astype(bool)
+    if isinstance(*windows, tuple) and len(windows) == 1:
+        windows = tuple(*windows)
+
     if type(windows) in [list, tuple]:
         for window in windows:
             # Do not need dimensions, as we are not clipping technically.
