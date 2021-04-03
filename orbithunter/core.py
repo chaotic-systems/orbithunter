@@ -641,11 +641,19 @@ class Orbit:
                 dim_dict = dict(zip(list(self.dimension_labels()), new_dimensions))
                 param_dict = {**param_dict, **dim_dict}
                 parameters = tuple(param_dict[key] for key in self.parameter_labels())
+                # Discretization == None forces parsing of the state's shape using the current basis.
                 return self.__class__(
-                    **{**vars(self), "state": state_slice, "parameters": parameters}
+                    **{
+                        **vars(self),
+                        "state": state_slice,
+                        "parameters": parameters,
+                        "discretization": None,
+                    }
                 )
             else:
-                return self.__class__(**{**vars(self), "state": state_slice})
+                return self.__class__(
+                    **{**vars(self), "state": state_slice, "discretization": None}
+                )
         except IndexError as ie:
             if self.size == 0.0:
                 raise ValueError(
@@ -1156,8 +1164,7 @@ class Orbit:
 
         Notes
         -----
-        In decision to maintain numpy defaults or change roll to be positive when shift is positive, the latter was
-        chosen. If provided tuples of ints, shift and axis need to be the same length as to be coherent.
+        If provided tuples of ints, shift and axis need to be the same length as to be coherent.
 
         """
         return self.__class__(
@@ -1192,6 +1199,106 @@ class Orbit:
             // np.abs(n_cell),
             axis=axis,
         )
+
+    def concat(self, other, axis=0):
+        """
+        Join two Orbits together by concatenating their state arrays and adding/averaging their parameters.
+
+        Parameters
+        ----------
+        other : Orbit
+            Orbit to be joined with.
+        axis : int
+            The axis along which to concatenate the state arrays.
+
+        Returns
+        -------
+        Orbit :
+            An instance whose stats have been concatenated, and whose parameters have been summed along that dimension.
+
+        Notes
+        -----
+        To cause the least amount of distortion, the grid spacings of each state should be approximately equivalent
+        (if discretizations of continuous dimension). Not allowing mapping from fundamental domains because for
+        discrete symmetries those will often call concat; avoid all possible recursion errors this way.
+
+        .. warning::
+           `self.concat(other)` is only equivalent to `other.concat(self)` if `other` and `self` both have parameters
+           defined, and the parameters not corresponding to dimensions are the same (i.e. categorical parameters).
+           When this is not the case, the parameters of the instance calling the method are used: `self.concat(other)`
+           will use `self`'s categoricals.
+
+        .. warning::
+           This function does not check the bases which each Orbit state is in.
+
+        """
+        concatenated_state = np.concatenate((self.state, other.state), axis=axis)
+        if self.parameters is not None and other.parameters is not None:
+            tuple_of_zipped_dimensions = tuple(
+                zip(*(o.dimensions() for o in (self, other)))
+            )
+            # "glue shape"
+            glue_shape = tuple(2 if i == axis else 1 for i in range(self.ndim))
+            new_dimensions = self.glue_dimensions(
+                tuple_of_zipped_dimensions, glue_shape, exclude_nonpositive=True
+            )
+
+        elif self.parameters is not None:
+            new_dimensions = [
+                dim * (newsize / oldsize)
+                if newsize > 1 and continuous
+                else 0.0
+                if continuous
+                else newsize
+                # If any axes are flattened by the slicing then
+                for dim, newsize, oldsize, continuous in zip(
+                    self.dimensions(),
+                    concatenated_state.shape,
+                    self.shape,
+                    self.continuous_dimensions(),
+                )
+            ]
+        elif other.parameters is not None:
+            new_dimensions = [
+                dim * (newsize / oldsize)
+                if newsize > 1 and continuous
+                else 0.0
+                if continuous
+                else newsize
+                # If any axes are flattened by the slicing then
+                for dim, newsize, oldsize, continuous in zip(
+                    self.dimensions(),
+                    concatenated_state.shape,
+                    self.shape,
+                    self.continuous_dimensions(),
+                )
+            ]
+
+        else:
+            new_dimensions = None
+
+        if new_dimensions is not None:
+            # This handles the order of the parameters as given by the staticmethod :meth:`Orbit.parameter_labels`
+            param_dict = dict(zip(list(self.parameter_labels()), self.parameters))
+            dim_dict = dict(zip(list(self.dimension_labels()), new_dimensions))
+            param_dict = {**param_dict, **dim_dict}
+            parameters = tuple(param_dict[key] for key in self.parameter_labels())
+            # setting discretization to None forces state shape parsing to occur.
+            concat_orbit = self.__class__(
+                **{
+                    **vars(self),
+                    "state": concatenated_state,
+                    "parameters": parameters,
+                    "discretization": None,
+                }
+            )
+        else:
+            # If no parameters were in either orbit, then parse then
+            concat_orbit = self.__class__(
+                **{**vars(self), "state": concatenated_state, "discretization": None}
+            )
+
+        return concat_orbit
 
     def reflection(self, axis=0, signed=True):
         """
@@ -1657,7 +1764,9 @@ class Orbit:
                 try:
                     orbitset.attrs["cost"] = self.cost()
                 except (ZeroDivisionError, ValueError, AttributeError):
-                    print(f"Unable to compute cost for instance {repr(self)}; data will not be saved to .h5 file.")
+                    print(
+                        f"Unable to compute cost for instance {repr(self)}; data will not be saved to .h5 file."
+                    )
 
     def filename(self, extension=".h5", decimals=3, cls_name=True):
         """
@@ -2264,6 +2373,8 @@ def convert_class(orbit_instance, orbit_type, **kwargs):
 
     Notes
     -----
+    This is for all practical purposes deprecated but it still provides readability so it has
+    been kept as a convenience.
     To avoid conflicts with projections onto symmetry invariant subspaces, the orbit is always transformed into the
     physical basis prior to conversion; the instance is returned in the basis of the input, however.
 

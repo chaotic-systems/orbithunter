@@ -1038,18 +1038,25 @@ class OrbitKS(Orbit):
             )
             .precondition(**{"pmult": self.preconditioning_parameters(), **kwargs})
             .orbit_vector()
+            .reshape(-1, 1)
         )
 
         def matvec_(v):
             # v is an orbit vector,
             nonlocal diag_M
-            if v.ndim != diag_M.ndim:
-                diag_M = diag_M.reshape(v.shape)
-            return v * diag_M
+            return v * diag_M.reshape(v.shape)
+
+        def matmat_(V):
+            # V is a matrix (M, K), this computes broadcasting via (M, 1)*(M, K)
+            return diag_M.reshape(-1, 1) * V
 
         # rmatvec = matvec because diagonal
         return LinearOperator(
-            shape=(diag_M.size, diag_M.size), matvec=matvec_, rmatvec=matvec_
+            shape=(diag_M.size, diag_M.size),
+            matvec=matvec_,
+            rmatvec=matvec_,
+            matmat=matmat_,
+            rmatmat=matmat_,
         )
 
     def reflection(self, axis=1, signed=True):
@@ -1096,12 +1103,6 @@ class OrbitKS(Orbit):
         -------
         OrbitKS :
             Instance with rolled state
-
-        Notes
-        -----
-        In decision to maintain numpy defaults or change roll to be positive when shift is positive, the latter was
-        chosen. If provided tuples of ints, shift and axis need to be the same length as to be coherent.
-        This forces OrbitKS to be in the 'field' basis as the rolls can be nonsensical otherwise
 
         """
         return self.__class__(
@@ -1739,7 +1740,6 @@ class OrbitKS(Orbit):
             modulator = np.exp(
                 (2 * pi * space_ / self.x) ** 2 - (2 * pi * space_ / self.x) ** 4
             ) * np.ones(time_.shape)
-            modulator[space_ <= xscale] = 1
         elif spatial_modulation == "flat_top":
             modulator = np.exp(-((np.abs(space_ - xscale) / xvar) ** 5))
         else:
@@ -1750,6 +1750,11 @@ class OrbitKS(Orbit):
             modulator = np.exp(-((time_ - tscale) ** 2) / (2 * tvar))
         elif temporal_modulation == "laplace":
             modulator = np.exp(-1.0 * np.abs(time_ - tscale) / np.sqrt(tvar))
+        elif temporal_modulation == "flat_top":
+            modulator = np.exp(-((np.abs(time_ - tscale) / tvar) ** 5))
+        elif temporal_modulation == "laplace_plateau":
+            modulator = np.exp(-1.0 * np.abs(time_ - tscale) / np.sqrt(tvar))
+            modulator[time_ < tscale] = 1
         elif temporal_modulation == "truncate":
             modulator = time_.copy()
             modulator[time_ > tscale] = 0
@@ -2186,9 +2191,14 @@ class OrbitKS(Orbit):
             self.state[1 : -max([int(self.n // 2) - 1, 1]), :] += (
                 1j * self.state[-max([int(self.n // 2) - 1, 1]) :, :]
             )
-            self.state = self.state[: -max([int(self.n // 2) - 1, 1]) + 1, :]
+            # if first statement evaluates to zero, then take all rows of
+            # axis by providing None as end of slice.
+            n_rows = (-max([int(self.n // 2) - 1, 1]) + 1) or None
+            self.state = self.state[:n_rows, :]
+            self.state[1:, :] /= np.sqrt(2)
+            if self.state.shape[0] == 1:
+                self.state = np.pad(self.state, ((0, 1), (0, 0)))
             self.state[-1, :] = 0
-            self.state[1:, :] *= 1.0 / np.sqrt(2)
             self.state = irfft(
                 self.state, workers=self.workers, norm="ortho", axis=0, overwrite_x=True
             )
@@ -2198,19 +2208,21 @@ class OrbitKS(Orbit):
             else:
                 return self
         else:
-            modes = self.state
-            padding = np.zeros([1, modes.shape[1]])
-            time_real = np.concatenate(
-                (modes[: -max([int(self.n // 2) - 1, 1]), :], padding), axis=0
+
+            # Take rfft, accounting for unitary normalization.
+            modes = self.state.astype(complex)
+            modes[1 : -max([int(self.n // 2) - 1, 1]), :] += (
+                1j * modes[-max([int(self.n // 2) - 1, 1]) :, :]
             )
-            time_imaginary = np.concatenate(
-                (padding, modes[-max([int(self.n // 2) - 1, 1]) :, :], padding), axis=0
-            )
-            complex_modes = time_real + 1j * time_imaginary
-            complex_modes[1:, :] *= 1.0 / np.sqrt(2)
-            space_modes = irfft(
-                complex_modes, workers=self.workers, norm="ortho", axis=0
-            )
+            # if first statement evaluates to zero, then take all rows of
+            # axis by providing None as end of slice.
+            n_rows = (-max([int(self.n // 2) - 1, 1]) + 1) or None
+            modes = modes[:n_rows, :]
+            modes[1:, :] /= np.sqrt(2)
+            if modes.shape[0] == 1:
+                modes = np.pad(modes, ((0, 1), (0, 0)))
+            modes[-1, :] = 0
+            space_modes = irfft(modes, workers=self.workers, norm="ortho", axis=0)
             if array:
                 return space_modes
             else:
@@ -3131,22 +3143,16 @@ class AntisymmetricOrbitKS(OrbitKS):
             # even ordered derivatives CAN be in the spatial mode basis or the spatiotemporal mode basis.
             return super().dx(**kwargs)
 
-    def from_fundamental_domain(self, **kwargs):
+    def from_fundamental_domain(self, half=0):
         """
         Overwrite of parent method
 
         """
         field = self.transform(to="field")
-        return self.__class__(
-            **{
-                **vars(self),
-                "state": np.concatenate(
-                    (field.reflection().state, field.state), axis=1
-                ),
-                "basis": "field",
-                "parameters": (self.t, 2 * self.x, 0.0),
-            }
-        ).transform(to=self.basis)
+        if half == 0.0:
+            return field.concat(field.reflection(), axis=1).transform(to=self.basis)
+        else:
+            return field.reflection().concat(field, axis=1).transform(to=self.basis)
 
     def to_fundamental_domain(self, half=0, **kwargs):
         """
@@ -3154,18 +3160,13 @@ class AntisymmetricOrbitKS(OrbitKS):
 
         """
         if half == 0:
-            f_domain = self.transform(to="field").state[:, : -int(self.m // 2)]
+            return self.transform(to="field")[:, : -int(self.m // 2)].transform(
+                to=self.basis
+            )
         else:
-            f_domain = self.transform(to="field").state[:, -int(self.m // 2) :]
-
-        return self.__class__(
-            **{
-                **vars(self),
-                "state": f_domain,
-                "basis": "field",
-                "parameters": (self.t, self.x / 2.0, 0.0),
-            }
-        ).transform(to=self.basis)
+            return self.transform(to="field")[:, -int(self.m // 2) :].transform(
+                to=self.basis
+            )
 
     def shapes(self):
         """
@@ -3454,8 +3455,13 @@ class AntisymmetricOrbitKS(OrbitKS):
             self.state[1 : -max([int(self.n // 2) - 1, 1]), :] += (
                 1j * self.state[-max([int(self.n // 2) - 1, 1]) :, :]
             )
-            self.state = self.state[: -max([int(self.n // 2) - 1, 1]) + 1, :]
+            # if first statement evaluates to zero, then take all rows of
+            # axis by providing None as end of slice.
+            n_rows = (-max([int(self.n // 2) - 1, 1]) + 1) or None
+            self.state = self.state[:n_rows, :]
             self.state[1:, :] /= np.sqrt(2)
+            if self.state.shape[0] == 1:
+                self.state = np.pad(self.state, ((0, 1), (0, 0)))
             self.state[-1, :] = 0
             self.state = irfft(
                 self.state, workers=self.workers, norm="ortho", axis=0, overwrite_x=True
@@ -3472,8 +3478,13 @@ class AntisymmetricOrbitKS(OrbitKS):
             modes[1 : -max([int(self.n // 2) - 1, 1]), :] += (
                 1j * modes[-max([int(self.n // 2) - 1, 1]) :, :]
             )
-            modes = modes[: -max([int(self.n // 2) - 1, 1]) + 1, :]
+            # if first statement evaluates to zero, then take all rows of
+            # axis by providing None as end of slice.
+            n_rows = (-max([int(self.n // 2) - 1, 1]) + 1) or None
+            modes = modes[:n_rows, :]
             modes[1:, :] /= np.sqrt(2)
+            if modes.shape[0] == 1:
+                modes = np.pad(modes, ((0, 1), (0, 0)))
             modes[-1, :] = 0
             modes = irfft(modes, workers=self.workers, norm="ortho", axis=0)
             modes = np.concatenate((0 * modes, modes), axis=1)
@@ -3543,6 +3554,43 @@ class ShiftReflectionOrbitKS(OrbitKS):
         # tensor format.
         return shiftreflection_selection_rules_integer_flags
 
+    def concat(self, other, axis=0):
+        """
+        Join two Orbits together by concatenating their state arrays and adding/averaging their parameters.
+
+        Parameters
+        ----------
+        other : Orbit
+            Orbit to be joined with.
+        axis : int
+            The axis along which to concatenate the state arrays.
+
+        Returns
+        -------
+        Orbit :
+            An instance whose stats have been concatenated, and whose parameters have been summed along that dimension.
+
+        Notes
+        -----
+        To cause the least amount of distortion, the grid spacings of each state should be approximately equivalent
+        (if discretizations of continuous dimension).
+
+        .. warning::
+           `self.concat(other)` is only equivalent to `other.concat(self)` if `other` and `self` both have parameters
+           defined, and the parameters not corresponding to dimensions are the same (i.e. categorical parameters).
+           When this is not the case, the parameters of the instance calling the method are used: `self.concat(other)`
+           will use `self`'s categoricals.
+
+        .. warning::
+           This function does not check the bases which each Orbit state is in.
+
+        """
+        concat_orbit = super().concat(other, axis=axis)
+        if axis == 1:
+            return concat_orbit.roll(other.m // 2, axis=1)
+        else:
+            return concat_orbit
+
     def shapes(self):
         """
         State array shapes in different bases. See core.py for details.
@@ -3559,34 +3607,25 @@ class ShiftReflectionOrbitKS(OrbitKS):
         Overwrite of parent method
 
         """
-        field = self.transform(to="field").state
         if half == 0:
-            f_domain = field[-int(self.n // 2) :, :]
+            return self.transform(to="field")[-int(self.n // 2) :, :].transform(
+                to=self.basis
+            )
         else:
-            f_domain = field[: -int(self.n // 2), :]
-        return self.__class__(
-            **{
-                **vars(self),
-                "state": f_domain,
-                "basis": "field",
-                "parameters": (self.t / 2.0, self.x, 0.0),
-            }
-        ).transform(to=self.basis)
+            return self.transform(to="field")[: -int(self.n // 2), :].transform(
+                to=self.basis
+            )
 
-    def from_fundamental_domain(self):
+    def from_fundamental_domain(self, half=0):
         """
         Reconstruct full field from discrete fundamental domain
 
         """
-        field = np.concatenate((self.reflection().state, self.state), axis=0)
-        return self.__class__(
-            **{
-                **vars(self),
-                "state": field,
-                "basis": "field",
-                "parameters": (2 * self.t, self.x, 0.0),
-            }
-        ).transform(to=self.basis)
+        field = self.transform(to="field")
+        if half == 0:
+            return field.reflection().concat(field, axis=0).transform(to=self.basis)
+        else:
+            return field.concat(field.reflection(), axis=0).transform(to=self.basis)
 
     def _nonlinear(self, other, array=False):
         """
@@ -3838,8 +3877,14 @@ class ShiftReflectionOrbitKS(OrbitKS):
             self.state[1 : -max([int(self.n // 2) - 1, 1]), :] += (
                 1j * self.state[-max([int(self.n // 2) - 1, 1]) :, :]
             )
-            self.state = self.state[: -max([int(self.n // 2) - 1, 1]) + 1, :]
+
+            # if first statement evaluates to zero, then take all rows of
+            # axis by providing None as end of slice.
+            n_rows = (-max([int(self.n // 2) - 1, 1]) + 1) or None
+            self.state = self.state[:n_rows, :]
             self.state[1:, :] /= np.sqrt(2)
+            if self.state.shape[0] == 1:
+                self.state = np.pad(self.state, ((0, 1), (0, 0)))
             self.state[-1, :] = 0
             self.state = np.concatenate((self.state, self.state), axis=1)
             self.state[::2, : -(int(self.m // 2) - 1)] = 0
@@ -3857,10 +3902,15 @@ class ShiftReflectionOrbitKS(OrbitKS):
             modes[1 : -max([int(self.n // 2) - 1, 1]), :] += (
                 1j * modes[-max([int(self.n // 2) - 1, 1]) :, :]
             )
-            modes = modes[: -max([int(self.n // 2) - 1, 1]) + 1, :]
+            # if first statement evaluates to zero, then take all rows of
+            # axis by providing None as end of slice.
+            n_rows = (-max([int(self.n // 2) - 1, 1]) + 1) or None
+            modes = modes[:n_rows, :]
             modes[1:, :] /= np.sqrt(2)
-            modes[-1, :] = 0
             modes = np.concatenate((modes, modes), axis=1)
+            if modes.shape[0] == 1:
+                modes = np.pad(modes, ((0, 1), (0, 0)))
+            modes[-1, :] = 0
             modes[::2, : -(int(self.m // 2) - 1)] = 0
             modes[1::2, -(int(self.m // 2) - 1) :] = 0
             modes = irfft(modes, workers=self.workers, norm="ortho", axis=0)
@@ -4134,42 +4184,6 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             ).transform(to=self.basis)
         else:
             return self
-
-    def from_fundamental_domain(self, **kwargs):
-        """
-        Overwrite of parent method
-
-        """
-        field = self.transform(to="field")
-        return self.__class__(
-            **{
-                **vars(self),
-                "state": np.concatenate(
-                    (field.reflection().state, field.state), axis=1
-                ),
-                "basis": "field",
-                "parameters": (0.0, 2.0 * self.x, 0.0),
-            }
-        ).transform(to=self.basis)
-
-    def to_fundamental_domain(self, half=0, **kwargs):
-        """
-        Overwrite of parent method
-
-        """
-        if half == 0:
-            f_domain = self.transform(to="field").state[:, : -int(self.m // 2)]
-        else:
-            f_domain = self.transform(to="field").state[:, -int(self.m // 2) :]
-
-        return self.__class__(
-            **{
-                **vars(self),
-                "state": f_domain,
-                "basis": "field",
-                "parameters": (0.0, self.x / 2.0, 0.0),
-            }
-        )
 
     @classmethod
     def dimension_based_discretization(cls, dimensions, **kwargs):

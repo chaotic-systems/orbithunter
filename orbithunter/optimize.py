@@ -126,14 +126,27 @@ def hunt(orbit_instance, *methods, **kwargs):
 
     Notes
     -----
+    Description, links, and other comments on numerical methods. Before beginning testing/exploration I
+    **highly recommend** checking the options of each solver. Typically the linear algebra solvers try to solve
+    $Ax=b$ within a strict error tolerance; however, because of nonlinearity we want to iteratively update this
+    and solve it sequentially. Therefore, I recommend reducing the tolerance (sometimes dramatically) and use the
+    orbithunter "outer iterations" (i.e. number of steps in the sequence x_n used to define and solve A_n x_n = b_n),
+    to control the absolute error. Additionally, I have tried to provide a crude heuristic via the "progressive"
+    keyword argument. This will crank up the strictness per every outer iteration loop, as it is presumed that more
+    outer iterations means higher accuracy. Personally I just recommend to increase maxiter and keep the tolerances low.
 
-    The following describe particularly useful options and comments for the various methods that are available.
+    The other issue is that scipy has different keyword arguments for the "same thing" everywhere. For example,
+    the keyword arguments to control the tolerance across the set of methods that this provides access to are
+    gtol, ftol, fatol, xtol, tol, atol, btol, ...
+    I am not saying these aren't necessary but they sure make things confusing.
+
 
     **scipy.optimize.minimize**
 
     1. Do not take jacobian information: "nelder-mead", "powell", "cobyla"
     2. Take Jacobian (product/matrix) "cg_min", "bfgs", "newton-cg", "l-bfgs-b", "tnc",  "slsqp"
-    3. Methods that either require the Hessian matrix (dogleg) or some method of computing it or its product. "trust-constr", "dogleg", "trust-ncg", "trust-exact", "trust-krylov"
+    3. Methods that either require the Hessian matrix (dogleg) or some method of computing it or its product.
+       "trust-constr", "dogleg", "trust-ncg", "trust-exact", "trust-krylov"
 
     Support for Hessian based methods `['trust-constr', 'dogleg', 'trust-ncg', 'trust-exact', 'trust-krylov']`.
     For the 'dogleg' method, an argument ``hess`` is required to be passed to hunt in ``scipy_kwargs``
@@ -155,25 +168,25 @@ def hunt(orbit_instance, *methods, **kwargs):
     **scipy.optimize.root**
 
     1. Methods that take jacobian as argument: 'hybr', 'lm'
-
-    2. Methods which approximate the jacobian; take keyword argument "jac_options" `['broyden1', 'broyden2', 'anderson',  'krylov', ' df-sane']`
-
+    2. Methods which approximate the jacobian; take keyword argument "jac_options"
+       `['broyden1', 'broyden2', 'anderson',  'krylov', ' df-sane']`
     3. Methods whose performance, SciPy warns, is highly dependent on the problem.
-        `['linearmixing', 'diagbroyden', 'excitingmixing']`
+       `['linearmixing', 'diagbroyden', 'excitingmixing']`
 
     Factory function should return root function F(x) (Orbit.eqn()) and if 'hybr' or 'lm' then also jac as dict.
 
     **scipy.sparse.linalg**
 
-    1. Methods that solve $Ax=b$ in least squares fashion : 'lsmr', 'lsqr'
-    2. Solves $Ax=b$ if A square (n, n) else solve normal equations $A^T A x = A^T b$ in iterative/inexact fashion: 'minres', 'bicg', 'bicgstab', 'gmres', 'lgmres', 'cg', 'cgs', 'qmr', 'gcrotmk'
+    1. Methods that solve $Ax=b$ in least squares fashion : 'lsmr', 'lsqr'. Do not use preconditioning.
+    2. Solves $Ax=b$ if A square (n, n) else solve normal equations $A^T A x = A^T b$ in iterative/inexact fashion:
+       'minres', 'bicg', 'bicgstab', 'gmres', 'lgmres', 'cg', 'cgs', 'qmr', 'gcrotmk'. Use preconditioning.
 
     Factory function should return (A, b) where A is Linear operator or matrix and b is vector.
 
     References
     ----------
     User should be aware of the existence of :func:`scipy.optimize.show_options()`
-
+    `Options for each optimize method <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.show_options.html#scipy.optimize.show_options>`_
     `scipy.optimize <https://docs.scipy.org/doc/scipy/reference/optimize.html>`_
     `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/populated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_
     `scipy.optimize.root <https://docs.scipy.org/doc/scipy/reference/populated/scipy.optimize.root.html>`_
@@ -341,6 +354,10 @@ def _adjoint_descent(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **k
     orbit_instance, runtime_statistics : Orbit, dict
         The result of the numerical optimization and its statistics
 
+    Notes
+    -----
+    Preconditioning arguments never seen outside rmatvec/costgrad/etc.
+
     """
     try:
         assert type(tol) in [int, float, list, np.float64, np.int32]
@@ -357,6 +374,7 @@ def _adjoint_descent(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **k
             maxiter = maxiter.pop(0)
         if isinstance(min_step, list):
             min_step = min_step.pop(0)
+
     except IndexError as ie:
         raise IndexError(
             ": parameters for hunt need to be iterables of same length as the number of methods."
@@ -479,6 +497,7 @@ def _newton_descent(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwar
             maxiter = maxiter.pop(0)
         if isinstance(min_step, list):
             min_step = min_step.pop(0)
+
     except IndexError as ie:
         raise IndexError(
             ": parameters for hunt need to be iterables of same length as the number of methods."
@@ -605,6 +624,10 @@ def _lstsq(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
     orbit_instance, runtime_statistics : Orbit, dict
         The result of the numerical optimization and its statistics
 
+    Notes
+    -----
+    Allows for preconditioning but only if preconditioner has rmatmat defined.
+
     """
     try:
         assert type(tol) in [int, float, list, np.float64, np.int32]
@@ -656,12 +679,45 @@ def _lstsq(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
     if not kwargs.get("backtracking", True):
         min_step = 1
 
+    preconditioning = kwargs.get("preconditioning", False)
+    preconditioner_factory = kwargs.get("mfactory", None)
+    M = None
     while cost > tol and runtime_statistics["status"] == -1:
         step_size = 1
         # Solve A dx = b <--> J dx = - f, for dx.
         A = orbit_instance.jacobian(**kwargs)
         b = -1.0 * mapping.state.reshape(-1, 1)
-        dx = orbit_instance.from_numpy_array(lstsq(A, b)[0], **kwargs)
+        if preconditioning:
+            if callable(preconditioner_factory):
+                M = preconditioner_factory(orbit_instance, "lstsq", **kwargs)
+            elif hasattr(orbit_instance, "preconditioner"):
+                M = orbit_instance.preconditioner(**kwargs)
+            else:
+                if runtime_statistics["nit"] == 0.0:
+                    warn_str = "".join(
+                        [
+                            f"\norbithunter.optimize.hunt was passed preconditioning=True but no method of",
+                            f" computing a preconditioner was provided.",
+                        ]
+                    )
+                    warnings.warn(warn_str, RuntimeWarning)
+                # identity just returns whatever we started with
+                eye = lambda x: x
+                M = LinearOperator(
+                    (A.shape[1], A.shape[1]),
+                    matvec=eye,
+                    rmatvec=eye,
+                    matmat=eye,
+                    rmatmat=eye,
+                )
+
+            # Right preconditioning by using transpose. A*M = (M^T A^T)^T (only have left hand multiplication for M, MT)
+            A = (M.rmatmat(A.T)).T
+
+        dx = lstsq(A, b)[0]
+        if preconditioning and M is not None:
+            dx = M.matvec(dx)
+        dx = orbit_instance.from_numpy_array(dx, **kwargs)
         next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
         next_mapping = next_orbit_instance.eqn(**kwargs)
         next_cost = next_mapping.cost(eqn=False)
@@ -718,6 +774,10 @@ def _solve(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **kwargs):
     orbit_instance, runtime_statistics : Orbit, dict
         The result of the numerical optimization and its statistics
 
+    Notes
+    -----
+    Allows for preconditioning if rmatmat defined.
+
     """
     try:
         assert type(tol) in [int, float, list, np.float64, np.int32]
@@ -734,6 +794,7 @@ def _solve(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **kwargs):
             maxiter = maxiter.pop(0)
         if isinstance(min_step, list):
             min_step = min_step.pop(0)
+
     except IndexError as ie:
         raise IndexError(
             ": parameters for hunt need to be iterables of same length as the number of methods."
@@ -769,12 +830,47 @@ def _solve(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **kwargs):
     if not kwargs.get("backtracking", True):
         min_step = 1
 
+    preconditioner_factory = kwargs.get("mfactory", None)
+    preconditioning = kwargs.get("preconditioning", False)
+    M = None
+
     while cost > tol and runtime_statistics["status"] == -1:
         step_size = 1
         # Solve A dx = b <--> J dx = - f, for dx.
         A = orbit_instance.jacobian(**kwargs)
         b = -1.0 * mapping.state.reshape(-1, 1)
-        dx = orbit_instance.from_numpy_array(solve(A, b)[0], **kwargs)
+
+        if preconditioning:
+            if callable(preconditioner_factory):
+                M = preconditioner_factory(orbit_instance, "lstsq", **kwargs)
+            elif hasattr(orbit_instance, "preconditioner"):
+                M = orbit_instance.preconditioner(**kwargs)
+            else:
+                if runtime_statistics["nit"] == 0.0:
+                    warn_str = "".join(
+                        [
+                            f"\norbithunter.optimize.hunt was passed preconditioning=True but no method of",
+                            f" computing a preconditioner was provided.",
+                        ]
+                    )
+                    warnings.warn(warn_str, RuntimeWarning)
+                # identity just returns whatever we started with
+                eye = lambda x: x
+                M = LinearOperator(
+                    (A.shape[1], A.shape[1]),
+                    matvec=eye,
+                    rmatvec=eye,
+                    matmat=eye,
+                    rmatmat=eye,
+                )
+
+            # Right preconditioning by using transpose. A*M = (M^T A^T)^T (only have left hand multiplication for M, MT)
+            A = (M.rmatmat(A.T)).T
+
+        dx = solve(A, b)[0]
+        if preconditioning and M is not None:
+            dx = M.matvec(dx)
+        dx = orbit_instance.from_numpy_array(dx, **kwargs)
         next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
         next_mapping = next_orbit_instance.eqn(**kwargs)
         next_cost = next_mapping.cost(eqn=False)
@@ -809,7 +905,7 @@ def _solve(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **kwargs):
 
 
 def _scipy_sparse_linalg_solver_wrapper(
-    orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, method="minres", **kwargs
+    orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, method="lsmr", **kwargs
 ):
     """
     Wrapper that allows usage of scipy.sparse.linalg and scipy.linalg solvers with Orbit objects
@@ -854,6 +950,9 @@ def _scipy_sparse_linalg_solver_wrapper(
 
     ``scipy_kwargs`` is passed instead of ``kwargs`` because of conflicts between ``tol`` and ``maxiter`` keywords.
 
+    Preconditioning only built-in for methods not including lsmr, lsqr; this can be circumvented by passing a
+    factory function for the matrix A* where A* = AM or MA or whatever preconditioning strategy the user desires.
+
     """
     try:
         assert type(tol) in [int, float, list, np.float64, np.int32]
@@ -870,6 +969,7 @@ def _scipy_sparse_linalg_solver_wrapper(
             maxiter = maxiter.pop(0)
         if isinstance(min_step, list):
             min_step = min_step.pop(0)
+
     except IndexError as ie:
         raise IndexError(
             ": parameters for hunt need to be iterables of same length as the number of methods."
@@ -903,29 +1003,21 @@ def _scipy_sparse_linalg_solver_wrapper(
     if not kwargs.get("backtracking", True):
         min_step = 1
     linear_system_factory = kwargs.get("factory", None) or _sparse_linalg_factory
-    preconditioning = kwargs.get("preconditioning", False)
     preconditioner_factory = kwargs.get("mfactory", None)
+    preconditioning = kwargs.get("preconditioning", False)
     scipy_kwargs = kwargs.get("scipy_kwargs", {})
     while cost > tol and runtime_statistics["status"] == -1:
         step_size = 1
         A, b = linear_system_factory(orbit_instance, method, **kwargs)
+        if scipy_kwargs is None:
+            scipy_kwargs = kwargs.get("scipy_kwargs", {})
 
         if method in ["lsmr", "lsqr"]:
-            # different defaults for lsqr, lsmr
-            if scipy_kwargs is None:
-                scipy_kwargs = kwargs.get("scipy_kwargs", {})
-                # Solving least-squares equations, A x = b
-
             if method == "lsmr":
                 result_tuple = lsmr(A, b, **scipy_kwargs)
             else:
                 result_tuple = lsqr(A, b, **scipy_kwargs)
-
         else:
-
-            if scipy_kwargs is None:
-                scipy_kwargs = kwargs.get("scipy_kwargs", {})
-
             if preconditioning:
                 if callable(preconditioner_factory):
                     scipy_kwargs["M"] = preconditioner_factory(
@@ -941,6 +1033,7 @@ def _scipy_sparse_linalg_solver_wrapper(
                         ]
                     )
                     warnings.warn(warn_str, RuntimeWarning)
+                    # Not doing the multiplication manually; not constructing identity matrix LinearOperator in this case.
 
             if method == "minres":
                 result_tuple = (minres(A, b, **scipy_kwargs),)
@@ -1032,7 +1125,7 @@ def _scipy_optimize_minimize_wrapper(
     This function is written as though the cost function, its jacobian and hessian are to be evaluated
     at `x` which is the vector of independent variables, not at the current `orbit_instance`
 
-    This function wraps the following routines. They are partitioned by the fucntions that they use if not require.
+    Any preconditioning/rescaling shold be built into the matvec/rmatvec/cost/costgrad methods.
 
     """
     try:
@@ -1040,7 +1133,7 @@ def _scipy_optimize_minimize_wrapper(
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
     except AssertionError as assrt:
         raise TypeError(
-            "tol and maxiter must be scalars or list when multiple methods provided"
+            "tol and maxiter must be scalars or possibly list when multiple methods provided"
         ) from assrt
 
     try:
@@ -1123,7 +1216,7 @@ def _scipy_optimize_minimize_wrapper(
 
 
 def _scipy_optimize_root_wrapper(
-    orbit_instance, tol=1e-6, maxiter=10, method="lgmres", **kwargs
+    orbit_instance, tol=1e-6, maxiter=10, method="krylov", **kwargs
 ):
     """
     Wrapper that allows usage of scipy.optimize.root with Orbit objects
@@ -1154,6 +1247,11 @@ def _scipy_optimize_root_wrapper(
     F=0, it onyl makes sense to append zeros to F until the requisite dimension is reached. This is only to give access
     to the root function; it is likely a bad idea numerically to even use the root function in this instance.
 
+    Preconditioning: 'hybr' and 'lm' will take Jacobian as an array; this can be preconditioned manually. For 'krylov',
+    the jacobian is not passed at all, but jac_options can be passed in options. Within jac_options, a preconditioner
+    can be passed using 'inner_M', however, to make it adaptive (i.e. dependent on current state or parameters),
+    it is much more hassle than worth right now, and so I leave this one thing in the user's hands.
+
     """
     try:
         assert type(tol) in [int, float, list, np.float64, np.int32]
@@ -1168,6 +1266,7 @@ def _scipy_optimize_root_wrapper(
             tol = tol.pop(0)
         if isinstance(maxiter, list):
             maxiter = maxiter.pop(0)
+
     except IndexError as ie:
         raise IndexError(
             ": parameters for hunt need to be iterables of same length as the number of methods."
@@ -1201,12 +1300,14 @@ def _scipy_optimize_root_wrapper(
     while cost > tol and runtime_statistics["status"] == -1:
         # Use factory function to produce two callables required for SciPy routine. Need to be included under
         # the while statement so they are updated.
-        _rootfunc, jac_options = func_jac_factory(orbit_instance, method, **kwargs)
+        _rootfunc, jac_and_jac_options = func_jac_factory(
+            orbit_instance, method, **kwargs
+        )
         scipy_kwargs = {
             "tol": tol,
             **kwargs.get("scipy_kwargs", {}),
             "method": method,
-            **jac_options,
+            **jac_and_jac_options,
         }
         # Returns an OptimizeResult, .x attribute is where array is stored.
         result = root(_rootfunc, orbit_instance.orbit_vector().ravel(), **scipy_kwargs)
@@ -1253,6 +1354,11 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
         The functions which take NumPy arrays of size Orbit.orbit_vector.size and return F and grad F, respectively.
         In other words, the first callable evaluates the governing equations using NumPy array input, and the second
         callable evaluates the Jacobian using NumPy array input.
+
+    Notes
+    -----
+    Potential preconditioning happens external to this callable factory. Look at 'mfactory' and 'preconditioning'
+    keyword arguments.
 
     """
     # Because this function is only called once per outer iteration this incurs minimal cost unless
@@ -1530,7 +1636,10 @@ def _root_callable_factory(orbit_instance, method, **kwargs):
         xvec = x_orbit.eqn(**kwargs).state.ravel()
         # Need components for the parameters, but typically they will not have an associated component in the equation;
         # however, I do not think it should be by default.
-        return np.pad(xvec, (0, x_orbit.orbit_vector().size - xvec.size))
+        if x_orbit.orbit_vector().size - xvec.size > 0:
+            return np.pad(xvec, (0, x_orbit.orbit_vector().size - xvec.size))
+        else:
+            return xvec
 
     if method in ["hybr", "lm"]:
         if kwargs.get("jac_strategy", "jacobian") == "jacobian":
@@ -1555,16 +1664,18 @@ def _root_callable_factory(orbit_instance, method, **kwargs):
                 x_orbit = orbit_instance.from_numpy_array(x)
                 # gradient does not have the same problem that the equation
                 J = x_orbit.jacobian(**kwargs)
-                J = np.pad(J, ((0, J.shape[1] - J.shape[0]), (0, 0)))
-                return J
+                if J.shape[1] - J.shape[0] > 0.0:
+                    return np.pad(J, ((0, J.shape[1] - J.shape[0]), (0, 0)))
+                else:
+                    return J
 
-            jac_options = {"jac": _jac}
+            _rootjac = {"jac": _jac}
         else:
-            jac_options = {"jac": kwargs.get("jac_strategy", "jacobian")}
+            _rootjac = {"jac": kwargs.get("jac_strategy", "jacobian")}
     else:
-        jac_options = {"jac": None}
+        _rootjac = {"jac": None}
 
-    return _rootfunc, jac_options
+    return _rootfunc, _rootjac
 
 
 def _exit_messages(orbit_instance, status, verbose=False):

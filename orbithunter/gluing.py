@@ -239,7 +239,7 @@ def glue(orbit_array, orbit_type, strip_wise=False, **kwargs):
         # Bundle all of the parameters at once, instead of "stripwise"
         zipped_dimensions = tuple(zip(*(o.dimensions() for o in orbit_array.ravel())))
         # Default parameter gluing strategy is to average all tile dimensions
-        glued_parameters = orbit_type.glue_dimensions(
+        glued_dimensions = orbit_type.glue_dimensions(
             zipped_dimensions, glue_shape=glue_shape, exclude_nonpositive=nzero
         )
         # If we want a much simpler method of gluing, we can do "arraywise" which simply concatenates everything at
@@ -266,7 +266,7 @@ def glue(orbit_array, orbit_type, strip_wise=False, **kwargs):
         glued_orbit = orbit_type(
             state=glued_orbit_state,
             basis=gluing_basis,
-            parameters=glued_parameters,
+            parameters=glued_dimensions,
             **kwargs
         )
     return glued_orbit
@@ -421,13 +421,13 @@ def pairwise_group_orbit(orbit_pair, **kwargs):
     )
 
 
-def expensive_pairwise_glue(orbit_pair_array, orbit_type, objective="cost", **kwargs):
+def expensive_pairwise_glue(orbit_pair, objective="cost", axis=0, **kwargs):
     """
     Gluing that searches pairs of group orbit members for the best combination.
     
     Parameters
     ----------
-    orbit_pair_array : np.ndarray
+    orbit_pair : np.ndarray
         An array with the same number of dimensions as the orbits within them; i.e. (2, 1, 1, 1), (1, 2, 1, 1), ...
         for Orbits with 4 dimensions.
     orbit_type : type
@@ -456,44 +456,41 @@ def expensive_pairwise_glue(orbit_pair_array, orbit_type, objective="cost", **kw
 
     """
     # Aspect ratio correction prior to gluing means that it does not have to be done for each combination.
-    gluing_axis = int(np.argmax(orbit_pair_array.shape))
-    # The best orbit pair at the start is by default the first one.
-    best_glued_orbit_so_far = glue(orbit_pair_array, orbit_type, **kwargs)
-    smallest_cost_so_far = best_glued_orbit_so_far.cost()
+    orbit_return_type = kwargs.get("return_type", type(np.array(orbit_pair).ravel()[0]))
+    smallest_cost_so_far = np.inf
+    best_glued_orbit_so_far = None
     # iterate over all combinations of group orbit members; keyword arguments can be passed to control sampling rate.
-    for ga, gb in pairwise_group_orbit(orbit_pair_array, **kwargs):
+    for ga, gb in pairwise_group_orbit(orbit_pair, **kwargs):
         if objective == "boundary_cost":
-            # Ugly way of slicing the state arrays at the boundaries. This is assuming periodic boundary conditions.
+            # Way of slicing the state arrays at the boundaries. This is assuming periodic boundary conditions.
+            # This method doesn't work very well for fundamental domains.
             aslice = tuple(
-                (0, -1)
-                if i == gluing_axis and periodic
-                else -1
-                if i == gluing_axis
-                else slice(None)
+                (0, -1) if i == axis and periodic else -1 if i == axis else slice(None)
                 for i, periodic in enumerate(ga.periodic_dimension())
             )
             bslice = tuple(
-                (-1, 0)
-                if i == gluing_axis and periodic
-                else 0
-                if i == gluing_axis
-                else slice(None)
+                (-1, 0) if i == axis and periodic else 0 if i == axis else slice(None)
                 for i, periodic in enumerate(ga.periodic_dimension())
             )
             # Slice the state and not the orbit, as slices may not be valid (do not retain number of dimensions)
-            boundary_cost = np.linalg.norm(ga.state[aslice] - gb.state[bslice])
-            if boundary_cost < smallest_cost_so_far:
-                best_glued_orbit_so_far = glue(
-                    np.array([ga, gb]).reshape(orbit_pair_array.shape),
-                    orbit_type,
-                    **kwargs
+            current_cost = np.linalg.norm(ga.state[aslice] - gb.state[bslice])
+            if current_cost < smallest_cost_so_far:
+                best_glued_orbit_so_far = ga.concat(gb, axis=axis)
+                if kwargs.get("fundamental_domain", False):
+                    best_glued_orbit_so_far = (
+                        best_glued_orbit_so_far.from_fundamental_domain()
+                    )
+                smallest_cost_so_far = current_cost
+                best_glued_orbit_so_far = orbit_return_type(
+                    **vars(best_glued_orbit_so_far)
                 )
-                smallest_cost_so_far = boundary_cost
         else:
-            g_orbit_array = np.array([ga, gb]).reshape(orbit_pair_array.shape)
-            best_glued_orbit_so_far = glue(g_orbit_array, orbit_type, **kwargs)
-            cost = best_glued_orbit_so_far.cost()
-            if cost < smallest_cost_so_far:
-                smallest_cost_so_far = cost
-
+            glued_orbit_attempt = ga.concat(gb, axis=axis)
+            if kwargs.get("fundamental_domain", False):
+                glued_orbit_attempt = glued_orbit_attempt.from_fundamental_domain()
+            glued_orbit_attempt = orbit_return_type(**vars(glued_orbit_attempt))
+            current_cost = glued_orbit_attempt.cost()
+            if current_cost < smallest_cost_so_far:
+                smallest_cost_so_far = current_cost
+                best_glued_orbit_so_far = glued_orbit_attempt
     return best_glued_orbit_so_far

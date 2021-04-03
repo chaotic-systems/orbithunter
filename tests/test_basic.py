@@ -2,6 +2,9 @@ import pytest
 import numpy as np
 import h5py
 import pathlib
+import os, sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(sys.argv[0], "../../../")))
 import orbithunter as orb
 
 here = pathlib.Path(__file__).parent.resolve()

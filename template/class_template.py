@@ -1,7 +1,10 @@
 import numpy as np
 import os
 import sys
-sys.path.insert(0, os.path.abspath(".."))  # because this file is located in this template folder
+
+sys.path.insert(
+    0, os.path.abspath("..")
+)  # because this file is located in this template folder
 from orbithunter.core import Orbit
 
 __all__ = ["SymmetryOrbitEQN"]

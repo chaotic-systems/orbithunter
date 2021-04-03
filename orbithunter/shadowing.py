@@ -21,23 +21,25 @@ def scoring_functions(method):
 
     """
 
-    if method == 'amplitude':
+    if method == "amplitude":
         func_ = amplitude_difference
-    elif method == 'l2':
+    elif method == "l2":
         func_ = l2_difference
-    elif method == 'l2_density':
-        func_ =  l2_difference_density
-    elif method == 'l2_mfc':
-        func_ =  l2_difference_mean_flow_correction
-    elif method == 'l2_density_mfc':
+    elif method == "l2_density":
+        func_ = l2_difference_density
+    elif method == "l2_mfc":
+        func_ = l2_difference_mean_flow_correction
+    elif method == "l2_density_mfc":
         func_ = l2_difference_mean_flow_correction_density
-    elif method == 'masked_l2_density':
+    elif method == "masked_l2_density":
         func_ = masked_l2_difference_density
-    elif method == 'masked_l2_density_mfc':
+    elif method == "masked_l2_density_mfc":
         func_ = masked_l2_difference_mean_flow_correction_density
     else:
-        raise ValueError(f"name {method} of scoring function not in methods provided by orbithunter; define"
-                         f" callable externally if still desired to be passed to shadowing functions.")
+        raise ValueError(
+            f"name {method} of scoring function not in methods provided by orbithunter; define"
+            f" callable externally if still desired to be passed to shadowing functions."
+        )
 
     return func_
 
@@ -374,7 +376,7 @@ def _subdomain_windows(
     hull_grid,
     hull,
     periodicity,
-    **kwargs
+    **kwargs,
 ):
     """
 
@@ -599,7 +601,7 @@ def shadow(base_orbit, window_orbit, **kwargs):
         window_orbit.shape,
         hull,
         periodicity,
-        **kwargs
+        **kwargs,
     )
     for i, each_pivot in enumerate(ordered_pivots):
         each_pivot = tuple(each_pivot)
@@ -615,7 +617,7 @@ def shadow(base_orbit, window_orbit, **kwargs):
             window_grid,
             hull,
             periodicity,
-            **kwargs
+            **kwargs,
         )
         base_subdomain, window_subdomain = subdomain_tuple
         pivot_scores[each_pivot] = scoring_function(
@@ -650,7 +652,7 @@ def process_scores(
 
     if operation == "trim":
         if len(scores.shape) != len(base_orbit.shape):
-            pivot_array_shape = scores.shape[-len(base_orbit.shape):]
+            pivot_array_shape = scores.shape[-len(base_orbit.shape) :]
         else:
             pivot_array_shape = scores.shape
         maximal_set_of_pivots = pivot_iterator(
@@ -713,7 +715,7 @@ def process_scores(
                 window.shape,
                 hull,
                 periodicity,
-                **{**kwargs, "mask": ~(window_scores < np.inf)}
+                **{**kwargs, "mask": ~(window_scores < np.inf)},
             )
 
             for each_pivot in ordered_pivots:
@@ -725,7 +727,7 @@ def process_scores(
                     window_grid,
                     hull,
                     periodicity,
-                    **kwargs
+                    **kwargs,
                 )
                 filling_window = orbit_scores[(index, *orbit_coordinates)]
                 filling_window[
@@ -734,7 +736,10 @@ def process_scores(
                 orbit_scores[(index, *orbit_coordinates)] = filling_window
 
         orbit_scores = orbit_scores[
-            (slice(None), *tuple(slice(hull_size - 1, -(hull_size - 1)) for hull_size in hull))
+            (
+                slice(None),
+                *tuple(slice(hull_size - 1, -(hull_size - 1)) for hull_size in hull),
+            )
         ]
         return orbit_scores
 
@@ -769,7 +774,9 @@ def _pad_orbit_with_hull(base_orbit, hull, periodicity, aperiodic_mode="constant
     )
     # Pad the base orbit state to use for computing scores, create the score array which will contain each pivot's score
     padded_state = np.pad(
-        np.pad(base_orbit.state, periodic_padding, mode="wrap"), aperiodic_padding, mode=aperiodic_mode
+        np.pad(base_orbit.state, periodic_padding, mode="wrap"),
+        aperiodic_padding,
+        mode=aperiodic_mode,
     )
     padded_orbit = base_orbit.__class__(
         **{
@@ -780,13 +787,14 @@ def _pad_orbit_with_hull(base_orbit, hull, periodicity, aperiodic_mode="constant
     )
     return padded_orbit
 
+
 def cover(
     base_orbit,
     window_orbits,
     thresholds,
     replacement=False,
     reorder_by_size=True,
-    **kwargs
+    **kwargs,
 ):
     """
     Function to perform multiple shadowing computations given a collection of orbits.
@@ -930,12 +938,15 @@ def fill(base_orbit, window_orbits, thresholds, **kwargs):
         smallest_window_shape,
         hull,
         periodicity,
-        **kwargs
+        **kwargs,
     )
 
     hull_grid = np.indices(hull)
     for i, each_pivot in enumerate(ordered_pivots):
         each_pivot = tuple(each_pivot)
+        if kwargs.get("verbose", True):
+            if i != 0 and i % max([1, len(ordered_pivots) // 100]) == 0:
+                print("-", end="")
         # See if the site is filled in the base_orbit array.
         # If a site has already been filled, then skip it and move to the next scanning position.
         if orbit_weights[each_pivot] != np.inf:
@@ -960,7 +971,7 @@ def fill(base_orbit, window_orbits, thresholds, **kwargs):
                     hull_grid,
                     hull,
                     periodicity,
-                    **kwargs
+                    **kwargs,
                 )
                 # subdomain coordinates are the coordinates in the score array that account for periodic boundary conditions
                 window_scores.append(
@@ -980,7 +991,7 @@ def fill(base_orbit, window_orbits, thresholds, **kwargs):
                     hull_grid,
                     hull,
                     periodicity,
-                    **kwargs
+                    **kwargs,
                 )
                 filling_window = orbit_weights[detection_coordinates]
                 # unfilled_spacetime_within_window = filling_window[filling_window == np.inf].size / base_size
