@@ -60,27 +60,28 @@ def continuation(
     orbit_instance, constraint_item, *extra_constraints, step_size=0.01, **kwargs
 ):
     """
-    Continuation with respect to provided parameter up until a target value.
+    Numerical continuation with respect to a single or multiple parameters.
 
     Parameters
     ----------
     orbit_instance : Orbit
-        Instance whose state's shape is being changed.
+        Instance whose state's parameters are to be continued.
     constraint_item : dict, tuple, dict_items
         A key value pair indicating the parameter being continued and its target value.
     extra_constraints : dict
-        When constraining for continuation, it can be important to constrain other parameters which are not directly
+        When constraining for continuation, it may be important to constrain other parameters which are not directly
         changed or incremented.
-    axis : int
-        Orbit state array axis to change discretization of
+    step_size : float
+        The value to use as a continuation increment. E.g. if step_size = 0.1, the continuation will try to converge
+        Orbits at p + 0.1, p + 0.2, ... (if target < p then these would be substractions).
 
     Returns
     -------
-    Orbit :
-        Orbit resized according to the discretization increment
+    OrbitResult :
+        Optimization result with orbit resulting from continuation; if continuation failed (solution did not converge)
+        then the parameter value may be different from the target.
 
     """
-    # check that the orbit_instance instance is converged when having constraints
     if isinstance(constraint_item, type({}.items())):
         constraint_label, target_value = tuple(*constraint_item)
     elif isinstance(constraint_item, dict):
@@ -103,11 +104,8 @@ def continuation(
     while minimize_result.status == 1 and not _equals_target(
         minimize_result.orbit, target_value, constraint_label
     ):
-        # Having to specify both seems strange and so the options are: provide save=True and then use default
-        # filename, or provide filename.
-
         if kwargs.get("save", False):
-            # When generating an orbits' continuous family, it is useful to save the intermediate states
+            # When generating an orbits' continuous family, it can be useful to save the intermediate states
             # so that they may be referenced in future calculations
             valstr = str(
                 np.round(
@@ -149,7 +147,7 @@ def _increment_discretization(orbit_instance, target_size, increment, axis=0):
     Returns
     -------
     Orbit :
-        Orbit resized according to the discretization increment
+        Orbit at new size.
 
     """
     # increments the target dimension but checks to see if incrementing places us out of bounds.
@@ -186,7 +184,8 @@ def discretization_continuation(
     Returns
     -------
     minimize_result : OrbitResult
-        The result of minimization returned by orbithunter.optimize.hunt
+        Orbit result from `hunt` function resulting from continuation; if continuation failed
+        (solution did not converge) then the contained orbit's discretization may be different from the target.
 
     Notes
     -----
@@ -199,17 +198,13 @@ def discretization_continuation(
     axes_order = np.array(
         kwargs.get("axes_order", np.argsort(target_discretization)[::-1])
     )
-    # The minimum step size is inferred from the minimal shapes if not provided; the idea here is that if
-    # the minimum shape is odd then
+    # discretization increment
     step_sizes = kwargs.get(
         "step_sizes", np.array(orbit_instance.minimal_shape_increments())[axes_order]
     )
-    # To be efficient, always do the smallest target axes first.
-    # We need to be incrementing in the correct direction. i.e. to get smaller we need to have a negative increment.
+
     if cycle:
-        # While maintaining convergence proceed with continuation. If the shape equals the target, stop.
-        # If the shape along the axis is 1, and the corresponding dimension is 0, then this means we have
-        # an equilibrium solution along said axis; this can be handled by simply rediscretizing the field.
+        # cycling alternates between the incrementing axes.
         cycle_index = 0
         while (
             minimize_result.status == 1
@@ -250,22 +245,19 @@ def discretization_continuation(
                 target_discretization[axis] - minimize_result.orbit.shapes()[0][axis]
             )
 
-            # While maintaining convergence proceed with continuation. If the shape equals the target, stop.
-            # If the shape along the axis is 1, and the corresponding dimension is 0, then this means we have
-            # an equilibrium solution along said axis; this can be handled by simply rediscretizing the field.
+            # While maintaining convergence proceed with continuation.
             while (
                 minimize_result.status == 1
                 and not minimize_result.orbit.shapes()[0][axis]
                 == target_discretization[axis]
             ):
-                # When generating an orbits' continuous family, it is useful to save the intermediate states
+                # When generating an orbits' continuous family, it can be useful to save the intermediate states
                 # so that they may be referenced in future calculations
                 if kwargs.get("save", False):
                     fname = kwargs.get("filename", None) or "".join(
                         ["discretization_continuation_", orbit_instance.filename()]
                     )
                     gname = kwargs.get("groupname", "")
-                    # pass keywords like this to avoid passing multiple values to same keyword.
                     minimize_result.orbit.to_h5(
                         **{**kwargs, "filename": fname, "groupname": gname}
                     )
@@ -316,8 +308,6 @@ def span_family(orbit_instance, **kwargs):
         warn_str = "\nunconverged root orbit in family spanning. Change tol or orbit to avoid this message."
         warnings.warn(warn_str, RuntimeWarning)
 
-    # In order to be able to account for different behaviors when constraining different dimensions, allow
-    # iterable of step_sizes. Keys should be dimension labels, vals should be step sizes for that dimension.
     step_sizes = kwargs.get("step_sizes", {})
 
     # Step the bounds of the continuation per dimension, provided as dict much like step sizes.

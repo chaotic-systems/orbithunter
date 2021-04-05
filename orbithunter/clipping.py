@@ -29,9 +29,6 @@ def clip(orbit_instance, window_dimensions, **kwargs):
     If a dimension has zero extent; i.e. equilibrium in that dimension, then the corresponding window_dimension
     tuple must be passed as (None, None).
 
-
-
-
     Examples
     --------
 
