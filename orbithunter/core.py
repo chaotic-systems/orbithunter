@@ -939,7 +939,7 @@ class Orbit:
                 )
         except IndexError as ie:
             raise ValueError(
-                f"Gluing shape must have as many elements as {cls} has dimensions"
+                f"Gluing shapd must have as many elements as {cls} has dimensions"
             ) from ie
 
     def dimensions(self):
@@ -2364,7 +2364,7 @@ class Orbit:
         if isinstance(numpy_seed, int):
             np.random.seed(numpy_seed)
         # Presumed to be in physical basis unless specified otherwise; get the size of the state based on dimensions
-        self.discretization = self.dimension_based_discretization(
+        self.discretization = kwargs.get("discretization", None) or self.dimension_based_discretization(
             self.parameters, **kwargs
         )
         # Assign values from a random normal distribution to the state by default.
