@@ -95,6 +95,7 @@ def test_hunt_Orbit():
                'df-sane', 'krylov', 'anderson']
     return None
 
+
 def test_hunt_Orbit_subclass():
     methods = ['newton_descent', 'lstsq', 'solve', 'adj', 'gd', 'lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
                'cg', 'cgs', 'qmr', 'minres', 'gcrotmk','nelder-mead', 'powell', 'cg_min', 'bfgs', 'newton-cg', 'l-bfgs-b',
@@ -110,13 +111,16 @@ class TestOrbitEQN(orb.Orbit):
         return np.sum(self.state**2 - np.arange(self.state.size))
 
     def rmatvec(self, other, **kwargs):
+        ...
 
     def matvec(self, other, **kwargs):
+        ...
 
     def jacobian(self, **kwargs):
-        return
+        ...
 
     def hess(self, **kwargs):
+        ...
 
     def hessp(self, left_other, right_other, **kwargs):
-
+        ...
