@@ -91,11 +91,11 @@ def hunt(orbit_instance, *methods, **kwargs):
     methods : str or multiple str or tuple of str
         Represents the numerical methods to hunt with, in order of indexing. Not all methods will work for all classes,
         performance testing is part of the development process. Options include:
-        'newton_descent', 'lstsq', 'solve', 'adj', 'lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
+        'newton_descent', 'lstsq', 'solve', 'adj', 'gd', 'lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
         'cg', 'cgs', 'qmr', 'minres', 'gcrotmk','nelder-mead', 'powell', 'cg_min', 'bfgs', 'newton-cg', 'l-bfgs-b',
         'tnc', 'cobyla', 'slsqp', 'trust-constr', 'dogleg', 'trust-ncg', 'trust-exact', 'trust-krylov', 'hybr',
         'lm','broyden1', 'broyden2', 'linearmixing','diagbroyden', 'excitingmixing',
-        ' df-sane', 'krylov', 'anderson'
+        'df-sane', 'krylov', 'anderson'
 
     kwargs : dict, optional
         May contain any and all extra keyword arguments required for numerical methods and Orbit specific methods.
@@ -110,6 +110,12 @@ def hunt(orbit_instance, *methods, **kwargs):
 
         `tol : float, optional`
             The threshold for the cost function for an orbit approximation to be declared successful.
+
+        `ftol : float, optional`
+            The threshold for the decrease of the cost function for any given step.
+
+        `min_step : float, optional`
+            Smallest backtracking step size before failure; not used in minimize.optimize algorithms.
 
         `scipy_kwargs : dict, optional`
             Additional arguments for SciPy solvers. There are too many to describe and they depend on the
@@ -138,10 +144,11 @@ def hunt(orbit_instance, *methods, **kwargs):
     The other issue is that scipy has different keyword arguments for the "same thing" everywhere. For example,
     the keyword arguments to control the tolerance across the set of methods that this provides access to are
     gtol, ftol, fatol, xtol, tol, atol, btol, ...
-    I am not saying these aren't necessary but they sure make things confusing.
-
+    They do typically represent different quantities, but that doesn't make it any less confusing.
 
     **scipy.optimize.minimize**
+
+    To access options of the scipy solvers, must be passed as nested dict: hunt(x, scipy_kwargs={"options":{}})
 
     1. Do not take jacobian information: "nelder-mead", "powell", "cobyla"
     2. Take Jacobian (product/matrix) "cg_min", "bfgs", "newton-cg", "l-bfgs-b", "tnc",  "slsqp"
@@ -167,9 +174,12 @@ def hunt(orbit_instance, *methods, **kwargs):
 
     **scipy.optimize.root**
 
+    To access options of the scipy solvers, must be passed as nested dict: hunt(x, scipy_kwargs={"options":{}})
+    To access the "jac_options" options, it is even more annoying:  hunt(x, scipy_kwargs={"options":{"jac_options":{}}})
+
     1. Methods that take jacobian as argument: 'hybr', 'lm'
     2. Methods which approximate the jacobian; take keyword argument "jac_options"
-       `['broyden1', 'broyden2', 'anderson',  'krylov', ' df-sane']`
+       `['broyden1', 'broyden2', 'anderson',  'krylov', 'df-sane']`
     3. Methods whose performance, SciPy warns, is highly dependent on the problem.
        `['linearmixing', 'diagbroyden', 'excitingmixing']`
 
@@ -196,6 +206,7 @@ def hunt(orbit_instance, *methods, **kwargs):
     hunt_kwargs = {k: v.copy() if hasattr(v, "copy") else v for k, v in kwargs.items()}
     # so that list.pop() method can be used, cast tuple as lists
     methods = tuple(*methods) or hunt_kwargs.pop("methods", "adj")
+    scipy_kwargs = hunt_kwargs.pop("scipy_kwargs", {})
 
     if len(methods) == 1 and isinstance(*methods, tuple):
         methods = tuple(*methods)
@@ -204,6 +215,17 @@ def hunt(orbit_instance, *methods, **kwargs):
 
     runtime_statistics = {}
     for method in methods:
+        try:
+            if isinstance(scipy_kwargs, list):
+                # Different SciPy methods can have different keyword arguments; passing the wrong ones raises an error.
+                hunt_kwargs["scipy_kwargs"] = scipy_kwargs.pop(0)
+            else:
+                hunt_kwargs["scipy_kwargs"] = scipy_kwargs
+        except IndexError as ie:
+            raise IndexError(
+                f"Providing keyword arguments for multiple methods requires a dict for each method,"
+                f" even if empty. This avoids accidentally passing incorrect keyword arguments"
+            ) from ie
         if method == "newton_descent":
             orbit_instance, method_statistics = _newton_descent(
                 orbit_instance, **hunt_kwargs
@@ -288,6 +310,10 @@ def hunt(orbit_instance, *methods, **kwargs):
             orbit_instance, method_statistics = _scipy_optimize_root_wrapper(
                 orbit_instance, method=method, **hunt_kwargs
             )
+        elif method == "gd":
+            orbit_instance, method_statistics = _gradient_descent(
+                orbit_instance, **hunt_kwargs
+            )
         else:
             orbit_instance, method_statistics = _adjoint_descent(
                 orbit_instance, **hunt_kwargs
@@ -331,7 +357,15 @@ def hunt(orbit_instance, *methods, **kwargs):
     return OrbitResult(orbit=orbit_instance, **runtime_statistics)
 
 
-def _adjoint_descent(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **kwargs):
+def _adjoint_descent(
+    orbit_instance,
+    tol=1e-6,
+    ftol=1e-9,
+    maxiter=10000,
+    min_step=1e-6,
+    preconditioning=False,
+    **kwargs,
+):
     """
     Adjoint descent method for numerical optimization of Orbit instances.
 
@@ -361,24 +395,34 @@ def _adjoint_descent(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **k
     """
     try:
         assert type(tol) in [int, float, list, np.float64, np.int32]
+        assert type(ftol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
+        assert type(min_step) in [int, float, list, np.float64, np.int32]
+        assert type(preconditioning) in [bool, list]
     except AssertionError as assrt:
         raise TypeError(
-            "tol and maxiter must be scalars or list when multiple methods provided"
+            "tol, ftol, min_step and maxiter must be scalar numbers (or list of scalars if multiple methods provided)"
         ) from assrt
 
     try:
         if isinstance(tol, list):
             tol = tol.pop(0)
+        if isinstance(ftol, list):
+            ftol = ftol.pop(0)
         if isinstance(maxiter, list):
             maxiter = maxiter.pop(0)
         if isinstance(min_step, list):
             min_step = min_step.pop(0)
-
+        if isinstance(preconditioning, list):
+            kwargs["preconditioning"] = preconditioning.pop(0)
     except IndexError as ie:
-        raise IndexError(
-            ": parameters for hunt need to be iterables of same length as the number of methods."
-        ) from ie
+        errstr = "".join(
+            [
+                f": (tol, ftol, maxiter, min_step, preconditioning) need to be either scalar (or bool)",
+                f" or list of same length as number of methods.",
+            ]
+        )
+        raise IndexError(errstr) from ie
 
     runtime_statistics = {
         "method": "adj",
@@ -388,7 +432,6 @@ def _adjoint_descent(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **k
         "tol": tol,
         "status": -1,
     }
-    ftol = kwargs.get("ftol", 1e-9)
     verbose = kwargs.get("verbose", False)
     if kwargs.get("verbose", False):
         print(
@@ -408,28 +451,30 @@ def _adjoint_descent(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **k
     if not kwargs.get("backtracking", True):
         min_step = 1
 
-    mapping = orbit_instance.eqn(**kwargs)
-    cost = mapping.cost(eqn=False)
+    F = orbit_instance.eqn(**kwargs)
+    cost = 0.5 * F.dot(F)
     step_size = 1
     while cost > tol and runtime_statistics["status"] == -1:
         # Calculate the step
-        gradient = orbit_instance.costgrad(mapping, **kwargs)
+        gradient = orbit_instance.costgrad(F, **kwargs)
         # Negative sign -> 'descent'
         next_orbit_instance = orbit_instance.increment(
             gradient, step_size=-1.0 * step_size
         )
         # Calculate the mapping and store; need it for next step and to compute cost.
-        next_mapping = next_orbit_instance.eqn(**kwargs)
+        next_F = next_orbit_instance.eqn(**kwargs)
         # Compute cost to see if step succeeded
-        next_cost = next_mapping.cost(eqn=False)
+        next_cost = 0.5 * next_F.dot(next_F)
         while next_cost >= cost and step_size > min_step:
             # reduce the step size until minimum is reached or cost decreases.
             step_size /= 2
             next_orbit_instance = orbit_instance.increment(
                 gradient, step_size=-1.0 * step_size
             )
-            next_mapping = next_orbit_instance.eqn(**kwargs)
-            next_cost = next_mapping.cost(eqn=False)
+            # Calculate the mapping and store; need it for next step and to compute cost.
+            next_F = next_orbit_instance.eqn(**kwargs)
+            # Compute cost to see if step succeeded
+            next_cost = 0.5 * next_F.dot(next_F)
         else:
             orbit_instance, cost, runtime_statistics = _process_correction(
                 orbit_instance,
@@ -446,7 +491,7 @@ def _adjoint_descent(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **k
                 verbose=verbose,
                 cost_logging=kwargs.get("cost_logging", False),
             )
-            mapping = next_mapping
+            F = next_F
     else:
         if orbit_instance.cost() <= tol:
             runtime_statistics["status"] = -1
@@ -454,7 +499,154 @@ def _adjoint_descent(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **k
         return orbit_instance, runtime_statistics
 
 
-def _newton_descent(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
+def _gradient_descent(
+    orbit_instance,
+    tol=1e-6,
+    ftol=1e-9,
+    maxiter=10000,
+    min_step=1e-6,
+    preconditioning=False,
+    **kwargs,
+):
+    """
+    Gradient descent method for numerical optimization of Orbit instances.
+
+    Parameters
+    ----------
+    orbit_instance : Orbit
+        Current Orbit iterate.
+    tol : float
+        The threshold for termination of the numerical method
+    maxiter : int
+        The maximum number of iterations
+    min_step : float
+        The smallest step size allowed; lower bound of backtracking.
+    kwargs : dict
+        Keyword arguments relevant for cost and costgrad methods
+
+    Returns
+    -------
+    orbit_instance, runtime_statistics : Orbit, dict
+        The result of the numerical optimization and its statistics
+
+    Notes
+    -----
+
+    .. warning::
+       If the cost function equals $1/2 F^2$ this does the same exact thing as 'adj', but slower. This method is written to work
+       for general cost functions; the generalization leads to a decrease in speed because fewer assumptions can be
+       made.
+
+
+    """
+    try:
+        assert type(tol) in [int, float, list, np.float64, np.int32]
+        assert type(ftol) in [int, float, list, np.float64, np.int32]
+        assert type(maxiter) in [int, float, list, np.float64, np.int32]
+        assert type(min_step) in [int, float, list, np.float64, np.int32]
+        assert type(preconditioning) in [bool, list]
+    except AssertionError as assrt:
+        raise TypeError(
+            "tol, ftol, min_step and maxiter must be scalar numbers (or list of scalars if multiple methods provided)"
+        ) from assrt
+
+    try:
+        if isinstance(tol, list):
+            tol = tol.pop(0)
+        if isinstance(ftol, list):
+            ftol = ftol.pop(0)
+        if isinstance(maxiter, list):
+            maxiter = maxiter.pop(0)
+        if isinstance(min_step, list):
+            min_step = min_step.pop(0)
+        if isinstance(preconditioning, list):
+            kwargs["preconditioning"] = preconditioning.pop(0)
+    except IndexError as ie:
+        errstr = "".join(
+            [
+                f": (tol, ftol, maxiter, min_step, preconditioning) need to be either scalar (or bool)",
+                f" or list of same length as number of methods.",
+            ]
+        )
+        raise IndexError(errstr) from ie
+
+    runtime_statistics = {
+        "method": "gd",
+        "nit": 0,
+        "costs": [orbit_instance.cost()],
+        "maxiter": maxiter,
+        "tol": tol,
+        "status": -1,
+    }
+    verbose = kwargs.get("verbose", False)
+    if kwargs.get("verbose", False):
+        print(
+            "\n-------------------------------------------------------------------------------------------------"
+        )
+        print("Starting adjoint descent")
+        print("Initial guess : {}".format(repr(orbit_instance)))
+        print("Constraints : {}".format(orbit_instance.constraints))
+        print("Initial cost : {}".format(orbit_instance.cost()))
+        print("Target cost tolerance : {}".format(tol))
+        print("Maximum iteration number : {}".format(maxiter))
+        print(
+            "-------------------------------------------------------------------------------------------------"
+        )
+        sys.stdout.flush()
+    # Simplest solution to exclusion of simple backtracking.
+    if not kwargs.get("backtracking", True):
+        min_step = 1
+
+    cost = orbit_instance.cost(**kwargs)
+    step_size = 1
+    while cost > tol and runtime_statistics["status"] == -1:
+        # Calculate the step
+        gradient = orbit_instance.costgrad(**kwargs)
+        # Negative sign -> 'descent'
+        next_orbit_instance = orbit_instance.increment(
+            gradient, step_size=-1.0 * step_size
+        )
+        # Compute cost to see if step succeeded
+        next_cost = next_orbit_instance.cost(**kwargs)
+        while next_cost >= cost and step_size > min_step:
+            # reduce the step size until minimum is reached or cost decreases.
+            step_size /= 2
+            next_orbit_instance = orbit_instance.increment(
+                gradient, step_size=-1.0 * step_size
+            )
+            next_cost = next_orbit_instance.cost(**kwargs)
+        else:
+            orbit_instance, cost, runtime_statistics = _process_correction(
+                orbit_instance,
+                next_orbit_instance,
+                runtime_statistics,
+                tol,
+                maxiter,
+                ftol,
+                step_size,
+                min_step,
+                cost,
+                next_cost,
+                "gd",
+                verbose=verbose,
+                cost_logging=kwargs.get("cost_logging", False),
+            )
+    else:
+        if orbit_instance.cost() <= tol:
+            runtime_statistics["status"] = -1
+        runtime_statistics["costs"].append(orbit_instance.cost())
+        return orbit_instance, runtime_statistics
+
+
+def _newton_descent(
+    orbit_instance,
+    tol=1e-6,
+    ftol=1e-9,
+    maxiter=500,
+    min_step=1e-6,
+    preconditioning=False,
+    **kwargs,
+):
     """
     Wrapper that allows usage of the Newton-descent method with Orbit objects
 
@@ -484,24 +676,35 @@ def _newton_descent(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwar
     """
     try:
         assert type(tol) in [int, float, list, np.float64, np.int32]
+        assert type(ftol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
+        assert type(min_step) in [int, float, list, np.float64, np.int32]
+        assert type(preconditioning) in [bool, list]
     except AssertionError as assrt:
         raise TypeError(
-            "tol and maxiter must be scalars or list when multiple methods provided"
+            "tol, ftol, min_step and maxiter must be scalar numbers (or list of scalars if multiple methods provided)"
         ) from assrt
 
     try:
         if isinstance(tol, list):
             tol = tol.pop(0)
+        if isinstance(ftol, list):
+            ftol = ftol.pop(0)
         if isinstance(maxiter, list):
             maxiter = maxiter.pop(0)
         if isinstance(min_step, list):
             min_step = min_step.pop(0)
+        if isinstance(preconditioning, list):
+            kwargs["preconditioning"] = preconditioning.pop(0)
 
     except IndexError as ie:
-        raise IndexError(
-            ": parameters for hunt need to be iterables of same length as the number of methods."
-        ) from ie
+        errstr = "".join(
+            [
+                f": (tol, ftol, maxiter, min_step, preconditioning) need to be either scalar (or bool)",
+                f" or list of same length as number of methods.",
+            ]
+        )
+        raise IndexError(errstr) from ie
 
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
     step_size = kwargs.get("step_size", 0.001)
@@ -514,7 +717,6 @@ def _newton_descent(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwar
         "tol": tol,
         "status": -1,
     }
-    ftol = kwargs.get("ftol", 1e-9)
     if kwargs.get("verbose", False):
         print(
             "\n-------------------------------------------------------------------------------------------------"
@@ -533,14 +735,47 @@ def _newton_descent(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwar
     # Simplest solution to exclusion of simple backtracking.
     if not kwargs.get("backtracking", True):
         min_step = 1
-
+    preconditioner_factory = kwargs.get("mfactory", None)
+    M = None
     mapping = orbit_instance.eqn(**kwargs)
     cost = mapping.cost(eqn=False)
     while cost > tol and runtime_statistics["status"] == -1:
         # Solve A dx = b <--> J dx = - f, for dx.
         A, b = orbit_instance.jacobian(**kwargs), -1 * mapping.state.ravel()
+        if preconditioning:
+            if callable(preconditioner_factory):
+                M = preconditioner_factory(orbit_instance, "lstsq", **kwargs)
+            elif hasattr(orbit_instance, "preconditioner"):
+                M = orbit_instance.preconditioner(**kwargs)
+            elif runtime_statistics["nit"] == 0.0 and M is None:
+                warn_str = "".join(
+                    [
+                        f"\norbithunter.optimize.hunt was passed preconditioning=True but no method of",
+                        f" computing a preconditioner was provided.",
+                    ]
+                )
+                warnings.warn(warn_str, RuntimeWarning)
+                # identity just returns whatever we started with
+                eye = lambda x: x
+                M = LinearOperator(
+                    (A.shape[1], A.shape[1]),
+                    matvec=eye,
+                    rmatvec=eye,
+                    matmat=eye,
+                    rmatmat=eye,
+                )
+
+            # Right preconditioning by using transpose. A*M = (M^T A^T)^T (only have left hand multiplication for M, MT)
+            A = (M.rmatmat(A.T)).T
+
         inv_A = pinv(A)
-        dx = orbit_instance.from_numpy_array(np.dot(inv_A, b))
+        # get the vector solution
+        dx = np.dot(inv_A, b)
+
+        # get the solution to Px = x'
+        if preconditioning and M is not None:
+            dx = M.matvec(dx)
+        dx = orbit_instance.from_numpy_array(dx)
         next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
         next_mapping = next_orbit_instance.eqn(**kwargs)
         next_cost = next_mapping.cost(eqn=False)
@@ -557,6 +792,8 @@ def _newton_descent(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwar
                 # Re-use the same pseudoinverse for many inexact solutions to dx_n = - A^+(x) F(x + dx_{n-1})
                 b = -1 * next_mapping.state.ravel()
                 dx = orbit_instance.from_numpy_array(np.dot(inv_A, b))
+                if preconditioning and M is not None:
+                    dx = M.matvec(dx)
                 inner_orbit = next_orbit_instance.increment(dx, step_size=step_size)
                 inner_mapping = inner_orbit.eqn(**kwargs)
                 inner_cost = inner_mapping.cost(eqn=False)
@@ -601,7 +838,15 @@ def _newton_descent(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwar
         return orbit_instance, runtime_statistics
 
 
-def _lstsq(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
+def _lstsq(
+    orbit_instance,
+    tol=1e-6,
+    ftol=1e-9,
+    maxiter=500,
+    min_step=1e-6,
+    preconditioning=False,
+    **kwargs,
+):
     """
     Wrapper that allows usage of scipy.linalg.lstsq solvers with Orbit objects
 
@@ -631,26 +876,37 @@ def _lstsq(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
     """
     try:
         assert type(tol) in [int, float, list, np.float64, np.int32]
+        assert type(ftol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
+        assert type(min_step) in [int, float, list, np.float64, np.int32]
+        assert type(preconditioning) in [bool, list]
+
     except AssertionError as assrt:
         raise TypeError(
-            "tol and maxiter must be scalars or list when multiple methods provided"
+            "tol, ftol, min_step and maxiter must be scalar numbers (or list of scalars if multiple methods provided)"
         ) from assrt
 
     try:
         if isinstance(tol, list):
             tol = tol.pop(0)
+        if isinstance(ftol, list):
+            ftol = ftol.pop(0)
         if isinstance(maxiter, list):
             maxiter = maxiter.pop(0)
         if isinstance(min_step, list):
             min_step = min_step.pop(0)
+        if isinstance(preconditioning, list):
+            preconditioning = preconditioning.pop(0)
     except IndexError as ie:
-        raise IndexError(
-            ": parameters for hunt need to be iterables of same length as the number of methods."
-        ) from ie
+        errstr = "".join(
+            [
+                f": (tol, ftol, maxiter, min_step, preconditioning) need to be either scalar (or bool)",
+                f" or list of same length as number of methods.",
+            ]
+        )
+        raise IndexError(errstr) from ie
 
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
-    ftol = kwargs.get("ftol", 1e-9)
     mapping = orbit_instance.eqn(**kwargs)
     cost = mapping.cost(eqn=False)
     runtime_statistics = {
@@ -679,7 +935,6 @@ def _lstsq(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
     if not kwargs.get("backtracking", True):
         min_step = 1
 
-    preconditioning = kwargs.get("preconditioning", False)
     preconditioner_factory = kwargs.get("mfactory", None)
     M = None
     while cost > tol and runtime_statistics["status"] == -1:
@@ -751,7 +1006,15 @@ def _lstsq(orbit_instance, tol=1e-6, maxiter=500, min_step=1e-9, **kwargs):
         return orbit_instance, runtime_statistics
 
 
-def _solve(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **kwargs):
+def _solve(
+    orbit_instance,
+    tol=1e-6,
+    ftol=1e-9,
+    maxiter=10000,
+    min_step=1e-6,
+    preconditioning=False,
+    **kwargs,
+):
     """
     Wrapper that allows usage of scipy.linalg.solve with Orbit objects
 
@@ -781,29 +1044,38 @@ def _solve(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **kwargs):
     """
     try:
         assert type(tol) in [int, float, list, np.float64, np.int32]
+        assert type(ftol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
+        assert type(min_step) in [int, float, list, np.float64, np.int32]
+        assert type(preconditioning) in [bool, list]
     except AssertionError as assrt:
         raise TypeError(
-            "tol and maxiter must be scalars or list when multiple methods provided"
+            "tol, ftol, min_step and maxiter must be scalar numbers (or list of scalars if multiple methods provided)"
         ) from assrt
 
     try:
         if isinstance(tol, list):
             tol = tol.pop(0)
+        if isinstance(ftol, list):
+            ftol = ftol.pop(0)
         if isinstance(maxiter, list):
             maxiter = maxiter.pop(0)
         if isinstance(min_step, list):
             min_step = min_step.pop(0)
-
+        if isinstance(preconditioning, list):
+            preconditioning = preconditioning.pop(0)
     except IndexError as ie:
-        raise IndexError(
-            ": parameters for hunt need to be iterables of same length as the number of methods."
-        ) from ie
+        errstr = "".join(
+            [
+                f": (tol, ftol, maxiter, min_step, preconditioning) need to be either scalar (or bool)",
+                f" or list of same length as number of methods.",
+            ]
+        )
+        raise IndexError(errstr) from ie
 
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
     mapping = orbit_instance.eqn(**kwargs)
     cost = mapping.cost(eqn=False)
-    ftol = kwargs.get("ftol", 1e-9)
     runtime_statistics = {
         "method": "solve",
         "nit": 0,
@@ -831,7 +1103,6 @@ def _solve(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **kwargs):
         min_step = 1
 
     preconditioner_factory = kwargs.get("mfactory", None)
-    preconditioning = kwargs.get("preconditioning", False)
     M = None
 
     while cost > tol and runtime_statistics["status"] == -1:
@@ -905,7 +1176,14 @@ def _solve(orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, **kwargs):
 
 
 def _scipy_sparse_linalg_solver_wrapper(
-    orbit_instance, tol=1e-6, maxiter=10000, min_step=1e-9, method="lsmr", **kwargs
+    orbit_instance,
+    tol=1e-6,
+    ftol=1e-9,
+    maxiter=10000,
+    min_step=1e-6,
+    method="lsmr",
+    preconditioning=False,
+    **kwargs,
 ):
     """
     Wrapper that allows usage of scipy.sparse.linalg and scipy.linalg solvers with Orbit objects
@@ -956,24 +1234,34 @@ def _scipy_sparse_linalg_solver_wrapper(
     """
     try:
         assert type(tol) in [int, float, list, np.float64, np.int32]
+        assert type(ftol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
+        assert type(min_step) in [int, float, list, np.float64, np.int32]
+        assert type(preconditioning) in [bool, list]
     except AssertionError as assrt:
         raise TypeError(
-            "tol and maxiter must be scalars or list when multiple methods provided"
+            "tol, ftol, min_step and maxiter must be scalar numbers (or list of scalars if multiple methods provided)"
         ) from assrt
 
     try:
         if isinstance(tol, list):
             tol = tol.pop(0)
+        if isinstance(ftol, list):
+            ftol = ftol.pop(0)
         if isinstance(maxiter, list):
             maxiter = maxiter.pop(0)
         if isinstance(min_step, list):
             min_step = min_step.pop(0)
-
+        if isinstance(preconditioning, list):
+            preconditioning = preconditioning.pop(0)
     except IndexError as ie:
-        raise IndexError(
-            ": parameters for hunt need to be iterables of same length as the number of methods."
-        ) from ie
+        errstr = "".join(
+            [
+                f": (tol, ftol, maxiter, min_step, preconditioning) need to be either scalar (or bool)",
+                f" or list of same length as number of methods.",
+            ]
+        )
+        raise IndexError(errstr) from ie
 
     cost = orbit_instance.cost()
     if kwargs.get("verbose", False):
@@ -990,7 +1278,6 @@ def _scipy_sparse_linalg_solver_wrapper(
             "-------------------------------------------------------------------------------------------------"
         )
         sys.stdout.flush()
-    ftol = kwargs.get("ftol", 1e-9)
     runtime_statistics = {
         "method": method,
         "nit": 0,
@@ -1004,14 +1291,10 @@ def _scipy_sparse_linalg_solver_wrapper(
         min_step = 1
     linear_system_factory = kwargs.get("factory", None) or _sparse_linalg_factory
     preconditioner_factory = kwargs.get("mfactory", None)
-    preconditioning = kwargs.get("preconditioning", False)
     scipy_kwargs = kwargs.get("scipy_kwargs", {})
     while cost > tol and runtime_statistics["status"] == -1:
         step_size = 1
         A, b = linear_system_factory(orbit_instance, method, **kwargs)
-        if scipy_kwargs is None:
-            scipy_kwargs = kwargs.get("scipy_kwargs", {})
-
         if method in ["lsmr", "lsqr"]:
             if method == "lsmr":
                 result_tuple = lsmr(A, b, **scipy_kwargs)
@@ -1096,7 +1379,13 @@ def _scipy_sparse_linalg_solver_wrapper(
 
 
 def _scipy_optimize_minimize_wrapper(
-    orbit_instance, tol=1e-6, maxiter=10, method="l-bfgs-b", **kwargs
+    orbit_instance,
+    tol=1e-6,
+    ftol=1e-9,
+    maxiter=10,
+    method="l-bfgs-b",
+    preconditioning=False,
+    **kwargs,
 ):
     """
     Wrapper that allows usage of scipy.optimize.minimize with Orbit objects
@@ -1130,7 +1419,9 @@ def _scipy_optimize_minimize_wrapper(
     """
     try:
         assert type(tol) in [int, float, list, np.float64, np.int32]
+        assert type(ftol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
+        assert type(preconditioning) in [bool, list]
     except AssertionError as assrt:
         raise TypeError(
             "tol and maxiter must be scalars or possibly list when multiple methods provided"
@@ -1139,15 +1430,22 @@ def _scipy_optimize_minimize_wrapper(
     try:
         if isinstance(tol, list):
             tol = tol.pop(0)
+        if isinstance(ftol, list):
+            ftol = ftol.pop(0)
         if isinstance(maxiter, list):
             maxiter = maxiter.pop(0)
+        if isinstance(preconditioning, list):
+            preconditioning = preconditioning.pop(0)
     except IndexError as ie:
-        raise IndexError(
-            ": parameters for hunt need to be iterables of same length as the number of methods."
-        ) from ie
+        errstr = "".join(
+            [
+                f": (tol, ftol, maxiter, min_step, preconditioning) need to be either scalar (or bool)",
+                f" or list of same length as number of methods.",
+            ]
+        )
+        raise IndexError(errstr) from ie
 
     cost = orbit_instance.cost()
-    ftol = kwargs.get("ftol", 1e-9)
     runtime_statistics = {
         "method": method,
         "nit": 0,
@@ -1177,7 +1475,7 @@ def _scipy_optimize_minimize_wrapper(
     while cost > tol and runtime_statistics["status"] == -1:
         # jacobian and hessian passed as keyword arguments to scipy not arguments.
         minfunc, jac_and_hess_options = func_jac_hess_factory(
-            orbit_instance, method, **kwargs
+            orbit_instance, method, **{**kwargs, "preconditioning": preconditioning}
         )
         result = minimize(
             minfunc,
@@ -1188,7 +1486,7 @@ def _scipy_optimize_minimize_wrapper(
         if kwargs.get("progressive", False):
             # When solving the system repeatedly, a more stringent tolerance may be required to reduce the cost
             # by a sufficient amount due to vanishing gradients.
-            scipy_kwargs["tol"] /= 10.0
+            scipy_kwargs["tol"] /= 2.0
 
         next_orbit_instance = orbit_instance.from_numpy_array(result.x)
         next_cost = next_orbit_instance.cost()
@@ -1216,7 +1514,13 @@ def _scipy_optimize_minimize_wrapper(
 
 
 def _scipy_optimize_root_wrapper(
-    orbit_instance, tol=1e-6, maxiter=10, method="krylov", **kwargs
+    orbit_instance,
+    tol=1e-6,
+    ftol=1e-9,
+    maxiter=10,
+    method="krylov",
+    preconditioning=False,
+    **kwargs,
 ):
     """
     Wrapper that allows usage of scipy.optimize.root with Orbit objects
@@ -1255,25 +1559,33 @@ def _scipy_optimize_root_wrapper(
     """
     try:
         assert type(tol) in [int, float, list, np.float64, np.int32]
+        assert type(ftol) in [int, float, list, np.float64, np.int32]
         assert type(maxiter) in [int, float, list, np.float64, np.int32]
+        assert type(preconditioning) in [bool, list]
     except AssertionError as assrt:
         raise TypeError(
-            "tol and maxiter must be scalars or list when multiple methods provided"
+            "tol, ftol, min_step and maxiter must be scalar numbers (or list of scalars if multiple methods provided)"
         ) from assrt
 
     try:
         if isinstance(tol, list):
             tol = tol.pop(0)
+        if isinstance(ftol, list):
+            ftol = ftol.pop(0)
         if isinstance(maxiter, list):
             maxiter = maxiter.pop(0)
-
+        if isinstance(preconditioning, list):
+            kwargs["preconditioning"] = preconditioning.pop(0)
     except IndexError as ie:
-        raise IndexError(
-            ": parameters for hunt need to be iterables of same length as the number of methods."
-        ) from ie
+        errstr = "".join(
+            [
+                f": (tol, ftol, maxiter, min_step, preconditioning) need to be either scalar (or bool)",
+                f" or list of same length as number of methods.",
+            ]
+        )
+        raise IndexError(errstr) from ie
 
     cost = orbit_instance.cost()
-    ftol = kwargs.get("ftol", 1e-9)
     runtime_statistics = {
         "method": method,
         "nit": 0,
@@ -1301,7 +1613,7 @@ def _scipy_optimize_root_wrapper(
         # Use factory function to produce two callables required for SciPy routine. Need to be included under
         # the while statement so they are updated.
         _rootfunc, jac_and_jac_options = func_jac_factory(
-            orbit_instance, method, **kwargs
+            orbit_instance, method, **{**kwargs, "preconditioning": preconditioning}
         )
         scipy_kwargs = {
             "tol": tol,
@@ -1779,7 +2091,7 @@ def _process_correction(
     elif step_size <= min_step:
         runtime_statistics["status"] = 0
         return orbit_instance, cost, runtime_statistics
-    elif runtime_statistics["nit"] == maxiter:
+    elif int(runtime_statistics["nit"]) == int(maxiter):
         runtime_statistics["status"] = 2
         if next_cost < cost:
             return next_orbit_instance, next_cost, runtime_statistics
@@ -1789,7 +2101,7 @@ def _process_correction(
         runtime_statistics["status"] = 3
         return orbit_instance, cost, runtime_statistics
     else:
-        if method == "adj":
+        if method in ["adj", "gd"]:
             if verbose:
                 if np.mod(runtime_statistics["nit"], 5000) == 0:
                     print(
@@ -1827,7 +2139,7 @@ def _process_correction(
             if verbose:
                 if np.mod(runtime_statistics["nit"], 25) == 0:
                     print(
-                        " Residual={:.7f} after {} {} iterations. Parameters={}".format(
+                        " Residual={:.7f} after {} calls to {}. Parameters={}".format(
                             next_cost,
                             runtime_statistics["nit"],
                             method,

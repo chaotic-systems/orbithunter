@@ -105,8 +105,12 @@ def persistence_plot(orbit_instance, gudhi_method="diagram", **kwargs):
         for k, v in kwargs.items()
         if k in inspect.getfullargspec(gh.plot_persistence_diagram).args
     }
-    if gudhi_method in ["diagram", "barcode", "density"]:
+    if gudhi_method == "diagram":
         gh.plot_persistence_diagram(opersist, **plot_kwargs)
+    elif gudhi_method == "barcode":
+        gh.plot_persistence_barcode(opersist, **plot_kwargs)
+    elif gudhi_method == "density":
+        gh.plot_persistence_density(opersist, **plot_kwargs)
     else:
         raise ValueError("Gudhi plotting gudhi_method not recognized.")
     plt.show()

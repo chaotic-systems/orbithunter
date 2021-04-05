@@ -655,7 +655,7 @@ class SymmetryOrbitEQN(Orbit):
     """
 
     @classmethod
-    def glue_dimensions(cls, dimension_tuples, glue_shape, exclude_nonpositive=True):
+    def glue_dimensions(cls, dimension_tuples, glue_shape, include_zeros=True):
         """
         Strategy for combining tile dimensions in gluing; default is arithmetic averaging.
 
@@ -666,7 +666,7 @@ class SymmetryOrbitEQN(Orbit):
             a number of values equal to the number of orbits in the prospective gluing.
         glue_shape : tuple of ints
             The shape of the gluing being performed i.e. for a 2x2 orbit grid glue_shape would equal (2,2).
-        exclude_nonpositive : bool
+        include_zeros : bool
             If True, then the calculation of average dimensions excludes 0's.
 
         Returns

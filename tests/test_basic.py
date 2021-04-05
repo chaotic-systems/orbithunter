@@ -292,16 +292,14 @@ def test_glue_dimensions(fixed_orbit_data):
     dimension_tuples = tuple(zip(x.parameters, y.parameters))
     glue_shape = (2, 1, 1, 1)
     assert orb.Orbit.glue_dimensions(
-        dimension_tuples, glue_shape, exclude_nonpositive=True
+        dimension_tuples, glue_shape, include_zeros=False
     ) == (12.0, 2.0, 3, 4.0)
     assert orb.Orbit.glue_dimensions(
-        dimension_tuples, glue_shape, exclude_nonpositive=False
+        dimension_tuples, glue_shape, include_zeros=True
     ) == (12.0, 1.0, 1.5, 0.0)
     with pytest.raises((IndexError, ValueError)):
         glue_shape = (2, 1)
-        orb.Orbit.glue_dimensions(
-            dimension_tuples, glue_shape, exclude_nonpositive=False
-        )
+        orb.Orbit.glue_dimensions(dimension_tuples, glue_shape, include_zeros=True)
 
 
 def test_symmetry(fixed_orbit_data):

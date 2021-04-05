@@ -709,8 +709,9 @@ class OrbitKS(Orbit):
         grad = self.rmatvec(eqn, **kwargs)
         if kwargs.get("preconditioning", False):
             # This preconditions with respect to the current state. not J^T F
-            grad = grad.precondition(pmult=self.preconditioning_parameters())
-
+            grad = grad.precondition(
+                **{"pmult": self.preconditioning_parameters(), **kwargs}
+            )
         return grad
 
     def plot(
@@ -748,9 +749,7 @@ class OrbitKS(Orbit):
         The time axis for EquilibriumOrbitKS is labeled by infinity to indicate that they do not change over time.
 
         """
-        plt.rcParams.update(
-            {"font.serif": ["Palatino"],}
-        )
+
         if padding:
             padding_shape = kwargs.get("padding_shape", (16 * self.n, 16 * self.m))
             plot_orbit = self.resize(padding_shape)
@@ -902,9 +901,7 @@ class OrbitKS(Orbit):
                 The file extension to save as, .png, .pdf, etc. Values supported by matplotlib only.
 
         """
-        plt.rcParams.update(
-            {"font.serif": ["Palatino"],}
-        )
+
         if scale == "log":
             modes = np.abs(self.transform(to="modes").state)
             modes[modes > 0.0] = np.log10(modes[modes > 0.0])
@@ -1032,14 +1029,19 @@ class OrbitKS(Orbit):
         """
         # To get the diagonal preconditioner, can apply preconditioning to an array of 1's, returning the multipliers.
         # The orbit vector of this instance represents the diagonal of a diagonal preconditioning matrix.
-        diag_M = (
-            self.__class__(
-                **{**vars(self), "state": np.ones(self.shape), "parameters": (1, 1, 1)}
+        multipliers = self.__class__(
+            **{**vars(self), "state": np.ones(self.shape), "parameters": (1, 1, 1)}
+        ).precondition(**{"pmult": self.preconditioning_parameters(), **kwargs})
+        diag_M = np.concatenate(
+            (
+                multipliers.state.ravel(),
+                tuple(
+                    p
+                    for p, constr in zip(multipliers.parameters, self.constraints)
+                    if self.constraints[constr]
+                ),
             )
-            .precondition(**{"pmult": self.preconditioning_parameters(), **kwargs})
-            .orbit_vector()
-            .reshape(-1, 1)
-        )
+        ).reshape(-1, 1)
 
         def matvec_(v):
             # v is an orbit vector,
@@ -1202,21 +1204,20 @@ class OrbitKS(Orbit):
             rotated_imag = -sinej * modes_time_real + cosinej * modes_time_imaginary
 
             time_rotated_modes = np.concatenate(
-                (orbit_to_rotate.state[None, 0, :], rotated_real, rotated_imag,),
-                axis=0,
+                (orbit_to_rotate.state[None, 0, :], rotated_real, rotated_imag), axis=0,
             )
             return self.__class__(
                 **{**vars(self), "state": time_rotated_modes, "basis": "modes"}
             ).transform(to=self.basis)
         else:
-            if units == "wavelength":
+            if units == "plotting":
                 # conversion from plotting units.
                 distance = distance * 2 * pi * np.sqrt(2)
             orbit_to_rotate = self.transform(to="spatial_modes")
             # angles to rotate by
             thetak = (
                 distance
-                * spatial_frequencies(self.x, self.m, 1).ravel()[
+                * spatial_frequencies(self.x, self.m, 1)[
                     :, : -(orbit_to_rotate.m // 2 - 1)
                 ]
             )
@@ -1689,8 +1690,8 @@ class OrbitKS(Orbit):
         is so this function generalizes to subclasses.
 
         """
-        spatial_modulation = kwargs.get("spatial_modulation", "gaussian")
-        temporal_modulation = kwargs.get("temporal_modulation", "time_truncation")
+        spatial_modulation = kwargs.get("spatial_modulation", "laplace")
+        temporal_modulation = kwargs.get("temporal_modulation", "gaussian")
 
         tscale = kwargs.get("tscale", int(np.round(self.t / 20.0)))
         xscale = kwargs.get("xscale", int(np.round(self.x / (2 * pi * np.sqrt(2)))))
@@ -1720,7 +1721,9 @@ class OrbitKS(Orbit):
             xscale = xscale + np.sqrt(time_)
         elif xshift == "log":
             xscale = xscale + np.log(1 + time_)
-        elif type(xshift) in [int, float, np.float64, np.int32, np.ndarray]:
+        elif xshift == "lin":
+            xscale = xscale + time_
+        elif isinstance(xshift, np.ndarray):
             xscale = xscale + xshift
 
         # Spatial then temporal modulation, done separately now.

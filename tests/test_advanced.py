@@ -85,3 +85,38 @@ def test_glue():
                     "discretization": tuple(attrs["discretization"]),
                 }
             )
+
+
+def test_hunt_Orbit():
+    methods = ['newton_descent', 'lstsq', 'solve', 'adj', 'gd', 'lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
+               'cg', 'cgs', 'qmr', 'minres', 'gcrotmk','nelder-mead', 'powell', 'cg_min', 'bfgs', 'newton-cg', 'l-bfgs-b',
+               'tnc', 'cobyla', 'slsqp', 'trust-constr', 'dogleg', 'trust-ncg', 'trust-exact', 'trust-krylov', 'hybr',
+               'lm','broyden1', 'broyden2', 'linearmixing','diagbroyden', 'excitingmixing',
+               'df-sane', 'krylov', 'anderson']
+    return None
+
+def test_hunt_Orbit_subclass():
+    methods = ['newton_descent', 'lstsq', 'solve', 'adj', 'gd', 'lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
+               'cg', 'cgs', 'qmr', 'minres', 'gcrotmk','nelder-mead', 'powell', 'cg_min', 'bfgs', 'newton-cg', 'l-bfgs-b',
+               'tnc', 'cobyla', 'slsqp', 'trust-constr', 'dogleg', 'trust-ncg', 'trust-exact', 'trust-krylov', 'hybr',
+               'lm','broyden1', 'broyden2', 'linearmixing','diagbroyden', 'excitingmixing',
+               'df-sane', 'krylov', 'anderson']
+    return None
+
+
+class TestOrbitEQN(orb.Orbit):
+
+    def eqn(self):
+        return np.sum(self.state**2 - np.arange(self.state.size))
+
+    def rmatvec(self, other, **kwargs):
+
+    def matvec(self, other, **kwargs):
+
+    def jacobian(self, **kwargs):
+        return
+
+    def hess(self, **kwargs):
+
+    def hessp(self, left_other, right_other, **kwargs):
+

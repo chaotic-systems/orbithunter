@@ -892,7 +892,7 @@ class Orbit:
         return cls._default_shape()
 
     @classmethod
-    def glue_dimensions(cls, dimension_tuples, glue_shape, exclude_nonpositive=True):
+    def glue_dimensions(cls, dimension_tuples, glue_shape, include_zeros=True):
         """
         Strategy for combining tile dimensions in gluing; default is arithmetic averaging.
 
@@ -903,8 +903,9 @@ class Orbit:
             a number of values equal to the number of orbits in the prospective gluing.
         glue_shape : tuple of ints
             The shape of the gluing being performed i.e. for a 2x2 orbit grid glue_shape would equal (2,2).
-        exclude_nonpositive : bool
-            If True, then the calculation of average dimensions excludes 0's.
+        include_zeros : bool
+            If True, then the calculation of average dimensions includes 0's in the averages; else
+            they are treated like they do not exist.
 
         Returns
         -------
@@ -921,17 +922,17 @@ class Orbit:
 
         """
         try:
-            if exclude_nonpositive:
-                # Take the average of non-zero parameter values
+            if include_zeros:
                 return tuple(
-                    glue_shape[i] * p[p > 0.0].mean()
+                    glue_shape[i] * p.mean()
                     for i, p in enumerate(
                         np.array(ptuple) for ptuple in dimension_tuples
                     )
                 )
             else:
+                # Take the average of non-zero parameter values
                 return tuple(
-                    glue_shape[i] * p.mean()
+                    glue_shape[i] * p[p > 0.0].mean()
                     for i, p in enumerate(
                         np.array(ptuple) for ptuple in dimension_tuples
                     )
@@ -1028,7 +1029,7 @@ class Orbit:
         else:
             return self.rmatvec(self.eqn(), **kwargs)
 
-    def costhess(self, other, **kwargs):
+    def costhess(self, **kwargs):
         """
         Matrix-vector product with the Hessian of the cost function.
 
@@ -1049,14 +1050,17 @@ class Orbit:
 
         The hessian is the combination of jacobian-transpose multiplied with jacobian plus a second term, equal
         to the dot product of the hessian of the governing equations (tensor) dotted with the equations, resulting in a
-        2-d matrix. This method has not been implemented for any equation,
+        2-d matrix, $J^TJ + F (d^2F)$. This method has not been implemented for any equation,
         but the recipe is given below. While there are tensor product functions I think the easiest way to
         compute this is by broadcasting and dot product.
 
         """
         J = self.jacobian(**kwargs)
-        return J.T.dot(J) + self.hess(**kwargs).dot(
-            self.eqn(**kwargs).orbit_vector.ravel()
+        return (
+            J.T.dot(J)
+            + np.tensordot(
+                self.eqn(**kwargs).state.ravel(), self.hess(**kwargs), axes=1
+            ).squeeze()
         )
 
     def costhessp(self, other, **kwargs):
@@ -1085,9 +1089,13 @@ class Orbit:
         compute this is by broadcasting and dot product.
 
         """
-
+        # rmatvec of anything produces components for entire orbit_vector, meaning that simply adding the
+        # two results is insufficient; need to parameter-wise add as well; can do this via orbit_vector or increment.
         JTJ = self.rmatvec(self.matvec(other, **kwargs), **kwargs)
-        return (JTJ + self.hessp(self.eqn(**kwargs), **kwargs)) * other
+
+        # equal to (J^T J * v) + (F  * d^2F * v)
+        # (F * d^2F) has dimensions (orbit_vector.size, orbit_vector.size)
+        return JTJ.increment(self.hessp(self.eqn(**kwargs), other, **kwargs))
 
     def resize(self, *new_discretization, **kwargs):
         """
@@ -1240,7 +1248,7 @@ class Orbit:
             # "glue shape"
             glue_shape = tuple(2 if i == axis else 1 for i in range(self.ndim))
             new_dimensions = self.glue_dimensions(
-                tuple_of_zipped_dimensions, glue_shape, exclude_nonpositive=True
+                tuple_of_zipped_dimensions, glue_shape, include_zeros=True
             )
 
         elif self.parameters is not None:
@@ -1449,7 +1457,7 @@ class Orbit:
             }
         )
 
-    def hess(self):
+    def hess(self, **kwargs):
         """
         Matrix of second derivatives of the governing equations.
 
@@ -1466,22 +1474,26 @@ class Orbit:
         of equation component $F_i$. The governing equations will typically have vector valued output;
         in general the matrix of second derivatives of each component is a tensor.
 
-
+        What is returned is the rank 3 tensor with correct shape for a vector valued equation F(x) where x
+        has N degrees of freedom but F only has d dimensions.
 
         """
-        # General case
         return np.zeros(
-            [self.orbit_vector().size, self.orbit_vector().size, self.eqn().size]
+            [self.eqn().size, self.orbit_vector().size, self.orbit_vector().size]
         )
 
-    def hessp(self, other, **kwargs):
+    def hessp(self, left_other, right_other, **kwargs):
         """
-        Tensor product of `other` with matrix of second derivatives of governing equations.
+        Tensor product u * H * v where H is the matrix of second derivatives of governing equations.
 
         Parameters
         ----------
-        other : Orbit
-            Orbit whose state represents the vector in the matrix-vector product.
+        left_other : Orbit
+            Orbit whose state is to be multiplied with the Hessian on the LEFT
+        right_other : Orbit
+            Orbit whose orbit_vector is to be multiplied with the Hessian on the RIGHT
+        kwargs : dict
+            Any keywords relevant for the tensor-free evaluation of the Hessian product.
 
         Returns
         -------
@@ -1491,10 +1503,16 @@ class Orbit:
 
         Notes
         -----
-        Requires an equation to define, just like rmatvec and matvec.
+        Requires an equation to define, just like rmatvec and matvec; return zeros because no equation here.
+        Tensor multiplication can be written u * d^2 F * v, dimensions of each component are: u=(N,)
+        d^2F = (N, N+d, N+d), v = (N+d, 1); therefore it returns a vector of dimension (N+d, 1)
+        this orbit_vector is then returned as an Orbit instance.
 
         """
-        return self.from_numpy_array(np.zeros(other.orbit_vector().shape))
+        u = left_other.state.ravel()
+        v = right_other.orbit_vector()
+        # This makes it look simple but the expression np.zeros(u.size) is acting as a placeholder.
+        return self.from_numpy_array(np.tensordot(u, np.zeros(u.size), axes=1).dot(v))
 
     def orbit_vector(self):
         """
@@ -2275,15 +2293,15 @@ class Orbit:
                             ]
                         )
                         raise ValueError(vestr) from typ
+                # If given a scalar,
+                elif type(val_generator) in [str, int, bool, float, np.int32, np.float]:
+                    val = val_generator
                 else:
                     # Everything else treated as distribution to sample from; integer input selects from range(int)
                     # So that more complex input can be included, sample the positions of the elements in val_generator.
-                    try:
-                        index_range = range(len(val_generator))
-                        val = val_generator[np.random.choice(index_range)]
-                    except TypeError:
-                        # This exception catching allows for scalar input
-                        val = np.random.choice(val_generator)
+                    index_range = range(len(val_generator))
+                    val = val_generator[np.random.choice(index_range)]
+
             return val
 
         # seeding takes a non-trivial amount of time, only set if explicitly provided.

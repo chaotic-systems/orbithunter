@@ -27,18 +27,33 @@ Major Changes
 -  New method :meth:`~core.Orbit.concat` for simpler pair wise "gluing". Allows ease of gluing without having
    to comprise an array of orbits, its shape, etc. Developed with fundamental domains of discrete symmetries in mind.
 -  Pairwise gluing was getting fundamental domains wrong. I have made it so glue and tile do not use fundamental
-   domains but pairwise does. 
+   domains but pairwise does.
+-  Trust region methods now "approximately supported" for the KSe; meaning that the code has been generalized to the point
+   where the hessian product can be computed for the KSe, but one of the terms is missing because it has not yet been defined,
+   namely the evaluation of F * d^2 F * v; because the system is stiff, however, the jacobian times itself seems to provide enough
+   information to enable decrease of the cost functional. Getting the Hessian product is more tricky than confusing, as it involves
+   manipulation of a rank 3 tensor. 
+-  Shadowing, cover, fill have been rewritten to provide better performance/more consistent results based on window sizes. Now only
+   computes scores at pivots valid for ALL window orbits. Previously pivots at the boundaries were taking only subsets of the windows
+   due to whether the windows "fit" or not. 
 
 Minor Changes
 -------------
 
--  KSE Jacobians are now produced much more efficiently
+-  KSE Jacobians are now produced much more efficiently; uglier and very confusing code to do this, however, as OrbitKS operations
+   are being 'hacked' to apply to rank 3 tensors. 
 -  Inplace computation of differentiation and FFTs now implemented for KSe. Uglier code but makes certain calculations more efficient. 
 -  np.reshape calls replaced with usage of None/np.newaxis where possible; as it is typically faster.
+-  Spatial rotations were not working because the frequencies were being unduely raveled. 
+-  Added more generalized gradient descent; adjoint descent is now simply gradient descent with optimizations relevant to cost function $1/2 F^2$
+-  Now can pass separate scipy keyword arguments for multiple methods via the `method_kwargs` keyword argument. Single dicts can still be
+   passed to `scipy_kwargs` keyword argument. 
+-  The function `fill` now uses the relative difference between threshold and score to determine which orbit performed the best. 
 
-
-Bug Fixes
----------
+Bug and Error Fixes
+-------------------
+-  Continuation was using the old `OptimizeResult.status` in `while` loop, making the code within unreachable: major error.
+-  Can now handle cases where mask becomes "full"; i.e. no pivots to iterate over in shadowing. 
 -  :meth:`core.Orbit.__getitem__` was not updating the discretization parameters correctly; now forces parsing of the new state
    after slicing, as does the new `concat` method. 
 -  When three or more methods were included, :func:`optimize.hunt` was unable to aggregate runtime statistics due to type errors;
@@ -48,3 +63,8 @@ Bug Fixes
    was determining the size of the Krylov subspace in ``scipy.optimize.newton_krylov``
 -  The outer-iteration function factories were actually in the completely wrong place; needed to be within while loop but they were not..
 -  Fixed fundamental domain gluing for this for ShiftReflectionOrbitKS by including roll 
+-  Keyword argument conflicts with scipy handled. 
+
+Known Issues
+============
+-  Handling of constraints with SciPy needs to be redone; the orbit_vector method should return only non-constant parameters.

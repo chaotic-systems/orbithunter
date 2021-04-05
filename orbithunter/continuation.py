@@ -100,7 +100,7 @@ def continuation(
         target_value - getattr(minimize_result.orbit, constraint_label)
     ) * np.abs(step_size)
 
-    while minimize_result.status == -1 and not _equals_target(
+    while minimize_result.status == 1 and not _equals_target(
         minimize_result.orbit, target_value, constraint_label
     ):
         # Having to specify both seems strange and so the options are: provide save=True and then use default
@@ -196,7 +196,9 @@ def discretization_continuation(
     """
     # check that we are starting from converged solution, first of all.
     minimize_result = hunt(orbit_instance, **kwargs)
-    axes_order = kwargs.get("axes_order", np.argsort(target_discretization)[::-1])
+    axes_order = np.array(
+        kwargs.get("axes_order", np.argsort(target_discretization)[::-1])
+    )
     # The minimum step size is inferred from the minimal shapes if not provided; the idea here is that if
     # the minimum shape is odd then
     step_sizes = kwargs.get(
@@ -210,7 +212,7 @@ def discretization_continuation(
         # an equilibrium solution along said axis; this can be handled by simply rediscretizing the field.
         cycle_index = 0
         while (
-            minimize_result.status == -1
+            minimize_result.status == 1
             and minimize_result.orbit.shapes()[0] != target_discretization
         ):
             # Having to specify both seems strange and so the options are: provide save=True and then use default
@@ -252,7 +254,7 @@ def discretization_continuation(
             # If the shape along the axis is 1, and the corresponding dimension is 0, then this means we have
             # an equilibrium solution along said axis; this can be handled by simply rediscretizing the field.
             while (
-                minimize_result.status == -1
+                minimize_result.status == 1
                 and not minimize_result.orbit.shapes()[0][axis]
                 == target_discretization[axis]
             ):
