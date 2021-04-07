@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 
 __all__ = ["shadow", "fill", "cover", "scoring_functions", "process_scores"]
 
@@ -635,12 +636,18 @@ def shadow(base_orbit, window_orbit, **kwargs):
             **kwargs,
         )
         base_subdomain, window_subdomain = subdomain_tuple
-        try:
+        if not base_subdomain.size > 0 or not window_subdomain.size > 0:
+            warn_str = " ".join(
+                [
+                    f"\nshadowing pivot {each_pivot} unable to be scored for {repr(window_orbit)} because all",
+                    f"subdomain coordinates were mapped out of bounds."
+                ]
+            )
+            warnings.warn(warn_str, RuntimeWarning)
+        else:
             pivot_scores[each_pivot] = scoring_function(
                 base_subdomain, window_subdomain, **kwargs
             )
-        except ValueError:
-            test = 0
 
     return pivot_scores
 
@@ -728,11 +735,8 @@ def process_scores(
             scores = scores[np.newaxis, ...]
 
         # The bases orbit periodicity has to do with scoring and whether or not to wrap windows around.
-        periodicity = kwargs.get(
-            "base_orbit_periodicity", tuple(len(base_orbit.dimensions()) * [False])
-        )
         orbit_scores = np.full_like(
-            _pad_orbit_with_hull(base_orbit, hull, periodicity).state, np.inf
+            _pad_orbit_with_hull(base_orbit, hull, base_periodicity).state, np.inf
         )[np.newaxis, ...]
         orbit_scores = np.repeat(orbit_scores, len(scores), axis=0)
         for index, (window, window_scores) in enumerate(zip(windows, scores)):
@@ -744,7 +748,7 @@ def process_scores(
                 window.shape,
                 hull,
                 core,
-                periodicity,
+                base_periodicity,
                 **{**kwargs, "mask": ~(window_scores < np.inf)},
             )
 
@@ -756,9 +760,18 @@ def process_scores(
                     window,
                     window_grid,
                     hull,
-                    periodicity,
+                    base_periodicity,
                     **kwargs,
                 )
+                if not np.size(orbit_coordinates) > 0:
+                    warn_str = " ".join(
+                        [
+                            f"\nshadowing pivot {each_pivot} unable to be scored for {repr(window)} because all",
+                            f"subdomain coordinates were mapped out of bounds."
+                        ]
+                    )
+                    warnings.warn(warn_str, RuntimeWarning)
+
                 filling_window = orbit_scores[(index, *orbit_coordinates)]
                 filling_window[
                     (filling_window > window_scores[each_pivot])
@@ -1039,11 +1052,21 @@ def fill(base_orbit, window_orbits, thresholds, **kwargs):
                 periodicity,
                 **kwargs,
             )
-            # subdomain coordinates are the coordinates in the score array that account for periodic boundary conditions
-            window_scores.append(
-                scoring_function(base_subdomain, window_subdomain, **kwargs)
-            )
-            window_slices.append(slices)
+            if not base_subdomain.size > 0 or not window_subdomain.size > 0:
+                warn_str = " ".join(
+                    [
+                        f"\nshadowing pivot {each_pivot} unable to be scored for {repr(window)} because all",
+                        f"subdomain coordinates were mapped out of bounds."
+                    ]
+                )
+                warnings.warn(warn_str, RuntimeWarning)
+                window_scores.append(np.inf)
+            else:
+                # subdomain coordinates are the coordinates in the score array that account for periodic boundary conditions
+                window_scores.append(
+                    scoring_function(base_subdomain, window_subdomain, **kwargs)
+                )
+                window_slices.append(slices)
         window_score_ratios = window_scores / thresholds
         minimum_score = np.min(window_score_ratios)
         minimum_score_index = int(np.argmin(window_score_ratios))

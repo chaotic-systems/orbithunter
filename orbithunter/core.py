@@ -1583,6 +1583,15 @@ class Orbit:
         # which parameter unless the constraints are checked. Parameter keys which are not in the constraints dict
         # are assumed to be constrained. Pop from param_list if parameters 1. exist, 2. are unconstrained.
         # Not having enough parameters to pop means something is going wrong in your matvec/rmatvec functions typically.
+        plcp = param_list.copy()
+        for label in self.parameter_labels():
+            test = self.constraints.get(label, True)
+            if not test and param_list:
+                x = param_list.pop(0)
+                print(x)
+            else:
+                x = 0
+                print(x)
         parameters = tuple(
             param_list.pop(0)
             if (not self.constraints.get(each_label, True) and param_list)
