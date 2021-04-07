@@ -360,7 +360,7 @@ def hunt(orbit_instance, *methods, **kwargs):
 def _adjoint_descent(
     orbit_instance,
     tol=1e-6,
-    ftol=1e-9,
+    ftol=1e-6,
     maxiter=10000,
     min_step=1e-6,
     preconditioning=False,
@@ -414,7 +414,7 @@ def _adjoint_descent(
         if isinstance(min_step, list):
             min_step = min_step.pop(0)
         if isinstance(preconditioning, list):
-            kwargs["preconditioning"] = preconditioning.pop(0)
+            preconditioning = preconditioning.pop(0)
     except IndexError as ie:
         errstr = "".join(
             [
@@ -443,6 +443,7 @@ def _adjoint_descent(
         print("Initial cost : {}".format(orbit_instance.cost()))
         print("Target cost tolerance : {}".format(tol))
         print("Maximum iteration number : {}".format(maxiter))
+        print("Preconditioning : {}".format(preconditioning))
         print(
             "-------------------------------------------------------------------------------------------------"
         )
@@ -454,6 +455,7 @@ def _adjoint_descent(
     F = orbit_instance.eqn(**kwargs)
     cost = 0.5 * F.dot(F)
     step_size = 1
+    kwargs = {**kwargs, "preconditioning": preconditioning}
     while cost > tol and runtime_statistics["status"] == -1:
         # Calculate the step
         gradient = orbit_instance.costgrad(F, **kwargs)
@@ -502,7 +504,7 @@ def _adjoint_descent(
 def _gradient_descent(
     orbit_instance,
     tol=1e-6,
-    ftol=1e-9,
+    ftol=1e-6,
     maxiter=10000,
     min_step=1e-6,
     preconditioning=False,
@@ -589,6 +591,7 @@ def _gradient_descent(
         print("Initial cost : {}".format(orbit_instance.cost()))
         print("Target cost tolerance : {}".format(tol))
         print("Maximum iteration number : {}".format(maxiter))
+        print("Preconditioning : {}".format(preconditioning))
         print(
             "-------------------------------------------------------------------------------------------------"
         )
@@ -596,7 +599,7 @@ def _gradient_descent(
     # Simplest solution to exclusion of simple backtracking.
     if not kwargs.get("backtracking", True):
         min_step = 1
-
+    kwargs = {**kwargs, "preconditioning": preconditioning}
     cost = orbit_instance.cost(**kwargs)
     step_size = 1
     while cost > tol and runtime_statistics["status"] == -1:
@@ -641,7 +644,7 @@ def _gradient_descent(
 def _newton_descent(
     orbit_instance,
     tol=1e-6,
-    ftol=1e-9,
+    ftol=1e-6,
     maxiter=500,
     min_step=1e-6,
     preconditioning=False,
@@ -727,6 +730,7 @@ def _newton_descent(
         print("Initial cost : {}".format(orbit_instance.cost()))
         print("Target cost tolerance : {}".format(tol))
         print("Maximum iteration number : {}".format(maxiter))
+        print("Preconditioning : {}".format(preconditioning))
         print(
             "-------------------------------------------------------------------------------------------------"
         )
@@ -841,7 +845,7 @@ def _newton_descent(
 def _lstsq(
     orbit_instance,
     tol=1e-6,
-    ftol=1e-9,
+    ftol=1e-6,
     maxiter=500,
     min_step=1e-6,
     preconditioning=False,
@@ -927,6 +931,7 @@ def _lstsq(
         print("Initial cost : {}".format(orbit_instance.cost()))
         print("Target cost tolerance : {}".format(tol))
         print("Maximum iteration number : {}".format(maxiter))
+        print("Preconditioning : {}".format(preconditioning))
         print(
             "-------------------------------------------------------------------------------------------------"
         )
@@ -1009,7 +1014,7 @@ def _lstsq(
 def _solve(
     orbit_instance,
     tol=1e-6,
-    ftol=1e-9,
+    ftol=1e-6,
     maxiter=10000,
     min_step=1e-6,
     preconditioning=False,
@@ -1094,6 +1099,7 @@ def _solve(
         print("Initial cost : {}".format(orbit_instance.cost()))
         print("Target cost tolerance : {}".format(tol))
         print("Maximum iteration number : {}".format(maxiter))
+        print("Preconditioning : {}".format(preconditioning))
         print(
             "-------------------------------------------------------------------------------------------------"
         )
@@ -1178,7 +1184,7 @@ def _solve(
 def _scipy_sparse_linalg_solver_wrapper(
     orbit_instance,
     tol=1e-6,
-    ftol=1e-9,
+    ftol=1e-6,
     maxiter=10000,
     min_step=1e-6,
     method="lsmr",
@@ -1274,6 +1280,7 @@ def _scipy_sparse_linalg_solver_wrapper(
         print("Initial cost : {}".format(orbit_instance.cost()))
         print("Target cost tolerance : {}".format(tol))
         print("Maximum iteration number : {}".format(maxiter))
+        print("Preconditioning : {}".format(preconditioning))
         print(
             "-------------------------------------------------------------------------------------------------"
         )
@@ -1381,7 +1388,7 @@ def _scipy_sparse_linalg_solver_wrapper(
 def _scipy_optimize_minimize_wrapper(
     orbit_instance,
     tol=1e-6,
-    ftol=1e-9,
+    ftol=1e-6,
     maxiter=10,
     method="l-bfgs-b",
     preconditioning=False,
@@ -1516,7 +1523,7 @@ def _scipy_optimize_minimize_wrapper(
 def _scipy_optimize_root_wrapper(
     orbit_instance,
     tol=1e-6,
-    ftol=1e-9,
+    ftol=1e-6,
     maxiter=10,
     method="krylov",
     preconditioning=False,
@@ -1608,6 +1615,7 @@ def _scipy_optimize_root_wrapper(
             "-------------------------------------------------------------------------------------------------"
         )
         sys.stdout.flush()
+    kwargs = {**kwargs, "preconditioning": preconditioning}
     func_jac_factory = kwargs.get("factory", None) or _root_callable_factory
     while cost > tol and runtime_statistics["status"] == -1:
         # Use factory function to produce two callables required for SciPy routine. Need to be included under
@@ -2009,18 +2017,20 @@ def _exit_messages(orbit_instance, status, verbose=False):
     """
 
     if status == 0:
-        msg = f"\nMinimal backtracking step size requirements not met."
+        msg = " ".join([f"\nstep size did not meet minimum requirements defined by 'min_step',"
+                        f" terminating with cost {orbit_instance.cost()}."])
     elif status == 1:
-        msg = f"\nConverged. Terminating hunt with cost"
+        msg = f"\nsolution met cost function tolerance, terminating with cost {orbit_instance.cost()}."
     elif status == 2:
-        msg = f"\nMaximum number of iterations reached."
+        msg = f"\nmaximum number of iterations reached, terminating with cost {orbit_instance.cost()}."
     elif status == 3:
-        msg = f"\nInsufficient cost decrease."
+        msg = " ".join([f"\ninsufficient cost decrease, (new_cost - cost) / max([new_cost, cost, 1])<ftol",
+                        f"decrease ftol to proceed, terminating with cost {orbit_instance.cost()}"])
     else:
-        # A general catch all for custom/future status flag values; typically when multiple methods given.
-        msg = f"\nUnspecified exit message."
+        # A general catch all/placeholder for custom/future status flag values.
+        msg = f"\nunspecified exit message, terminating with cost {orbit_instance.cost()}."
     if verbose:
-        print(" ".join([msg, f" Terminating hunt with cost = {orbit_instance.cost()}"]))
+        print(msg)
         sys.stdout.flush()
     return msg
 
@@ -2105,7 +2115,7 @@ def _process_correction(
             if verbose:
                 if np.mod(runtime_statistics["nit"], 5000) == 0:
                     print(
-                        "\n Residual={:.7f} after {} adjoint descent steps. Parameters={}".format(
+                        "\n cost={:.7f} after {} adjoint descent steps. Parameters={}".format(
                             next_cost,
                             runtime_statistics["nit"],
                             orbit_instance.parameters,
@@ -2120,13 +2130,13 @@ def _process_correction(
         elif method == "newton_descent":
             if verbose and inner_nit is not None:
                 print(
-                    "Residual={} after {} inner loops, for a total Newton descent step with size {}".format(
+                    "cost={} after {} inner loops, for a total Newton descent step with size {}".format(
                         next_cost, inner_nit, step_size * inner_nit
                     )
                 )
             elif verbose and np.mod(runtime_statistics["nit"], 25) == 0:
                 print(
-                    "Residual={} after {} Newton descent steps ".format(
+                    "cost={} after {} Newton descent steps ".format(
                         next_cost, runtime_statistics["nit"]
                     )
                 )
@@ -2139,7 +2149,7 @@ def _process_correction(
             if verbose:
                 if np.mod(runtime_statistics["nit"], 25) == 0:
                     print(
-                        " Residual={:.7f} after {} calls to {}. Parameters={}".format(
+                        " cost={:.7f} after {} calls to {}. Parameters={}".format(
                             next_cost,
                             runtime_statistics["nit"],
                             method,

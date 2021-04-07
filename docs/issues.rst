@@ -3,9 +3,10 @@ Issues
 
 .. currentmodule:: orbithunter
 
-** Trust Region (second-order, Hessian based) Numerical Methods ** 
+** Constraints **
 
-Using the built-in finite difference strategies 
+The orbit_vector, from_numpy_array and constraints are not working as intended currently. This
+problem is still under investigation but it seems that constraining 't' is 
 
 
 **Slicing**
