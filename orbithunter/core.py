@@ -1094,7 +1094,7 @@ class Orbit:
         JTJ = self.rmatvec(self.matvec(other, **kwargs), **kwargs)
 
         # equal to (J^T J * v) + (F  * d^2F * v)
-        # (F * d^2F) has dimensions (orbit_vector.size, orbit_vector.size)
+        # (d^2F) has dimensions (self.eqn().size, self.cdof().size, self.cdof().size)
         return JTJ.increment(self.hessp(self.eqn(**kwargs), other, **kwargs))
 
     def resize(self, *new_discretization, **kwargs):
@@ -1417,11 +1417,12 @@ class Orbit:
         -----
         This method represents the matrix-vector product of the Jacobian matrix with an orbit vector of dimension
         self.size+len(self.parameters). Typically for these systems, the Jacobian has dimensions
-        [self.size, self.size + len(self.parameters)]. Because there are no associated components for the parameters
+        [self.size, self.size + len(self.parameters) - len(self.constants)]. Because there are no associated components for the parameters
         (i.e. the last elements of the orbit vector), it is often convenient to simply pass the current state's
         parameters to the new instance; this philosophy mimics the eqn() method. Because the general Orbit template
         doesn't have an associated equation, return an array of zeros for its state.
 
+        Assumed to be in 'spatiotemporal' basis. Equals J * dx
         """
         # Instance with all attributes except state and parameters
         return self.__class__(**{**vars(self), "state": np.zeros(self.shapes()[-1])})
@@ -1448,14 +1449,40 @@ class Orbit:
         [self.size + len(self.parameters), self.size]; this returns a vector of the same dimension as self.orbit_vector;
         i.e. this *does* produce components corresponding to the parameters.
 
+        Creation and usage of _rmatvec_parameters motivated by generalizability/readability of the code.
+
         """
+        params = self._rmatvec_parameters(other, **kwargs)
         return self.__class__(
             **{
                 **vars(self),
                 "state": np.zeros(self.shape),
-                "parameters": tuple([0] * len(self.parameter_labels())),
+                "parameters": params,
             }
         )
+
+    def _rmatvec_parameters(self, other):
+        """
+        Parameter values from product with partial derivatives
+
+        Parameters
+        ----------
+        self_field : OrbitKS
+            The orbit in the field basis; this cuts down on redundant transforms.
+        other : OrbitKS
+            The adjoint/co-state variable Orbit instance.
+
+        Returns
+        -------
+        parameters : tuple
+            Set of parameters resulting from the last rows of the product with adjoint Jacobian.
+
+        Notes
+        -----
+        Would generally have elements equal to dot product F * dF/dP; i.e. other=F. This method isn't required but
+        I personally found it cleaner to do the parameter components separately then return them in rmatvec method.
+        """
+        return tuple(0. if not constr else 0. for p, constr in zip(self.parameters, self.constraints.values()))
 
     def hess(self, **kwargs):
         """
@@ -1478,8 +1505,9 @@ class Orbit:
         has N degrees of freedom but F only has d dimensions.
 
         """
+        cdof = self.cdof().size
         return np.zeros(
-            [self.eqn().size, self.orbit_vector().size, self.orbit_vector().size]
+            [self.eqn().size, cdof, cdof]
         )
 
     def hessp(self, left_other, right_other, **kwargs):
@@ -1505,18 +1533,52 @@ class Orbit:
         -----
         Requires an equation to define, just like rmatvec and matvec; return zeros because no equation here.
         Tensor multiplication can be written u * d^2 F * v, dimensions of each component are: u=(N,)
-        d^2F = (N, N+d, N+d), v = (N+d, 1); therefore it returns a vector of dimension (N+d, 1)
-        this orbit_vector is then returned as an Orbit instance.
+        d^2F = (N, N+d-c, N+d-c), v = (N+d-c, 1); therefore it returns a vector of dimension (N+d-c, 1)
+        this orbit_vector is then returned as an Orbit instance. N=number of state variables, p=parameters, c=constants
 
         """
         u = left_other.state.ravel()
-        v = right_other.orbit_vector()
+        v = right_other.cdof()
         # This makes it look simple but the expression np.zeros(u.size) is acting as a placeholder.
         return self.from_numpy_array(np.tensordot(u, np.zeros(u.size), axes=1).dot(v))
 
+    def cdof(self):
+        """
+        Computational degrees of freedom; equivalent to orbit_vector sans constant parameters.
+
+        Returns
+        -------
+        ndarray :
+            Vector with the current state with parameters appended, returned as a (self.size + n_params - n_constants, 1)
+            axis of dimension 1 for scipy purposes.
+
+        Notes
+        -----
+        Instead of having to decide whether or not to pass parameters or subset thereof, this method simply acts as
+        a wrapper for applying constraints to the current parameters.
+
+        """
+        # By raveling and concatenating ensure that the array is 1-d for the second concatenation; i.e. flatten first.
+        parameter_array = np.concatenate(
+            tuple(np.array(p).ravel() for p, const in zip(self.parameters, self.constraints.values()) if not const)
+        )
+        return np.concatenate((self.state.ravel(), parameter_array), axis=0).reshape(-1, 1)
+
+    def constants(self):
+        """
+        Constant parameters; convenience function for optimization methods.
+
+        Returns
+        -------
+        tuple :
+            Parameters that are either always constant or have been constrained but still required for optimization.
+
+        """
+        return tuple(p for p, const in zip(self.parameters, self.constraints.values()) if const)
+
     def orbit_vector(self):
         """
-        Vector representation of Orbit instance.
+        Vector representation of Orbit instance; constants all variables required to define the Orbit instance.
 
         Returns
         -------
@@ -1533,13 +1595,13 @@ class Orbit:
         """
         # By raveling and concatenating ensure that the array is 1-d for the second concatenation; i.e. flatten first.
         parameter_array = np.concatenate(
-            tuple(np.array(p).ravel() for p in self.parameters)
+            tuple(np.array(p).ravel() for p, const in zip(self.parameters, self.constraints.values()) if not const)
         )
         return np.concatenate((self.state.ravel(), parameter_array), axis=0).reshape(
             -1, 1
         )
 
-    def from_numpy_array(self, orbit_vector, **kwargs):
+    def from_numpy_array(self, cdof, *args, **kwargs):
         """
         Utility to convert from numpy array (orbit_vector) to Orbit instance for scipy wrappers.
 
@@ -1567,41 +1629,32 @@ class Orbit:
         as simple as merely slicing the parameters from the array, as the order of the elements is determined by
         the constraints. If non-scalar parameters are used, user will need to overwrite the Orbit.from_numpy_array() method.
 
+        In order to completely specific the equations in the presence of constraints it is necessary to
+
         .. warning::
            If equation has components for any parameters:
            However, if the equations of motion have components for the parameters; this will in correctly overwrite
            the components stored in parameters and this will need an overwrite.
 
         """
-        # orbit_vector is defined to be concatenation of state and parameters;
-        # slice out the parameters; cast as list to gain access to pop
-        param_list = list(
-            kwargs.pop("passed_parameters", orbit_vector.ravel()[self.size :])
-        )
-
+        # The parameters and possible constants are expected to be ordered
+        parameters_list = list(cdof.ravel()[self.size:])
+        constants_list = list(args)
         # The issue with parsing the parameters is that we do not know which list element corresponds to
         # which parameter unless the constraints are checked. Parameter keys which are not in the constraints dict
         # are assumed to be constrained. Pop from param_list if parameters 1. exist, 2. are unconstrained.
         # Not having enough parameters to pop means something is going wrong in your matvec/rmatvec functions typically.
-        plcp = param_list.copy()
-        for label in self.parameter_labels():
-            test = self.constraints.get(label, True)
-            if not test and param_list:
-                x = param_list.pop(0)
-                print(x)
-            else:
-                x = 0
-                print(x)
         parameters = tuple(
-            param_list.pop(0)
-            if (not self.constraints.get(each_label, True) and param_list)
+            parameters_list.pop(0)
+            if (not self.constraints.get(each_label, True) and len(parameters_list) > 0)
+            else constants_list.pop(0) if len(constants_list) > 0.
             else 0.0
             for each_label in self.parameter_labels()
         )
         return self.__class__(
             **{
                 **vars(self),
-                "state": np.reshape(orbit_vector.ravel()[: self.size], self.shape),
+                "state": np.reshape(cdof.ravel()[: self.size], self.shape),
                 "parameters": parameters,
                 **kwargs,
             }
@@ -1656,7 +1709,7 @@ class Orbit:
             2-d numpy array equalling the Jacobian matrix of the governing equations evaluated at current state.
 
         """
-        return np.zeros([self.size, self.orbit_vector().size])
+        return np.zeros([self.size, self.cdof().size])
 
     def norm(self, order=None):
         """

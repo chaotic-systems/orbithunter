@@ -206,25 +206,25 @@ class OrbitKS(Orbit):
         """
         return "t", "x"
 
-    def orbit_vector(self):
-        """
-        Vector which completely specifies the orbit, contains state information and parameters.
-
-        Returns
-        -------
-        np.ndarray :
-            Column vector array comprised of all (valid) state variables (self.state and self.parameters). Shift 's'
-            is never valid for this class and hence not included.
-
-        """
-        return np.concatenate(
-            (
-                self.state.reshape(-1, 1),
-                np.array([[float(self.t)]]),
-                np.array([[float(self.x)]]),
-            ),
-            axis=0,
-        )
+    # def orbit_vector(self):
+    #     """
+    #     Vector which completely specifies the orbit, contains state information and parameters.
+    #
+    #     Returns
+    #     -------
+    #     np.ndarray :
+    #         Column vector array comprised of all (valid) state variables (self.state and self.parameters). Shift 's'
+    #         is never valid for this class and hence not included.
+    #
+    #     """
+    #     return np.concatenate(
+    #         (
+    #             self.state.reshape(-1, 1),
+    #             np.array([[float(self.t)]]),
+    #             np.array([[float(self.x)]]),
+    #         ),
+    #         axis=0,
+    #     )
 
     def transform(self, to=None, array=False, inplace=False):
         """
@@ -1654,7 +1654,7 @@ class OrbitKS(Orbit):
         Defaults for whether or not parameters are constrained. parameter labels are forced to be constant.
 
         """
-        return {"t": False, "x": False}
+        return {"t": False, "x": False, "s": True}
 
     def _populate_state(self, **kwargs):
         """
@@ -2753,20 +2753,20 @@ class RelativeOrbitKS(OrbitKS):
         )
         return rotated_orbit.transform(to=self.basis)
 
-    def orbit_vector(self):
-        """
-        Vector which completely describes the orbit.
-
-        """
-        return np.concatenate(
-            (
-                self.state.reshape(-1, 1),
-                np.array([[float(self.t)]]),
-                np.array([[float(self.x)]]),
-                np.array([[float(self.s)]]),
-            ),
-            axis=0,
-        )
+    # def orbit_vector(self):
+    #     """
+    #     Vector which completely describes the orbit.
+    #
+    #     """
+    #     return np.concatenate(
+    #         (
+    #             self.state.reshape(-1, 1),
+    #             np.array([[float(self.t)]]),
+    #             np.array([[float(self.x)]]),
+    #             np.array([[float(self.s)]]),
+    #         ),
+    #         axis=0,
+    #     )
 
     def populate(self, attr="all", **kwargs):
         """
@@ -4104,14 +4104,14 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         J = self._jacobian_parameter_derivatives_concat(J)
         return J
 
-    def orbit_vector(self):
-        """
-        Overwrite of parent method
-
-        """
-        return np.concatenate(
-            (self.state.reshape(-1, 1), np.array([[float(self.x)]])), axis=0
-        )
+    # def orbit_vector(self):
+    #     """
+    #     Overwrite of parent method
+    #
+    #     """
+    #     return np.concatenate(
+    #         (self.state.reshape(-1, 1), np.array([[float(self.x)]])), axis=0
+    #     )
 
     def shapes(self):
         """
@@ -4236,7 +4236,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         return n, m
 
     def _default_constraints(self):
-        return {"x": False}
+        return {"t": True, "x": False, "s": True}
 
     def _eqn_linear_component(self, array=False):
         """

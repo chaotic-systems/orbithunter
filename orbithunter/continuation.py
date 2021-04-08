@@ -60,7 +60,7 @@ def continuation(
     orbit_instance, constraint_item, *extra_constraints, step_size=0.01, **kwargs
 ):
     """
-    Numerical continuation with respect to a single or multiple parameters.
+    Numerical continuation parameterized by a single parameter but supporting any number of constraints.
 
     Parameters
     ----------
@@ -73,13 +73,17 @@ def continuation(
         changed or incremented.
     step_size : float
         The value to use as a continuation increment. E.g. if step_size = 0.1, the continuation will try to converge
-        Orbits at p + 0.1, p + 0.2, ... (if target < p then these would be substractions).
+        Orbits at p + 0.1, p + 0.2, ... (if target < p then these would be substractions). For most field equations
+        the continuation represents continuous deformations and so this should be reflected in this step size; not all
+        dimensions are equal; for example, the KSE is more lenient to changes in time 't' rather than space 'x' because
+        it is a first order equation in 't' and fourth order in 'x'.
 
     Returns
     -------
     OrbitResult :
         Optimization result with orbit resulting from continuation; if continuation failed (solution did not converge)
-        then the parameter value may be different from the target.
+        then the parameter value may be different from the target; this failure or success will be indicated
+        in the 'status' attribute of the result.
 
     """
     if isinstance(constraint_item, type({}.items())):

@@ -36,6 +36,12 @@ Major Changes
 -  Shadowing, cover, fill have been rewritten to provide better performance/more consistent results based on window sizes. Now only
    computes scores at pivots valid for ALL window orbits. Previously pivots at the boundaries were taking only subsets of the windows
    due to whether the windows "fit" or not. 
+-  New handling of constraints and constants for SciPy; orbit_vector has been split into cdof and constants in order to avoid inclusion
+   in the definition of the methods which use LinearOperator objects. Previously, they were included but corrections were constrained
+   to be zero. Additionally, the usage of constraints was not handled properly by the definition of :meth:`~Orbit.from_numpy_array`,
+   as it was not accessing the correct values if constrained parameters appeared unconstrained parameters, relative to the order of
+   parameter labels returned by :meth:`~Orbit.parameter_labels`
+
 
 Minor Changes
 -------------
@@ -48,7 +54,9 @@ Minor Changes
 -  Added more generalized gradient descent; adjoint descent is now simply gradient descent with optimizations relevant to cost function $1/2 F^2$
 -  Now can pass separate scipy keyword arguments for multiple methods via the `method_kwargs` keyword argument. Single dicts can still be
    passed to `scipy_kwargs` keyword argument. 
--  The function `fill` now uses the relative difference between threshold and score to determine which orbit performed the best. 
+-  The function `fill` now uses the relative difference between threshold and score to determine which orbit performed the best.
+-  Added the ability to return the coordinates of pivots that produced windows that were out of bounds; should only be non-empty for
+   when coordinate mapping functions are provided.  
 
 Bug and Error Fixes
 -------------------

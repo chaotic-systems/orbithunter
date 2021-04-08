@@ -193,6 +193,11 @@ def hunt(orbit_instance, *methods, **kwargs):
 
     Factory function should return (A, b) where A is Linear operator or matrix and b is vector.
 
+    Other factoids worth mentioning, the design choice has been made for function/callable factories
+    that they should build in constants into their definitions of the callables using nonlocals within the scope
+    of the factory instead of passing constants as args. The reason for this is because the latter is not allowed
+    for LinearOperator (sparse linalg) methods.
+
     References
     ----------
     User should be aware of the existence of :func:`scipy.optimize.show_options()`
@@ -779,7 +784,7 @@ def _newton_descent(
         # get the solution to Px = x'
         if preconditioning and M is not None:
             dx = M.matvec(dx)
-        dx = orbit_instance.from_numpy_array(dx)
+        dx = orbit_instance.from_numpy_array(dx, *orbit_instance.constants())
         next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
         next_mapping = next_orbit_instance.eqn(**kwargs)
         next_cost = next_mapping.cost(eqn=False)
@@ -795,7 +800,7 @@ def _newton_descent(
             if kwargs.get("approximation", False):
                 # Re-use the same pseudoinverse for many inexact solutions to dx_n = - A^+(x) F(x + dx_{n-1})
                 b = -1 * next_mapping.state.ravel()
-                dx = orbit_instance.from_numpy_array(np.dot(inv_A, b))
+                dx = orbit_instance.from_numpy_array(np.dot(inv_A, b), *orbit_instance.constants())
                 if preconditioning and M is not None:
                     dx = M.matvec(dx)
                 inner_orbit = next_orbit_instance.increment(dx, step_size=step_size)
@@ -806,7 +811,7 @@ def _newton_descent(
                     next_mapping = inner_mapping
                     next_cost = inner_cost
                     b = -1 * next_mapping.state.ravel()
-                    dx = orbit_instance.from_numpy_array(np.dot(inv_A, b))
+                    dx = orbit_instance.from_numpy_array(np.dot(inv_A, b), *orbit_instance.constants())
                     inner_orbit = next_orbit_instance.increment(dx, step_size=step_size)
                     inner_mapping = inner_orbit.eqn(**kwargs)
                     inner_cost = inner_mapping.cost(eqn=False)
@@ -977,7 +982,7 @@ def _lstsq(
         dx = lstsq(A, b)[0]
         if preconditioning and M is not None:
             dx = M.matvec(dx)
-        dx = orbit_instance.from_numpy_array(dx, **kwargs)
+        dx = orbit_instance.from_numpy_array(dx, *orbit_instance.constants(), **kwargs)
         next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
         next_mapping = next_orbit_instance.eqn(**kwargs)
         next_cost = next_mapping.cost(eqn=False)
@@ -1147,7 +1152,7 @@ def _solve(
         dx = solve(A, b)[0]
         if preconditioning and M is not None:
             dx = M.matvec(dx)
-        dx = orbit_instance.from_numpy_array(dx, **kwargs)
+        dx = orbit_instance.from_numpy_array(dx, orbit_instance.constants, **kwargs)
         next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
         next_mapping = next_orbit_instance.eqn(**kwargs)
         next_cost = next_mapping.cost(eqn=False)
@@ -1351,7 +1356,7 @@ def _scipy_sparse_linalg_solver_wrapper(
         else:
             x = result_tuple[0]
 
-        dx = orbit_instance.from_numpy_array(x, **kwargs)
+        dx = orbit_instance.from_numpy_array(x, *orbit_instance.constants(), **kwargs)
         next_orbit_instance = orbit_instance.increment(dx)
         next_mapping = next_orbit_instance.eqn(**kwargs)
         next_cost = next_mapping.cost(eqn=False)
@@ -1485,9 +1490,8 @@ def _scipy_optimize_minimize_wrapper(
             orbit_instance, method, **{**kwargs, "preconditioning": preconditioning}
         )
         result = minimize(
-            minfunc,
-            orbit_instance.orbit_vector().ravel(),
-            **{**scipy_kwargs, "method": method, **jac_and_hess_options},
+            minfunc, orbit_instance.cdof().ravel(),
+            **{**scipy_kwargs, "method": method, **jac_and_hess_options}
         )
 
         if kwargs.get("progressive", False):
@@ -1495,7 +1499,7 @@ def _scipy_optimize_minimize_wrapper(
             # by a sufficient amount due to vanishing gradients.
             scipy_kwargs["tol"] /= 2.0
 
-        next_orbit_instance = orbit_instance.from_numpy_array(result.x)
+        next_orbit_instance = orbit_instance.from_numpy_array(result.x, *orbit_instance.constants())
         next_cost = next_orbit_instance.cost()
         # If the trigger that broke the while loop was step_size then assume next_cost < cost was not met.
         orbit_instance, cost, runtime_statistics = _process_correction(
@@ -1630,8 +1634,8 @@ def _scipy_optimize_root_wrapper(
             **jac_and_jac_options,
         }
         # Returns an OptimizeResult, .x attribute is where array is stored.
-        result = root(_rootfunc, orbit_instance.orbit_vector().ravel(), **scipy_kwargs)
-        next_orbit_instance = orbit_instance.from_numpy_array(result.x)
+        result = root(_rootfunc, orbit_instance.cdof().ravel(), **scipy_kwargs)
+        next_orbit_instance = orbit_instance.from_numpy_array(result.x, *orbit_instance.constants())
         next_cost = next_orbit_instance.cost()
         # If the trigger that broke the while loop was step_size then assume next_cost < cost was not met.
         orbit_instance, cost, runtime_statistics = _process_correction(
@@ -1683,7 +1687,7 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
     """
     # Because this function is only called once per outer iteration this incurs minimal cost unless
     # eqn is very expensive to evaluate; however, in that case, the sparse linalg algorithms would be a very poor choice
-
+    degrees_of_freedom = orbit_instance.cdof().size
     # If least squares routine, need LinearOperator representing Jacobian
     if method in ["lsqr", "lsmr"]:
 
@@ -1691,7 +1695,7 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
             # matvec needs state and parameters from v.
             nonlocal orbit_instance
             nonlocal kwargs
-            v_orbit = orbit_instance.from_numpy_array(v)
+            v_orbit = orbit_instance.from_numpy_array(v, *orbit_instance.constants())
             return orbit_instance.matvec(v_orbit, **kwargs).state.reshape(-1, 1)
 
         def rmatvec_func(v):
@@ -1699,14 +1703,14 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
             nonlocal orbit_instance
             nonlocal kwargs
             # The rmatvec typically requires state information from v and parameters from current instance.
-            v_orbit = orbit_instance.from_numpy_array(v)
+            v_orbit = orbit_instance.from_numpy_array(v, *orbit_instance.constants())
             return (
-                orbit_instance.rmatvec(v_orbit, **kwargs).orbit_vector().reshape(-1, 1)
+                orbit_instance.rmatvec(v_orbit, **kwargs).cdof().reshape(-1, 1)
             )
 
         linear_operator_shape = (
             orbit_instance.state.size,
-            orbit_instance.orbit_vector().size,
+            degrees_of_freedom,
         )
         A = LinearOperator(
             linear_operator_shape,
@@ -1716,7 +1720,7 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
         )
         b = -1.0 * orbit_instance.eqn(**kwargs).state.reshape(-1, 1)
         return A, b
-    elif orbit_instance.orbit_vector().size != orbit_instance.eqn().size:
+    elif degrees_of_freedom != orbit_instance.eqn().size:
         # Solving `normal equations, A^T A x = A^T b. A^T A is its own transpose hence matvec_func=rmatvec_func
         # in this instance. The matrix is evaluated at the current orbit state; i.e. it is constant with
         # respect to the optimization routines.
@@ -1725,7 +1729,7 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
             nonlocal kwargs
             # matvec needs parameters and orbit info from v; evaluation of matvec should take instance
             # parameters from orbit_instance; is this reasonable to expect to work.
-            v_orbit = orbit_instance.from_numpy_array(v)
+            v_orbit = orbit_instance.from_numpy_array(v, *orbit_instance.constants())
             return (
                 orbit_instance.rmatvec(
                     orbit_instance.matvec(v_orbit, **kwargs), **kwargs
@@ -1735,50 +1739,49 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
             )
 
         # Currently only allows solving of the normal equations. A^T A x = A^T b, b = -F
-        linear_operator_shape = (
-            orbit_instance.orbit_vector().size,
-            orbit_instance.orbit_vector().size,
+        normal_equations_operator_shape = (
+            degrees_of_freedom,
+            degrees_of_freedom,
         )
         # Your IDE might tell you the following has "unexpected arguments" but that's only because the signature
         # of LinearOperator does not match the signature of the _CustomLinearOperator class that it actually
         # calls when user provides callables and not a 2-d array.
         ATA = LinearOperator(
-            linear_operator_shape,
-            matvec_,
+            normal_equations_operator_shape,
+            matvec=matvec_,
             rmatvec=matvec_,
             dtype=orbit_instance.state.dtype,
         )
         ATb = (
             orbit_instance.rmatvec(-1.0 * orbit_instance.eqn(**kwargs), **kwargs)
-            .orbit_vector()
+            .cdof()
             .reshape(-1, 1)
         )
         return ATA, ATb
     else:
         # If square system of equations, then likely solving Ax = b, not the normal equations; matvec and
-        # rmatvec are separate then.
+        # rmatvec are allowed to be distinct.
         def matvec_(v):
             # _orbit_vector_to_orbit turns state vector into class object.
             nonlocal orbit_instance
             nonlocal kwargs
-            v_orbit = orbit_instance.from_numpy_array(v)
+            v_orbit = orbit_instance.from_numpy_array(v, *orbit_instance.constants())
             return (
-                orbit_instance.matvec(v_orbit, **kwargs).orbit_vector().reshape(-1, 1)
+                orbit_instance.matvec(v_orbit, **kwargs).cdof().reshape(-1, 1)
             )
 
         def rmatvec_(v):
             # _orbit_vector_to_orbit turns state vector into class object.
             nonlocal orbit_instance
             nonlocal kwargs
-            v_orbit = orbit_instance.from_numpy_array(v)
+            v_orbit = orbit_instance.from_numpy_array(v, *orbit_instance.constants())
             return (
-                orbit_instance.rmatvec(v_orbit, **kwargs).orbit_vector().reshape(-1, 1)
+                orbit_instance.rmatvec(v_orbit, **kwargs).cdof().reshape(-1, 1)
             )
 
-        # Currently only allows solving of the normal equations. A^T A x = A^T b
         linear_operator_shape = (
-            orbit_instance.orbit_vector().size,
-            orbit_instance.orbit_vector().size,
+            degrees_of_freedom,
+            degrees_of_freedom,
         )
         # Your IDE might tell you the following has "unexpected arguments" but that's only because the signature
         # of LinearOperator does not match the signature of the _CustomLinearOperator class that it actually
@@ -1789,7 +1792,7 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
             rmatvec=rmatvec_,
             dtype=orbit_instance.state.dtype,
         )
-        b = -1.0 * orbit_instance.eqn(**kwargs).orbit_vector().reshape(-1, 1)
+        b = -1.0 * orbit_instance.eqn(**kwargs).cdof().reshape(-1, 1)
         return A, b
 
 
@@ -1839,14 +1842,13 @@ def _minimize_callable_factory(orbit_instance, method, **kwargs):
         """
         nonlocal orbit_instance
         nonlocal kwargs
-        x_orbit = orbit_instance.from_numpy_array(x, **kwargs)
+        x_orbit = orbit_instance.from_numpy_array(x, *orbit_instance.constants(), **kwargs)
         return x_orbit.cost()
 
     # Jacobian defaults to costgrad method, but could be provided as either a string for finite difference approximation
     # or other options.
     if method not in ["nelder-mead", "powell", "cobyla"]:
         if jac_strategy == "costgrad":
-
             def _minjac(x):
                 """
                 The jacobian of the cost function (scalar) can be expressed as a matrix-vector product
@@ -1868,10 +1870,9 @@ def _minimize_callable_factory(orbit_instance, method, **kwargs):
                 """
                 nonlocal orbit_instance
                 nonlocal kwargs
-                x_orbit = orbit_instance.from_numpy_array(x)
+                x_orbit = orbit_instance.from_numpy_array(x, *orbit_instance.constants(), **kwargs)
                 # For cases when costgrad does not require eqn
-                return x_orbit.costgrad(**kwargs).orbit_vector().ravel()
-
+                return x_orbit.costgrad(**kwargs).cdof().ravel()
             jac_ = _minjac
         else:
             jac_ = jac_strategy
@@ -1886,9 +1887,9 @@ def _minimize_callable_factory(orbit_instance, method, **kwargs):
                 """
                 nonlocal orbit_instance
                 nonlocal kwargs
-                x_orbit = orbit_instance.from_numpy_array(x)
+                x_orbit = orbit_instance.from_numpy_array(x, *orbit_instance.constants())
                 p_orbit = orbit_instance.from_numpy_array(p)
-                return x_orbit.costhessp(p_orbit, **kwargs).orbit_vector().ravel()
+                return x_orbit.costhessp(p_orbit, **kwargs).cdof().ravel()
 
             hess_dict = {"hessp": _minhessp}
 
@@ -1901,7 +1902,7 @@ def _minimize_callable_factory(orbit_instance, method, **kwargs):
                 """
                 nonlocal orbit_instance
                 nonlocal kwargs
-                x_orbit = orbit_instance.from_numpy_array(x)
+                x_orbit = orbit_instance.from_numpy_array(x, *orbit_instance.constants())
                 return x_orbit.costhess(**kwargs)
 
             hess_dict = {"hess": _minhessfunc}
@@ -1952,7 +1953,7 @@ def _root_callable_factory(orbit_instance, method, **kwargs):
         """
         nonlocal orbit_instance
         nonlocal kwargs
-        x_orbit = orbit_instance.from_numpy_array(x, **kwargs)
+        x_orbit = orbit_instance.from_numpy_array(x, *orbit_instance.constants(), **kwargs)
         xvec = x_orbit.eqn(**kwargs).state.ravel()
         # Need components for the parameters, but typically they will not have an associated component in the equation;
         # however, I do not think it should be by default.
@@ -1981,7 +1982,7 @@ def _root_callable_factory(orbit_instance, method, **kwargs):
                 """
                 nonlocal orbit_instance
                 nonlocal kwargs
-                x_orbit = orbit_instance.from_numpy_array(x)
+                x_orbit = orbit_instance.from_numpy_array(x, *orbit_instance.constants())
                 # gradient does not have the same problem that the equation
                 J = x_orbit.jacobian(**kwargs)
                 if J.shape[1] - J.shape[0] > 0.0:
