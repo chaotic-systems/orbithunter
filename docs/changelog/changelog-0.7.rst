@@ -40,14 +40,15 @@ Major Changes
    in the definition of the methods which use LinearOperator objects. Previously, they were included but corrections were constrained
    to be zero. Additionally, the usage of constraints was not handled properly by the definition of :meth:`~Orbit.from_numpy_array`,
    as it was not accessing the correct values if constrained parameters appeared unconstrained parameters, relative to the order of
-   parameter labels returned by :meth:`~Orbit.parameter_labels`
+   parameter labels returned by :meth:`~Orbit.parameter_labels`. Optimization performed surprisingly well when all parameters were
+   constrained, actually; may be worth describing alongside preconditioning. 
 
 
 Minor Changes
 -------------
 
 -  KSE Jacobians are now produced much more efficiently; uglier and very confusing code to do this, however, as OrbitKS operations
-   are being 'hacked' to apply to rank 3 tensors. 
+   are being used very creatively to apply to a 3-d array even though they are only meant for 2-d arrays. 
 -  Inplace computation of differentiation and FFTs now implemented for KSe. Uglier code but makes certain calculations more efficient. 
 -  np.reshape calls replaced with usage of None/np.newaxis where possible; as it is typically faster.
 -  Spatial rotations were not working because the frequencies were being unduely raveled. 

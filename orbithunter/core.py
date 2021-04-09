@@ -1559,10 +1559,13 @@ class Orbit:
 
         """
         # By raveling and concatenating ensure that the array is 1-d for the second concatenation; i.e. flatten first.
-        parameter_array = np.concatenate(
-            tuple(np.array(p).ravel() for p, const in zip(self.parameters, self.constraints.values()) if not const)
-        )
-        return np.concatenate((self.state.ravel(), parameter_array), axis=0).reshape(-1, 1)
+        parameters = self.parameters
+        if parameters:
+            variables = tuple(p.ravel() if isinstance(p, np.ndarray) else p for p, const
+                              in zip(parameters, self.constraints.values()) if not const)
+        else:
+            variables = ()
+        return np.concatenate((self.state.ravel(), variables), axis=0).reshape(-1, 1)
 
     def constants(self):
         """
@@ -1574,7 +1577,13 @@ class Orbit:
             Parameters that are either always constant or have been constrained but still required for optimization.
 
         """
-        return tuple(p for p, const in zip(self.parameters, self.constraints.values()) if const)
+        parameters = self.parameters
+        if parameters:
+            constants = tuple(p.ravel() if isinstance(p, np.ndarray) else p for p, const
+                              in zip(parameters, self.constraints.values()) if const)
+        else:
+            constants = ()
+        return constants
 
     def orbit_vector(self):
         """
@@ -1594,10 +1603,14 @@ class Orbit:
 
         """
         # By raveling and concatenating ensure that the array is 1-d for the second concatenation; i.e. flatten first.
-        parameter_array = np.concatenate(
-            tuple(np.array(p).ravel() for p, const in zip(self.parameters, self.constraints.values()) if not const)
-        )
-        return np.concatenate((self.state.ravel(), parameter_array), axis=0).reshape(
+
+        parameters = self.parameters
+        if parameters:
+            variables = tuple(p.ravel() if isinstance(p, np.ndarray) else p for p in
+                              self.parameters)
+        else:
+            variables = ()
+        return np.concatenate((self.state.ravel(), variables), axis=0).reshape(
             -1, 1
         )
 
@@ -1607,7 +1620,7 @@ class Orbit:
 
         Parameters
         ----------
-        orbit_vector : ndarray
+        cdof : ndarray
             Vector with (spatiotemporal basis) state values and parameters.
 
         kwargs :
@@ -2125,7 +2138,7 @@ class Orbit:
         """
         return {k: False for k in self.parameter_labels()}
 
-    def _pad(self, size, axis=0):
+    def _pad(self, size, axis=0, mode='constant', **kwargs):
         """
         Increase the size of the discretization along an axis.
 
@@ -2178,7 +2191,7 @@ class Orbit:
         return self.__class__(
             **{
                 **vars(self),
-                "state": np.pad(self.state, padding_tuple),
+                "state": np.pad(self.state, padding_tuple, mode=mode, **kwargs),
                 "discretization": newdisc,
             }
         ).transform(to=self.basis)

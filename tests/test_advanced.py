@@ -105,22 +105,23 @@ def test_hunt_Orbit_subclass():
     return None
 
 
-class TestOrbitEQN(orb.Orbit):
+class TestOrbit(orb.Orbit):
 
     def eqn(self):
-        return np.sum(self.state**2 - np.arange(self.state.size))
-
-    def rmatvec(self, other, **kwargs):
-        ...
+        # Solve x^2 - n = 0 for n in [0, dim-1]e
+        return self.state**2 - np.arange(self.state.size)
 
     def matvec(self, other, **kwargs):
-        ...
+        return 2 * other
+
+    def rmatvec(self, other, **kwargs):
+        return 2 * other
 
     def jacobian(self, **kwargs):
-        ...
+        return 2*np.diag(self.state.ravel())
 
     def hess(self, **kwargs):
-        ...
+        return 2 * np.tile(np.eye(self.size), (self.eqn().size, 1, 1))
 
     def hessp(self, left_other, right_other, **kwargs):
-        ...
+        return left_other.state

@@ -784,7 +784,7 @@ def _newton_descent(
         # get the solution to Px = x'
         if preconditioning and M is not None:
             dx = M.matvec(dx)
-        dx = orbit_instance.from_numpy_array(dx, *orbit_instance.constants())
+        dx = orbit_instance.from_numpy_array(dx)
         next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
         next_mapping = next_orbit_instance.eqn(**kwargs)
         next_cost = next_mapping.cost(eqn=False)
@@ -800,7 +800,7 @@ def _newton_descent(
             if kwargs.get("approximation", False):
                 # Re-use the same pseudoinverse for many inexact solutions to dx_n = - A^+(x) F(x + dx_{n-1})
                 b = -1 * next_mapping.state.ravel()
-                dx = orbit_instance.from_numpy_array(np.dot(inv_A, b), *orbit_instance.constants())
+                dx = orbit_instance.from_numpy_array(np.dot(inv_A, b))
                 if preconditioning and M is not None:
                     dx = M.matvec(dx)
                 inner_orbit = next_orbit_instance.increment(dx, step_size=step_size)
@@ -811,7 +811,7 @@ def _newton_descent(
                     next_mapping = inner_mapping
                     next_cost = inner_cost
                     b = -1 * next_mapping.state.ravel()
-                    dx = orbit_instance.from_numpy_array(np.dot(inv_A, b), *orbit_instance.constants())
+                    dx = orbit_instance.from_numpy_array(np.dot(inv_A, b))
                     inner_orbit = next_orbit_instance.increment(dx, step_size=step_size)
                     inner_mapping = inner_orbit.eqn(**kwargs)
                     inner_cost = inner_mapping.cost(eqn=False)
@@ -982,7 +982,7 @@ def _lstsq(
         dx = lstsq(A, b)[0]
         if preconditioning and M is not None:
             dx = M.matvec(dx)
-        dx = orbit_instance.from_numpy_array(dx, *orbit_instance.constants(), **kwargs)
+        dx = orbit_instance.from_numpy_array(dx, **kwargs)
         next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
         next_mapping = next_orbit_instance.eqn(**kwargs)
         next_cost = next_mapping.cost(eqn=False)
@@ -1098,7 +1098,7 @@ def _solve(
         print(
             "\n-------------------------------------------------------------------------------------------------"
         )
-        print("Starting lstsq optimization")
+        print("Starting solve optimization")
         print("Initial guess : {}".format(repr(orbit_instance)))
         print("Constraints : {}".format(orbit_instance.constraints))
         print("Initial cost : {}".format(orbit_instance.cost()))
@@ -1124,7 +1124,7 @@ def _solve(
 
         if preconditioning:
             if callable(preconditioner_factory):
-                M = preconditioner_factory(orbit_instance, "lstsq", **kwargs)
+                M = preconditioner_factory(orbit_instance, "solve", **kwargs)
             elif hasattr(orbit_instance, "preconditioner"):
                 M = orbit_instance.preconditioner(**kwargs)
             else:
@@ -1149,10 +1149,10 @@ def _solve(
             # Right preconditioning by using transpose. A*M = (M^T A^T)^T (only have left hand multiplication for M, MT)
             A = (M.rmatmat(A.T)).T
 
-        dx = solve(A, b)[0]
+        dx = solve(A, b)
         if preconditioning and M is not None:
             dx = M.matvec(dx)
-        dx = orbit_instance.from_numpy_array(dx, orbit_instance.constants, **kwargs)
+        dx = orbit_instance.from_numpy_array(dx, **kwargs)
         next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
         next_mapping = next_orbit_instance.eqn(**kwargs)
         next_cost = next_mapping.cost(eqn=False)
@@ -1174,7 +1174,7 @@ def _solve(
                 min_step,
                 cost,
                 next_cost,
-                "lstsq",
+                "solve",
                 cost_logging=kwargs.get("cost_logging", False),
                 verbose=kwargs.get("verbose", False),
             )
@@ -1356,7 +1356,7 @@ def _scipy_sparse_linalg_solver_wrapper(
         else:
             x = result_tuple[0]
 
-        dx = orbit_instance.from_numpy_array(x, *orbit_instance.constants(), **kwargs)
+        dx = orbit_instance.from_numpy_array(x, **kwargs)
         next_orbit_instance = orbit_instance.increment(dx)
         next_mapping = next_orbit_instance.eqn(**kwargs)
         next_cost = next_mapping.cost(eqn=False)
@@ -1695,7 +1695,7 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
             # matvec needs state and parameters from v.
             nonlocal orbit_instance
             nonlocal kwargs
-            v_orbit = orbit_instance.from_numpy_array(v, *orbit_instance.constants())
+            v_orbit = orbit_instance.from_numpy_array(v)
             return orbit_instance.matvec(v_orbit, **kwargs).state.reshape(-1, 1)
 
         def rmatvec_func(v):
@@ -1729,12 +1729,12 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
             nonlocal kwargs
             # matvec needs parameters and orbit info from v; evaluation of matvec should take instance
             # parameters from orbit_instance; is this reasonable to expect to work.
-            v_orbit = orbit_instance.from_numpy_array(v, *orbit_instance.constants())
+            v_orbit = orbit_instance.from_numpy_array(v)
             return (
                 orbit_instance.rmatvec(
                     orbit_instance.matvec(v_orbit, **kwargs), **kwargs
                 )
-                .orbit_vector()
+                .cdof()
                 .reshape(-1, 1)
             )
 
@@ -1765,7 +1765,7 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
             # _orbit_vector_to_orbit turns state vector into class object.
             nonlocal orbit_instance
             nonlocal kwargs
-            v_orbit = orbit_instance.from_numpy_array(v, *orbit_instance.constants())
+            v_orbit = orbit_instance.from_numpy_array(v)
             return (
                 orbit_instance.matvec(v_orbit, **kwargs).cdof().reshape(-1, 1)
             )
@@ -1957,8 +1957,8 @@ def _root_callable_factory(orbit_instance, method, **kwargs):
         xvec = x_orbit.eqn(**kwargs).state.ravel()
         # Need components for the parameters, but typically they will not have an associated component in the equation;
         # however, I do not think it should be by default.
-        if x_orbit.orbit_vector().size - xvec.size > 0:
-            return np.pad(xvec, (0, x_orbit.orbit_vector().size - xvec.size))
+        if x_orbit.cdof().size - xvec.size > 0:
+            return np.pad(xvec, (0, x_orbit.cdof().size - xvec.size))
         else:
             return xvec
 
