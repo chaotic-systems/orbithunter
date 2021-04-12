@@ -25,6 +25,22 @@ i.e. arrays of shape (#, #, #, #, 3) or something similar.
    Be sure to check the base :class:`orbithunter.core.Orbit` class before writing your methods; there very well may
    be methods which are not included here because they are written as to generalize to other Orbit classes.  
 
+Hunting
+=======
+
+I would like to present some tips in regards to the numerical optimization and wrapped SciPy routines.
+
+1. The "custom" routines which do not perform a line search, 'adj', 'gd', 'lstsq', 'solve', 'newton_descent'
+   can take steps which are too large; providing a value to the `step_size` keyword can be quite helpful. 
+2. Rescaling can be very important if the magnitudes of the different gradient components are disparate from one another.
+3. An alternative to rescaling gradient components corresponding to dimension parameters is to add an additional stage 
+   of optimization and constrain the dimensions within that stage, acting as a preprocessing step. Typically, as the
+   overall cost is decreased, these gradients become more "well behaved", in the sense that large distortions in domain sizes
+   do not occur. 
+4. The different options available to each method can drastically change the convergence, computation time, etc. for
+   each method, and should always be considered/tested.
+   
+
 SymmetryOrbitEQN Class
 ======================
 

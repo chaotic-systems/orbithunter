@@ -317,7 +317,7 @@ def hunt(orbit_instance, *methods, **kwargs):
             )
         elif method == "gd":
             orbit_instance, method_statistics = _gradient_descent(
-                orbit_instance, **hunt_kwargs
+                 orbit_instance, **hunt_kwargs
             )
         else:
             orbit_instance, method_statistics = _adjoint_descent(
@@ -365,7 +365,7 @@ def hunt(orbit_instance, *methods, **kwargs):
 def _adjoint_descent(
     orbit_instance,
     tol=1e-6,
-    ftol=1e-6,
+    ftol=1e-9,
     maxiter=10000,
     min_step=1e-6,
     preconditioning=False,
@@ -459,7 +459,8 @@ def _adjoint_descent(
 
     F = orbit_instance.eqn(**kwargs)
     cost = 0.5 * F.dot(F)
-    step_size = 1
+    step_size = kwargs.get("step_size", 1)
+
     kwargs = {**kwargs, "preconditioning": preconditioning}
     while cost > tol and runtime_statistics["status"] == -1:
         # Calculate the step
@@ -509,7 +510,7 @@ def _adjoint_descent(
 def _gradient_descent(
     orbit_instance,
     tol=1e-6,
-    ftol=1e-6,
+    ftol=1e-9,
     maxiter=10000,
     min_step=1e-6,
     preconditioning=False,
@@ -605,24 +606,25 @@ def _gradient_descent(
     if not kwargs.get("backtracking", True):
         min_step = 1
     kwargs = {**kwargs, "preconditioning": preconditioning}
-    cost = orbit_instance.cost(**kwargs)
-    step_size = 1
+    cost = orbit_instance.cost()
+    step_size = kwargs.get("step_size", 1)
+
     while cost > tol and runtime_statistics["status"] == -1:
         # Calculate the step
-        gradient = orbit_instance.costgrad(**kwargs)
+        gradient = orbit_instance.costgrad()
         # Negative sign -> 'descent'
         next_orbit_instance = orbit_instance.increment(
             gradient, step_size=-1.0 * step_size
         )
         # Compute cost to see if step succeeded
-        next_cost = next_orbit_instance.cost(**kwargs)
+        next_cost = next_orbit_instance.cost()
         while next_cost >= cost and step_size > min_step:
             # reduce the step size until minimum is reached or cost decreases.
             step_size /= 2
             next_orbit_instance = orbit_instance.increment(
                 gradient, step_size=-1.0 * step_size
             )
-            next_cost = next_orbit_instance.cost(**kwargs)
+            next_cost = next_orbit_instance.cost()
         else:
             orbit_instance, cost, runtime_statistics = _process_correction(
                 orbit_instance,
@@ -649,7 +651,7 @@ def _gradient_descent(
 def _newton_descent(
     orbit_instance,
     tol=1e-6,
-    ftol=1e-6,
+    ftol=1e-9,
     maxiter=500,
     min_step=1e-6,
     preconditioning=False,
@@ -715,7 +717,7 @@ def _newton_descent(
         raise IndexError(errstr) from ie
 
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
-    step_size = kwargs.get("step_size", 0.001)
+    step_size = kwargs.get("step_size", 1.)
     cost = orbit_instance.cost()
     runtime_statistics = {
         "method": "newton_descent",
@@ -749,6 +751,7 @@ def _newton_descent(
     mapping = orbit_instance.eqn(**kwargs)
     cost = mapping.cost(eqn=False)
     while cost > tol and runtime_statistics["status"] == -1:
+        step_size = kwargs.get("step_size", 1)
         # Solve A dx = b <--> J dx = - f, for dx.
         A, b = orbit_instance.jacobian(**kwargs), -1 * mapping.state.ravel()
         if preconditioning:
@@ -850,7 +853,7 @@ def _newton_descent(
 def _lstsq(
     orbit_instance,
     tol=1e-6,
-    ftol=1e-6,
+    ftol=1e-9,
     maxiter=500,
     min_step=1e-6,
     preconditioning=False,
@@ -948,7 +951,8 @@ def _lstsq(
     preconditioner_factory = kwargs.get("mfactory", None)
     M = None
     while cost > tol and runtime_statistics["status"] == -1:
-        step_size = 1
+        step_size = kwargs.get("step_size", 1)
+
         # Solve A dx = b <--> J dx = - f, for dx.
         A = orbit_instance.jacobian(**kwargs)
         b = -1.0 * mapping.state.reshape(-1, 1)
@@ -1019,7 +1023,7 @@ def _lstsq(
 def _solve(
     orbit_instance,
     tol=1e-6,
-    ftol=1e-6,
+    ftol=1e-9,
     maxiter=10000,
     min_step=1e-6,
     preconditioning=False,
@@ -1117,7 +1121,8 @@ def _solve(
     M = None
 
     while cost > tol and runtime_statistics["status"] == -1:
-        step_size = 1
+        step_size = kwargs.get("step_size", 1)
+
         # Solve A dx = b <--> J dx = - f, for dx.
         A = orbit_instance.jacobian(**kwargs)
         b = -1.0 * mapping.state.reshape(-1, 1)
@@ -1189,7 +1194,7 @@ def _solve(
 def _scipy_sparse_linalg_solver_wrapper(
     orbit_instance,
     tol=1e-6,
-    ftol=1e-6,
+    ftol=1e-9,
     maxiter=10000,
     min_step=1e-6,
     method="lsmr",
@@ -1305,7 +1310,8 @@ def _scipy_sparse_linalg_solver_wrapper(
     preconditioner_factory = kwargs.get("mfactory", None)
     scipy_kwargs = kwargs.get("scipy_kwargs", {})
     while cost > tol and runtime_statistics["status"] == -1:
-        step_size = 1
+        step_size = kwargs.get("step_size", 1)
+
         A, b = linear_system_factory(orbit_instance, method, **kwargs)
         if method in ["lsmr", "lsqr"]:
             if method == "lsmr":
@@ -1393,9 +1399,9 @@ def _scipy_sparse_linalg_solver_wrapper(
 def _scipy_optimize_minimize_wrapper(
     orbit_instance,
     tol=1e-6,
-    ftol=1e-6,
-    maxiter=10,
-    method="l-bfgs-b",
+    ftol=1e-9,
+    maxiter=1,
+    method="cg",
     preconditioning=False,
     **kwargs,
 ):
@@ -1527,7 +1533,7 @@ def _scipy_optimize_minimize_wrapper(
 def _scipy_optimize_root_wrapper(
     orbit_instance,
     tol=1e-6,
-    ftol=1e-6,
+    ftol=1e-9,
     maxiter=10,
     method="krylov",
     preconditioning=False,
@@ -1872,7 +1878,7 @@ def _minimize_callable_factory(orbit_instance, method, **kwargs):
                 nonlocal kwargs
                 x_orbit = orbit_instance.from_numpy_array(x, *orbit_instance.constants(), **kwargs)
                 # For cases when costgrad does not require eqn
-                return x_orbit.costgrad(**kwargs).cdof().ravel()
+                return x_orbit.costgrad().cdof().ravel()
             jac_ = _minjac
         else:
             jac_ = jac_strategy

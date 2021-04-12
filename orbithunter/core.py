@@ -1694,10 +1694,14 @@ class Orbit:
         Typically when this method is called, self is the current iterate and other is an optimization correction.
 
         """
-        incremented_params = tuple(
-            self_param + step_size * other_param  # assumed to be constrained if 0.
-            for self_param, other_param in zip(self.parameters, other.parameters)
-        )
+        if self.parameters is not None:
+            incremented_params = tuple(
+                self_param + step_size * other_param  # assumed to be constrained if 0.
+                for self_param, other_param in zip(self.parameters, other.parameters)
+            )
+        else:
+            incremented_params = None
+
         return self.__class__(
             **{
                 **vars(self),

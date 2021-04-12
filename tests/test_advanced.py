@@ -87,14 +87,6 @@ def test_glue():
             )
 
 
-def test_hunt_Orbit():
-    methods = ['newton_descent', 'lstsq', 'solve', 'adj', 'gd', 'lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
-               'cg', 'cgs', 'qmr', 'minres', 'gcrotmk','nelder-mead', 'powell', 'cg_min', 'bfgs', 'newton-cg', 'l-bfgs-b',
-               'tnc', 'cobyla', 'slsqp', 'trust-constr', 'dogleg', 'trust-ncg', 'trust-exact', 'trust-krylov', 'hybr',
-               'lm','broyden1', 'broyden2', 'linearmixing','diagbroyden', 'excitingmixing',
-               'df-sane', 'krylov', 'anderson']
-    return None
-
 
 def test_hunt_Orbit_subclass():
     methods = ['newton_descent', 'lstsq', 'solve', 'adj', 'gd', 'lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
@@ -104,12 +96,28 @@ def test_hunt_Orbit_subclass():
                'df-sane', 'krylov', 'anderson']
     return None
 
+def test_hunt_Orbit():
+    methods = [
+        # 'newton_descent', 'lstsq', 'solve',
+        #        'adj',
+        'gd', 'lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
+               'cg', 'cgs', 'qmr', 'minres', 'gcrotmk','nelder-mead', 'powell', 'cg_min', 'bfgs', 'newton-cg', 'l-bfgs-b',
+               'tnc', 'cobyla', 'slsqp', 'trust-constr', 'dogleg', 'trust-ncg', 'trust-exact', 'trust-krylov', 'hybr',
+               'lm','broyden1', 'broyden2', 'linearmixing', 'diagbroyden', 'excitingmixing',
+               'df-sane', 'krylov', 'anderson']
+    x = TestOrbit(state=2*np.arange(10) + 10, basis='physical', parameters=None)
+    for m in methods:
+        result = orb.hunt(x, methods=m, tol=1e-6, min_step=0, maxiter=100000, ftol=0, step_size=0.01)
+        assert result.orbit.cost() < 1e-5
+    return None
+
+
 
 class TestOrbit(orb.Orbit):
 
-    def eqn(self):
+    def eqn(self, **kwargs):
         # Solve x^2 - n = 0 for n in [0, dim-1]e
-        return self.state**2 - np.arange(self.state.size)
+        return self.__class__(**{**vars(self), "state": (self.state**2 -(np.arange(self.state.size)+5))})
 
     def matvec(self, other, **kwargs):
         return 2 * other
@@ -124,4 +132,5 @@ class TestOrbit(orb.Orbit):
         return 2 * np.tile(np.eye(self.size), (self.eqn().size, 1, 1))
 
     def hessp(self, left_other, right_other, **kwargs):
-        return left_other.state
+        # d^2 F = 2 * I. F * d^2 F =
+        return 2 * np.diag(left_other.state.ravel()) * right_other.state
