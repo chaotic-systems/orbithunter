@@ -3,12 +3,6 @@ Issues
 
 .. currentmodule:: orbithunter
 
-** Constraints **
-
-The orbit_vector, from_numpy_array and constraints are not working as intended currently. This
-problem is still under investigation but it seems that constraining 't' is 
-
-
 **Slicing**
 
 The current implementation :meth:`orbithunter.core.Orbit.__getitem__` infers the sliced state array's

@@ -1,5 +1,6 @@
 import numpy as np
 import warnings
+from json import dumps
 
 __all__ = ["shadow", "fill", "cover", "scoring_functions", "OrbitCover"]
 
@@ -30,6 +31,15 @@ class OrbitCover:
         )
         self.base_periodicity = base_periodicity
         self._scores = None
+
+    def __str__(self):
+        return self.__class__.__name__
+
+    def __repr__(self):
+        dict_ = {"base shape": self.base.shape, "windows": len(self.windows)}
+        # convert the dictionary to a string via json.dumps
+        dictstr = dumps(dict_)
+        return self.__class__.__name__ + "(" + dictstr + ")"
 
     @property
     def scores(self):
@@ -158,6 +168,9 @@ class OrbitCover:
         ]
         return orbit_scores
 
+    def threshold(self, *args, **kwargs):
+        masked_scores = np.ma.masked_array(self.scores, mask = (self.scores > np.array(self.thresholds).reshape(-1, 1, 1)))
+        return self.__class__(**{**vars(self), "scores": masked_scores})
 
 def scoring_functions(method):
     """
