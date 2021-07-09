@@ -317,7 +317,7 @@ def hunt(orbit_instance, *methods, **kwargs):
             )
         elif method == "gd":
             orbit_instance, method_statistics = _gradient_descent(
-                 orbit_instance, **hunt_kwargs
+                orbit_instance, **hunt_kwargs
             )
         else:
             orbit_instance, method_statistics = _adjoint_descent(
@@ -717,7 +717,7 @@ def _newton_descent(
         raise IndexError(errstr) from ie
 
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
-    step_size = kwargs.get("step_size", 1.)
+    step_size = kwargs.get("step_size", 1.0)
     cost = orbit_instance.cost()
     runtime_statistics = {
         "method": "newton_descent",
@@ -1311,7 +1311,6 @@ def _scipy_sparse_linalg_solver_wrapper(
     scipy_kwargs = kwargs.get("scipy_kwargs", {})
     while cost > tol and runtime_statistics["status"] == -1:
         step_size = kwargs.get("step_size", 1)
-
         A, b = linear_system_factory(orbit_instance, method, **kwargs)
         if method in ["lsmr", "lsqr"]:
             if method == "lsmr":
@@ -1496,8 +1495,9 @@ def _scipy_optimize_minimize_wrapper(
             orbit_instance, method, **{**kwargs, "preconditioning": preconditioning}
         )
         result = minimize(
-            minfunc, orbit_instance.cdof().ravel(),
-            **{**scipy_kwargs, "method": method, **jac_and_hess_options}
+            minfunc,
+            orbit_instance.cdof().ravel(),
+            **{**scipy_kwargs, "method": method, **jac_and_hess_options},
         )
 
         if kwargs.get("progressive", False):
@@ -1505,7 +1505,9 @@ def _scipy_optimize_minimize_wrapper(
             # by a sufficient amount due to vanishing gradients.
             scipy_kwargs["tol"] /= 2.0
 
-        next_orbit_instance = orbit_instance.from_numpy_array(result.x, *orbit_instance.constants())
+        next_orbit_instance = orbit_instance.from_numpy_array(
+            result.x, *orbit_instance.constants()
+        )
         next_cost = next_orbit_instance.cost()
         # If the trigger that broke the while loop was step_size then assume next_cost < cost was not met.
         orbit_instance, cost, runtime_statistics = _process_correction(
@@ -1641,7 +1643,9 @@ def _scipy_optimize_root_wrapper(
         }
         # Returns an OptimizeResult, .x attribute is where array is stored.
         result = root(_rootfunc, orbit_instance.cdof().ravel(), **scipy_kwargs)
-        next_orbit_instance = orbit_instance.from_numpy_array(result.x, *orbit_instance.constants())
+        next_orbit_instance = orbit_instance.from_numpy_array(
+            result.x, *orbit_instance.constants()
+        )
         next_cost = next_orbit_instance.cost()
         # If the trigger that broke the while loop was step_size then assume next_cost < cost was not met.
         orbit_instance, cost, runtime_statistics = _process_correction(
@@ -1710,9 +1714,7 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
             nonlocal kwargs
             # The rmatvec typically requires state information from v and parameters from current instance.
             v_orbit = orbit_instance.from_numpy_array(v, *orbit_instance.constants())
-            return (
-                orbit_instance.rmatvec(v_orbit, **kwargs).cdof().reshape(-1, 1)
-            )
+            return orbit_instance.rmatvec(v_orbit, **kwargs).cdof().reshape(-1, 1)
 
         linear_operator_shape = (
             orbit_instance.state.size,
@@ -1772,18 +1774,14 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
             nonlocal orbit_instance
             nonlocal kwargs
             v_orbit = orbit_instance.from_numpy_array(v)
-            return (
-                orbit_instance.matvec(v_orbit, **kwargs).cdof().reshape(-1, 1)
-            )
+            return orbit_instance.matvec(v_orbit, **kwargs).cdof().reshape(-1, 1)
 
         def rmatvec_(v):
             # _orbit_vector_to_orbit turns state vector into class object.
             nonlocal orbit_instance
             nonlocal kwargs
             v_orbit = orbit_instance.from_numpy_array(v, *orbit_instance.constants())
-            return (
-                orbit_instance.rmatvec(v_orbit, **kwargs).cdof().reshape(-1, 1)
-            )
+            return orbit_instance.rmatvec(v_orbit, **kwargs).cdof().reshape(-1, 1)
 
         linear_operator_shape = (
             degrees_of_freedom,
@@ -1848,13 +1846,16 @@ def _minimize_callable_factory(orbit_instance, method, **kwargs):
         """
         nonlocal orbit_instance
         nonlocal kwargs
-        x_orbit = orbit_instance.from_numpy_array(x, *orbit_instance.constants(), **kwargs)
+        x_orbit = orbit_instance.from_numpy_array(
+            x, *orbit_instance.constants(), **kwargs
+        )
         return x_orbit.cost()
 
     # Jacobian defaults to costgrad method, but could be provided as either a string for finite difference approximation
     # or other options.
     if method not in ["nelder-mead", "powell", "cobyla"]:
         if jac_strategy == "costgrad":
+
             def _minjac(x):
                 """
                 The jacobian of the cost function (scalar) can be expressed as a matrix-vector product
@@ -1876,9 +1877,12 @@ def _minimize_callable_factory(orbit_instance, method, **kwargs):
                 """
                 nonlocal orbit_instance
                 nonlocal kwargs
-                x_orbit = orbit_instance.from_numpy_array(x, *orbit_instance.constants(), **kwargs)
+                x_orbit = orbit_instance.from_numpy_array(
+                    x, *orbit_instance.constants(), **kwargs
+                )
                 # For cases when costgrad does not require eqn
                 return x_orbit.costgrad().cdof().ravel()
+
             jac_ = _minjac
         else:
             jac_ = jac_strategy
@@ -1893,7 +1897,9 @@ def _minimize_callable_factory(orbit_instance, method, **kwargs):
                 """
                 nonlocal orbit_instance
                 nonlocal kwargs
-                x_orbit = orbit_instance.from_numpy_array(x, *orbit_instance.constants())
+                x_orbit = orbit_instance.from_numpy_array(
+                    x, *orbit_instance.constants()
+                )
                 p_orbit = orbit_instance.from_numpy_array(p)
                 return x_orbit.costhessp(p_orbit, **kwargs).cdof().ravel()
 
@@ -1908,7 +1914,9 @@ def _minimize_callable_factory(orbit_instance, method, **kwargs):
                 """
                 nonlocal orbit_instance
                 nonlocal kwargs
-                x_orbit = orbit_instance.from_numpy_array(x, *orbit_instance.constants())
+                x_orbit = orbit_instance.from_numpy_array(
+                    x, *orbit_instance.constants()
+                )
                 return x_orbit.costhess(**kwargs)
 
             hess_dict = {"hess": _minhessfunc}
@@ -1959,7 +1967,9 @@ def _root_callable_factory(orbit_instance, method, **kwargs):
         """
         nonlocal orbit_instance
         nonlocal kwargs
-        x_orbit = orbit_instance.from_numpy_array(x, *orbit_instance.constants(), **kwargs)
+        x_orbit = orbit_instance.from_numpy_array(
+            x, *orbit_instance.constants(), **kwargs
+        )
         xvec = x_orbit.eqn(**kwargs).state.ravel()
         # Need components for the parameters, but typically they will not have an associated component in the equation;
         # however, I do not think it should be by default.
@@ -1988,7 +1998,9 @@ def _root_callable_factory(orbit_instance, method, **kwargs):
                 """
                 nonlocal orbit_instance
                 nonlocal kwargs
-                x_orbit = orbit_instance.from_numpy_array(x, *orbit_instance.constants())
+                x_orbit = orbit_instance.from_numpy_array(
+                    x, *orbit_instance.constants()
+                )
                 # gradient does not have the same problem that the equation
                 J = x_orbit.jacobian(**kwargs)
                 if J.shape[1] - J.shape[0] > 0.0:
@@ -2024,15 +2036,23 @@ def _exit_messages(orbit_instance, status, verbose=False):
     """
 
     if status == 0:
-        msg = " ".join([f"\nstep size did not meet minimum requirements defined by 'min_step',"
-                        f" terminating with cost {orbit_instance.cost()}."])
+        msg = " ".join(
+            [
+                f"\nstep size did not meet minimum requirements defined by 'min_step',"
+                f" terminating with cost {orbit_instance.cost()}."
+            ]
+        )
     elif status == 1:
         msg = f"\nsolution met cost function tolerance, terminating with cost {orbit_instance.cost()}."
     elif status == 2:
         msg = f"\nmaximum number of iterations reached, terminating with cost {orbit_instance.cost()}."
     elif status == 3:
-        msg = " ".join([f"\ninsufficient cost decrease, (new_cost - cost) / max([new_cost, cost, 1])<ftol",
-                        f"decrease ftol to proceed, terminating with cost {orbit_instance.cost()}"])
+        msg = " ".join(
+            [
+                f"\ninsufficient cost decrease, (new_cost - cost) / max([new_cost, cost, 1])<ftol",
+                f"decrease ftol to proceed, terminating with cost {orbit_instance.cost()}",
+            ]
+        )
     else:
         # A general catch all/placeholder for custom/future status flag values.
         msg = f"\nunspecified exit message, terminating with cost {orbit_instance.cost()}."

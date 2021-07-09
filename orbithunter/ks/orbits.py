@@ -1037,7 +1037,9 @@ class OrbitKS(Orbit):
                 multipliers.state.ravel(),
                 tuple(
                     p
-                    for p, constr in zip(multipliers.parameters, self.constraints.values())
+                    for p, constr in zip(
+                        multipliers.parameters, self.constraints.values()
+                    )
                     if not constr
                 ),
             )

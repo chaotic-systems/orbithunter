@@ -1452,13 +1452,9 @@ class Orbit:
         Creation and usage of _rmatvec_parameters motivated by generalizability/readability of the code.
 
         """
-        params = self._rmatvec_parameters(other, **kwargs)
+        params = self._rmatvec_parameters(other)
         return self.__class__(
-            **{
-                **vars(self),
-                "state": np.zeros(self.shape),
-                "parameters": params,
-            }
+            **{**vars(self), "state": np.zeros(self.shape), "parameters": params,}
         )
 
     def _rmatvec_parameters(self, other):
@@ -1479,10 +1475,13 @@ class Orbit:
 
         Notes
         -----
-        Would generally have elements equal to dot product F * dF/dP; i.e. other=F. This method isn't required but
+        Would generally have elements equal to dot product (dF/dP)^T * other. This method isn't required but
         I personally found it cleaner to do the parameter components separately then return them in rmatvec method.
         """
-        return tuple(0. if not constr else 0. for p, constr in zip(self.parameters, self.constraints.values()))
+        return tuple(
+            0.0 if not constr else 0.0
+            for p, constr in zip(self.parameters, self.constraints.values())
+        )
 
     def hess(self, **kwargs):
         """
@@ -1506,9 +1505,7 @@ class Orbit:
 
         """
         cdof = self.cdof().size
-        return np.zeros(
-            [self.eqn().size, cdof, cdof]
-        )
+        return np.zeros([self.eqn().size, cdof, cdof])
 
     def hessp(self, left_other, right_other, **kwargs):
         """
@@ -1561,8 +1558,11 @@ class Orbit:
         # By raveling and concatenating ensure that the array is 1-d for the second concatenation; i.e. flatten first.
         parameters = self.parameters
         if parameters:
-            variables = tuple(p.ravel() if isinstance(p, np.ndarray) else p for p, const
-                              in zip(parameters, self.constraints.values()) if not const)
+            variables = tuple(
+                p.ravel() if isinstance(p, np.ndarray) else p
+                for p, const in zip(parameters, self.constraints.values())
+                if not const
+            )
         else:
             variables = ()
         return np.concatenate((self.state.ravel(), variables), axis=0).reshape(-1, 1)
@@ -1579,8 +1579,11 @@ class Orbit:
         """
         parameters = self.parameters
         if parameters:
-            constants = tuple(p.ravel() if isinstance(p, np.ndarray) else p for p, const
-                              in zip(parameters, self.constraints.values()) if const)
+            constants = tuple(
+                p.ravel() if isinstance(p, np.ndarray) else p
+                for p, const in zip(parameters, self.constraints.values())
+                if const
+            )
         else:
             constants = ()
         return constants
@@ -1606,13 +1609,12 @@ class Orbit:
 
         parameters = self.parameters
         if parameters:
-            variables = tuple(p.ravel() if isinstance(p, np.ndarray) else p for p in
-                              self.parameters)
+            variables = tuple(
+                p.ravel() if isinstance(p, np.ndarray) else p for p in self.parameters
+            )
         else:
             variables = ()
-        return np.concatenate((self.state.ravel(), variables), axis=0).reshape(
-            -1, 1
-        )
+        return np.concatenate((self.state.ravel(), variables), axis=0).reshape(-1, 1)
 
     def from_numpy_array(self, cdof, *args, **kwargs):
         """
@@ -1651,19 +1653,26 @@ class Orbit:
 
         """
         # The parameters and possible constants are expected to be ordered
-        parameters_list = list(cdof.ravel()[self.size:])
+        parameters_list = list(cdof.ravel()[self.size :])
         constants_list = list(args)
         # The issue with parsing the parameters is that we do not know which list element corresponds to
         # which parameter unless the constraints are checked. Parameter keys which are not in the constraints dict
         # are assumed to be constrained. Pop from param_list if parameters 1. exist, 2. are unconstrained.
         # Not having enough parameters to pop means something is going wrong in your matvec/rmatvec functions typically.
-        parameters = tuple(
-            parameters_list.pop(0)
-            if (not self.constraints.get(each_label, True) and len(parameters_list) > 0)
-            else constants_list.pop(0) if len(constants_list) > 0.
-            else 0.0
-            for each_label in self.parameter_labels()
-        )
+        if self.parameters is not None:
+            parameters = tuple(
+                parameters_list.pop(0)
+                if (
+                    not self.constraints.get(each_label, True)
+                    and len(parameters_list) > 0
+                )
+                else constants_list.pop(0)
+                if len(constants_list) > 0.0
+                else 0.0
+                for each_label in self.parameter_labels()
+            )
+        else:
+            parameters = None
         return self.__class__(
             **{
                 **vars(self),
@@ -2142,7 +2151,7 @@ class Orbit:
         """
         return {k: False for k in self.parameter_labels()}
 
-    def _pad(self, size, axis=0, mode='constant', **kwargs):
+    def _pad(self, size, axis=0, mode="constant", **kwargs):
         """
         Increase the size of the discretization along an axis.
 
@@ -2443,9 +2452,9 @@ class Orbit:
         if isinstance(numpy_seed, int):
             np.random.seed(numpy_seed)
         # Presumed to be in physical basis unless specified otherwise; get the size of the state based on dimensions
-        self.discretization = kwargs.get("discretization", None) or self.dimension_based_discretization(
-            self.parameters, **kwargs
-        )
+        self.discretization = kwargs.get(
+            "discretization", None
+        ) or self.dimension_based_discretization(self.parameters, **kwargs)
         # Assign values from a random normal distribution to the state by default.
         self.state = np.random.randn(*self.discretization)
         # If no basis provided, state generation presumed to be in the physical basis.
