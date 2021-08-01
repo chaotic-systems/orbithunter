@@ -9,9 +9,9 @@ Preface
 
 The following guide demonstrates the class methods required for full functionality
 in the orbithunter framework. This documentatino is presented much like how one might document their
-own equation module for inclusion in the main orbithunter branch. The creator of orbithunter,
-`Matthew Gudorf <https://www.linkedin.com/in/mgudorf/>`_ painstakingly developed the framework to
-be agnostic of the equations. That is, the techniques and tools should generalize to any equation,
+own equation module for inclusion in the main orbithunter branch. The creator of orbithunter
+`Matthew Gudorf <https://www.linkedin.com/in/mgudorf/>`_  developed the framework to
+be as agnostic of equation as possible. That is, the techniques and tools should generalize to any equation,
 so long as the proper class methods are written. Because of this, the following is presented
 as a template for each technique or submodule. Implementation of the methods in each section
 should enable the functionality of the corresponding orbithunter module.
