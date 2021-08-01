@@ -25,6 +25,10 @@ def fixed_OrbitKS_data():
     )
     return state
 
+@pytest.fixture()
+def fixed_test_orbit_data():
+    return TestOrbit(state=2 * np.arange(10) + 10, basis="physical", parameters=None)
+
 
 def test_orbit_data():
     with h5py.File(data_path, "r") as file:
@@ -87,124 +91,134 @@ def test_glue():
             )
 
 
-def test_hunt_Orbit_subclass():
+def test_optimize_custom(fixed_test_orbit_data):
     methods = [
-        "newton_descent",
-        "lstsq",
-        "solve",
-        "adj",
-        "gd",
-        "lsqr",
-        "lsmr",
-        "bicg",
-        "bicgstab",
-        "gmres",
-        "lgmres",
-        "cg",
-        "cgs",
-        "qmr",
-        "minres",
-        "gcrotmk",
-        "nelder-mead",
-        "powell",
-        "cg_min",
-        "bfgs",
-        "newton-cg",
-        "l-bfgs-b",
-        "tnc",
-        "cobyla",
-        "slsqp",
-        "trust-constr",
-        "dogleg",
-        "trust-ncg",
-        "trust-exact",
-        "trust-krylov",
-        "hybr",
-        "lm",
-        "broyden1",
-        "broyden2",
-        "linearmixing",
-        "diagbroyden",
-        "excitingmixing",
-        "df-sane",
-        "krylov",
-        "anderson",
-    ]
+        'newton_descent',
+        'lstsq',
+        'solve',
+        'adj',
+        "gd"]
+    for m in methods:
+        result = orb.hunt(
+            fixed_test_orbit_data, methods=m, tol=1e-3, min_step=0, maxiter=100000, ftol=0,# step_size=0.01
+        )
+        assert result.orbit.cost() < 1e-3
     return None
 
 
-def test_hunt_Orbit():
+def test_optimize_sparse_linalg_least_squares(fixed_test_orbit_data):
     methods = [
-        # 'newton_descent', 'lstsq', 'solve',
-        #        'adj',
-        "gd",
-        "lsqr",
-        "lsmr",
-        "bicg",
-        "bicgstab",
-        "gmres",
-        "lgmres",
-        "cg",
-        "cgs",
-        "qmr",
-        "minres",
-        "gcrotmk",
-        "nelder-mead",
-        "powell",
-        "cg_min",
-        "bfgs",
-        "newton-cg",
-        "l-bfgs-b",
-        "tnc",
-        "cobyla",
-        "slsqp",
-        "trust-constr",
-        "dogleg",
-        "trust-ncg",
-        "trust-exact",
-        "trust-krylov",
-        "hybr",
-        "lm",
-        "broyden1",
-        "broyden2",
-        "linearmixing",
-        "diagbroyden",
-        "excitingmixing",
-        "df-sane",
-        "krylov",
-        "anderson",
-    ]
-    x = TestOrbit(state=2 * np.arange(10) + 10, basis="physical", parameters=None)
+            "lsqr",
+            "lsmr"
+            ]
     for m in methods:
         result = orb.hunt(
-            x, methods=m, tol=1e-6, min_step=0, maxiter=100000, ftol=0, step_size=0.01
+            fixed_test_orbit_data, methods=m, atol=1e-3, btol=1e-3, maxiter=10, ftol=0, step_size=0.01
         )
         assert result.orbit.cost() < 1e-5
+    return None
+
+def test_optimize_sparse_linalg(fixed_test_orbit_data):
+    methods = [
+            "bicg",
+            "bicgstab",
+            "gmres",
+            "lgmres",
+            "cg",
+            "cgs",
+            "qmr",
+            "minres",
+            "gcrotmk"
+        ]
+    for m in methods:
+        result = orb.hunt(
+            fixed_test_orbit_data, methods=m, tol=1e-3, min_step=0, maxiter=10,
+        )
+        assert result.orbit.cost() < 1e-3
+    return None
+    
+    
+def test_optimize_minimize(fixed_test_orbit_data):
+    methods = [
+            "nelder-mead",
+            "powell",
+            "cg_min",
+            "bfgs",
+            "newton-cg",
+            "l-bfgs-b",
+            "tnc",
+            "cobyla",
+            "slsqp"]
+    for m in methods:
+        result = orb.hunt(
+            fixed_test_orbit_data, methods=m, tol=1e-2, min_step=0, maxiter=100000, ftol=0, step_size=0.01
+        )
+        assert result.orbit.cost() < 1e-2
+    return None
+
+
+def test_optimize_minimize_with_hessian(fixed_test_orbit_data):
+
+    for m in  ["trust-constr", "trust-ncg",  "trust-krylov"]:
+        result = orb.hunt(
+            fixed_test_orbit_data, methods=m, tol=1e-3,  hess_strategy='costhessp',
+                            min_step=0, ftol=0
+                        )
+        assert result.orbit.cost() < 1e-3
+
+    for m in ["dogleg", "trust-exact"]:
+        result = orb.hunt(
+            fixed_test_orbit_data, methods=m, tol=1e-3,  hess_strategy='costhess',
+                            min_step=0, ftol=0
+                        )
+        assert result.orbit.cost() < 1e-3
+
+    return None
+
+
+def test_optimize_root(fixed_test_orbit_data):
+    methods = [
+            "hybr",
+            "lm",
+            "broyden1",
+            "diagbroyden",
+            "krylov",
+            "df-sane"
+        ]
+    for m in methods:
+        result = orb.hunt(
+            fixed_test_orbit_data, methods=m, tol=1e-3, min_step=0, maxiter=100000, ftol=0, step_size=0.01
+        )
+        assert result.orbit.cost() < 1e-3
     return None
 
 
 class TestOrbit(orb.Orbit):
     def eqn(self, **kwargs):
-        # Solve x^2 - n = 0 for n in [0, dim-1]e
+        # x^2 - n = 0 for n in [0, dim-1]
         return self.__class__(
             **{
                 **vars(self),
-                "state": (self.state ** 2 - (np.arange(self.state.size) + 5)),
+                "state": (self.state ** 2 - np.arange(self.state.size)),
             }
         )
 
     def matvec(self, other, **kwargs):
-        return 2 * other
+        return 2 * self * other
 
     def rmatvec(self, other, **kwargs):
-        return 2 * other
+        return 2 * self * other
 
     def jacobian(self, **kwargs):
         return 2 * np.diag(self.state.ravel())
 
     def hess(self, **kwargs):
-        return 2 * np.tile(np.eye(self.size), (self.eqn().size, 1, 1))
+        H = np.zeros([self.size, self.size, self.size])
+        H[np.diag_indices(self.size, ndim=3)] = 1
+        return 2 * H
 
     def hessp(self, left_other, right_other, **kwargs):
         # d^2 F = 2 * I. F * d^2 F =
-        return 2 * np.diag(left_other.state.ravel()) * right_other.state
+        u = left_other.state.ravel()
+        # This makes it look simple but the expression np.zeros(u.size) is acting as a placeholder.
+        return self.from_numpy_array(np.dot(u, 2 * np.diag(right_other.state)))
