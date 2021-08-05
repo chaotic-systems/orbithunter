@@ -957,9 +957,11 @@ def cover(
     if padded_orbit is None:
         padded_orbit = _pad_orbit_with_hull(base_orbit, hull, periodicity)
 
-    mask = orbit_cover.mask or kwargs.get(
-        "mask", np.zeros(padded_orbit.shape, dtype=bool)
-    )
+    if orbit_cover.mask is not None:
+        mask = orbit_cover.mask
+    else:
+        mask = kwargs.get("mask", np.zeros(padded_orbit.shape, dtype=bool))
+
     pivot_scores = np.zeros([len(window_orbits), *padded_orbit.shape], dtype=float)
     number_of_possible_pivots = None
     oob_pivots = []

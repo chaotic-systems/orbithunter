@@ -16,8 +16,61 @@ First, make sure you have the latest version of ``pip`` (the Python package mana
 installed. If you do not, refer to the `Pip documentation
 <https://pip.pypa.io/en/stable/installing/>`_ and install ``pip`` first.
 
-Install the released version
-----------------------------
+Docker installation
+-------------------
+
+To facilitate scientific developments outside of the core development, the latest release has been used
+to create a Docker image. To the uninitated, Docker is a platform for containerizing applications, which, broadly
+speaking, makes it so the Python dependencies and issues arising from differences in operating systems can be avoided.
+The Docker image itself runs a jupyter notebook kernel, allowing the jupyter notebook GUI to be used in the local
+machine's browser. Crudely speaking, the containing is acting as a server/virtual machine,
+serving the jupyter notebook application, but saving all files and code to the Docker container.
+
+Important notes: the port opened to allow the local machine to interact with the container is hard-coded to be 8887,
+meaning that trying to run two containers on the same machine won't work.
+
+Acquiring the Docker image
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In exchange for avoiding the local installation of Python, orbithunter and its requirements the user must install
+the `Docker application <https://www.docker.com/products/docker-desktop>`_ . During the installation process, Docker
+is going to ask for permissions multiple times and might require the installation of WSL 2 files (linux
+compatibility) if not already present.
+
+Once the application is installed, the Docker image can be pulled from the remote repository by opening command line
+and typing::
+
+    $ docker pull mgudorf/orbithunter:latest
+
+At which point, the image will be downloaded. This image will be displayed in the Docker application under
+the Local portion of the Images tab.
+
+Running the Docker image
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+The easiest way to instantiate the container is to run the following in command line::
+
+    $ docker run -p 8887:8887 mgudorf/orbithunter:latest
+
+The `-p` switch opens the local port 8887 allowing for the jupyter notebook GUI to be opened in a browser. This prints
+output, the last bit of which will look like the following::
+
+    To access the notebook, open this file in a browser:
+        file:///root/.local/share/jupyter/runtime/nbserver-1-open.html
+    Or copy and paste one of these URLs:
+        http://e3954f15092d:8887/?token=340349dadad71268961ba50bddc4671c4092965f1cdca9f9
+     or http://127.0.0.1:8887/?token=340349dadad71268961ba50bddc4671c4092965f1cdca9f9
+
+The notebook accomplished by copying the last (for some reason it has to be the latter) URL to a browser (only ever
+been tested on chrome). Once the jupyter GUI is open, it can be used like normal. All computations and output data
+will be saved to the container; which will be randomly named if no name was provided. To restart the container
+after it has been turned off, run the command::
+
+    $ docker start <container_name>
+
+
+Installation via pip
+--------------------
 
 
 Install the current release of ``orbithunter`` with ``pip``::
