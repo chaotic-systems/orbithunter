@@ -10,7 +10,7 @@ Major Changes
 -  Numerical algorithm wrappers now have separate factory functions which produce the callables required for the various SciPy routines.
    This allows for more tidiness and separability between requirements for various routines. 
 -  Many fixes in SciPy wrappers
--  Orbit not allow for assignment of `workers` attribute; determines cores to use for KSe fft transforms. Only useful if dimension approx >= 128.
+-  Orbit not allow for assignment of `cpu_cores` attribute; determines cores to use for KSe fft transforms. Only useful if dimension approx >= 128.
 -  :meth:`Orbit.transform` now takes keyword argument "inplace"; this leverages SciPy's `overwrite_x` in their `rfft` and `irfft` functions, 
    and also overwrites orbit data in place as well. 
 -  :meth:`Orbit.costgrad` now optionally takes Orbit.eqn() to be more general; i.e. allow for costgrad which do not require eqn to be passed. 

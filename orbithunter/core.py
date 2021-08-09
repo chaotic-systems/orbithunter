@@ -132,7 +132,7 @@ class Orbit:
             self.constraints = constraints
 
         # Unused unless implemented for your class, like :meth:`orbithunter.ks.OrbitKS.transform`
-        self._workers = kwargs.get("_workers", None)
+        self._workers = kwargs.get("_workers", 1)
 
     def __add__(self, other):
         """
