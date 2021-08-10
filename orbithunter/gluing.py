@@ -167,7 +167,7 @@ def glue(orbit_array, orbit_type, strip_wise=False, **kwargs):
     tile_shape = orbit_array.ravel()[0].shapes()[0]
     gluing_order = kwargs.get("gluing_order", np.argsort(glue_shape))
     conserve_parity = kwargs.get("conserve_parity", True)
-    nzero = kwargs.get("include_zeros", True)
+    nzero = kwargs.get("include_zero_dimensions", True)
     gluing_basis = kwargs.get("basis", orbit_type.bases_labels()[0])
     # This joins the dictionary of all orbits' dimensions by zipping the values together. i.e.
     # (T_1, L_1, ...), (T_2, L_2, ...) transforms into  ((T_1, T_2, ...) , (L_1, L_2, ...))
@@ -199,7 +199,7 @@ def glue(orbit_array, orbit_type, strip_wise=False, **kwargs):
                 strip_parameters = orbit_type.glue_dimensions(
                     tuple_of_zipped_dimensions,
                     glue_shape=strip_shape,
-                    include_zeros=nzero,
+                    include_zero_dimensions=nzero,
                 )
                 # Slice the orbit array to get the strip, reshape to maintain its d-dimensional form.
                 strip_of_orbits = orbit_array[gs].ravel()
@@ -240,7 +240,7 @@ def glue(orbit_array, orbit_type, strip_wise=False, **kwargs):
         zipped_dimensions = tuple(zip(*(o.dimensions() for o in orbit_array.ravel())))
         # Default parameter gluing strategy is to average all tile dimensions
         glued_dimensions = orbit_type.glue_dimensions(
-            zipped_dimensions, glue_shape=glue_shape, include_zeros=nzero
+            zipped_dimensions, glue_shape=glue_shape, include_zero_dimensions=nzero
         )
         # If we want a much simpler method of gluing, we can do "arraywise" which simply concatenates everything at
         # once. I would say this is the better option if all orbits in the tile dictionary are approximately equal

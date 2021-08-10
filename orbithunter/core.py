@@ -892,7 +892,7 @@ class Orbit:
         return cls._default_shape()
 
     @classmethod
-    def glue_dimensions(cls, dimension_tuples, glue_shape, include_zeros=True):
+    def glue_dimensions(cls, dimension_tuples, glue_shape, include_zero_dimensions=True):
         """
         Strategy for combining tile dimensions in gluing; default is arithmetic averaging.
 
@@ -903,7 +903,7 @@ class Orbit:
             a number of values equal to the number of orbits in the prospective gluing.
         glue_shape : tuple of ints
             The shape of the gluing being performed i.e. for a 2x2 orbit grid glue_shape would equal (2,2).
-        include_zeros : bool
+        include_zero_dimensions : bool
             If True, then the calculation of average dimensions includes 0's in the averages; else
             they are treated like they do not exist.
 
@@ -922,7 +922,7 @@ class Orbit:
 
         """
         try:
-            if include_zeros:
+            if include_zero_dimensions:
                 return tuple(
                     glue_shape[i] * p.mean()
                     for i, p in enumerate(
@@ -1248,7 +1248,7 @@ class Orbit:
             # "glue shape"
             glue_shape = tuple(2 if i == axis else 1 for i in range(self.ndim))
             new_dimensions = self.glue_dimensions(
-                tuple_of_zipped_dimensions, glue_shape, include_zeros=True
+                tuple_of_zipped_dimensions, glue_shape, include_zero_dimensions=True
             )
 
         elif self.parameters is not None:
