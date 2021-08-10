@@ -27,7 +27,7 @@ __all__ += ["read_h5", "read_tileset"]
 __all__ += ["glue", "tile"]
 __all__ += ["clip", "clipping_mask"]
 __all__ += ["continuation", "discretization_continuation", "span_family"]
-__all__ += ["cover", "fill", "scoring_functions", "OrbitCover"]
+__all__ += ["cover", "scoring_functions", "OrbitCover"]
 __all__ += ["convert_class", "Orbit"]
 
-__version__ = "0.7"
+__version__ = "1.0"

@@ -892,7 +892,9 @@ class Orbit:
         return cls._default_shape()
 
     @classmethod
-    def glue_dimensions(cls, dimension_tuples, glue_shape, include_zero_dimensions=True):
+    def glue_dimensions(
+        cls, dimension_tuples, glue_shape, include_zero_dimensions=True
+    ):
         """
         Strategy for combining tile dimensions in gluing; default is arithmetic averaging.
 
