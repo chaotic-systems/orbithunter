@@ -76,13 +76,13 @@ setup(
     install_requires=install_requires,
     extras_require=extras_require,
     project_urls={
-                "documentation": "https://orbithunter.readthedocs.io/en/latest/index.html",
-                "issues": "https://orbithunter.readthedocs.io/en/latest/issues.html",
-                "bugs": "https://github.com/mgudorf/orbithunter/issues",
-                "source": "https://github.com/mgudorf/orbithunter",
-                "guide": "https://orbithunter.readthedocs.io/en/latest/guide.html",
-                "tutorials": "https://github.com/mgudorf/orbithunter/tree/main/notebooks",
-                "faq": "https://orbithunter.readthedocs.io/en/latest/faq.html"
+        "documentation": "https://orbithunter.readthedocs.io/en/latest/index.html",
+        "issues": "https://orbithunter.readthedocs.io/en/latest/issues.html",
+        "bugs": "https://github.com/mgudorf/orbithunter/issues",
+        "source": "https://github.com/mgudorf/orbithunter",
+        "guide": "https://orbithunter.readthedocs.io/en/latest/guide.html",
+        "tutorials": "https://github.com/mgudorf/orbithunter/tree/main/notebooks",
+        "faq": "https://orbithunter.readthedocs.io/en/latest/faq.html",
     },
-    package_data={"orbithunter": ["requirements/*.txt"]}
+    package_data={"orbithunter": ["requirements/*.txt"]},
 )

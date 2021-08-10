@@ -18,4 +18,4 @@ whether its field can be resized by using image analysis tools from scikit-learn
 this is made easy by the KSE having 2-d scalar field solutions. Applying image resizing techniques
 is good for plotting but not necessarily for numerical reasons. Not including for now because it would
 require changing the requirements to include scikit-image as well which seems unreasonable this size of
-an addition
+an addition.

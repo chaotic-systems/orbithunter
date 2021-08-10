@@ -1,11 +1,12 @@
 import pytest
 import numpy as np
-import orbithunter as oh
+import orbithunter as orb
 import h5py
 import pathlib
 
 here = pathlib.Path(__file__).parent.resolve()
 data_path = here / "test_data.h5"
+
 
 @pytest.fixture()
 def fixed_OrbitKS_data():
@@ -24,8 +25,14 @@ def fixed_OrbitKS_data():
     )
     return state
 
+@pytest.fixture()
+def fixed_test_orbit_data():
+    return TestOrbit(state=2 * np.arange(10) + 10, basis="physical", parameters=None)
+
+
 def test_orbit_data():
     with h5py.File(data_path, "r") as file:
+
         def h5_helper(name, cls):
             nonlocal file
             attrs = dict(file["/".join([name, "0"])].attrs.items())
@@ -39,13 +46,13 @@ def test_orbit_data():
                 }
             )
 
-        rpo = h5_helper("rpo", oh.RelativeOrbitKS)
-        defect = h5_helper("defect", oh.RelativeOrbitKS)
-        large_defect = h5_helper("large_defect", oh.RelativeOrbitKS)
-        drifter = h5_helper("drifter", oh.RelativeEquilibriumOrbitKS)
-        wiggle = h5_helper("wiggle", oh.AntisymmetricOrbitKS)
-        streak = h5_helper("streak", oh.EquilibriumOrbitKS)
-        double_streak = h5_helper("double_streak", oh.EquilibriumOrbitKS)
+        rpo = h5_helper("rpo", orb.RelativeOrbitKS)
+        defect = h5_helper("defect", orb.RelativeOrbitKS)
+        large_defect = h5_helper("large_defect", orb.RelativeOrbitKS)
+        drifter = h5_helper("drifter", orb.RelativeEquilibriumOrbitKS)
+        wiggle = h5_helper("wiggle", orb.AntisymmetricOrbitKS)
+        streak = h5_helper("streak", orb.EquilibriumOrbitKS)
+        double_streak = h5_helper("double_streak", orb.EquilibriumOrbitKS)
         manual = [rpo, defect, large_defect, drifter, wiggle, streak, double_streak]
 
     # Read in the same orbits as above using the native orbithunter io
@@ -59,12 +66,13 @@ def test_orbit_data():
         "streak",
         "double_streak",
     )
-    automatic = oh.read_h5(data_path, keys)
+    automatic = orb.read_h5(data_path, keys)
     for static, read in zip(manual, automatic):
         assert static.cost() < 1e-7
         assert static.cost() == read.cost()
         assert np.isclose(static.state, read.state).all()
         assert static.parameters == read.parameters
+
 
 def test_glue():
     with h5py.File(data_path, "r") as file:
@@ -81,3 +89,136 @@ def test_glue():
                     "discretization": tuple(attrs["discretization"]),
                 }
             )
+
+
+def test_optimize_custom(fixed_test_orbit_data):
+    methods = [
+        'newton_descent',
+        'lstsq',
+        'solve',
+        'adj',
+        "gd"]
+    for m in methods:
+        result = orb.hunt(
+            fixed_test_orbit_data, methods=m, tol=1e-3, min_step=0, maxiter=100000, ftol=0,# step_size=0.01
+        )
+        assert result.orbit.cost() < 1e-3
+    return None
+
+
+def test_optimize_sparse_linalg_least_squares(fixed_test_orbit_data):
+    methods = [
+            "lsqr",
+            "lsmr"
+            ]
+    for m in methods:
+        result = orb.hunt(
+            fixed_test_orbit_data, methods=m, atol=1e-3, btol=1e-3, maxiter=10, ftol=0, step_size=0.01
+        )
+        assert result.orbit.cost() < 1e-5
+    return None
+
+def test_optimize_sparse_linalg(fixed_test_orbit_data):
+    methods = [
+            "bicg",
+            "bicgstab",
+            "gmres",
+            "lgmres",
+            "cg",
+            "cgs",
+            "qmr",
+            "minres",
+            "gcrotmk"
+        ]
+    for m in methods:
+        result = orb.hunt(
+            fixed_test_orbit_data, methods=m, tol=1e-3, min_step=0, maxiter=10,
+        )
+        assert result.orbit.cost() < 1e-3
+    return None
+    
+    
+def test_optimize_minimize(fixed_test_orbit_data):
+    methods = [
+            "nelder-mead",
+            "powell",
+            "cg_min",
+            "bfgs",
+            "newton-cg",
+            "l-bfgs-b",
+            "tnc",
+            "cobyla",
+            "slsqp"]
+    for m in methods:
+        result = orb.hunt(
+            fixed_test_orbit_data, methods=m, tol=1e-2, min_step=0, maxiter=100000, ftol=0, step_size=0.01
+        )
+        assert result.orbit.cost() < 1e-2
+    return None
+
+
+def test_optimize_minimize_with_hessian(fixed_test_orbit_data):
+
+    for m in  ["trust-constr", "trust-ncg",  "trust-krylov"]:
+        result = orb.hunt(
+            fixed_test_orbit_data, methods=m, tol=1e-3,  hess_strategy='costhessp',
+                            min_step=0, ftol=0
+                        )
+        assert result.orbit.cost() < 1e-3
+
+    for m in ["dogleg", "trust-exact"]:
+        result = orb.hunt(
+            fixed_test_orbit_data, methods=m, tol=1e-3,  hess_strategy='costhess',
+                            min_step=0, ftol=0
+                        )
+        assert result.orbit.cost() < 1e-3
+
+    return None
+
+
+def test_optimize_root(fixed_test_orbit_data):
+    methods = [
+            "hybr",
+            "lm",
+            "broyden1",
+            "diagbroyden",
+            "krylov",
+            "df-sane"
+        ]
+    for m in methods:
+        result = orb.hunt(
+            fixed_test_orbit_data, methods=m, tol=1e-3, min_step=0, maxiter=100000, ftol=0, step_size=0.01
+        )
+        assert result.orbit.cost() < 1e-3
+    return None
+
+
+class TestOrbit(orb.Orbit):
+    def eqn(self, **kwargs):
+        # x^2 - n = 0 for n in [0, dim-1]
+        return self.__class__(
+            **{
+                **vars(self),
+                "state": (self.state ** 2 - np.arange(self.state.size)),
+            }
+        )
+
+    def matvec(self, other, **kwargs):
+        return 2 * self * other
+
+    def rmatvec(self, other, **kwargs):
+        return 2 * self * other
+
+    def jacobian(self, **kwargs):
+        return 2 * np.diag(self.state.ravel())
+
+    def hess(self, **kwargs):
+        H = np.zeros([self.size, self.size, self.size])
+        H[np.diag_indices(self.size, ndim=3)] = 1
+        return 2 * H
+
+    def hessp(self, left_other, right_other, **kwargs):
+        # d^2 F = 2 * I. F * d^2 F =
+        u = left_other.state.ravel()
+        # This makes it look simple but the expression np.zeros(u.size) is acting as a placeholder.
+        return self.from_numpy_array(np.dot(u, 2 * np.diag(right_other.state)))

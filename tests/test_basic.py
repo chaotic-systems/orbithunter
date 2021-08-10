@@ -2,10 +2,14 @@ import pytest
 import numpy as np
 import h5py
 import pathlib
-import orbithunter as oh  # tests are setup to run against installed version only
+import os, sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(sys.argv[0], "../../../")))
+import orbithunter as orb
 
 here = pathlib.Path(__file__).parent.resolve()
 data_path = here / "test_data.h5"
+
 
 @pytest.fixture()
 def fixed_orbit_data():
@@ -46,13 +50,13 @@ def fixed_kwarg_dict():
 
 def test_create_orbit(fixed_orbit_data):
     """ Test initialization of an Orbit instance """
-    return oh.Orbit(
+    return orb.Orbit(
         state=fixed_orbit_data, basis="physical", parameters=(10, 10, 10, 10)
     )
 
 
 def test_Orbit_attributes(fixed_orbit_data):
-    orbit_ = oh.Orbit(
+    orbit_ = orb.Orbit(
         state=fixed_orbit_data, basis="physical", parameters=(10, 10, 10, 10)
     )
     assert orbit_.parameters[0] == orbit_.t
@@ -63,15 +67,15 @@ def test_Orbit_attributes(fixed_orbit_data):
     assert orbit_.discretization[1] == orbit_.i
     assert orbit_.discretization[2] == orbit_.j
     assert orbit_.discretization[3] == orbit_.k
-    assert oh.Orbit().state.shape == tuple(len(orbit_._default_shape()) * [0])
-    assert oh.Orbit().basis is None
+    assert orb.Orbit().state.shape == tuple(len(orbit_._default_shape()) * [0])
+    assert orb.Orbit().basis is None
     with pytest.raises(AttributeError):
-        _ = oh.Orbit().fakeattr
+        _ = orb.Orbit().fakeattr
 
 
 def test_binary_operations(fixed_orbit_data):
     # Testing the different overloaded binary operators
-    orbit_ = oh.Orbit(
+    orbit_ = orb.Orbit(
         state=fixed_orbit_data, basis="physical", parameters=(10, 10, 10, 10)
     )
     assert (orbit_ + orbit_).state.sum() == 2 * orbit_.state.sum()
@@ -83,7 +87,7 @@ def test_binary_operations(fixed_orbit_data):
 
 def test_assignment_operators(fixed_orbit_data):
     # Testing the different overloaded binary operators
-    orbit_ = oh.Orbit(
+    orbit_ = orb.Orbit(
         state=fixed_orbit_data, basis="physical", parameters=(10, 10, 10, 10)
     )
     orbit_ += orbit_
@@ -96,7 +100,7 @@ def test_assignment_operators(fixed_orbit_data):
 
 def test_assignment_operators_no_state():
     # Testing the different overloaded binary operators
-    orbit_ = oh.Orbit()
+    orbit_ = orb.Orbit()
     orbit_ += orbit_
     orbit_ -= orbit_
     orbit_ *= orbit_
@@ -107,18 +111,18 @@ def test_assignment_operators_no_state():
 
 def test_getitem(fixed_orbit_data):
     # Testing the different overloaded binary operators
-    orbit_ = oh.Orbit(
+    orbit_ = orb.Orbit(
         state=fixed_orbit_data, basis="physical", parameters=(10, 10, 10, 10)
     )
     assert orbit_[:1, :1, :1, :1].state.squeeze() - 1.6243454 == 0
     with pytest.raises((IndexError, ValueError)):
-        empty_orbit = oh.Orbit()
+        empty_orbit = orb.Orbit()
         raise_index_error_because_empty_array = empty_orbit[0, 0, 0, 0]
 
 
 def test_populate():
     """ Initialization in cases where generated information is desired. Occurs in-place"""
-    z = oh.Orbit()
+    z = orb.Orbit()
     x = z.populate(attr="parameters")
     for p, op in zip(x.parameters, z.parameters):
         assert p is not None
@@ -134,9 +138,9 @@ def test_populate():
 
 
 def test_populate_seeding():
-    x = oh.Orbit()
+    x = orb.Orbit()
     x.populate(seed=0)
-    y = oh.Orbit()
+    y = orb.Orbit()
     y.populate(seed=0)
     assert np.isclose(x.state, y.state).all()
     assert x.parameters == y.parameters
@@ -152,7 +156,7 @@ def test_parameter_population():
         "y": choice_list_possible_confused_with_interval,
         "z": choice_list,
     }
-    x = oh.Orbit().populate(attr="parameters", parameter_ranges=parameter_ranges)
+    x = orb.Orbit().populate(attr="parameters", parameter_ranges=parameter_ranges)
     assert x.t == 2
     assert (x.x >= 100) and (x.x <= 200)
     assert x.y in choice_list_possible_confused_with_interval
@@ -166,32 +170,32 @@ def test_parameter_population():
         "z": choice_list,
     }
     with pytest.raises((TypeError, ValueError)):
-        oh.Orbit().populate(attr="parameters", parameter_ranges=bad_parameter_ranges)
+        orb.Orbit().populate(attr="parameters", parameter_ranges=bad_parameter_ranges)
 
     pranges_missing_keys = {"t": np.ones([2, 2, 2, 2]), "z": choice_list}
-    oh.Orbit().populate(attr="parameters", parameter_ranges=pranges_missing_keys)
+    orb.Orbit().populate(attr="parameters", parameter_ranges=pranges_missing_keys)
 
     pranges_missing_keys_bundled_array = {
         "t": (np.ones([2, 2, 2, 2]),),
         "z": choice_list,
     }
-    oh.Orbit().populate(
+    orb.Orbit().populate(
         attr="parameters", parameter_ranges=pranges_missing_keys_bundled_array
     )
 
     # partially populated
-    oh.Orbit(parameters=(1, None, 1)).populate(
+    orb.Orbit(parameters=(1, None, 1)).populate(
         attr="parameters", parameter_ranges=parameter_ranges
     )
 
     # partially populated with missing keys
-    oh.Orbit(parameters=(0, 0, None)).populate(
+    orb.Orbit(parameters=(0, 0, None)).populate(
         attr="parameters", parameter_ranges=pranges_missing_keys
     )
 
 
 def test_overwriting():
-    x = oh.Orbit().populate("state")
+    x = orb.Orbit().populate("state")
     with pytest.raises(ValueError):
         x.populate("state")
     x.populate("state", overwrite=True)
@@ -205,7 +209,7 @@ def test_overwriting():
 
 def test_matrix_methods(fixed_orbit_data):
     """ Numerical methods required for matrix-constructing optimization"""
-    orbit_ = oh.Orbit(
+    orbit_ = orb.Orbit(
         state=fixed_orbit_data, basis="physical", parameters=(10, 10, 10, 10)
     )
     j = orbit_.jacobian()
@@ -213,19 +217,19 @@ def test_matrix_methods(fixed_orbit_data):
 
 
 def test_constrain():
-    x = oh.Orbit()
-    x.constrain(oh.Orbit.parameter_labels())
+    x = orb.Orbit()
+    x.constrain(orb.Orbit.parameter_labels())
     assert x.constraints == {"t": True, "x": True, "y": True, "z": True}
     # constraints are "refreshed" upon each call in order to allow for changing without checking values.
     x.constrain("I do not exist")
     assert x.constraints == {"t": False, "x": False, "y": False, "z": False}
 
     with pytest.raises(TypeError):
-        oh.Orbit().constrain(["I am in a list"])
+        orb.Orbit().constrain(["I am in a list"])
 
 
 def test_from_numpy(fixed_orbit_data):
-    orbit_ = oh.Orbit(
+    orbit_ = orb.Orbit(
         state=fixed_orbit_data, basis="physical", parameters=(10, 10, 10, 10)
     )
     v = orbit_.orbit_vector()
@@ -240,7 +244,7 @@ def test_from_numpy(fixed_orbit_data):
 
 def test_matrix_free_methods(fixed_orbit_data, fixed_kwarg_dict):
     """ Numerical methods required for matrix-free optimization"""
-    orbit_ = oh.Orbit(
+    orbit_ = orb.Orbit(
         state=fixed_orbit_data, basis="physical", parameters=(10, 10, 10, 10)
     )
     f = orbit_.eqn(fixed_kwarg_dict)
@@ -261,7 +265,7 @@ def test_matrix_free_methods(fixed_orbit_data, fixed_kwarg_dict):
 
 def test_properties(fixed_orbit_data):
     """ Call all properties to check if they are defined. """
-    orbit_ = oh.Orbit(state=fixed_orbit_data, basis="physical")
+    orbit_ = orb.Orbit(state=fixed_orbit_data, basis="physical")
     _ = orbit_.shape
     _ = orbit_.size
     _ = orbit_.bases_labels()
@@ -275,7 +279,7 @@ def test_properties(fixed_orbit_data):
 
 def test_rediscretization(fixed_orbit_data):
     """ Check the reversibility of padding and truncation"""
-    orbit_ = oh.Orbit(state=fixed_orbit_data, basis="physical")
+    orbit_ = orb.Orbit(state=fixed_orbit_data, basis="physical")
     enlarged = orbit_.resize(16, 16, 16, 16)
     shrank = enlarged.resize(orbit_.discretization)
     assert (shrank.state == orbit_.state).all()
@@ -283,27 +287,25 @@ def test_rediscretization(fixed_orbit_data):
 
 def test_glue_dimensions(fixed_orbit_data):
     """ Test the manner by which new parameter values are generated for gluings"""
-    x = oh.Orbit(state=fixed_orbit_data, basis="physical", parameters=(2, 2, 3, 4))
-    y = oh.Orbit(state=fixed_orbit_data, basis="physical", parameters=(10, 0, 0, -4))
+    x = orb.Orbit(state=fixed_orbit_data, basis="physical", parameters=(2, 2, 3, 4))
+    y = orb.Orbit(state=fixed_orbit_data, basis="physical", parameters=(10, 0, 0, -4))
     dimension_tuples = tuple(zip(x.parameters, y.parameters))
     glue_shape = (2, 1, 1, 1)
-    assert oh.Orbit.glue_dimensions(
-        dimension_tuples, glue_shape, exclude_nonpositive=True
+    assert orb.Orbit.glue_dimensions(
+        dimension_tuples, glue_shape, include_zeros=False
     ) == (12.0, 2.0, 3, 4.0)
-    assert oh.Orbit.glue_dimensions(
-        dimension_tuples, glue_shape, exclude_nonpositive=False
+    assert orb.Orbit.glue_dimensions(
+        dimension_tuples, glue_shape, include_zeros=True
     ) == (12.0, 1.0, 1.5, 0.0)
     with pytest.raises((IndexError, ValueError)):
         glue_shape = (2, 1)
-        oh.Orbit.glue_dimensions(
-            dimension_tuples, glue_shape, exclude_nonpositive=False
-        )
+        orb.Orbit.glue_dimensions(dimension_tuples, glue_shape, include_zeros=True)
 
 
 def test_symmetry(fixed_orbit_data):
     """ Test symmetry operations such as discrete rotations and reflections"""
-    x = oh.Orbit(state=fixed_orbit_data, basis="physical", parameters=(2, 2, 3, 4))
-    y = oh.Orbit(state=fixed_orbit_data, basis="physical", parameters=(10, 0, 0, -4))
+    x = orb.Orbit(state=fixed_orbit_data, basis="physical", parameters=(2, 2, 3, 4))
+    y = orb.Orbit(state=fixed_orbit_data, basis="physical", parameters=(10, 0, 0, -4))
     z = x.roll(1, axis=(0, 1, 2, 3))
     w = y.roll(1, axis=0).roll(1, axis=1).roll(1, axis=2).roll(1, axis=3)
     assert (z.state == w.state).all()
@@ -333,6 +335,7 @@ def fixed_OrbitKS_data():
 
 def test_orbit_data():
     with h5py.File(data_path, "r") as file:
+
         def h5_helper(name, cls):
             nonlocal file
             attrs = dict(file["/".join([name, "0"])].attrs.items())
@@ -346,13 +349,13 @@ def test_orbit_data():
                 }
             )
 
-        rpo = h5_helper("rpo", oh.RelativeOrbitKS)
-        defect = h5_helper("defect", oh.RelativeOrbitKS)
-        large_defect = h5_helper("large_defect", oh.RelativeOrbitKS)
-        drifter = h5_helper("drifter", oh.RelativeEquilibriumOrbitKS)
-        wiggle = h5_helper("wiggle", oh.AntisymmetricOrbitKS)
-        streak = h5_helper("streak", oh.EquilibriumOrbitKS)
-        double_streak = h5_helper("double_streak", oh.EquilibriumOrbitKS)
+        rpo = h5_helper("rpo", orb.RelativeOrbitKS)
+        defect = h5_helper("defect", orb.RelativeOrbitKS)
+        large_defect = h5_helper("large_defect", orb.RelativeOrbitKS)
+        drifter = h5_helper("drifter", orb.RelativeEquilibriumOrbitKS)
+        wiggle = h5_helper("wiggle", orb.AntisymmetricOrbitKS)
+        streak = h5_helper("streak", orb.EquilibriumOrbitKS)
+        double_streak = h5_helper("double_streak", orb.EquilibriumOrbitKS)
         manual = [rpo, defect, large_defect, drifter, wiggle, streak, double_streak]
 
     # Read in the same orbits as above using the native orbithunter io
@@ -366,7 +369,7 @@ def test_orbit_data():
         "streak",
         "double_streak",
     )
-    automatic = oh.read_h5(data_path, keys)
+    automatic = orb.read_h5(data_path, keys)
     for static, read in zip(manual, automatic):
         assert static.cost() < 1e-7
         assert static.cost() == read.cost()
@@ -419,7 +422,7 @@ def fixed_data_transform_norms_dict():
         5.8411804628190795,
     ]
     norms = [orbitks_norms, rel_norms, sr_norms, anti_norms, eqv_norms, reqv_norms]
-    names = [name for name, cls in oh.__dict__.items() if isinstance(cls, type)]
+    names = [name for name, cls in orb.__dict__.items() if isinstance(cls, type)]
     return dict(zip(names, norms))
 
 
@@ -433,7 +436,7 @@ def fixed_eqn_norm_dict():
         0.033697585549483405,
         0.37894868060091114,
     ]
-    names = [name for name, cls in oh.__dict__.items() if isinstance(cls, type)]
+    names = [name for name, cls in orb.__dict__.items() if isinstance(cls, type)]
     return dict(zip(names, norms))
 
 
@@ -528,13 +531,13 @@ def test_OrbitKS_attributes(fixed_OrbitKS_data, fixed_ks_parameters, kse_classes
         assert cls().state.shape == tuple(len(orbit_._default_shape()) * [0])
         assert cls().basis is None
         with pytest.raises(AttributeError):
-            _ = oh.Orbit().fakeattr
+            _ = orb.Orbit().fakeattr
 
 
 @pytest.fixture()
 def kse_classes():
     return dict(
-        [(name, cls) for name, cls in oh.ks.__dict__.items() if isinstance(cls, type)]
+        [(name, cls) for name, cls in orb.ks.__dict__.items() if isinstance(cls, type)]
     )
 
 
@@ -610,7 +613,7 @@ def test_spt_projection_spt_derivative(
 def test_rmatvec(fixed_OrbitKS_data, fixed_ks_parameters):
     with h5py.File(data_path, "r") as file:
         attrs = dict(file["rpo/0"].attrs.items())
-        relorbit_ = oh.RelativeOrbitKS(
+        relorbit_ = orb.RelativeOrbitKS(
             state=file["rpo/0"][...],
             **{
                 **attrs,
@@ -622,7 +625,7 @@ def test_rmatvec(fixed_OrbitKS_data, fixed_ks_parameters):
     assert pytest.approx(relorbit_.rmatvec(relorbit_).norm(), 60.18805016)
     assert pytest.approx(relorbit_.costgrad(relorbit_).norm(), 0.0)
 
-    orbit_ = oh.OrbitKS(
+    orbit_ = orb.OrbitKS(
         state=fixed_OrbitKS_data, parameters=fixed_ks_parameters[0], basis="field"
     ).transform(to="modes")
     assert pytest.approx(orbit_.rmatvec(orbit_).norm(), 1.295386)
@@ -630,8 +633,8 @@ def test_rmatvec(fixed_OrbitKS_data, fixed_ks_parameters):
 
 
 def test_matvec(fixed_OrbitKS_data, fixed_ks_parameters):
-    relorbit_ = oh.read_h5(data_path, "rpo")
-    orbit_ = oh.OrbitKS(
+    relorbit_ = orb.read_h5(data_path, "rpo")
+    orbit_ = orb.OrbitKS(
         state=fixed_OrbitKS_data, parameters=fixed_ks_parameters[0], basis="field"
     ).transform(to="modes")
 
@@ -699,7 +702,7 @@ def test_instantiation(kse_classes):
     """
     for (name, cls) in kse_classes.items():
         with pytest.raises(ValueError):
-            _ = oh.Orbit(state=np.ones(cls.minimal_shape()))
+            _ = orb.Orbit(state=np.ones(cls.minimal_shape()))
         _ = cls(parameters=(100, 100, 0))
         _ = cls(state=np.ones(cls.minimal_shape()), basis="field")
         _ = cls(
@@ -721,4 +724,5 @@ def test_jacobian(
         ).transform(to="modes")
         # The jacobians have all other matrices within them; just use this as a proxy to test.
         jac_ = orbit_.jacobian()
+        test = np.abs(jac_).sum()
         pytest.approx(np.abs(jac_).sum(), jacsum)

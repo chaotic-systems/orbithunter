@@ -1,8 +1,10 @@
 import warnings
-warnings.simplefilter('ignore', category=FutureWarning)
+
+warnings.simplefilter("ignore", category=FutureWarning)
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Flatten, Conv1D, Conv2D, Conv3D, Activation
 from tensorflow.keras.layers import AveragePooling1D, AveragePooling2D, AveragePooling3D
+
 warnings.resetwarnings()
 from sklearn.model_selection import train_test_split
 import numpy as np
@@ -26,7 +28,7 @@ def orbit_cnn(orbits, target, **kwargs):
         Must have same length along first axis as `orbits`. Can be any type of labels/values the
         dimension of each sample is the same as the dimension of the prediction/output layer.
 
-    `**kwargs` : dict, optional
+    kwargs : dict, optional
         May contain any and all extra keyword arguments required for numerical methods and Orbit specific methods.
 
         `hyper_parameters : tuple`
@@ -64,7 +66,10 @@ def orbit_cnn(orbits, target, **kwargs):
     y = np.array(target).reshape(X.shape[0], -1)
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=kwargs.get('test_size', 0.2), random_state=kwargs.get('random_state', 0)
+        X,
+        y,
+        test_size=kwargs.get("test_size", 0.2),
+        random_state=kwargs.get("random_state", 0),
     )
     (f1, k1, p1, f2, k2, p2) = kwargs.get("hyper_parameters", (32, 8, 2, 8, 8, 2))
     sample_size = X.shape[0]

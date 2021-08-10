@@ -107,6 +107,7 @@ class Orbit:
     >>>     return orbit_instance.__class__(**{**vars(orbit_instance), 'state': new_state_same_shape})
 
     """
+
     def __init__(
         self,
         state=None,
@@ -129,6 +130,9 @@ class Orbit:
         else:
             self.parameters = parameters
             self.constraints = constraints
+
+        # Unused unless implemented for your class, like :meth:`orbithunter.ks.OrbitKS.transform`
+        self._workers = kwargs.get("_workers", 1)
 
     def __add__(self, other):
         """
@@ -503,29 +507,44 @@ class Orbit:
         Although to be fair I would probably just use `np.prod` in this case. This also goes for discretization parameters.
 
         """
-        # hasattr safety
+        # hasattr usage mainly
         try:
             attr = str(attr)
-        except ValueError:
-            print("Attribute is not of readable type")
+        except ValueError("Attribute is not of readable type"):
+            ...
 
+        label_index = None
+        label_error_type = None
+        # I opt for nested try-except statements to be more precise in catching exceptions.
         try:
+            # If parameters are NoneType then this raises TypeError; if fewer discretization parameters
+            # than expected,  raises IndexError
             if attr in self.parameter_labels():
-                # parameters must be cast as tuple, (p,) if singleton.
-                return self.parameters[self.parameter_labels().index(attr)]
+                label_index = self.parameter_labels().index(attr)
+                label_error_type = "parameters"
+                return self.parameters[label_index]
             elif attr in self.discretization_labels():
-                # discretization must be tuple, (d,) if singleton.
-                return self.discretization[self.discretization_labels().index(attr)]
+                label_index = self.discretization_labels().index(attr)
+                label_error_type = "discretization"
+                return self.discretization[label_index]
             else:
-                error_message = " ".join(
-                    [self.__class__.__name__, "has no attribute'{}'".format(attr)]
-                )
-                raise AttributeError(error_message)
+                # Trying to access an attribute that does not exist.
+                raise AttributeError(f"{str(self)} has no attribute {attr}")
+
+        except TypeError as te:
+            raise AttributeError(
+                f"Cannot retrieve '{attr}' when {label_error_type} attribute is NoneType"
+            ) from te
+
         except IndexError as ie:
-            errstr = ' '.join([f"{self.__class__} is trying to access '{attr}' which does not exist.",
-                               f"Occurs when instances created without parsing receive fewer parameters"
-                               f"than expected."])
-            raise AttributeError(errstr)
+            errstr = " ".join(
+                [
+                    f"'{attr}' parameter expected at index {label_index} but {str(self)} only has",
+                    f"{len(self.parameters)} parameters. This occurs when an unparsed instance receives",
+                    f"fewer parameters than the user intended",
+                ]
+            )
+            raise AttributeError(errstr) from ie
 
     def __getitem__(self, key):
         """
@@ -607,21 +626,34 @@ class Orbit:
                 new_dimensions = [
                     dim * (newsize / oldsize)
                     if newsize > 1 and continuous
-                    else 0. if continuous else newsize
+                    else 0.0
+                    if continuous
+                    else newsize
                     # If any axes are flattened by the slicing then
                     for dim, newsize, oldsize, continuous in zip(
-                        self.dimensions(), state_slice.shape, self.shape, self.continuous_dimensions()
+                        self.dimensions(),
+                        state_slice.shape,
+                        self.shape,
+                        self.continuous_dimensions(),
                     )
                 ]
                 param_dict = dict(zip(list(self.parameter_labels()), self.parameters))
                 dim_dict = dict(zip(list(self.dimension_labels()), new_dimensions))
                 param_dict = {**param_dict, **dim_dict}
                 parameters = tuple(param_dict[key] for key in self.parameter_labels())
+                # Discretization == None forces parsing of the state's shape using the current basis.
                 return self.__class__(
-                    **{**vars(self), "state": state_slice, "parameters": parameters}
+                    **{
+                        **vars(self),
+                        "state": state_slice,
+                        "parameters": parameters,
+                        "discretization": None,
+                    }
                 )
             else:
-                return self.__class__(**{**vars(self), "state": state_slice})
+                return self.__class__(
+                    **{**vars(self), "state": state_slice, "discretization": None}
+                )
         except IndexError as ie:
             if self.size == 0.0:
                 raise ValueError(
@@ -811,6 +843,14 @@ class Orbit:
         """
         return self.state.ndim
 
+    @property
+    def workers(self):
+        return self._workers
+
+    @workers.setter
+    def workers(self, value):
+        self._workers = value
+
     def abs(self):
         """
     Orbit instance with absolute value of state.
@@ -852,7 +892,7 @@ class Orbit:
         return cls._default_shape()
 
     @classmethod
-    def glue_dimensions(cls, dimension_tuples, glue_shape, exclude_nonpositive=True):
+    def glue_dimensions(cls, dimension_tuples, glue_shape, include_zero_dimensions=True):
         """
         Strategy for combining tile dimensions in gluing; default is arithmetic averaging.
 
@@ -863,8 +903,9 @@ class Orbit:
             a number of values equal to the number of orbits in the prospective gluing.
         glue_shape : tuple of ints
             The shape of the gluing being performed i.e. for a 2x2 orbit grid glue_shape would equal (2,2).
-        exclude_nonpositive : bool
-            If True, then the calculation of average dimensions excludes 0's.
+        include_zero_dimensions : bool
+            If True, then the calculation of average dimensions includes 0's in the averages; else
+            they are treated like they do not exist.
 
         Returns
         -------
@@ -881,7 +922,14 @@ class Orbit:
 
         """
         try:
-            if exclude_nonpositive:
+            if include_zero_dimensions:
+                return tuple(
+                    glue_shape[i] * p.mean()
+                    for i, p in enumerate(
+                        np.array(ptuple) for ptuple in dimension_tuples
+                    )
+                )
+            else:
                 # Take the average of non-zero parameter values
                 return tuple(
                     glue_shape[i] * p[p > 0.0].mean()
@@ -889,16 +937,9 @@ class Orbit:
                         np.array(ptuple) for ptuple in dimension_tuples
                     )
                 )
-            else:
-                return tuple(
-                    glue_shape[i] * p.mean()
-                    for i, p in enumerate(
-                        np.array(ptuple) for ptuple in dimension_tuples
-                    )
-                )
         except IndexError as ie:
             raise ValueError(
-                f"Gluing shape must have as many elements as {cls} has dimensions"
+                f"Gluing shapd must have as many elements as {cls} has dimensions"
             ) from ie
 
     def dimensions(self):
@@ -958,7 +999,7 @@ class Orbit:
             v = self.state.ravel()
         return 0.5 * v.dot(v)
 
-    def costgrad(self, eqn, **kwargs):
+    def costgrad(self, *args, **kwargs):
         """
         Matrix-vector product corresponding to gradient of scalar cost functional $1/2 F^2$
 
@@ -983,9 +1024,12 @@ class Orbit:
         Default cost functional is $1/2 F^2$.
 
         """
-        return self.rmatvec(eqn, **kwargs)
+        if args:
+            return self.rmatvec(*args, **kwargs)
+        else:
+            return self.rmatvec(self.eqn(), **kwargs)
 
-    def costhess(self, other, **kwargs):
+    def costhess(self, **kwargs):
         """
         Matrix-vector product with the Hessian of the cost function.
 
@@ -1006,13 +1050,18 @@ class Orbit:
 
         The hessian is the combination of jacobian-transpose multiplied with jacobian plus a second term, equal
         to the dot product of the hessian of the governing equations (tensor) dotted with the equations, resulting in a
-        2-d matrix. This method has not been implemented for any equation,
+        2-d matrix, $J^TJ + F (d^2F)$. This method has not been implemented for any equation,
         but the recipe is given below. While there are tensor product functions I think the easiest way to
         compute this is by broadcasting and dot product.
 
         """
         J = self.jacobian(**kwargs)
-        return J.T.dot(J) + self.hess().dot(self.eqn(**kwargs).orbit_vector.ravel())
+        return (
+            J.T.dot(J)
+            + np.tensordot(
+                self.eqn(**kwargs).state.ravel(), self.hess(**kwargs), axes=1
+            ).squeeze()
+        )
 
     def costhessp(self, other, **kwargs):
         """
@@ -1040,9 +1089,13 @@ class Orbit:
         compute this is by broadcasting and dot product.
 
         """
-
+        # rmatvec of anything produces components for entire orbit_vector, meaning that simply adding the
+        # two results is insufficient; need to parameter-wise add as well; can do this via orbit_vector or increment.
         JTJ = self.rmatvec(self.matvec(other, **kwargs), **kwargs)
-        return (JTJ + self.hessp(self.eqn(**kwargs), **kwargs)) * other
+
+        # equal to (J^T J * v) + (F  * d^2F * v)
+        # (d^2F) has dimensions (self.eqn().size, self.cdof().size, self.cdof().size)
+        return JTJ.increment(self.hessp(self.eqn(**kwargs), other, **kwargs))
 
     def resize(self, *new_discretization, **kwargs):
         """
@@ -1119,8 +1172,7 @@ class Orbit:
 
         Notes
         -----
-        In decision to maintain numpy defaults or change roll to be positive when shift is positive, the latter was
-        chosen. If provided tuples of ints, shift and axis need to be the same length as to be coherent.
+        If provided tuples of ints, shift and axis need to be the same length as to be coherent.
 
         """
         return self.__class__(
@@ -1156,6 +1208,106 @@ class Orbit:
             axis=axis,
         )
 
+    def concat(self, other, axis=0):
+        """
+        Join two Orbits together by concatenating their state arrays and adding/averaging their parameters.
+
+        Parameters
+        ----------
+        other : Orbit
+            Orbit to be joined with.
+        axis : int
+            The axis along which to concatenate the state arrays.
+
+        Returns
+        -------
+        Orbit :
+            An instance whose stats have been concatenated, and whose parameters have been summed along that dimension.
+
+        Notes
+        -----
+        To cause the least amount of distortion, the grid spacings of each state should be approximately equivalent
+        (if discretizations of continuous dimension). Not allowing mapping from fundamental domains because for
+        discrete symmetries those will often call concat; avoid all possible recursion errors this way.
+
+        .. warning::
+           `self.concat(other)` is only equivalent to `other.concat(self)` if `other` and `self` both have parameters
+           defined, and the parameters not corresponding to dimensions are the same (i.e. categorical parameters).
+           When this is not the case, the parameters of the instance calling the method are used: `self.concat(other)`
+           will use `self`'s categoricals.
+
+        .. warning::
+           This function does not check the bases which each Orbit state is in.
+
+        """
+        concatenated_state = np.concatenate((self.state, other.state), axis=axis)
+        if self.parameters is not None and other.parameters is not None:
+            tuple_of_zipped_dimensions = tuple(
+                zip(*(o.dimensions() for o in (self, other)))
+            )
+            # "glue shape"
+            glue_shape = tuple(2 if i == axis else 1 for i in range(self.ndim))
+            new_dimensions = self.glue_dimensions(
+                tuple_of_zipped_dimensions, glue_shape, include_zero_dimensions=True
+            )
+
+        elif self.parameters is not None:
+            new_dimensions = [
+                dim * (newsize / oldsize)
+                if newsize > 1 and continuous
+                else 0.0
+                if continuous
+                else newsize
+                # If any axes are flattened by the slicing then
+                for dim, newsize, oldsize, continuous in zip(
+                    self.dimensions(),
+                    concatenated_state.shape,
+                    self.shape,
+                    self.continuous_dimensions(),
+                )
+            ]
+        elif other.parameters is not None:
+            new_dimensions = [
+                dim * (newsize / oldsize)
+                if newsize > 1 and continuous
+                else 0.0
+                if continuous
+                else newsize
+                # If any axes are flattened by the slicing then
+                for dim, newsize, oldsize, continuous in zip(
+                    self.dimensions(),
+                    concatenated_state.shape,
+                    self.shape,
+                    self.continuous_dimensions(),
+                )
+            ]
+
+        else:
+            new_dimensions = None
+
+        if new_dimensions is not None:
+            # This handles the order of the parameters as given by the staticmethod :meth:`Orbit.parameter_labels`
+            param_dict = dict(zip(list(self.parameter_labels()), self.parameters))
+            dim_dict = dict(zip(list(self.dimension_labels()), new_dimensions))
+            param_dict = {**param_dict, **dim_dict}
+            parameters = tuple(param_dict[key] for key in self.parameter_labels())
+            # setting discretization to None forces state shape parsing to occur.
+            concat_orbit = self.__class__(
+                **{
+                    **vars(self),
+                    "state": concatenated_state,
+                    "parameters": parameters,
+                    "discretization": None,
+                }
+            )
+        else:
+            # If no parameters were in either orbit, then parse then
+            concat_orbit = self.__class__(
+                **{**vars(self), "state": concatenated_state, "discretization": None}
+            )
+
+        return concat_orbit
+
     def reflection(self, axis=0, signed=True):
         """
         Reflect the velocity field about the spatial midpoint
@@ -1187,7 +1339,7 @@ class Orbit:
 
         return self.__class__(**{**vars(self), "state": reflected_field})
 
-    def transform(self, to=None):
+    def transform(self, to=None, **kwargs):
         """
         Method that handles all basis transformations. Undefined/trivial for Orbits with only one basis.
 
@@ -1195,6 +1347,10 @@ class Orbit:
         ----------
         to : str
             The basis to transform into. If already in said basis, returns self (not a copy!)
+
+        kwargs : dict
+            Allows for keyword arguments to be passed for various scientific computing packages' transform methods.
+            The first to come to mind is SciPy's FFT's 'workers' keyword, which enables parallelization.
 
         Returns
         -------
@@ -1261,11 +1417,12 @@ class Orbit:
         -----
         This method represents the matrix-vector product of the Jacobian matrix with an orbit vector of dimension
         self.size+len(self.parameters). Typically for these systems, the Jacobian has dimensions
-        [self.size, self.size + len(self.parameters)]. Because there are no associated components for the parameters
+        [self.size, self.size + len(self.parameters) - len(self.constants)]. Because there are no associated components for the parameters
         (i.e. the last elements of the orbit vector), it is often convenient to simply pass the current state's
         parameters to the new instance; this philosophy mimics the eqn() method. Because the general Orbit template
         doesn't have an associated equation, return an array of zeros for its state.
 
+        Assumed to be in 'spatiotemporal' basis. Equals J * dx
         """
         # Instance with all attributes except state and parameters
         return self.__class__(**{**vars(self), "state": np.zeros(self.shapes()[-1])})
@@ -1292,16 +1449,41 @@ class Orbit:
         [self.size + len(self.parameters), self.size]; this returns a vector of the same dimension as self.orbit_vector;
         i.e. this *does* produce components corresponding to the parameters.
 
+        Creation and usage of _rmatvec_parameters motivated by generalizability/readability of the code.
+
         """
+        params = self._rmatvec_parameters(other)
         return self.__class__(
-            **{
-                **vars(self),
-                "state": np.zeros(self.shape),
-                "parameters": tuple([0] * len(self.parameter_labels())),
-            }
+            **{**vars(self), "state": np.zeros(self.shape), "parameters": params,}
         )
 
-    def hess(self):
+    def _rmatvec_parameters(self, other):
+        """
+        Parameter values from product with partial derivatives
+
+        Parameters
+        ----------
+        self_field : OrbitKS
+            The orbit in the field basis; this cuts down on redundant transforms.
+        other : OrbitKS
+            The adjoint/co-state variable Orbit instance.
+
+        Returns
+        -------
+        parameters : tuple
+            Set of parameters resulting from the last rows of the product with adjoint Jacobian.
+
+        Notes
+        -----
+        Would generally have elements equal to dot product (dF/dP)^T * other. This method isn't required but
+        I personally found it cleaner to do the parameter components separately then return them in rmatvec method.
+        """
+        return tuple(
+            0.0 if not constr else 0.0
+            for p, constr in zip(self.parameters, self.constraints.values())
+        )
+
+    def hess(self, **kwargs):
         """
         Matrix of second derivatives of the governing equations.
 
@@ -1318,20 +1500,25 @@ class Orbit:
         of equation component $F_i$. The governing equations will typically have vector valued output;
         in general the matrix of second derivatives of each component is a tensor.
 
-
+        What is returned is the rank 3 tensor with correct shape for a vector valued equation F(x) where x
+        has N degrees of freedom but F only has d dimensions.
 
         """
-        # General case
-        return np.zeros([self.orbit_vector().size, self.orbit_vector().size, self.eqn().size])
+        cdof = self.cdof().size
+        return np.zeros([self.eqn().size, cdof, cdof])
 
-    def hessp(self, other, **kwargs):
+    def hessp(self, left_other, right_other, **kwargs):
         """
-        Tensor product of `other` with matrix of second derivatives of governing equations.
+        Tensor product u * H * v where H is the matrix of second derivatives of governing equations.
 
         Parameters
         ----------
-        other : Orbit
-            Orbit whose state represents the vector in the matrix-vector product.
+        left_other : Orbit
+            Orbit whose state is to be multiplied with the Hessian on the LEFT
+        right_other : Orbit
+            Orbit whose orbit_vector is to be multiplied with the Hessian on the RIGHT
+        kwargs : dict
+            Any keywords relevant for the tensor-free evaluation of the Hessian product.
 
         Returns
         -------
@@ -1341,14 +1528,69 @@ class Orbit:
 
         Notes
         -----
-        Requires an equation to define, just like rmatvec and matvec.
+        Requires an equation to define, just like rmatvec and matvec; return zeros because no equation here.
+        Tensor multiplication can be written u * d^2 F * v, dimensions of each component are: u=(N,)
+        d^2F = (N, N+d-c, N+d-c), v = (N+d-c, 1); therefore it returns a vector of dimension (N+d-c, 1)
+        this orbit_vector is then returned as an Orbit instance. N=number of state variables, p=parameters, c=constants
 
         """
-        return self.from_numpy_array(np.zeros(other.orbit_vector().shape))
+        u = left_other.state.ravel()
+        v = right_other.cdof()
+        # This makes it look simple but the expression np.zeros(u.size) is acting as a placeholder.
+        return self.from_numpy_array(np.tensordot(u, np.zeros(u.size), axes=1).dot(v))
+
+    def cdof(self):
+        """
+        Computational degrees of freedom; equivalent to orbit_vector sans constant parameters.
+
+        Returns
+        -------
+        ndarray :
+            Vector with the current state with parameters appended, returned as a (self.size + n_params - n_constants, 1)
+            axis of dimension 1 for scipy purposes.
+
+        Notes
+        -----
+        Instead of having to decide whether or not to pass parameters or subset thereof, this method simply acts as
+        a wrapper for applying constraints to the current parameters.
+
+        """
+        # By raveling and concatenating ensure that the array is 1-d for the second concatenation; i.e. flatten first.
+        parameters = self.parameters
+        if parameters:
+            variables = tuple(
+                p.ravel() if isinstance(p, np.ndarray) else p
+                for p, const in zip(parameters, self.constraints.values())
+                if not const
+            )
+        else:
+            variables = ()
+        return np.concatenate((self.state.ravel(), variables), axis=0).reshape(-1, 1)
+
+    def constants(self):
+        """
+        Constant parameters; convenience function for optimization methods.
+
+        Returns
+        -------
+        tuple :
+            Parameters that are either always constant or have been constrained but still required for optimization.
+
+        """
+        parameters = self.parameters
+        if parameters:
+            constants = tuple(
+                p.ravel() if isinstance(p, np.ndarray) else p
+                for p, const in zip(parameters, self.constraints.values())
+                if const
+            )
+        else:
+            constants = ()
+        return constants
 
     def orbit_vector(self):
         """
-        Vector representation of Orbit instance.
+        Vector representation of Orbit instance; constants all variables required to define the Orbit instance.
 
         Returns
         -------
@@ -1364,20 +1606,23 @@ class Orbit:
 
         """
         # By raveling and concatenating ensure that the array is 1-d for the second concatenation; i.e. flatten first.
-        parameter_array = np.concatenate(
-            tuple(np.array(p).ravel() for p in self.parameters)
-        )
-        return np.concatenate((self.state.ravel(), parameter_array), axis=0).reshape(
-            -1, 1
-        )
 
-    def from_numpy_array(self, orbit_vector, **kwargs):
+        parameters = self.parameters
+        if parameters:
+            variables = tuple(
+                p.ravel() if isinstance(p, np.ndarray) else p for p in self.parameters
+            )
+        else:
+            variables = ()
+        return np.concatenate((self.state.ravel(), variables), axis=0).reshape(-1, 1)
+
+    def from_numpy_array(self, cdof, *args, **kwargs):
         """
         Utility to convert from numpy array (orbit_vector) to Orbit instance for scipy wrappers.
 
         Parameters
         ----------
-        orbit_vector : ndarray
+        cdof : ndarray
             Vector with (spatiotemporal basis) state values and parameters.
 
         kwargs :
@@ -1399,27 +1644,39 @@ class Orbit:
         as simple as merely slicing the parameters from the array, as the order of the elements is determined by
         the constraints. If non-scalar parameters are used, user will need to overwrite the Orbit.from_numpy_array() method.
 
+        In order to completely specific the equations in the presence of constraints it is necessary to
+
         .. warning::
            If equation has components for any parameters:
            However, if the equations of motion have components for the parameters; this will in correctly overwrite
            the components stored in parameters and this will need an overwrite.
 
         """
-        # orbit_vector is defined to be concatenation of state and parameters;
-        # slice out the parameters; cast as list to gain access to pop
-        param_list = list(kwargs.pop("extra_parameters", orbit_vector.ravel()[self.size :]))
-
+        # The parameters and possible constants are expected to be ordered
+        parameters_list = list(cdof.ravel()[self.size :])
+        constants_list = list(args)
         # The issue with parsing the parameters is that we do not know which list element corresponds to
         # which parameter unless the constraints are checked. Parameter keys which are not in the constraints dict
-        # are assumed to be constrained.
-        parameters = tuple(
-            param_list.pop(0) if not self.constraints.get(each_label, True) else 0.0
-            for each_label in self.parameter_labels()
-        )
+        # are assumed to be constrained. Pop from param_list if parameters 1. exist, 2. are unconstrained.
+        # Not having enough parameters to pop means something is going wrong in your matvec/rmatvec functions typically.
+        if self.parameters is not None:
+            parameters = tuple(
+                parameters_list.pop(0)
+                if (
+                    not self.constraints.get(each_label, True)
+                    and len(parameters_list) > 0
+                )
+                else constants_list.pop(0)
+                if len(constants_list) > 0.0
+                else 0.0
+                for each_label in self.parameter_labels()
+            )
+        else:
+            parameters = None
         return self.__class__(
             **{
                 **vars(self),
-                "state": np.reshape(orbit_vector.ravel()[: self.size], self.shape),
+                "state": np.reshape(cdof.ravel()[: self.size], self.shape),
                 "parameters": parameters,
                 **kwargs,
             }
@@ -1446,10 +1703,14 @@ class Orbit:
         Typically when this method is called, self is the current iterate and other is an optimization correction.
 
         """
-        incremented_params = tuple(
-            self_param + step_size * other_param  # assumed to be constrained if 0.
-            for self_param, other_param in zip(self.parameters, other.parameters)
-        )
+        if self.parameters is not None:
+            incremented_params = tuple(
+                self_param + step_size * other_param  # assumed to be constrained if 0.
+                for self_param, other_param in zip(self.parameters, other.parameters)
+            )
+        else:
+            incremented_params = None
+
         return self.__class__(
             **{
                 **vars(self),
@@ -1474,7 +1735,7 @@ class Orbit:
             2-d numpy array equalling the Jacobian matrix of the governing equations evaluated at current state.
 
         """
-        return np.zeros([self.size, self.orbit_vector().size])
+        return np.zeros([self.size, self.cdof().size])
 
     def norm(self, order=None):
         """
@@ -1608,8 +1869,10 @@ class Orbit:
                 # dependent upon full implementation of the governing equations
                 try:
                     orbitset.attrs["cost"] = self.cost()
-                except (ZeroDivisionError, ValueError):
-                    print("Unable to compute cost for {}".format(repr(self)))
+                except (ZeroDivisionError, ValueError, AttributeError):
+                    print(
+                        f"Unable to compute cost for instance {repr(self)}; data will not be saved to .h5 file."
+                    )
 
     def filename(self, extension=".h5", decimals=3, cls_name=True):
         """
@@ -1888,7 +2151,7 @@ class Orbit:
         """
         return {k: False for k in self.parameter_labels()}
 
-    def _pad(self, size, axis=0):
+    def _pad(self, size, axis=0, mode="constant", **kwargs):
         """
         Increase the size of the discretization along an axis.
 
@@ -1941,7 +2204,7 @@ class Orbit:
         return self.__class__(
             **{
                 **vars(self),
-                "state": np.pad(self.state, padding_tuple),
+                "state": np.pad(self.state, padding_tuple, mode=mode, **kwargs),
                 "discretization": newdisc,
             }
         ).transform(to=self.basis)
@@ -2003,6 +2266,13 @@ class Orbit:
             Numpy array containing state information, can have any number of dimensions.
         basis : str
             The basis that the array 'state' is in.
+
+        Notes
+        -----
+
+        Must assign attributes 'state', 'basis', 'discretization' as None if no input received, even though technically
+        shape of empty array will be, for example, (0, 0). In other words, discretization being NoneType acts as a flag
+        that the state is unpopulated.
 
         """
         if isinstance(state, np.ndarray):
@@ -2111,15 +2381,15 @@ class Orbit:
                             ]
                         )
                         raise ValueError(vestr) from typ
+                # If given a scalar,
+                elif type(val_generator) in [str, int, bool, float, np.int32, np.float]:
+                    val = val_generator
                 else:
                     # Everything else treated as distribution to sample from; integer input selects from range(int)
                     # So that more complex input can be included, sample the positions of the elements in val_generator.
-                    try:
-                        index_range = range(len(val_generator))
-                        val = val_generator[np.random.choice(index_range)]
-                    except TypeError:
-                        # This exception catching allows for scalar input
-                        val = np.random.choice(val_generator)
+                    index_range = range(len(val_generator))
+                    val = val_generator[np.random.choice(index_range)]
+
             return val
 
         # seeding takes a non-trivial amount of time, only set if explicitly provided.
@@ -2182,9 +2452,9 @@ class Orbit:
         if isinstance(numpy_seed, int):
             np.random.seed(numpy_seed)
         # Presumed to be in physical basis unless specified otherwise; get the size of the state based on dimensions
-        self.discretization = self.dimension_based_discretization(
-            self.parameters, **kwargs
-        )
+        self.discretization = kwargs.get(
+            "discretization", None
+        ) or self.dimension_based_discretization(self.parameters, **kwargs)
         # Assign values from a random normal distribution to the state by default.
         self.state = np.random.randn(*self.discretization)
         # If no basis provided, state generation presumed to be in the physical basis.
@@ -2209,6 +2479,8 @@ def convert_class(orbit_instance, orbit_type, **kwargs):
 
     Notes
     -----
+    This is for all practical purposes deprecated but it still provides readability so it has
+    been kept as a convenience.
     To avoid conflicts with projections onto symmetry invariant subspaces, the orbit is always transformed into the
     physical basis prior to conversion; the instance is returned in the basis of the input, however.
 
@@ -2222,7 +2494,9 @@ def convert_class(orbit_instance, orbit_type, **kwargs):
     return orbit_type(
         **{
             **vars(orbit_instance),
-            "state": orbit_instance.transform(to=orbit_instance.bases_labels()[0]).state,
+            "state": orbit_instance.transform(
+                to=orbit_instance.bases_labels()[0]
+            ).state,
             "basis": orbit_instance.bases_labels()[0],
             **kwargs,
         }

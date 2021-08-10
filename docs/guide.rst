@@ -9,9 +9,9 @@ Preface
 
 The following guide demonstrates the class methods required for full functionality
 in the orbithunter framework. This documentatino is presented much like how one might document their
-own equation module for inclusion in the main orbithunter branch. The creator of orbithunter,
-`Matthew Gudorf <https://www.linkedin.com/in/mgudorf/>`_ painstakingly developed the framework to
-be agnostic of the equations. That is, the techniques and tools should generalize to any equation,
+own equation module for inclusion in the main orbithunter branch. The creator of orbithunter
+`Matthew Gudorf <https://www.linkedin.com/in/mgudorf/>`_  developed the framework to
+be as agnostic of equation as possible. That is, the techniques and tools should generalize to any equation,
 so long as the proper class methods are written. Because of this, the following is presented
 as a template for each technique or submodule. Implementation of the methods in each section
 should enable the functionality of the corresponding orbithunter module.
@@ -23,8 +23,7 @@ i.e. arrays of shape (#, #, #, #, 3) or something similar.
 
 .. warning::
    Be sure to check the base :class:`orbithunter.core.Orbit` class before writing your methods; there very well may
-   be methods which are not included here because they generalize well. That is, you may not need to reinvent the wheel,
-   and sometimes slight alterations can accomplish your desired goal.
+   be methods which are not included here because they are written as to generalize to other Orbit classes.  
 
 SymmetryOrbitEQN Class
 ======================
@@ -41,7 +40,7 @@ using a Fourier basis and for aperiodic boundary conditions Chebyshev polynomial
 .. note::
    This is also available as a ``.py`` file in the tutorials under `class_template <https://github.com/mgudorf/orbithunter/tutorial/class_template.py>`_
 
-.. currentmodule:: tutorial.class_template
+.. currentmodule:: template.class_template
 .. autoclass:: SymmetryOrbitEQN
 
 Methods
@@ -67,6 +66,11 @@ Methods decorated with ``@staticmethod``
 Governing Equations
 ^^^^^^^^^^^^^^^^^^^
 
+Implementation of the governing equations is the lion's share of the work and the most
+important part; matvec and rmatvec return the product of Jacobian and Jacobian transpose with a matrix;
+preferably without construction of the matrix itself. For certain numerical methods to work, these methods
+must handle parameters in a special way. See each individual method for details. 
+
 .. autosummary::
    :nosignatures:
    :toctree: generated/
@@ -88,9 +92,10 @@ Numerical Optimization
 Second Order Numerical Optimization
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The methods for usage of second^order numerical methods which returns the Hessian matrix or
-the matrix^vector product thereof. The SciPy implementations of the numerical methods that use these
-are fully developed but the orbithunter API still requires testing.
+Certain algorithms require the Hessian matrix of the matrix vector product thereof. The SciPy implementations of the numerical methods that use these
+are fully developed but the orbithunter API still requires testing. Likewise, there are issues that
+are on SciPy's end with using finite difference methods. They've been reported to their github issues
+page, see `github issues <https://github.com/scipy/scipy/issues/13754>`_ for details. 
 
 
 .. autosummary::

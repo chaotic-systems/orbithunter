@@ -26,7 +26,7 @@ def read_h5(filename, *datanames, validate=False, **orbitkwargs):
     """
     Parameters
     ----------
-    filename : str
+    filename : str or Path
         Absolute or relative path to .h5 file
     datanames : str or tuple, optional
         Names of either h5py.Datasets or h5py.Groups within .h5 file. Recursively returns all orbits (h5py.Datasets)
