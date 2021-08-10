@@ -6,6 +6,7 @@ Orbithunter is distributed with the GNU General Public License v3 (GPLv3) licens
 ::
 
 	Orbithunter, Framework for Nonlinear Dynamics and Chaos
+
 	Copyright (C) 2019-2021 Orbithunter Research Community
 	All rights reserved. 
 
