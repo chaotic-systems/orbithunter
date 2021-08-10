@@ -156,7 +156,7 @@ class OrbitCover:
                 self.core,
                 self.periodicity,
                 min_overlap=self.min_overlap,
-                mask=np.all(~(scores[where_this_shape, ...] < np.inf), axis=0),
+                mask=np.any(~(scores[where_this_shape, ...] < np.inf), axis=0),
             )
 
             for each_pivot in ordered_pivots:
@@ -198,7 +198,8 @@ class OrbitCover:
             self.scores,
             mask=(self.scores > np.array(self.thresholds).reshape(-1, 1, 1)),
         )
-        return self.__class__(**{**vars(self), "scores": masked_scores})
+        self.masked_scores = masked_scores
+        return self
 
 
 def scoring_functions(method):
