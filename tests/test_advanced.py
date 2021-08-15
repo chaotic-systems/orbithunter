@@ -28,7 +28,7 @@ def fixed_OrbitKS_data():
 
 @pytest.fixture()
 def fixed_test_orbit_data():
-    return TestOrbit(state=2 * np.arange(10) + 10, basis="physical", parameters=None)
+    return DummyOrbit(state=2 * np.arange(10) + 10, basis="physical", parameters=None)
 
 
 def test_orbit_data():
@@ -212,7 +212,7 @@ def test_optimize_root(fixed_test_orbit_data):
     return None
 
 
-class TestOrbit(orb.Orbit):
+class DummyOrbit(orb.Orbit):
     def eqn(self, **kwargs):
         # x^2 - n = 0 for n in [0, dim-1]
         return self.__class__(

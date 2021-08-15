@@ -23,7 +23,8 @@ i.e. arrays of shape (#, #, #, #, 3) or something similar.
 
 .. warning::
    Be sure to check the base :class:`orbithunter.core.Orbit` class before writing your methods; there very well may
-   be methods which are not included here because they are written as to generalize to other Orbit classes.  
+   be methods which already exist but are not included here either for brevity and because they generalize to other
+   equations.
 
 SymmetryOrbitEQN Class
 ======================
