@@ -201,10 +201,10 @@ def hunt(orbit_instance, *methods, **kwargs):
     References
     ----------
     User should be aware of the existence of :func:`scipy.optimize.show_options()`
-    `Options for each optimize method <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.show_options.html#scipy.optimize.show_options>`_
-    `scipy.optimize <https://docs.scipy.org/doc/scipy/reference/optimize.html>`_
-    `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/populated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_
-    `scipy.optimize.root <https://docs.scipy.org/doc/scipy/reference/populated/scipy.optimize.root.html>`_
+    `Options for each optimize method <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.show_options.html>`_
+    `scipy.optimize <https://docs.scipy.org/doc/scipy/reference/tutorial/optimize.html>`_
+    `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_
+    `scipy.optimize.root <https://docs.scipy.org/doc/scipy/reference/reference/generated/scipy.optimize.root.html#scipy.optimize.root>`_
     `scipy.sparse.linalg <https://docs.scipy.org/doc/scipy/reference/sparse.linalg.html>`_
 
     """
