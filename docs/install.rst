@@ -40,7 +40,7 @@ compatibility) if not already present.
 Once the application is installed, the Docker image can be pulled from the remote repository by opening command line
 and typing::
 
-    $ docker pull mgudorf/orbithunter:latest
+    $ docker pull orbithunter/orbithunter:latest
 
 At which point, the image will be downloaded. This image will be displayed in the Docker application under
 the Local portion of the Images tab.
@@ -50,7 +50,7 @@ Running the Docker image
 
 The easiest way to instantiate the container is to run the following in command line::
 
-    $ docker run -p 8887:8887 mgudorf/orbithunter:latest
+    $ docker run -p 8887:8887 orbithunter/orbithunter:latest
 
 The `-p` switch opens the local port 8887 allowing for the jupyter notebook GUI to be opened in a browser. This prints
 output, the last bit of which will look like the following::
@@ -87,7 +87,7 @@ install into your user directory using the ``--user`` flag::
     $ pip install --user orbithunter
 
 Alternatively, you can manually download ``orbithunter`` from
-`GitHub <https://github.com/mgudorf/orbithunter>`_  or
+`GitHub <https://github.com/orbithunter/orbithunter>`_  or
 `PyPI <https://pypi.python.org/pypi/orbithunter>`_.
 To install one of these versions, unpack it and run the following from the
 top-level source directory using the Terminal::
