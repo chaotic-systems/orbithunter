@@ -71,7 +71,11 @@ class OrbitCover:
     def scores(self, array):
         self._scores = array
 
-    def trim(self, **kwargs):
+    def trim(self, non_inf_only=True):
+        """
+        Remove all unscored pivots (i.e. padding) from the score arrays. NOT necessarily the same shape as base orbit.
+
+        """
         assert self.scores is not None, "cannot trim an empty set of scores."
         if len(self.scores.shape) != self.base.ndim:
             pivot_array_shape = self.scores.shape[-len(self.base.shape) :]
@@ -79,38 +83,44 @@ class OrbitCover:
             pivot_array_shape = self.scores.shape
             self.scores = self.scores[np.newaxis, ...]
 
-        trimmed_orbit_scores = self.scores[(slice(None),
-            *tuple(slice(hull_size - 1, -(hull_size - 1)) for hull_size in self.hull))
-        ]
-        return trimmed_orbit_scores
+        if non_inf_only:
+            maximal_set_of_pivots = pivot_iterator(
+                pivot_array_shape,
+                self.base.shape,
+                self.hull,
+                self.core,
+                self.periodicity,
+                min_overlap=self.min_overlap,
+                mask=np.all(~(self.scores < np.inf), axis=0),
+            )
 
-    def map(self, verbose=False, **kwargs):
-        """
-        Evaluate a scoring function with a window at all valid pivots of a base.
+            maximal_pivot_slices = tuple(
+                slice(axis.min(), axis.max() + 1) for axis in maximal_set_of_pivots.T
+            )
+            return self.scores[(slice(None), *maximal_pivot_slices)]
+        else:
+            trimmed_orbit_scores = self.scores[(slice(None),
+                *tuple(slice(hull_size - 1, -(hull_size - 1)) for hull_size in self.hull))
+            ]
+            return trimmed_orbit_scores
+
+
+    def map(self, verbose=False):
+        """ Map scores representing detections back onto the spatiotemporal tile from the original base orbit.
 
         Parameters
         ----------
-        base_orbit : Orbit
-            The orbit instance to scan over
-        window_orbit : Orbit
-            The orbit to scan with (the orbit that is translated around)
+        verbose : bool
+            Whether to print '-' as a form of crude progress bar
 
         Returns
         -------
-        ndarray, ndarray :
+        ndarray :
             The scores at each pivot and their mapping onto an array the same shape as `base_orbit.state`
 
         Notes
         -----
-        This takes the scores returned by the score function and converts them to the appropriate orbit sized array (mask).
-        In the array returned by score, each array element is the value of the scoring function using that position as
-        a "pivot". These score arrays are not the same shape as the base orbits, as periodic dimensions and windows
-        which are partially out of bounds are allowed. The idea being that you may accidentally cut a shadowing region
-        in half when clipping, but still want to capture it numerically.
-
-        Therefore, it is important to score at every possible position and so there needs to be a function which converts
-        these scores into the appropriately sized (the same size as base_orbit) array.
-        Masking is only applied within the call to function 'score'
+        This takes the scores returned by :func:`cover` and converts them to the appropriate orbit sized array)
 
         """
         if len(self.scores.shape) == self.base.ndim:
@@ -202,7 +212,11 @@ class OrbitCover:
         ]
         return trimmed_orbit_scores
 
-    def threshold(self, *args, **kwargs):
+    def threshold(self):
+        """
+        Masks scores which do not satisfy the provided threshold constraint.
+
+        """
         threshold_broadcasting_reshape = tuple(
             [-1] + (len(self.scores.shape) - 1) * [1]
         )
