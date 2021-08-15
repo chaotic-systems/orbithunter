@@ -94,7 +94,7 @@ def hunt(orbit_instance, *methods, **kwargs):
         'newton_descent', 'lstsq', 'solve', 'adj', 'gd', 'lsqr', 'lsmr', 'bicg', 'bicgstab', 'gmres', 'lgmres',
         'cg', 'cgs', 'qmr', 'minres', 'gcrotmk','nelder-mead', 'powell', 'cg_min', 'bfgs', 'newton-cg', 'l-bfgs-b',
         'tnc', 'cobyla', 'slsqp', 'trust-constr', 'dogleg', 'trust-ncg', 'trust-exact', 'trust-krylov', 'hybr',
-        'lm','broyden1', 'broyden2', 'linearmixing','diagbroyden', 'excitingmixing',
+        'lm','broyden1', 'broyden2', 'linearmixing', 'diagbroyden', 'excitingmixing',
         'df-sane', 'krylov', 'anderson'
 
     kwargs : dict, optional
@@ -309,7 +309,7 @@ def hunt(orbit_instance, *methods, **kwargs):
             "diagbroyden",
             "excitingmixing",
             "krylov",
-            " df-sane",
+            "df-sane",
             "anderson",
         ]:
             orbit_instance, method_statistics = _scipy_optimize_root_wrapper(
@@ -1333,7 +1333,6 @@ def _scipy_sparse_linalg_solver_wrapper(
                         ]
                     )
                     warnings.warn(warn_str, RuntimeWarning)
-                    # Not doing the multiplication manually; not constructing identity matrix LinearOperator in this case.
 
             if method == "minres":
                 result_tuple = (minres(A, b, **scipy_kwargs),)
@@ -1350,6 +1349,14 @@ def _scipy_sparse_linalg_solver_wrapper(
             elif method == "cgs":
                 result_tuple = (cgs(A, b, **scipy_kwargs),)
             elif method == "qmr":
+                # M not accepted.
+                if "M" in scipy_kwargs:
+                    warnings.warn(
+                        f"qmr requires left/right M1, M2 and not just a single M preconditioner",
+                        RuntimeWarning,
+                    )
+                    scipy_kwargs["M2"] = scipy_kwargs.pop("M")
+                    scipy_kwargs["M1"] = scipy_kwargs["M2"]
                 result_tuple = (qmr(A, b, **scipy_kwargs),)
             elif method == "gcrotmk":
                 result_tuple = (gcrotmk(A, b, **scipy_kwargs),)
@@ -1728,7 +1735,7 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
         )
         b = -1.0 * orbit_instance.eqn(**kwargs).state.reshape(-1, 1)
         return A, b
-    elif degrees_of_freedom != orbit_instance.eqn().size:
+    elif degrees_of_freedom != orbit_instance.eqn().size or method in ["cg", "cgs"]:
         # Solving `normal equations, A^T A x = A^T b. A^T A is its own transpose hence matvec_func=rmatvec_func
         # in this instance. The matrix is evaluated at the current orbit state; i.e. it is constant with
         # respect to the optimization routines.
@@ -2003,7 +2010,7 @@ def _root_callable_factory(orbit_instance, method, **kwargs):
                 )
                 # gradient does not have the same problem that the equation
                 J = x_orbit.jacobian(**kwargs)
-                if J.shape[1] - J.shape[0] > 0.0:
+                if J.shape[1] - J.shape[0] > 0:
                     return np.pad(J, ((0, J.shape[1] - J.shape[0]), (0, 0)))
                 else:
                     return J

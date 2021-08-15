@@ -566,7 +566,7 @@ class OrbitKS(Orbit):
         J[np.diag_indices(J.shape[0])] += dx2.state.ravel() + dx2.state.ravel() ** 2
         e = e.ravel()
         # For time, get the correct frequency by taking the derivative of individual elements; swapping of real
-        # and imaginary components handled by .dt()
+        # and imaginary components handled by .dt() Performed column-wise to avoid matrix representation.
         for i in range(J.shape[0]):
             e *= 0
             e[i] = 1.0

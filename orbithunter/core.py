@@ -117,7 +117,6 @@ class Orbit:
         constraints=None,
         **kwargs,
     ):
-
         if type(None) in [type(state), type(basis), type(discretization)]:
             self._parse_state(state, basis, **kwargs)
         else:

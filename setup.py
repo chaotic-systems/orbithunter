@@ -41,7 +41,7 @@ setup(
     author="Matthew Gudorf",
     author_email="matthew.gudorf@gmail.com",  # Optional
     classifiers=[
-        "Development Status :: 4 - Beta",
+        "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Science/Research",
         "Topic :: Scientific/Engineering :: Physics",
         "Programming Language :: Python :: 3",

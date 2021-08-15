@@ -29,7 +29,7 @@ class OrbitCover:
         else:
             self.windows = (windows,)
         self.mask = mask
-        self.thresholds = thresholds
+        self.thresholds = np.array(thresholds)
         self.cover_proportion = cover_proportion
         self.hull = hull or tuple(
             max([window.discretization[i] for window in windows])
@@ -123,7 +123,7 @@ class OrbitCover:
         Masking is only applied within the call to function 'score'
 
         """
-
+        verbose = kwargs.get("verbose", True)
         if len(self.scores.shape) == self.base.ndim:
             # If a single score array, create a single index along axis=0 for iteration purposes.
             scores = self.scores[np.newaxis, ...]
@@ -139,44 +139,59 @@ class OrbitCover:
         all_window_shapes = [tuple(w.discretization) for w in self.windows]
         # array_of_window_shapes = np.array(all_window_shapes)
         unique_window_shapes = set(all_window_shapes)
-
+        # By iterating over shapes and not windows, cut down on
         for index, window_shape in enumerate(unique_window_shapes):
             where_this_shape = tuple(
                 i for i, shape in enumerate(all_window_shapes) if shape == window_shape
             )
             # relevant_window_states = np.array([self.windows[i].state for i in where_this_shape])
             # retrieve the function for scoring, using a default function based on the l2 difference.
-
+            threshold_broadcasting_reshape = tuple([-1] + (len(scores.shape) - 1) * [1])
             window_grid = np.indices(window_shape)
-            # For each set of scores, only need to map pivot scores that are non-infinite; therefore mask
-            ordered_pivots = pivot_iterator(
-                self.padded_orbit.shape,
-                self.base.shape,
-                self.hull,
-                self.core,
-                self.periodicity,
-                min_overlap=self.min_overlap,
-                mask=np.any(~(scores[where_this_shape, ...] < np.inf), axis=0),
-            )
+            # For each set of scores, only need to map pivot scores that are sub-threshold
 
-            for each_pivot in ordered_pivots:
-                each_pivot = tuple(each_pivot)
-                orbit_coordinates = _subdomain_coordinates(
-                    each_pivot,
-                    self.base.shape,
-                    window_shape,
-                    window_grid,
-                    self.hull,
-                    self.periodicity,
-                    coordinate_map=self.coordinate_map,
+            mask_insufficient_scores = np.logical_not(
+                np.any(
+                    scores[where_this_shape, ...]
+                    <= self.thresholds[np.array(where_this_shape)].reshape(
+                        *threshold_broadcasting_reshape
+                    ),
+                    axis=0,
                 )
-                if np.size(orbit_coordinates) > 0:
-                    filling_window = orbit_scores[orbit_coordinates]
-                    min_pivot_score = self.scores[where_this_shape, ...].min(axis=0)[
-                        each_pivot
-                    ]
-                    filling_window[filling_window > min_pivot_score] = min_pivot_score
-                    orbit_scores[orbit_coordinates] = filling_window
+            )
+            if mask_insufficient_scores.size - mask_insufficient_scores.sum() > 0:
+                ordered_pivots = pivot_iterator(
+                    self.padded_orbit.shape,
+                    self.base.shape,
+                    self.hull,
+                    self.core,
+                    self.periodicity,
+                    min_overlap=self.min_overlap,
+                    mask=mask_insufficient_scores,
+                )
+                min_pivot_scores = self.scores[where_this_shape, ...].min(axis=0)
+                for i, each_pivot in enumerate(ordered_pivots):
+                    each_pivot = tuple(each_pivot)
+                    if verbose:
+                        if i != 0 and i % max([1, len(ordered_pivots) // 10]) == 0:
+                            print("-", end="")
+
+                    orbit_coordinates = _subdomain_coordinates(
+                        each_pivot,
+                        self.base.shape,
+                        window_shape,
+                        window_grid,
+                        self.hull,
+                        self.periodicity,
+                        coordinate_map=self.coordinate_map,
+                    )
+
+                    if np.size(orbit_coordinates) > 0:
+                        filling_window = orbit_scores[orbit_coordinates]
+                        filling_window[
+                            filling_window > min_pivot_scores[each_pivot]
+                        ] = min_pivot_scores[each_pivot]
+                        orbit_scores[orbit_coordinates] = filling_window
 
         if len(oob_pivots) > 0 and not self.ignore_oob:
             warn_str = " ".join(
@@ -194,9 +209,15 @@ class OrbitCover:
         return orbit_scores
 
     def threshold(self, *args, **kwargs):
+        threshold_broadcasting_reshape = tuple(
+            [-1] + (len(self.scores.shape) - 1) * [1]
+        )
+
         masked_scores = np.ma.masked_array(
             self.scores,
-            mask=(self.scores > np.array(self.thresholds).reshape(-1, 1, 1)),
+            mask=(
+                self.scores > self.thresholds.reshape(*threshold_broadcasting_reshape)
+            ),
         )
         self.masked_scores = masked_scores
         return self
@@ -900,10 +921,10 @@ def cover(orbit_cover, verbose=False, **kwargs):
         )
 
         window_grid = np.indices(window_shape)
-
         window_oob_pivots = []
         for i, each_pivot in enumerate(ordered_pivots):
             each_pivot = tuple(each_pivot)
+
             if verbose:
                 if i != 0 and i % max([1, len(ordered_pivots) // 10]) == 0:
                     print("-", end="")
@@ -915,15 +936,16 @@ def cover(orbit_cover, verbose=False, **kwargs):
                 window_grid,
                 orbit_cover.hull,
                 periodicity,
+                coordinate_map=orbit_cover.coordinate_map,
                 **kwargs,
             )
             base_subdomain = padded_orbit.state[base_indexer]
             window_subdomains = relevant_window_states[(slice(None), *window_indexer)]
 
-            if (
-                not base_subdomain.size > 0 or not window_subdomains[0].size > 0
-            ) and orbit_cover.return_oob:
-                window_oob_pivots.append(each_pivot)
+            # if subdomains are empty, there is nothing to score.
+            if not base_subdomain.size > 0 or not window_subdomains[0].size > 0:
+                if orbit_cover.return_oob:
+                    window_oob_pivots.append(each_pivot)
             else:
                 orbit_cover.scores[
                     (np.array(where_this_shape), *each_pivot)
@@ -960,7 +982,7 @@ def cover(orbit_cover, verbose=False, **kwargs):
             ) and index != len(unique_window_shapes) - 1:
                 print(
                     f"Covering without replacement finished early; only a subset of the provided orbits were needed"
-                    f"to cover the set of unmasked pivots provided."
+                    f" to cover {100*orbit_cover.cover_proportion}% of the set of unmasked pivots provided."
                 )
                 break
     orbit_cover.mask = mask
