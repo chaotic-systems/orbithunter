@@ -161,7 +161,6 @@ class OrbitCover:
                     min_overlap=self.min_overlap,
                     mask=mask_insufficient_scores,
                 )
-                pivot_scores = self.scores[where_this_shape, ...]
                 for i, each_pivot in enumerate(ordered_pivots):
                     each_pivot = tuple(each_pivot)
                     if verbose:
@@ -181,10 +180,12 @@ class OrbitCover:
                     if np.size(orbit_coordinates) > 0:
                         # Can't figure out a good way of getting reassignment+broadcasting to work. This is easier.
                         for window_idx in where_this_shape:
-                            filling_window = orbit_scores[(window_idx, *orbit_coordinates)]
-                            broadcast_pivot_scores = pivot_scores[(window_idx, *each_pivot)]
-                            filling_window[filling_window > broadcast_pivot_scores] = broadcast_pivot_scores
-                            orbit_scores[(window_idx, *orbit_coordinates)] = filling_window
+                            pivot_score = self.scores[(window_idx, *each_pivot)]
+                            #  easier to just check scores instead of masks.
+                            if pivot_score <= self.thresholds[window_idx]:
+                                filling_window = orbit_scores[(window_idx, *orbit_coordinates)]
+                                filling_window[filling_window > pivot_score] = pivot_score
+                                orbit_scores[(window_idx, *orbit_coordinates)] = filling_window
 
         if len(oob_pivots) > 0 and not self.ignore_oob:
             warn_str = " ".join(
