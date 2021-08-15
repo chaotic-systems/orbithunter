@@ -79,22 +79,12 @@ class OrbitCover:
             pivot_array_shape = self.scores.shape
             self.scores = self.scores[np.newaxis, ...]
 
-        maximal_set_of_pivots = pivot_iterator(
-            pivot_array_shape,
-            self.base.shape,
-            self.hull,
-            self.core,
-            self.periodicity,
-            min_overlap=self.min_overlap,
-            mask=np.all(~(self.scores < np.inf), axis=0),
-        )
+        trimmed_orbit_scores = self.scores[(slice(None),
+            *tuple(slice(hull_size - 1, -(hull_size - 1)) for hull_size in self.hull))
+        ]
+        return trimmed_orbit_scores
 
-        maximal_pivot_slices = tuple(
-            slice(axis.min(), axis.max() + 1) for axis in maximal_set_of_pivots.T
-        )
-        return self.scores[(slice(None), *maximal_pivot_slices)]
-
-    def map(self, **kwargs):
+    def map(self, verbose=False, **kwargs):
         """
         Evaluate a scoring function with a window at all valid pivots of a base.
 
@@ -123,20 +113,22 @@ class OrbitCover:
         Masking is only applied within the call to function 'score'
 
         """
-        verbose = kwargs.get("verbose", True)
         if len(self.scores.shape) == self.base.ndim:
             # If a single score array, create a single index along axis=0 for iteration purposes.
             scores = self.scores[np.newaxis, ...]
         else:
             scores = self.scores
-        # The bases orbit periodicity has to do with scoring and whether or not to wrap windows around.
-        orbit_scores = np.full_like(
-            _pad_orbit(self.base, self.hull, self.periodicity).state, np.inf
-        )
+
         oob_pivots = []
 
         # Only have to iterate once per unique discretization shape, take advantage of this.
         all_window_shapes = [tuple(w.discretization) for w in self.windows]
+
+        # The bases orbit periodicity has to do with scoring and whether or not to wrap windows around.
+        orbit_scores = np.full_like(
+            np.zeros([len(all_window_shapes), *_pad_orbit(self.base, self.hull, self.periodicity).state.shape]), np.inf
+        )
+
         # array_of_window_shapes = np.array(all_window_shapes)
         unique_window_shapes = set(all_window_shapes)
         # By iterating over shapes and not windows, cut down on
@@ -169,7 +161,7 @@ class OrbitCover:
                     min_overlap=self.min_overlap,
                     mask=mask_insufficient_scores,
                 )
-                min_pivot_scores = self.scores[where_this_shape, ...].min(axis=0)
+                pivot_scores = self.scores[where_this_shape, ...]
                 for i, each_pivot in enumerate(ordered_pivots):
                     each_pivot = tuple(each_pivot)
                     if verbose:
@@ -187,11 +179,12 @@ class OrbitCover:
                     )
 
                     if np.size(orbit_coordinates) > 0:
-                        filling_window = orbit_scores[orbit_coordinates]
-                        filling_window[
-                            filling_window > min_pivot_scores[each_pivot]
-                        ] = min_pivot_scores[each_pivot]
-                        orbit_scores[orbit_coordinates] = filling_window
+                        # Can't figure out a good way of getting reassignment+broadcasting to work. This is easier.
+                        for window_idx in where_this_shape:
+                            filling_window = orbit_scores[(window_idx, *orbit_coordinates)]
+                            broadcast_pivot_scores = pivot_scores[(window_idx, *each_pivot)]
+                            filling_window[filling_window > broadcast_pivot_scores] = broadcast_pivot_scores
+                            orbit_scores[(window_idx, *orbit_coordinates)] = filling_window
 
         if len(oob_pivots) > 0 and not self.ignore_oob:
             warn_str = " ".join(
@@ -203,10 +196,10 @@ class OrbitCover:
             )
             warnings.warn(warn_str, RuntimeWarning)
 
-        orbit_scores = orbit_scores[
-            tuple(slice(hull_size - 1, -(hull_size - 1)) for hull_size in self.hull)
+        trimmed_orbit_scores = orbit_scores[(slice(None),
+            *tuple(slice(hull_size - 1, -(hull_size - 1)) for hull_size in self.hull))
         ]
-        return orbit_scores
+        return trimmed_orbit_scores
 
     def threshold(self, *args, **kwargs):
         threshold_broadcasting_reshape = tuple(
@@ -220,7 +213,10 @@ class OrbitCover:
             ),
         )
         self.masked_scores = masked_scores
-        return self
+        trimmed_masked_scores = masked_scores[(slice(None),
+            *tuple(slice(hull_size - 1, -(hull_size - 1)) for hull_size in self.hull))
+        ]
+        return trimmed_masked_scores
 
 
 def scoring_functions(method):

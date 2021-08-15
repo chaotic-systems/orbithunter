@@ -1,7 +1,7 @@
 # [orbithunter](https://github.com/mgudorf/orbithunter/)  : Framework for Nonlinear Dynamics and Chaos
 
-orbithunter 1.0
-===============
+orbithunter 1.0.1
+=================
 
 A release that I'm finally satisfied with enough to call version 1.0 has emerged!
 
