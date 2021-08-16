@@ -104,14 +104,16 @@ class OrbitCover:
             ]
             return trimmed_orbit_scores
 
-
-    def map(self, verbose=False):
+    def map(self, verbose=False, ignore_threshold=False):
         """ Map scores representing detections back onto the spatiotemporal tile from the original base orbit.
 
         Parameters
         ----------
         verbose : bool
             Whether to print '-' as a form of crude progress bar
+        ignore_threshold: bool
+            Whether to map points which do not satisfy the score threshold. 
+
 
         Returns
         -------
@@ -192,7 +194,7 @@ class OrbitCover:
                         for window_idx in where_this_shape:
                             pivot_score = self.scores[(window_idx, *each_pivot)]
                             #  easier to just check scores instead of masks.
-                            if pivot_score <= self.thresholds[window_idx]:
+                            if pivot_score <= self.thresholds[window_idx] or ignore_threshold:
                                 filling_window = orbit_scores[(window_idx, *orbit_coordinates)]
                                 filling_window[filling_window > pivot_score] = pivot_score
                                 orbit_scores[(window_idx, *orbit_coordinates)] = filling_window
@@ -528,8 +530,8 @@ def pivot_iterator(
     ):
         pad_size = hull_size - 1
         if periodic:
-            mask = np.logical_or(mask, axis_coord < (pad_size - core_size))
-            mask = np.logical_or(mask, axis_coord >= base_size)
+            mask = np.logical_or(mask, axis_coord < pad_size)
+            mask = np.logical_or(mask, axis_coord >= base_size + pad_size)
         else:
             # The minimum pivot can't be further from boundary than window size, else some windows will be
             # completely out of bounds.
@@ -773,6 +775,7 @@ def _subdomain_coordinates(
         subdomain_grid = (
             hull_grid[(slice(None), *tuple(window_slices))] + broadcasting_shaped_pivot
         )
+        # if all boundaries are aperiodic, then we are done.
         if True in periodicity:
             for sub_coords, base_size, window_size, hull_size, periodic in zip(
                 subdomain_grid, base_shape, window_shape, hull, periodicity,
@@ -895,7 +898,7 @@ def cover(orbit_cover, verbose=False, **kwargs):
         padded_orbit = _pad_orbit(
             base_orbit,
             orbit_cover.hull,
-            kwargs.get("periodicity", tuple(len(orbit_cover.hull) * [False])),
+            periodicity
         )
 
     for index, window_shape in enumerate(unique_window_shapes):
@@ -926,11 +929,6 @@ def cover(orbit_cover, verbose=False, **kwargs):
                 w_dim < b_dim
             ), "Shadowing window discretization is larger than the base orbit. resize first. "
 
-        # The bases orbit periodicity has to do with scoring and whether or not to wrap windows around.
-        periodicity = kwargs.get(
-            "base_orbit_periodicity", tuple(len(base_orbit.dimensions()) * [False])
-        )
-
         window_grid = np.indices(window_shape)
         window_oob_pivots = []
         for i, each_pivot in enumerate(ordered_pivots):
@@ -939,7 +937,6 @@ def cover(orbit_cover, verbose=False, **kwargs):
             if verbose:
                 if i != 0 and i % max([1, len(ordered_pivots) // 10]) == 0:
                     print("-", end="")
-
             base_indexer, window_indexer = _subdomain_windows(
                 each_pivot,
                 base_orbit.shape,
