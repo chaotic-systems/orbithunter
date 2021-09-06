@@ -24,3 +24,9 @@ Bug and Error Fixes
 -  :meth:`OrbitCover.cover` was not correctly accounting for early-termination of computations
 -  :meth:`OrbitCover.cover` was not correctly handling empty pivot iterators.
 -  Converting classes between classes with different # of parameters and default constraints was being done incorrectly.
+-  Sometimes trust region methods would provide complex valued parameters in the case of singular matrices. 
+-  OrbitKS subclasses without discrete symmetry are handling complex valued state and parameter values in the trust region methods with hess_strategy='cs'
+   they are able to do this because the state arrays are cast as complex before inverse time transforms are applied; discrete symmetry subclasses
+   have to do spatial derivative of nonlinear term in spatial mode basis, so when transforming back to modes basis, complex valued input is passed
+   to rfft. This has been handled, while trying to maintain the ability to use the finite difference strategy, by casting parameters to reals 
+   in the newly overloaded :meth:`~OrbitKs.from_numpy_array`. The consequences of this complex overloading have not been investigated. 

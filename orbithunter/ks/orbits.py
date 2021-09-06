@@ -280,6 +280,76 @@ class OrbitKS(Orbit):
         else:
             raise ValueError("Trying to transform to unrecognized basis.")
 
+    def from_numpy_array(self, cdof, *args, **kwargs):
+        """
+        Utility to convert from numpy array (orbit_vector) to Orbit instance for scipy wrappers.
+
+        Parameters
+        ----------
+        cdof : ndarray
+            Vector with (spatiotemporal basis) state values and parameters.
+
+        kwargs :
+            parameters : tuple
+                If parameters from another Orbit instance are provided, overwrite the values within the orbit_vector
+            parameter_constraints : dict
+                constraint dictionary, keys are parameter_labels, values are bools
+            subclass kwargs : dict
+                If special kwargs are required/desired for Orbit instantiation.
+        Returns
+        -------
+        Orbit instance :
+            Orbit instance whose state and parameters are extracted from the input orbit_vector.
+
+        Notes
+        -----
+        Overwritten version for OrbitKS which casts to real-valued state variables and parameters.
+
+        This function is mainly to retrieve output from (scipy) optimization methods and convert it back into Orbit
+        instances. Because constrained parameters are not included in the optimization process, this is not
+        as simple as merely slicing the parameters from the array, as the order of the elements is determined by
+        the constraints. If non-scalar parameters are used, user will need to overwrite the Orbit.from_numpy_array() method.
+
+        In order to completely specific the equations in the presence of constraints it is necessary to
+
+        .. warning::
+           If equation has components for any parameters:
+           However, if the equations of motion have components for the parameters; this will in correctly overwrite
+           the components stored in parameters and this will need an overwrite.
+
+        """
+        # The parameters and possible constants are expected to be ordered
+        # parameters_list = list(cdof.ravel()[self.size:])
+        parameters_list = [p for p in cdof.ravel()[self.size:].real]
+
+        constants_list = list(args)
+        # The issue with parsing the parameters is that we do not know which list element corresponds to
+        # which parameter unless the constraints are checked. Parameter keys which are not in the constraints dict
+        # are assumed to be constrained. Pop from param_list if parameters 1. exist, 2. are unconstrained.
+        # Not having enough parameters to pop means something is going wrong in your matvec/rmatvec functions typically.
+        if self.parameters is not None:
+            parameters = tuple(
+                parameters_list.pop(0)
+                if (
+                    not self.constraints.get(each_label, True)
+                    and len(parameters_list) > 0
+                )
+                else float(constants_list.pop(0))
+                if len(constants_list) > 0.0
+                else 0.0
+                for each_label in self.parameter_labels()
+            )
+        else:
+            parameters = None
+        return self.__class__(
+            **{
+                **vars(self),
+                "state": np.reshape(cdof.ravel()[: self.size], self.shape),
+                "parameters": parameters,
+                **kwargs,
+            }
+        )
+
     def dt(self, order=1, array=False, **kwargs):
         """
         Spectral time derivatives of the current state.
@@ -407,7 +477,7 @@ class OrbitKS(Orbit):
                 modes = self.transform(to="modes", array=True)
                 # Slicing is a correction which only affects discrete symmetry orbits.
                 dxn_modes = (
-                    spatial_frequencies(self.x, self.m, order)[:, : modes.shape[1]]
+                    spatial_frequencies(self.x, self.m, order)[:, :modes.shape[1]]
                     * modes
                 )
             else:
@@ -1631,7 +1701,8 @@ class OrbitKS(Orbit):
         """
         return {"t": (20, 200), "x": (20, 100)}
 
-    def _default_constraints(self):
+    @classmethod
+    def _default_constraints(cls):
         """
         Defaults for whether or not parameters are constrained. parameter labels are forced to be constant.
 
@@ -2934,7 +3005,8 @@ class RelativeOrbitKS(OrbitKS):
         """
         return {"t": (20, 200), "x": (20, 100), "s": (0, 0)}
 
-    def _default_constraints(self):
+    @classmethod
+    def _default_constraints(cls):
         return {"t": False, "x": False, "s": False}
 
     def _eqn_linear_component(self, array=False):
@@ -4217,7 +4289,8 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
             m = max(m, cls.minimal_shape()[1])
         return n, m
 
-    def _default_constraints(self):
+    @classmethod
+    def _default_constraints(cls):
         return {"t": True, "x": False, "s": True}
 
     def _eqn_linear_component(self, array=False):

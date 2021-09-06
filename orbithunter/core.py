@@ -2398,7 +2398,8 @@ class Orbit:
                     val for label, val in zip(self.parameter_labels(), parameters)
                 )
             else:
-                # if more labels than parameters, simply fill with the default missing value, 0.
+                # if more labels than parameters, simply fill with the default missing value, 0. How constraints are
+                # handled.
                 self.parameters = tuple(
                     val
                     for label, val in zip_longest(
@@ -2552,7 +2553,6 @@ def convert_class(orbit_instance, orbit_type, **kwargs):
     """
     # Note any keyword arguments will overwrite the values in vars(orbit_instance) or state or basis
     # Must always (re)constrain orbits because of how parameters are handled
-    constraints = orbit_type().default_constraints()
     return orbit_type(
         **{
             **vars(orbit_instance),
@@ -2560,6 +2560,8 @@ def convert_class(orbit_instance, orbit_type, **kwargs):
                 to=orbit_instance.bases_labels()[0]
             ).state,
             "basis": orbit_instance.bases_labels()[0],
+            'constraints': orbit_type._default_constraints(),
             **kwargs,
+
         }
     ).transform(to=orbit_instance.basis)

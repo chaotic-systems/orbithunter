@@ -172,6 +172,10 @@ def hunt(orbit_instance, *methods, **kwargs):
     The dict contains keywords "jac" and one of the following "hess", "hessp" with the relevant callables/str see
     SciPy scipy.optimize.minimize for more details
 
+    Approximating the Hessian with finite difference strategy 'cs' requires the ability to handle complex input;
+    while 100% not meant to handle complex input, the state variables of the OrbitKS class and subclasses can
+    be overloaded to be complex to allow this to work; the parameters however must be cast as reals.
+
     **scipy.optimize.root**
 
     To access options of the scipy solvers, must be passed as nested dict: hunt(x, scipy_kwargs={"options":{}})
