@@ -206,26 +206,6 @@ class OrbitKS(Orbit):
         """
         return "t", "x"
 
-    # def orbit_vector(self):
-    #     """
-    #     Vector which completely specifies the orbit, contains state information and parameters.
-    #
-    #     Returns
-    #     -------
-    #     np.ndarray :
-    #         Column vector array comprised of all (valid) state variables (self.state and self.parameters). Shift 's'
-    #         is never valid for this class and hence not included.
-    #
-    #     """
-    #     return np.concatenate(
-    #         (
-    #             self.state.reshape(-1, 1),
-    #             np.array([[float(self.t)]]),
-    #             np.array([[float(self.x)]]),
-    #         ),
-    #         axis=0,
-    #     )
-
     def transform(self, to=None, array=False, inplace=False):
         """
         Transform current state to a different basis.
@@ -3820,7 +3800,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
                     ),
                     (
                         self.state.imag[1:-1, : -(int(self.m // 2) - 1)]
-                        + self.state.imag[1:-1, -(int(self.m // 2) - 1) :]
+                        + self.state.imag[1:-1, -(int(self.m // 2) - 1):]
                     ),
                 ),
                 axis=0,
@@ -4221,7 +4201,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         """
         # Change the default to N = 1 from N = None, this ensures that the temporal period (t=0) is never used.
         resolution = kwargs.get("resolution", "default")
-        n, m = kwargs.get("resolution", (1, None))
+        n, m = kwargs.get("discretization", (1, None))
         t, x = dimensions
         if m is None:
             if x == 0:
