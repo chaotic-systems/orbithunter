@@ -2,7 +2,7 @@ from json import dumps
 from itertools import zip_longest
 import h5py
 import numpy as np
-
+import re
 
 __all__ = ["Orbit", "convert_class"]
 
@@ -478,7 +478,11 @@ class Orbit:
         else:
             pretty_params = None
 
-        dict_ = {"shape": self.shape, "basis": self.basis, "parameters": pretty_params}
+        dict_ = {
+            "shape": self.shape,
+            "basis": self.basis,
+            re.sub("'", "", str(self.parameter_labels())): pretty_params,
+        }
         # convert the dictionary to a string via json.dumps
         dictstr = dumps(dict_)
         return self.__class__.__name__ + "(" + dictstr + ")"
@@ -1064,14 +1068,16 @@ class Orbit:
         """
 
         J = self.jacobian(**kwargs)
-        if kwargs.get('approximate', False):
+        if kwargs.get("approximate", False):
             # If the normal term dominates then sometimes this approximation can be worth the gain
             # in computational efficiency
             return J.T.dot(J)
         else:
             # because of computation time/memory considerations, have alternate methods of computing.
             try:
-                hess_tensordot = np.tensordot(self.eqn(**kwargs).state.ravel(), self.hess(**kwargs), axes=1).squeeze()
+                hess_tensordot = np.tensordot(
+                    self.eqn(**kwargs).state.ravel(), self.hess(**kwargs), axes=1
+                ).squeeze()
             except MemoryError:
                 hess_tensordot = self.elementwise_hess(**kwargs)
 
@@ -1190,7 +1196,7 @@ class Orbit:
         new_shape = new_discretization or self.dimension_based_discretization(
             self.dimensions(), **kwargs
         )
-        if len(new_shape) == 1 and isinstance(*new_shape, tuple):
+        if len(new_shape) == 1 and isinstance(new_shape, tuple) and isinstance(*new_shape, tuple):
             new_shape = tuple(*new_shape)
 
         # If the current shape is discretization size (not current shape) differs from shape then resize
@@ -2211,7 +2217,7 @@ class Orbit:
         """
         return {k: False for k in cls.parameter_labels()}
 
-    def _pad(self, size, axis=0, mode="constant", **kwargs):
+    def _pad(self, size, axis=0, **kwargs):
         """
         Increase the size of the discretization along an axis.
 
@@ -2244,6 +2250,7 @@ class Orbit:
         and the return basis is whatever the state was originally in. This is the preferred implementation.
 
         """
+        mode = kwargs.get('mode', 'constant')
         padding_size = (size - self.shape[axis]) // 2
         if int(size) % 2:
             # If odd size then cannot distribute symmetrically, floor divide then add append extra zeros to beginning
@@ -2530,7 +2537,7 @@ def convert_class(orbit_instance, orbit_type, **kwargs):
     ----------
     orbit_instance : Orbit or Orbit subclass instance
         The orbit instance to be converted
-    orbit_type : type
+    orbit_type : Orbit type
         The target class that orbit will be converted to.
 
     Returns
@@ -2560,8 +2567,7 @@ def convert_class(orbit_instance, orbit_type, **kwargs):
                 to=orbit_instance.bases_labels()[0]
             ).state,
             "basis": orbit_instance.bases_labels()[0],
-            'constraints': orbit_type._default_constraints(),
+            "constraints": orbit_type._default_constraints(),
             **kwargs,
-
         }
     ).transform(to=orbit_instance.basis)

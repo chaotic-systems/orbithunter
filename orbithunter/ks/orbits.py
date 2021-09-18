@@ -320,7 +320,7 @@ class OrbitKS(Orbit):
         """
         # The parameters and possible constants are expected to be ordered
         # parameters_list = list(cdof.ravel()[self.size:])
-        parameters_list = [p for p in cdof.ravel()[self.size:].real]
+        parameters_list = [p for p in cdof.ravel()[self.size :].real]
 
         constants_list = list(args)
         # The issue with parsing the parameters is that we do not know which list element corresponds to
@@ -477,7 +477,7 @@ class OrbitKS(Orbit):
                 modes = self.transform(to="modes", array=True)
                 # Slicing is a correction which only affects discrete symmetry orbits.
                 dxn_modes = (
-                    spatial_frequencies(self.x, self.m, order)[:, :modes.shape[1]]
+                    spatial_frequencies(self.x, self.m, order)[:, : modes.shape[1]]
                     * modes
                 )
             else:
@@ -1397,7 +1397,7 @@ class OrbitKS(Orbit):
         """
         return (0.0, self.t), (0.0, self.x / (2 * pi * np.sqrt(2)))
 
-    def _pad(self, size, axis=0):
+    def _pad(self, size, axis=0, **kwargs):
         """
         Increase the size of the discretization via zero-padding
 
@@ -3088,7 +3088,7 @@ class RelativeOrbitKS(OrbitKS):
             + (self.s / self.t) * self.dx(array=array)
         )
 
-    def _pad(self, size, axis=0):
+    def _pad(self, size, axis=0, **kwargs):
         """
         Checks if in comoving frame then pads. See OrbitKS for more details
 
@@ -3290,7 +3290,7 @@ class AntisymmetricOrbitKS(OrbitKS):
 
         return {"t": (20.0, 200.0), "x": (38.5, 100.0)}
 
-    def _pad(self, size, axis=0):
+    def _pad(self, size, axis=0, **kwargs):
         """
         Overwrite of parent method
 
@@ -3700,7 +3700,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
         else:
             return nl_orbit
 
-    def _pad(self, size, axis=0):
+    def _pad(self, size, axis=0, **kwargs):
         """
         Overwrite of parent method
 
@@ -3872,7 +3872,7 @@ class ShiftReflectionOrbitKS(OrbitKS):
                     ),
                     (
                         self.state.imag[1:-1, : -(int(self.m // 2) - 1)]
-                        + self.state.imag[1:-1, -(int(self.m // 2) - 1):]
+                        + self.state.imag[1:-1, -(int(self.m // 2) - 1) :]
                     ),
                 ),
                 axis=0,
@@ -4343,7 +4343,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         """
         return self._eqn_linear_component(array=array)
 
-    def _pad(self, size, axis=0):
+    def _pad(self, size, axis=0, **kwargs):
         """
         Overwrite of parent method
 

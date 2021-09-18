@@ -4,9 +4,11 @@ import numpy as np
 from gudhi.periodic_cubical_complex import PeriodicCubicalComplex
 from gudhi.hera.wasserstein import wasserstein_distance
 from gudhi.hera.bottleneck import bottleneck_distance
-from gudhi.persistence_graphical_tools import (plot_persistence_barcode,
-                                               plot_persistence_density,
-                                               plot_persistence_diagram)
+from gudhi.persistence_graphical_tools import (
+    plot_persistence_barcode,
+    plot_persistence_density,
+    plot_persistence_diagram,
+)
 
 __all__ = [
     "orbit_complex",

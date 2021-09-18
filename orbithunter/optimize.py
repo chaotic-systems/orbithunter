@@ -1711,7 +1711,8 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
     degrees_of_freedom = orbit_instance.cdof().size
     # If least squares routine, need LinearOperator representing Jacobian
     if method in ["lsqr", "lsmr"]:
-        if kwargs.get('solve_normal_equations', False):
+        if kwargs.get("solve_normal_equations", False):
+
             def matvec_func(v):
                 nonlocal orbit_instance
                 nonlocal kwargs
@@ -1725,8 +1726,10 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
                     .cdof()
                     .reshape(-1, 1)
                 )
+
             rmatvec_func = matvec_func
         else:
+
             def matvec_func(v):
                 # matvec needs state and parameters from v.
                 nonlocal orbit_instance
@@ -1739,7 +1742,9 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
                 nonlocal orbit_instance
                 nonlocal kwargs
                 # The rmatvec typically requires state information from v and parameters from current instance.
-                v_orbit = orbit_instance.from_numpy_array(v, *orbit_instance.constants())
+                v_orbit = orbit_instance.from_numpy_array(
+                    v, *orbit_instance.constants()
+                )
                 return orbit_instance.rmatvec(v_orbit, **kwargs).cdof().reshape(-1, 1)
 
         linear_operator_shape = (
@@ -1795,7 +1800,8 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
     else:
         # If square system of equations, then likely solving Ax = b, not the normal equations; matvec and
         # rmatvec are allowed to be distinct.
-        if kwargs.get('solve_normal_equations', False):
+        if kwargs.get("solve_normal_equations", False):
+
             def matvec_func(v):
                 nonlocal orbit_instance
                 nonlocal kwargs
@@ -1809,8 +1815,10 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
                     .cdof()
                     .reshape(-1, 1)
                 )
+
             rmatvec_func = matvec_func
         else:
+
             def matvec_func(v):
                 # _orbit_vector_to_orbit turns state vector into class object.
                 nonlocal orbit_instance
@@ -1822,7 +1830,9 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
                 # _orbit_vector_to_orbit turns state vector into class object.
                 nonlocal orbit_instance
                 nonlocal kwargs
-                v_orbit = orbit_instance.from_numpy_array(v, *orbit_instance.constants())
+                v_orbit = orbit_instance.from_numpy_array(
+                    v, *orbit_instance.constants()
+                )
                 return orbit_instance.rmatvec(v_orbit, **kwargs).cdof().reshape(-1, 1)
 
         linear_operator_shape = (
