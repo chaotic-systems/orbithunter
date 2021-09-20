@@ -172,6 +172,10 @@ def hunt(orbit_instance, *methods, **kwargs):
     The dict contains keywords "jac" and one of the following "hess", "hessp" with the relevant callables/str see
     SciPy scipy.optimize.minimize for more details
 
+    Approximating the Hessian with finite difference strategy 'cs' requires the ability to handle complex input;
+    while 100% not meant to handle complex input, the state variables of the OrbitKS class and subclasses can
+    be overloaded to be complex to allow this to work; the parameters however must be cast as reals.
+
     **scipy.optimize.root**
 
     To access options of the scipy solvers, must be passed as nested dict: hunt(x, scipy_kwargs={"options":{}})
@@ -749,7 +753,7 @@ def _newton_descent(
     preconditioner_factory = kwargs.get("mfactory", None)
     M = None
     mapping = orbit_instance.eqn(**kwargs)
-    cost = mapping.cost(eqn=False)
+    cost = mapping.cost(evaleqn=False)
     while cost > tol and runtime_statistics["status"] == -1:
         step_size = kwargs.get("step_size", 1)
         # Solve A dx = b <--> J dx = - f, for dx.
@@ -790,14 +794,14 @@ def _newton_descent(
         dx = orbit_instance.from_numpy_array(dx)
         next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
         next_mapping = next_orbit_instance.eqn(**kwargs)
-        next_cost = next_mapping.cost(eqn=False)
+        next_cost = next_mapping.cost(evaleqn=False)
         # This modifies the step size if too large; i.e. its a very crude way of handling curvature.
         while next_cost > cost and step_size > min_step:
             # Continues until either step is too small or cost decreases
             step_size /= 2.0
             next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
             next_mapping = next_orbit_instance.eqn(**kwargs)
-            next_cost = next_mapping.cost(eqn=False)
+            next_cost = next_mapping.cost(evaleqn=False)
         else:
             inner_nit = 1
             if kwargs.get("approximation", False):
@@ -808,7 +812,7 @@ def _newton_descent(
                     dx = M.matvec(dx)
                 inner_orbit = next_orbit_instance.increment(dx, step_size=step_size)
                 inner_mapping = inner_orbit.eqn(**kwargs)
-                inner_cost = inner_mapping.cost(eqn=False)
+                inner_cost = inner_mapping.cost(evaleqn=False)
                 while inner_cost < next_cost:
                     next_orbit_instance = inner_orbit
                     next_mapping = inner_mapping
@@ -817,7 +821,7 @@ def _newton_descent(
                     dx = orbit_instance.from_numpy_array(np.dot(inv_A, b))
                     inner_orbit = next_orbit_instance.increment(dx, step_size=step_size)
                     inner_mapping = inner_orbit.eqn(**kwargs)
-                    inner_cost = inner_mapping.cost(eqn=False)
+                    inner_cost = inner_mapping.cost(evaleqn=False)
                     inner_nit += 1
                     if inner_cost < tol:
                         next_orbit_instance = inner_orbit
@@ -920,7 +924,7 @@ def _lstsq(
 
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
     mapping = orbit_instance.eqn(**kwargs)
-    cost = mapping.cost(eqn=False)
+    cost = mapping.cost(evaleqn=False)
     runtime_statistics = {
         "method": "lstsq",
         "nit": 0,
@@ -989,13 +993,13 @@ def _lstsq(
         dx = orbit_instance.from_numpy_array(dx, **kwargs)
         next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
         next_mapping = next_orbit_instance.eqn(**kwargs)
-        next_cost = next_mapping.cost(eqn=False)
+        next_cost = next_mapping.cost(evaleqn=False)
         while next_cost > cost and step_size > min_step:
             # Continues until either step is too small or cost decreases
             step_size /= 2.0
             next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
             next_mapping = next_orbit_instance.eqn(**kwargs)
-            next_cost = next_mapping.cost(eqn=False)
+            next_cost = next_mapping.cost(evaleqn=False)
         else:
             orbit_instance, cost, runtime_statistics = _process_correction(
                 orbit_instance,
@@ -1089,7 +1093,7 @@ def _solve(
 
     # This is to handle the case where method == 'hybrid' such that different defaults are used.
     mapping = orbit_instance.eqn(**kwargs)
-    cost = mapping.cost(eqn=False)
+    cost = mapping.cost(evaleqn=False)
     runtime_statistics = {
         "method": "solve",
         "nit": 0,
@@ -1160,13 +1164,13 @@ def _solve(
         dx = orbit_instance.from_numpy_array(dx, **kwargs)
         next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
         next_mapping = next_orbit_instance.eqn(**kwargs)
-        next_cost = next_mapping.cost(eqn=False)
+        next_cost = next_mapping.cost(evaleqn=False)
         while next_cost > cost and step_size > min_step:
             # Continues until either step is too small or cost decreases
             step_size /= 2.0
             next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
             next_mapping = next_orbit_instance.eqn(**kwargs)
-            next_cost = next_mapping.cost(eqn=False)
+            next_cost = next_mapping.cost(evaleqn=False)
         else:
             orbit_instance, cost, runtime_statistics = _process_correction(
                 orbit_instance,
@@ -1371,13 +1375,13 @@ def _scipy_sparse_linalg_solver_wrapper(
         dx = orbit_instance.from_numpy_array(x, **kwargs)
         next_orbit_instance = orbit_instance.increment(dx)
         next_mapping = next_orbit_instance.eqn(**kwargs)
-        next_cost = next_mapping.cost(eqn=False)
+        next_cost = next_mapping.cost(evaleqn=False)
         while next_cost > cost and step_size > min_step:
             # Continues until either step is too small or cost decreases
             step_size /= 2.0
             next_orbit_instance = orbit_instance.increment(dx, step_size=step_size)
             next_mapping = next_orbit_instance.eqn(**kwargs)
-            next_cost = next_mapping.cost(eqn=False)
+            next_cost = next_mapping.cost(evaleqn=False)
         else:
             # If the trigger that broke the while loop was step_size then assume next_cost < cost was not met.
             orbit_instance, cost, runtime_statistics = _process_correction(
@@ -1707,21 +1711,41 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
     degrees_of_freedom = orbit_instance.cdof().size
     # If least squares routine, need LinearOperator representing Jacobian
     if method in ["lsqr", "lsmr"]:
+        if kwargs.get("solve_normal_equations", False):
 
-        def matvec_func(v):
-            # matvec needs state and parameters from v.
-            nonlocal orbit_instance
-            nonlocal kwargs
-            v_orbit = orbit_instance.from_numpy_array(v)
-            return orbit_instance.matvec(v_orbit, **kwargs).state.reshape(-1, 1)
+            def matvec_func(v):
+                nonlocal orbit_instance
+                nonlocal kwargs
+                # matvec needs parameters and orbit info from v; evaluation of matvec should take instance
+                # parameters from orbit_instance; is this reasonable to expect to work.
+                v_orbit = orbit_instance.from_numpy_array(v)
+                return (
+                    orbit_instance.rmatvec(
+                        orbit_instance.matvec(v_orbit, **kwargs), **kwargs
+                    )
+                    .cdof()
+                    .reshape(-1, 1)
+                )
 
-        def rmatvec_func(v):
-            # in this case, v is only state information, if rectangular system
-            nonlocal orbit_instance
-            nonlocal kwargs
-            # The rmatvec typically requires state information from v and parameters from current instance.
-            v_orbit = orbit_instance.from_numpy_array(v, *orbit_instance.constants())
-            return orbit_instance.rmatvec(v_orbit, **kwargs).cdof().reshape(-1, 1)
+            rmatvec_func = matvec_func
+        else:
+
+            def matvec_func(v):
+                # matvec needs state and parameters from v.
+                nonlocal orbit_instance
+                nonlocal kwargs
+                v_orbit = orbit_instance.from_numpy_array(v)
+                return orbit_instance.matvec(v_orbit, **kwargs).state.reshape(-1, 1)
+
+            def rmatvec_func(v):
+                # in this case, v is only state information, if rectangular system
+                nonlocal orbit_instance
+                nonlocal kwargs
+                # The rmatvec typically requires state information from v and parameters from current instance.
+                v_orbit = orbit_instance.from_numpy_array(
+                    v, *orbit_instance.constants()
+                )
+                return orbit_instance.rmatvec(v_orbit, **kwargs).cdof().reshape(-1, 1)
 
         linear_operator_shape = (
             orbit_instance.state.size,
@@ -1776,19 +1800,40 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
     else:
         # If square system of equations, then likely solving Ax = b, not the normal equations; matvec and
         # rmatvec are allowed to be distinct.
-        def matvec_(v):
-            # _orbit_vector_to_orbit turns state vector into class object.
-            nonlocal orbit_instance
-            nonlocal kwargs
-            v_orbit = orbit_instance.from_numpy_array(v)
-            return orbit_instance.matvec(v_orbit, **kwargs).cdof().reshape(-1, 1)
+        if kwargs.get("solve_normal_equations", False):
 
-        def rmatvec_(v):
-            # _orbit_vector_to_orbit turns state vector into class object.
-            nonlocal orbit_instance
-            nonlocal kwargs
-            v_orbit = orbit_instance.from_numpy_array(v, *orbit_instance.constants())
-            return orbit_instance.rmatvec(v_orbit, **kwargs).cdof().reshape(-1, 1)
+            def matvec_func(v):
+                nonlocal orbit_instance
+                nonlocal kwargs
+                # matvec needs parameters and orbit info from v; evaluation of matvec should take instance
+                # parameters from orbit_instance; is this reasonable to expect to work.
+                v_orbit = orbit_instance.from_numpy_array(v)
+                return (
+                    orbit_instance.rmatvec(
+                        orbit_instance.matvec(v_orbit, **kwargs), **kwargs
+                    )
+                    .cdof()
+                    .reshape(-1, 1)
+                )
+
+            rmatvec_func = matvec_func
+        else:
+
+            def matvec_func(v):
+                # _orbit_vector_to_orbit turns state vector into class object.
+                nonlocal orbit_instance
+                nonlocal kwargs
+                v_orbit = orbit_instance.from_numpy_array(v)
+                return orbit_instance.matvec(v_orbit, **kwargs).cdof().reshape(-1, 1)
+
+            def rmatvec_func(v):
+                # _orbit_vector_to_orbit turns state vector into class object.
+                nonlocal orbit_instance
+                nonlocal kwargs
+                v_orbit = orbit_instance.from_numpy_array(
+                    v, *orbit_instance.constants()
+                )
+                return orbit_instance.rmatvec(v_orbit, **kwargs).cdof().reshape(-1, 1)
 
         linear_operator_shape = (
             degrees_of_freedom,
@@ -1799,8 +1844,8 @@ def _sparse_linalg_factory(orbit_instance, method, **kwargs):
         # calls when user provides callables and not a 2-d array.
         A = LinearOperator(
             linear_operator_shape,
-            matvec_,
-            rmatvec=rmatvec_,
+            matvec_func,
+            rmatvec=rmatvec_func,
             dtype=orbit_instance.state.dtype,
         )
         b = -1.0 * orbit_instance.eqn(**kwargs).cdof().reshape(-1, 1)

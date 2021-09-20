@@ -1,4 +1,4 @@
-from .optimize import hunt
+from .optimize import hunt, OrbitResult
 from collections import deque
 from itertools import islice
 import numpy as np
@@ -98,7 +98,7 @@ def continuation(
         )
 
     orbit_instance.constrain((constraint_label, *extra_constraints))
-    minimize_result = hunt(orbit_instance, **kwargs)
+    minimize_result = OrbitResult(orbit=orbit_instance, status=1)
 
     # Derive step size with correct sign.
     step_size = np.sign(
@@ -198,7 +198,7 @@ def discretization_continuation(
 
     """
     # check that we are starting from converged solution, first of all.
-    minimize_result = hunt(orbit_instance, **kwargs)
+    minimize_result = OrbitResult(orbit=orbit_instance, status=1)
     axes_order = np.array(
         kwargs.get("axes_order", np.argsort(target_discretization)[::-1])
     )
@@ -307,11 +307,7 @@ def span_family(orbit_instance, **kwargs):
 
     """
     # Check and make sure the root orbit is actually a converged orbit.
-    root_orbit_instanceresult = hunt(orbit_instance, **kwargs)
-    if root_orbit_instanceresult.status != -1:
-        warn_str = "\nunconverged root orbit in family spanning. Change tol or orbit to avoid this message."
-        warnings.warn(warn_str, RuntimeWarning)
-
+    minimize_result = OrbitResult(orbit=orbit_instance, status=1)
     step_sizes = kwargs.get("step_sizes", {})
 
     # Step the bounds of the continuation per dimension, provided as dict much like step sizes.
@@ -329,16 +325,16 @@ def span_family(orbit_instance, **kwargs):
     family = [deque([orbit_instance])]
     for dim in bounds:
         # If a dimension is 0 then its continuation is not meaningful.
-        if getattr(root_orbit_instanceresult.orbit, dim) == 0.0:
+        if getattr(minimize_result.orbit, dim) == 0.0:
             continue
         branch = deque()
         # Regardless of what the user says, do the saving here and not inside continuation function
         step_size = step_sizes.get(dim, 0.01)
         kwargs = {"step_size": step_size, "save": False, **kwargs}
 
-        branch_orbit_instanceresult = root_orbit_instanceresult
+        branch_orbit_instanceresult = minimize_result
         # While converged and in bounds, step in the positive direction, starting from the root orbit
-        while branch_orbit_instanceresult.status == -1 and (
+        while branch_orbit_instanceresult.status == 1 and (
             getattr(branch_orbit_instanceresult.orbit, dim) < bounds.get(dim)[1]
         ):
             # Do not want to redundantly add root node
@@ -354,12 +350,12 @@ def span_family(orbit_instance, **kwargs):
                 branch_orbit_instanceresult.orbit, constraint_item, **kwargs
             )
         # Span the dimension in the negative direction, starting from the root orbit.
-        branch_orbit_instanceresult = root_orbit_instanceresult
+        branch_orbit_instanceresult = minimize_result
         # bounds.get using 'interval' tuple as default only then to slice it is consistently expect bounds
         # to be given as interval.
 
         # While converged and in bounds, step in the negative direction, starting from the root orbit
-        while branch_orbit_instanceresult.status == -1 and (
+        while branch_orbit_instanceresult.status == 1 and (
             getattr(branch_orbit_instanceresult.orbit, dim) > bounds.get(dim)[0]
         ):
             # Do not want to redundantly add root node

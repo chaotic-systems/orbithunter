@@ -179,19 +179,22 @@ def test_parameter_population():
         "t": (np.ones([2, 2, 2, 2]),),
         "z": choice_list,
     }
-    orb.Orbit().populate(
-        attr="parameters", parameter_ranges=pranges_missing_keys_bundled_array
+    prange_orbit = orb.Orbit().populate(
+        attr="parameters", parameter_ranges=pranges_missing_keys_bundled_array, seed=0
     )
-
+    assert np.array_equal(prange_orbit.parameters[0], np.ones([2, 2, 2, 2]))
+    assert prange_orbit.parameters[1:] == (0, 0, "way")
     # partially populated
-    orb.Orbit(parameters=(1, None, 1)).populate(
-        attr="parameters", parameter_ranges=parameter_ranges
+    partial_pop_orbit = orb.Orbit(parameters=(1, None, 1)).populate(
+        attr="parameters", parameter_ranges=parameter_ranges, seed=0
     )
+    assert partial_pop_orbit.parameters == (1, 154.8813503927325, 1, 0)
 
     # partially populated with missing keys
-    orb.Orbit(parameters=(0, 0, None)).populate(
-        attr="parameters", parameter_ranges=pranges_missing_keys
+    partial_pop_missing_keys = orb.Orbit(parameters=(0, 0, None)).populate(
+        attr="parameters", parameter_ranges=pranges_missing_keys, seed=0
     )
+    assert partial_pop_missing_keys.parameters == (0, 0, 0.0, 0)
 
 
 def test_overwriting():
@@ -525,9 +528,8 @@ def test_OrbitKS_attributes(fixed_OrbitKS_data, fixed_ks_parameters, kse_classes
         orbit_ = cls(
             state=fixed_OrbitKS_data, basis="field", parameters=fixed_ks_parameters[0]
         )
-        assert orbit_.parameters[0] == orbit_.t
-        assert orbit_.parameters[1] == orbit_.x
-        assert orbit_.parameters[2] == orbit_.s
+        for p, label in zip(orbit_.parameters, cls.parameter_labels()):
+            assert p == getattr(orbit_, label)
         assert orbit_.discretization[0] == orbit_.n
         assert orbit_.discretization[1] == orbit_.m
         assert cls().state.shape == tuple(len(orbit_._default_shape()) * [0])

@@ -1,8 +1,14 @@
-import gudhi as gh
 import matplotlib.pyplot as plt
 import inspect
 import numpy as np
-from gudhi.hera import wasserstein_distance, bottleneck_distance
+from gudhi.periodic_cubical_complex import PeriodicCubicalComplex
+from gudhi.hera.wasserstein import wasserstein_distance
+from gudhi.hera.bottleneck import bottleneck_distance
+from gudhi.persistence_graphical_tools import (
+    plot_persistence_barcode,
+    plot_persistence_density,
+    plot_persistence_diagram,
+)
 
 __all__ = [
     "orbit_complex",
@@ -33,7 +39,7 @@ def orbit_complex(orbit_instance, **kwargs):
     periodic_dimensions = kwargs.get(
         "periodic_dimensions", orbit_instance.periodic_dimensions()
     )
-    cubical_complex = gh.PeriodicCubicalComplex(
+    cubical_complex = PeriodicCubicalComplex(
         dimensions=orbit_instance.state.shape,
         top_dimensional_cells=orbit_instance.state.ravel(),
         periodic_dimensions=periodic_dimensions,
@@ -103,14 +109,14 @@ def persistence_plot(orbit_instance, gudhi_method="diagram", **kwargs):
     plot_kwargs = {
         k: v
         for k, v in kwargs.items()
-        if k in inspect.getfullargspec(gh.plot_persistence_diagram).args
+        if k in inspect.getfullargspec(plot_persistence_diagram).args
     }
     if gudhi_method == "diagram":
-        gh.plot_persistence_diagram(opersist, **plot_kwargs)
+        plot_persistence_diagram(opersist, **plot_kwargs)
     elif gudhi_method == "barcode":
-        gh.plot_persistence_barcode(opersist, **plot_kwargs)
+        plot_persistence_barcode(opersist, **plot_kwargs)
     elif gudhi_method == "density":
-        gh.plot_persistence_density(opersist, **plot_kwargs)
+        plot_persistence_density(opersist, **plot_kwargs)
     else:
         raise ValueError("Gudhi plotting gudhi_method not recognized.")
     plt.show()

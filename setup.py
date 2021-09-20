@@ -45,7 +45,6 @@ setup(
         "Intended Audience :: Science/Research",
         "Topic :: Scientific/Engineering :: Physics",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
@@ -72,7 +71,7 @@ setup(
         "orbithunter.shadowing",
     ],
     packages=find_packages(include=["orbithunter", "orbithunter.*"]),
-    python_requires=">=3.7",
+    python_requires=">=3.8",
     install_requires=install_requires,
     extras_require=extras_require,
     project_urls={

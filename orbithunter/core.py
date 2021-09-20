@@ -2,7 +2,7 @@ from json import dumps
 from itertools import zip_longest
 import h5py
 import numpy as np
-
+import re
 
 __all__ = ["Orbit", "convert_class"]
 
@@ -478,7 +478,11 @@ class Orbit:
         else:
             pretty_params = None
 
-        dict_ = {"shape": self.shape, "basis": self.basis, "parameters": pretty_params}
+        dict_ = {
+            "shape": self.shape,
+            "basis": self.basis,
+            re.sub("'", "", str(self.parameter_labels())): pretty_params,
+        }
         # convert the dictionary to a string via json.dumps
         dictstr = dumps(dict_)
         return self.__class__.__name__ + "(" + dictstr + ")"
@@ -978,9 +982,11 @@ class Orbit:
         """
         return (self.state.shape,)
 
-    def cost(self, eqn=True):
+    def cost(self, evaleqn=True):
         """
         Cost function evaluated at current state.
+
+        Parameters
 
         Returns
         -------
@@ -994,13 +1000,13 @@ class Orbit:
         number of function calls.
 
         """
-        if eqn:
+        if evaleqn:
             v = self.transform(to=self.bases_labels()[-1]).eqn().state.ravel()
         else:
             v = self.state.ravel()
         return 0.5 * v.dot(v)
 
-    def costgrad(self, *args, **kwargs):
+    def costgrad(self, eqn=None, **kwargs):
         """
         Matrix-vector product corresponding to gradient of scalar cost functional $1/2 F^2$
 
@@ -1025,8 +1031,8 @@ class Orbit:
         Default cost functional is $1/2 F^2$.
 
         """
-        if args:
-            return self.rmatvec(*args, **kwargs)
+        if eqn is not None:
+            return self.rmatvec(eqn, **kwargs)
         else:
             return self.rmatvec(self.eqn(), **kwargs)
 
@@ -1055,14 +1061,73 @@ class Orbit:
         but the recipe is given below. While there are tensor product functions I think the easiest way to
         compute this is by broadcasting and dot product.
 
+        Another issue is that $F (d^2F)$ scales like N^3 in terms of memory, and so it's just untenable to define
+        it explicitly in most cases. I recommend defining it as an iteration over i, if i is an index s.t.
+        $F (d^2F) = \sum_i F_i (d^2F)_{ijk}$, only ever defining a single ith component of $(d^2F)_{ijk}$ at a time.
+
         """
+
         J = self.jacobian(**kwargs)
-        return (
-            J.T.dot(J)
-            + np.tensordot(
-                self.eqn(**kwargs).state.ravel(), self.hess(**kwargs), axes=1
-            ).squeeze()
-        )
+        if kwargs.get("approximate", False):
+            # If the normal term dominates then sometimes this approximation can be worth the gain
+            # in computational efficiency
+            return J.T.dot(J)
+        else:
+            # because of computation time/memory considerations, have alternate methods of computing.
+            try:
+                hess_tensordot = np.tensordot(
+                    self.eqn(**kwargs).state.ravel(), self.hess(**kwargs), axes=1
+                ).squeeze()
+            except MemoryError:
+                hess_tensordot = self.elementwise_hess(**kwargs)
+
+            return J.T.dot(J) + hess_tensordot
+
+    def elementwise_hess(self, **kwargs):
+        """
+        A means of producing the second term of the cost function hessian in a more memory efficient manner
+        than explicitly defining the Hessian of vector equations
+
+        Parameters
+        ----------
+        kwargs : dict
+            Keyword arguments for equations and Hessian computations.
+
+        Returns
+        -------
+        H : np.ndarray
+            Component of Hessian of cost function of vector equations, F * d^2 F
+
+        """
+        n_cdof = self.cdof().size
+        H = np.zeros([n_cdof, n_cdof])
+        F = self.eqn(**kwargs).state.ravel()
+        for i, hess_i in enumerate(self.hessian_slice_generator(F, **kwargs)):
+            H += F[i] * hess_i
+
+        return H
+
+    def hessian_slice_generator(self, eqn, **kwargs):
+        """
+        Generator which returns the ith component of the second derivative tensor (derivative of Jacobion)
+        of vector equations.
+
+        Parameters
+        ----------
+        eqn : np.ndarray
+            The equation state used
+
+        Notes
+        -----
+
+        This is a dummy implementation which returns zeros only.
+
+
+        """
+        n_cdof = self.cdof().size
+        z = np.zeros([n_cdof, n_cdof])
+        for i in range(len(eqn)):
+            yield z
 
     def costhessp(self, other, **kwargs):
         """
@@ -1131,7 +1196,11 @@ class Orbit:
         new_shape = new_discretization or self.dimension_based_discretization(
             self.dimensions(), **kwargs
         )
-        if len(new_shape) == 1 and isinstance(*new_shape, tuple):
+        if (
+            len(new_shape) == 1
+            and isinstance(new_shape, tuple)
+            and isinstance(*new_shape, tuple)
+        ):
             new_shape = tuple(*new_shape)
 
         # If the current shape is discretization size (not current shape) differs from shape then resize
@@ -2140,7 +2209,7 @@ class Orbit:
         return {p_label: (0, 1) for p_label in cls.parameter_labels()}
 
     @classmethod
-    def _default_constraints(self):
+    def _default_constraints(cls):
         """
         Sometimes parameters are necessary but constant; this allows for exclusion from optimization without hassle.
 
@@ -2150,9 +2219,9 @@ class Orbit:
             Keys are parameter labels, values are bools indicating whether or not a parameter is constrained.
 
         """
-        return {k: False for k in self.parameter_labels()}
+        return {k: False for k in cls.parameter_labels()}
 
-    def _pad(self, size, axis=0, mode="constant", **kwargs):
+    def _pad(self, size, axis=0, **kwargs):
         """
         Increase the size of the discretization along an axis.
 
@@ -2185,6 +2254,7 @@ class Orbit:
         and the return basis is whatever the state was originally in. This is the preferred implementation.
 
         """
+        mode = kwargs.get("mode", "constant")
         padding_size = (size - self.shape[axis]) // 2
         if int(size) % 2:
             # If odd size then cannot distribute symmetrically, floor divide then add append extra zeros to beginning
@@ -2339,7 +2409,8 @@ class Orbit:
                     val for label, val in zip(self.parameter_labels(), parameters)
                 )
             else:
-                # if more labels than parameters, simply fill with the default missing value, 0.
+                # if more labels than parameters, simply fill with the default missing value, 0. How constraints are
+                # handled.
                 self.parameters = tuple(
                     val
                     for label, val in zip_longest(
@@ -2470,7 +2541,7 @@ def convert_class(orbit_instance, orbit_type, **kwargs):
     ----------
     orbit_instance : Orbit or Orbit subclass instance
         The orbit instance to be converted
-    orbit_type : type
+    orbit_type : Orbit type
         The target class that orbit will be converted to.
 
     Returns
@@ -2492,6 +2563,7 @@ def convert_class(orbit_instance, orbit_type, **kwargs):
 
     """
     # Note any keyword arguments will overwrite the values in vars(orbit_instance) or state or basis
+    # Must always (re)constrain orbits because of how parameters are handled
     return orbit_type(
         **{
             **vars(orbit_instance),
@@ -2499,6 +2571,7 @@ def convert_class(orbit_instance, orbit_type, **kwargs):
                 to=orbit_instance.bases_labels()[0]
             ).state,
             "basis": orbit_instance.bases_labels()[0],
+            "constraints": orbit_type._default_constraints(),
             **kwargs,
         }
     ).transform(to=orbit_instance.basis)
