@@ -1196,7 +1196,11 @@ class Orbit:
         new_shape = new_discretization or self.dimension_based_discretization(
             self.dimensions(), **kwargs
         )
-        if len(new_shape) == 1 and isinstance(new_shape, tuple) and isinstance(*new_shape, tuple):
+        if (
+            len(new_shape) == 1
+            and isinstance(new_shape, tuple)
+            and isinstance(*new_shape, tuple)
+        ):
             new_shape = tuple(*new_shape)
 
         # If the current shape is discretization size (not current shape) differs from shape then resize
@@ -2250,7 +2254,7 @@ class Orbit:
         and the return basis is whatever the state was originally in. This is the preferred implementation.
 
         """
-        mode = kwargs.get('mode', 'constant')
+        mode = kwargs.get("mode", "constant")
         padding_size = (size - self.shape[axis]) // 2
         if int(size) % 2:
             # If odd size then cannot distribute symmetrically, floor divide then add append extra zeros to beginning
