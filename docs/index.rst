@@ -72,4 +72,5 @@ I'd like to thank the open source projects [Networkx]_, [NumPy]_, [SciPy]_ and m
 for being great guides of how to setup, document, and structure Python packages, in addition to the great tools
 they provide. 
 
-Thank you to `Predrag Cvitanovic <http://www.cns.gatech.edu/~predrag/>`_ for his courses and guidance throughout my PhD thesis. 
+Thank you to `Predrag Cvitanovic <http://www.cns.gatech.edu/~predrag/>`_ for his courses and guidance throughout my PhD thesis,
+Burak Budanur for being a great source of information and friend, John Gibson, Ashley Willis and many others. 

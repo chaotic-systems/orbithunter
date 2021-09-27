@@ -1,0 +1,1710 @@
+[33mcommit 3e3d78cd6b6dd60f75fb93b890aa17c7a74b08e6[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m, [m[1;31morigin/onepointone[m[33m)[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Sep 26 23:19:13 2021 -0400
+
+    Notebook changes
+
+[33mcommit db7f16511807cb45228132b43ca588ff8a040409[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Sep 19 23:45:22 2021 -0400
+
+    black reformat
+
+[33mcommit 0f3bc8af5e7722f660518a9b72b34147fa47ca6a[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Sep 18 12:26:42 2021 -0400
+
+    Changes to masking, and performance tweaks
+
+[33mcommit 32f4297ddfa618f15065fbe0fde92336d47b9a3c[m[33m ([m[1;32mshadowing-map-change[m[33m)[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Sep 6 13:52:42 2021 -0400
+
+    Patch which allows for Hessian approximation finite difference strategy 'cs' to be used with OrbitKS subclasses with discrete symmetry.
+
+[33mcommit a92066236eee3ef4ebe44972afcffec76125172f[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Sep 6 12:44:39 2021 -0400
+
+    lots of notebook stuff, bug fixes, small refactorings
+
+[33mcommit 071d9e8e4acd0c4da9d83d5e6d28888bba08d7ae[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Aug 15 20:29:12 2021 -0400
+
+    Fixed bug with shadowing.cover + periodic boundary conditions
+
+[33mcommit 90137b7dd30550bbf8fe4b9c52398cedacde5e30[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Aug 15 17:03:53 2021 -0400
+
+    Reversion of OrbitCover.trim to return only non-inf regions, regardless of shape
+
+[33mcommit dd0feb5ade7d70a588aace5bf74e461337d2db67[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Aug 15 16:39:32 2021 -0400
+
+    Still fixing bug in OrbitCover.map
+
+[33mcommit e73771abcf035988779f4537a33e9567946e9ea9[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Aug 15 15:18:34 2021 -0400
+
+    Removed aggregation from OrbitCover.map; was too inflexible.
+
+[33mcommit 11bad086b2da2b06af2a81589d0ea28a84ffd402[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Aug 15 11:50:14 2021 -0400
+
+    notebook and install guide tweaks
+
+[33mcommit 8e72dbac32b0a1e9ada79030439dd13126ea8eb9[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Aug 15 04:44:38 2021 -0400
+
+    change to docker image installation description
+
+[33mcommit 2e2ddc130247aeb0644cb823baeb74b755e87072[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Aug 15 03:52:36 2021 -0400
+
+    docs changes
+
+[33mcommit 6ecd7c1ce072ecaf3aeff86a6716f9a30524cb0d[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Aug 15 03:46:47 2021 -0400
+
+    1.0
+
+[33mcommit 1057988448f65a8cd8b66e1bd9775b7942daf200[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Aug 15 03:39:10 2021 -0400
+
+    updating SciPy links in docs
+
+[33mcommit bd20f6608bf94a6f02d62b42ab785e06cfbcbaf2[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Aug 15 03:31:58 2021 -0400
+
+    Small refactoring and proofreading
+
+[33mcommit 91da4f57973598852819f69385e53576fb9a0577[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Aug 15 03:01:02 2021 -0400
+
+    Final touches to shadowing, optimize modules before 1.0
+
+[33mcommit 484a7e351cec7bb417daa1e7fe2f977f1a795895[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Aug 10 17:02:12 2021 -0400
+
+    redoing notebooks one final time before actual 1.0 release
+
+[33mcommit 4a9b318dbe20b868300a29aebab8c877a4a4fe94[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Aug 10 16:44:46 2021 -0400
+
+    Happy enough to fast forward to Version 1.0!
+
+[33mcommit 60b4f86b75d4797ad557c335fd104b079d48a722[m
+Merge: f080476 012696b
+Author: mgudorf <41150404+mgudorf@users.noreply.github.com>
+Date:   Tue Aug 10 16:20:14 2021 -0400
+
+    Merge pull request #3 from mgudorf/0point7dev
+    
+    0point7dev
+
+[33mcommit 012696b7e0f0ed3515e3ccc2b5850954a60bec5f[m
+Merge: 9d44e64 f080476
+Author: mgudorf <41150404+mgudorf@users.noreply.github.com>
+Date:   Tue Aug 10 16:19:52 2021 -0400
+
+    Merge branch 'main' into 0point7dev
+
+[33mcommit 9d44e6401a6e01192bf5dbccac4861274823108a[m[33m ([m[1;31morigin/0point7dev[m[33m, [m[1;32m0point7dev[m[33m)[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Aug 10 16:16:49 2021 -0400
+
+    refactoring of shadowing module, notebooks
+
+[33mcommit 51805c409ee0abcd5ce22bac90be21a633fff3ab[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Aug 8 20:27:30 2021 -0400
+
+    Refactoring of shadowing module because parameters were getting out of control and making debugging very hard
+
+[33mcommit 821fac51b93badcfff6d0a5f313dd5f285b0e679[m
+Merge: cca993f e2895b0
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Aug 5 00:42:47 2021 -0400
+
+    Merge branch '0point7dev' of https://www.github.com/mgudorf/orbithunter into 0point7dev
+
+[33mcommit cca993f0da6b50bfb1c816a951139dd43a5754b1[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Aug 5 00:35:10 2021 -0400
+
+    bug fix in cover/shadow and notebook updates
+
+[33mcommit e2895b042b4149eb7c428b890b5e9e3af4adf041[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Aug 5 00:35:10 2021 -0400
+
+    bug fix in cover/shadow and notebook updates
+
+[33mcommit f88cea3558ffba8d78e31775158e2b17fcaecac4[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Aug 1 20:17:39 2021 -0400
+
+    0.7rc3
+
+[33mcommit 0f2e0c104100918f5957a484c7bd969b9a1021d3[m
+Merge: 4e8b994 508e2f6
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Aug 1 19:47:21 2021 -0400
+
+    Merge branch '0point7dev' of https://www.github.com/mgudorf/orbithunter into 0point7dev
+
+[33mcommit 4e8b9944a82ee3d3495cb9bc8ecfaae00f1930c0[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Aug 1 19:44:35 2021 -0400
+
+    TestOrbit and optimize.hunt tests
+
+[33mcommit 508e2f6921c3405f3440aac9315f9ced28639034[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Aug 1 19:44:35 2021 -0400
+
+    TestOrbit and optimize.hunt tests
+
+[33mcommit a070678684cd2c097842865f1113514021cd1d4c[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Jul 8 23:41:06 2021 -0400
+
+    black and fixing bug wrt parameters and from_numpy_array
+
+[33mcommit f7007abaafc13905dcbb4a9d3b3c4b8702af0f8f[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Jun 26 02:10:37 2021 -0400
+
+    notebooks and docs update
+
+[33mcommit 2f1ed8baa77a447325fa57f8a3ee8ea7aff8cd66[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Apr 11 21:22:28 2021 -0400
+
+    shadowing redo with introduction of OrbitCover, notebook work, debugging of optimize routines for new equation modules
+
+[33mcommit 018806c20962bdf1a12811b47c76b6fba29c30a1[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Apr 9 14:36:46 2021 -0400
+
+    debugging the new cdof/constant methods
+
+[33mcommit 2e0ae9e19292c4a2c21b1c1d821ceae44e0d53a0[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Apr 8 13:33:44 2021 -0400
+
+    Fixing bugs with constraints via new methods Orbit.cdof() and Orbit.constants()
+
+[33mcommit db756f3881b95db5ccea5019f164ef1c8393effd[m
+Merge: 6cad4d5 9c6eceb
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Apr 7 08:18:26 2021 -0400
+
+    notebooks
+
+[33mcommit 6cad4d52d3ab5e1ae2cfa5d7c68bf6ab26bc12bd[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Apr 6 22:28:05 2021 -0400
+
+    more notebook changes; found a bug in wrappers when constraints applied to LinearOperators
+
+[33mcommit 9c6ecebdd570563c0fa54bf4a063a041c81ad291[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Apr 6 22:28:05 2021 -0400
+
+    more notebook changes; found a bug in wrappers when constraints applied to LinearOperators
+
+[33mcommit ba1b068f53fb896fce4be556d0df3a3274c54aeb[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Apr 5 15:12:57 2021 -0400
+
+    prepping 0.7 release
+
+[33mcommit 89d5a835cc7c25d549c202058541ea86675cbe52[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Apr 5 14:51:40 2021 -0400
+
+    Notebook developing the Lorenz eqn as an example, change to Orbit._populate_state to make it more useful
+
+[33mcommit ebccce7f31a8922042d95535a7b36c9d7853696c[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Apr 5 10:34:50 2021 -0400
+
+    placeholders for advanced_tests
+
+[33mcommit 91751ff6a7e40affb352afcf90bbc662a1f2b4b5[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Apr 5 10:28:16 2021 -0400
+
+    finishing up notebooks and developer guide
+
+[33mcommit bca2485112befc361aa62cd18b166e865670c91d[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Apr 3 01:50:14 2021 -0400
+
+    0.7rc2
+
+[33mcommit 4f170866bee4f220305c69fd91efd99adf8d5af0[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Apr 2 18:36:44 2021 -0400
+
+    0.7rc1
+
+[33mcommit dfd89d3fca5f5e6a762759aa8768156c5194d7f4[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Apr 1 18:22:21 2021 -0400
+
+    changed conventional import alias from 'oh' to 'orb'. Mainly work on notebooks and tutorial
+
+[33mcommit f0804769f8932f55f6a4cd31310a9818319ecdc4[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Apr 1 09:42:20 2021 -0400
+
+    more specific date for license
+
+[33mcommit 98d19d939ac712027775566aebd02c793add5639[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Apr 1 09:41:12 2021 -0400
+
+    notebook changes and making licensing date more specific
+
+[33mcommit d3cb078a2e65ea2a4f44b5820eb7ecae279af8aa[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Mar 31 17:42:00 2021 -0400
+
+    0.7b1
+
+[33mcommit 4f1ccda99cb76d84f3806506b8c140fecf0bbed5[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Mar 31 17:36:32 2021 -0400
+
+    POT not pot in requirements, enabled preconditioning in more numerical methods (sparse linalg most notably), pruning LaTeX requirements for dockerization
+
+[33mcommit 490ab4a5073671d6f570a96aa44196537628332f[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Mar 31 01:26:42 2021 -0400
+
+    small change to allow for preconditioner factories
+
+[33mcommit 3d0d9dc49b603ef9e5d29661c3fe8bd1f41a21ef[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Mar 31 00:52:58 2021 -0400
+
+    shadowing re-do, python black, notebooks, reorganization
+
+[33mcommit 59cc9c6f393094418efb859106f2f922a6d6f656[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Mar 30 11:26:51 2021 -0400
+
+    Removed defaults for sparse linalg scipy, good values are already highly dependent on the problem anyway
+
+[33mcommit 2aef66b1ed474b733a4cb387944716c58cf40199[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Mar 29 21:55:12 2021 -0400
+
+    cover will now only return pivot scores for efficiency. masking and conversion to orbit scores to occur externally
+
+[33mcommit 6566df283b0988da82493a2af1df6f6c26b8f7b6[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Mar 29 17:15:27 2021 -0400
+
+    tutorial minor edit
+
+[33mcommit 9c54d10c9f049c9c9b5ae0a5e0461975087c5243[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Mar 29 15:01:05 2021 -0400
+
+    notebook changes
+
+[33mcommit e80d8f85525ff47eb0d4996896f2be29144cc55d[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Mar 29 14:31:57 2021 -0400
+
+    wrong version typo
+
+[33mcommit 56846b39902631b1d3cb18fe4c90c576542e97ae[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Mar 29 01:22:48 2021 -0400
+
+    fixes for how kwargs handled in discrete symmetry dx; still making sure all routines run as expected
+
+[33mcommit 13d2cc1c3f0fc99d7bfb6d95c17a0a7470455b3b[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Mar 28 23:03:19 2021 -0400
+
+    versioning for pypi upload
+
+[33mcommit 53e84c3e1a69132ad31624501cea69a91b37c8c4[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Mar 28 22:47:33 2021 -0400
+
+    docs edits
+
+[33mcommit 3d0e3010d25456898411bd5d5fd042ae0be11a1e[m
+Merge: 90293c4 347882c
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Mar 28 22:36:02 2021 -0400
+
+    wrapping up numerical improvements of 0.7, moving back to outward facing components
+
+[33mcommit 90293c4078aceead3dda31712a90a0ffeb35472f[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Mar 28 22:14:12 2021 -0400
+
+    wasnt passing workers properly in jacobian calculation
+
+[33mcommit e0685f7d441c1f6bc7336729fe589e961395ac3d[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Mar 28 21:37:36 2021 -0400
+
+    No point in workers unless they can be accepted by init
+
+[33mcommit f1ab0332cc166b1162a383e77197a1fe1ede940c[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Mar 28 21:03:00 2021 -0400
+
+    numerical testing
+
+[33mcommit d4385f932b472b4e8efe9f67b204157aa9643d70[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Mar 28 20:42:23 2021 -0400
+
+    calls to reshape replaced with (faster) usage of None/np.newaxis
+
+[33mcommit da5752f1f19b784f9c89fe2910ee9b446ad6a475[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Mar 28 18:08:44 2021 -0400
+
+    small notebook changes
+
+[33mcommit 4be40b489f51e665cac650e2a65eacf08e0b634f[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Mar 28 18:07:46 2021 -0400
+
+    factories, inplace/overwrite_x/workers fft, efficient jacobians
+
+[33mcommit 8a086d9fc1c307cd70c978ed1fb83637a947f09b[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Mar 28 03:48:04 2021 -0400
+
+    more inplace stuff
+
+[33mcommit 73342be402f2c033131cf86edb8968461161bc31[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Mar 28 01:37:55 2021 -0400
+
+    re-do of how callables are generated and passed to scipy optimize/sparse-linalg functions
+
+[33mcommit 2ee5f768fda794fc55459defa856672e935232ee[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Mar 27 15:27:41 2021 -0400
+
+    halfway to inplace/workers, jac memory, and factory functions for wrappers
+
+[33mcommit 347882ce9a5036d0628d3299692017936ba0d488[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Mar 27 01:33:54 2021 -0400
+
+    bug fix with passing 3+ methods to hunt
+
+[33mcommit 574c70855718cab6b5a77925f5836d0ff47725c0[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Mar 27 01:12:44 2021 -0400
+
+    more tutorial notebooks
+
+[33mcommit b0fbfb4ff07d10cc446c3dc94f535946c60b8f74[m
+Merge: bc92351 4a03a45
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Mar 26 11:14:57 2021 -0400
+
+    improving numerical efficiency for KSE
+
+[33mcommit bc923518f7cb87228d5cd697b8701b86b602c25f[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Mar 26 11:10:36 2021 -0400
+
+    0.6.1
+
+[33mcommit 937495f8c7315c408a27d95269872334cc4e688e[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Mar 26 11:06:34 2021 -0400
+
+    (unfinished) tutorial clean up, bug fix
+
+[33mcommit 8b8c06654f59758ec6f4c637c9a426d724ed560f[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Mar 25 22:39:28 2021 -0400
+
+    re-doing gh-pages
+
+[33mcommit 4a03a455184e2aba54567bc3ec5962f8179cf407[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Mar 25 22:35:55 2021 -0400
+
+    adding inplace, removing some inefficient copying/array creating operations
+
+[33mcommit b23534f337906ec2c039a09b184f13ea2ca78c6d[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Mar 25 19:35:22 2021 -0400
+
+    worker property, inplace transforms
+
+[33mcommit 7f2ef34ca37006a364f245abf19c854d54a17c0d[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Mar 25 09:37:35 2021 -0400
+
+    being more descriptive with intended behavior that might otherwise seem like an error
+
+[33mcommit 6a28f374a1d53dac255a538952fbe9fa98e5ed43[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Mar 24 20:10:51 2021 -0400
+
+    bug fix OrbitKS._rmatvec_parameters, working on notebooks
+
+[33mcommit 48ec6a280dc561971e78fa542aafe5ab549b42f2[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Mar 23 18:20:09 2021 -0400
+
+    0.6.0 because bug fix
+
+[33mcommit c70e4a9e7dc850263de4624a201c0715c16fc815[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Mar 23 15:46:09 2021 -0400
+
+    bug fix from refactoring names pad and truncate
+
+[33mcommit cc1304c84fa4f03bd6c66e5497b27a94f47bbfe4[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Mar 23 09:14:03 2021 -0400
+
+    removing scripts folder for now as it is empty.
+
+[33mcommit 1b4611c81987216a2e6845ac7312d83899137189[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Mar 22 14:58:41 2021 -0400
+
+    more docs polishing
+
+[33mcommit 5175c10c66dcab4f84f2716771a30df9ef0255d5[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Mar 22 11:49:49 2021 -0400
+
+    consolidation into 'other' and typo fix
+
+[33mcommit 87aa9916b047a5cc934a1ff2878c77f7d8e32bf6[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Mar 22 11:27:55 2021 -0400
+
+    updated tutorial links
+
+[33mcommit 4694d8c3bf373cf71a982ad7b131c341f599f29f[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Mar 22 11:21:43 2021 -0400
+
+    version 0.5
+
+[33mcommit 339842a539dd6788a0372c556b163128edbc73ff[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Mar 20 15:30:19 2021 -0400
+
+    adding support for conda skeleton build
+
+[33mcommit 128082f456a39aa23f2bbb04dfe1f3f6df532808[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Mar 20 15:07:22 2021 -0400
+
+    thought I forced the add of test_data.h5 but I guess not
+
+[33mcommit 11e69ca775b6f32d489067f175a40e16f48db0ad[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Mar 20 14:08:55 2021 -0400
+
+    tried using apparently deprecated fix; take 2
+
+[33mcommit f095c73d3c1d5eeed9100504fe30b2c10f3f4149[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Mar 20 13:59:02 2021 -0400
+
+    rtd yaml
+
+[33mcommit 25b7dabc611db33f23afbcb1e8d60d1c39fa7b40[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Mar 20 13:55:36 2021 -0400
+
+    extra module docs not compiling because I didn't include extra_requirements in config file; added but might not work due to the specific install order that POT==0.7.0 requires.
+
+[33mcommit 0541270fd2bfb3399e561e99900cf7be15109fc0[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Mar 20 13:34:22 2021 -0400
+
+    tests_* renamed to test_* for pytest to find, whoops
+
+[33mcommit 14c67f030f96ff6b913ba35ee4f0992e8c20b46d[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Mar 20 11:05:50 2021 -0400
+
+    readthedocs setup
+
+[33mcommit a839b2fec9fc94f6f06f2964deae085fae130c25[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Mar 20 00:10:43 2021 -0400
+
+    0.5b3
+
+[33mcommit d487cceb49cc0fb19429df7013fc1df788570114[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Mar 17 18:32:16 2021 -0400
+
+    python black 0.5b1
+
+[33mcommit 70c5f0c64a6aa8637c185302c7b2fc8e606b2384[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Mar 17 18:31:02 2021 -0400
+
+    0.5b1 wheels
+
+[33mcommit b5618f1e2372abb2d5e160b7e1c60471d73e96d1[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Mar 17 18:27:21 2021 -0400
+
+    orbithunter 0.5b1
+
+[33mcommit cbcd48b27c94ec7086ad330bc26af2a087d3983a[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Mar 16 08:25:21 2021 -0400
+
+    0.4vb3
+
+[33mcommit 8255eaa209b7e5ea5e02357b1e4846c44ccdbdab[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Mar 16 07:47:27 2021 -0400
+
+    forgot to force the upload .h5
+
+[33mcommit 92db6f305899c43097c2326b78b45996675af4c8[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Mar 16 07:41:34 2021 -0400
+
+    fixing of symlinks in tests_basic and renaming test_data-->tests_data
+
+[33mcommit 13ef7f4e8d43bca9ccbddb7ce5ce9887fdb4540e[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Mar 15 21:43:24 2021 -0400
+
+    v0.4b2
+
+[33mcommit 6698d7fc9003d3787ced2f6d4a998ab220b4fc4a[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Mar 15 17:33:10 2021 -0400
+
+    testing with testpypi before hosting on actual pypi
+
+[33mcommit 93e050a86fb39db5fd84eafc2db02de27d422be5[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Mar 12 22:57:38 2021 -0500
+
+    setup.cfg edit
+
+[33mcommit 608cac23d941267f990077f8820f567a262beffa[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Mar 12 22:39:29 2021 -0500
+
+    Avoiding a rewrite of orbithunter.shadowing.shadow but probably need a utility to convert from pivot scores to orbit scores.
+
+[33mcommit 4a11e3f47b8da958ac3e8c6894d74886945266d8[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Mar 12 18:34:23 2021 -0500
+
+    can safely ignore
+
+[33mcommit 13aa93decc6328291c798f00afc0631ff86a9888[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Mar 12 15:29:37 2021 -0500
+
+    re-added roll, cell_shift to OrbitKS for different defaults; python black reformat
+
+[33mcommit 19344ca15cbe5a81de8d5a25a2d284aaf7b61c53[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Mar 12 15:18:59 2021 -0500
+
+    orbithunter v0.4.0(beta)
+
+[33mcommit 26594d0c29391dcf6af8940df94f9b1568033382[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Mar 12 11:26:46 2021 -0500
+
+    renaming and reorganization; going to use Sphinx+readthedocs and github pages for documentation
+
+[33mcommit a54aef784dc2a004e04c7fbed46f0f26ed55f954[m
+Author: mgudorf <41150404+mgudorf@users.noreply.github.com>
+Date:   Fri Mar 12 11:25:57 2021 -0500
+
+    Update issue templates
+
+[33mcommit d6289e8d571b4f2eceb4269d861ae3b9f0d471a6[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Mar 12 10:51:58 2021 -0500
+
+    More setup files, documentation updates
+
+[33mcommit 09a367e987b41e10f39495def41a93f82f56fbda[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Mar 11 22:04:30 2021 -0500
+
+    v0.3.0
+
+[33mcommit 3312fbc6b95d6454a5057ace72a18e4a2a64f0c8[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Mar 11 21:58:06 2021 -0500
+
+    small patch notes
+
+[33mcommit 23f159aa7c0b6fd9154cc2da4c5431f910843fad[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Mar 11 21:54:54 2021 -0500
+
+    More changes to tests; fixed a bug with importing metadata incorrectly being passed as lists instead of tuple
+
+[33mcommit 8303e13106b9f40c6fe52e6e5faf712bf7286e37[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Mar 11 20:00:25 2021 -0500
+
+    reorg for tests
+
+[33mcommit cf74a8cfaf504aa449be9e6a4be2af58927da626[m[33m ([m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Mar 11 16:30:38 2021 -0500
+
+    reorganization to abide by pypi/kenneth reitz standards
+
+[33mcommit 829fad68b9ac0636dc5972465c607f7d3d34939c[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Mar 11 15:42:56 2021 -0500
+
+    python black reformatted for consistency
+
+[33mcommit 3851cab8a5c152c58a44471a34d89fe56e8fca76[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Mar 11 15:10:05 2021 -0500
+
+    Switch from generate-->populate and many tests
+
+[33mcommit 120424559a3720ba8fe45a47da74bea95a0f6257[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Mar 11 10:19:58 2021 -0500
+
+    more tests; everything with 'generate' I think would be better termed as populate, testing on separate branch
+
+[33mcommit 97899bb1aeab8e0b817598256edf1b0f058027dd[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Mar 11 09:46:08 2021 -0500
+
+    OrbitKS()._generate_state bug fixes introduced by new broadcasting usage
+
+[33mcommit 5035e6b2e917b40695e7333431e1062a55aa17b0[m
+Merge: 7b4ca80 618ac58
+Author: mgudorf <41150404+mgudorf@users.noreply.github.com>
+Date:   Wed Mar 10 19:54:51 2021 -0500
+
+    v0.2.0
+    
+    v0.2.0
+
+[33mcommit 618ac58ca4a73b3d29da2803f22dd46ffff754f1[m[33m ([m[1;31morigin/speed-boost[m[33m)[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Mar 10 19:49:01 2021 -0500
+
+    v0.2.0
+
+[33mcommit 129fa977ef43dde4fdaf0054707a89e54a2222dd[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Mar 10 16:50:17 2021 -0500
+
+    previously did not account for the independence between state and parameter information
+
+[33mcommit 970c1dec28d1deab7bd0f4833b54371de46f57d1[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Mar 10 14:30:40 2021 -0500
+
+    Cython use impossible due to bug in 0.29.X, #2963 on github/cython issues. PEP-448 for reference
+
+[33mcommit 70755fe93515e75bb375df1b8eea1e9ad4c7b867[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Mar 10 10:52:55 2021 -0500
+
+    fixed bug in truncate/pad, speed testing to begin
+
+[33mcommit 0fe7410b236883b41f5a2c62c9cb0194dc5a189d[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Mar 10 10:36:19 2021 -0500
+
+    Conversions from np.tile to broadcasting, 'smart' init
+
+[33mcommit 7b4ca802058b8596d12eaab73c8124b57db3be7d[m
+Merge: 5b7cfe9 815895f
+Author: mgudorf <41150404+mgudorf@users.noreply.github.com>
+Date:   Tue Mar 9 23:41:22 2021 -0500
+
+    Merge pull request 'shadowing' from mgudorf/cover-exterior
+    
+    Shadowing updates
+
+[33mcommit 815895f3fd3991e0d4cf8325430e7ddff95f365e[m[33m ([m[1;31morigin/cover-exterior[m[33m)[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Mar 9 22:29:46 2021 -0500
+
+    cover and fill groundwork complete, testing still on going but sufficient for now
+
+[33mcommit b5d316f7448d37064dd957f1b427de65d0010ce9[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Mar 9 14:24:40 2021 -0500
+
+    realizing it is probably better to fill in scores all at the end
+
+[33mcommit 97cca49ec18e34706c6f7a2f7eccdd40af2fabac[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Mar 9 12:17:55 2021 -0500
+
+    Got the speed back, resulted from using tuple of numpy arrays as indexes instead of tuple of tuples
+
+[33mcommit c0a8556fb6f5066cc6d10f49b34614111b868070[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Mar 8 17:06:44 2021 -0500
+
+    holy cow that took longer than expected. exterior, inside-out iteration, and coordinate mapping to support parallelipiped and other more exotic slices available now.
+
+[33mcommit fa4ef55805f55e768a3e1007a0091d8679561035[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Mar 6 11:32:10 2021 -0500
+
+    ignore
+
+[33mcommit 6e98ecda2716a8209f4fbe9496ab134cb3a78bb1[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Mar 6 11:27:04 2021 -0500
+
+    speed decrease due to the switch from numpy array to orbits for certain operations, I think
+
+[33mcommit 400b51309cdf631b96aad9716256b084c49a6619[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Mar 5 21:32:39 2021 -0500
+
+    timing changes
+
+[33mcommit 32a5346947a10b5a22049d1ca5cc8269dd9b67a1[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Mar 5 20:29:15 2021 -0500
+
+    still hunting time decrease
+
+[33mcommit c71fe4e07fcb47958eedd7bd9d8fb66febbf4771[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Mar 5 14:39:39 2021 -0500
+
+    Looking for a bug why cover takes 1.5x-2x times as long
+
+[33mcommit f3f1ee1f06df695a0acb72506590af7fa3d07d7d[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Mar 5 12:46:17 2021 -0500
+
+    New version of cover algorithm; fill next'
+
+[33mcommit 409bf726b358cff98389310acd07c84ba1422747[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Mar 4 16:42:07 2021 -0500
+
+    shadow and cover now allow passing a minimal proportion of window which must be in the interior for it to be scored
+
+[33mcommit 037b0009c6c2d8f44a00013784d8615b869ce638[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Mar 4 15:31:08 2021 -0500
+
+    Major redo of convering, filling algorithms for easier use
+
+[33mcommit 5b7cfe92e6ba8d03e67e95b4298f52da55449dd4[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Mar 3 15:39:28 2021 -0500
+
+    after further consideration, 'fill' does not capture fuzzy windows as well as 'cover'
+
+[33mcommit 14ebda44fb00d8bbed9d130f3dd7aede8d02ada3[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Mar 2 20:51:39 2021 -0500
+
+    v0.1.0
+
+[33mcommit 31ed1eca49755dea54604cb0c232921de9892e6a[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Feb 26 16:47:07 2021 -0500
+
+    small notebook/fill changes
+
+[33mcommit 3bb1d14c6d767836cff1bb9346baf5a3b2a784de[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Feb 26 13:54:11 2021 -0500
+
+    completion of the filling algorithm; now single iteration and fills from inside padding to out.
+
+[33mcommit eb5df4f0cdb507cec7c39b01c740e644fe4a6f64[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Feb 23 12:48:09 2021 -0500
+
+    more development of shadowing.py and documentation/notebooks
+
+[33mcommit a5646b2f14a1a6f0720043502762e611e2cddfdf[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Feb 16 16:13:47 2021 -0500
+
+    More computations relevant to next paper, many more shadowing and persistent homology tools/utilities; not happy with their implementation but leaving refactoring for the future
+
+[33mcommit 5983b5271b84143e17233ac2d5552968409496aa[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Feb 14 16:28:53 2021 -0500
+
+    more shadowing tweaks, notebook changes; further pruning of continuous families for more accurate statistics
+
+[33mcommit 2f8c048418a5a6a4c8db1bd257b0b4756330d5a7[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Feb 13 19:09:14 2021 -0500
+
+    inplace operator overloads and some small renaming
+
+[33mcommit 0d393c52a2384d07f2f714c7f40bd2ef3599b70b[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Feb 13 16:56:29 2021 -0500
+
+    Reworked scanning and covering; masks, caching, pivots are handled separately for more control
+
+[33mcommit acc07a560992d597686f7bf61592fe77e8162579[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Feb 12 14:02:36 2021 -0500
+
+    likely going to refactor cover function to reduce boilerplate code; conditionals within for loop instead of for loops inside conditionals. Testing to see if persistence caching is working correctly
+
+[33mcommit f3a65624f7490b44d83bac6eb51a75d93daf31c1[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Feb 10 23:55:36 2021 -0500
+
+    made a correction for scanning function; hadnt factored in aperiodic dimensions. changes to keyword argument handling in persistent_homology and continuation
+
+[33mcommit a04ce439485b87c771a3341febc4281fcf1eefc7[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Feb 10 09:00:36 2021 -0500
+
+    notebooks and keyword updates again
+
+[33mcommit 153c78d34af96e0636ec749494326617982e25b8[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Feb 10 08:58:38 2021 -0500
+
+    bug fixes/changes regarding keyword arguments and nested functions. notebook for work with burak
+
+[33mcommit 9419990f6527f0ffb976f9dbd1ea7aa1bddba14b[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Feb 9 01:23:26 2021 -0500
+
+    New modes for covering, now there is prime factorization, counting and union modes. union worst case scenario is just as bad as the more detailed cases, but can dramatically speed up if the set of orbits is large; if all one cares about is the cover and not the partition of the cover
+
+[33mcommit 1bbe8cc3ba878e7509c2fa10ef906b254f846cff[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Feb 8 18:55:40 2021 -0500
+
+    refactor of how hunt() handles multiple methods and hyperparameters. very easy to make-your-own hybrid method now. Going to add 'mask updating' to dramatically decrease cover() comp time.
+
+[33mcommit b0add20545fa51b3f75f4aae1fac5141fb0a0e1b[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Feb 7 13:54:31 2021 -0500
+
+    cleaning up notebooks, doing work for second paper, debugging new shadowing/covering codes
+
+[33mcommit bf1f5fef6115dbf98abdbef374d9523279be6fd3[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Feb 6 14:21:00 2021 -0500
+
+    Bug fixes in rotate. Focus on polishing and packaging now that all primary tools are in place
+
+[33mcommit 5af87ff1456b29a9d66d4b486c3921cde5df9023[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Feb 5 16:46:05 2021 -0500
+
+    Contemplated symmetry specific parameter sets but it broke too many things. Also, found rare bug with binary operations, jupyter autoreload and editing source files.
+
+[33mcommit 6bca3bddccb713c12c9a40af10179c9a5d8b518d[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Feb 2 22:18:57 2021 -0500
+
+    span_family in continuation, shadowing.py, renaming of masking functions, small changes to optimize.py, orbits.py
+
+[33mcommit 72c26a8fcba014265f29e02412197bc6abd57aef[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Feb 1 23:14:04 2021 -0500
+
+    Minimal shape changed from raising exceptions to warnings.
+
+[33mcommit 6a675dc0aca9a73bd616ba52427d53a263cb905a[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Feb 1 17:28:32 2021 -0500
+
+    generalized shadowing and covering to its own .py file. changing io defaults to accept a 'compatibility mode' in next commit
+
+[33mcommit b68077f5161b64f444e2036e1ceed5b18ff3dfbf[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Jan 31 20:05:07 2021 -0500
+
+    small clean-up in shadowing
+
+[33mcommit d8196cb763178128d40b7ac29f91b68dc3be192a[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Jan 31 20:03:51 2021 -0500
+
+    Generalizing shadowing, easier than I thought it would be; only tricky part is how to handle periodicity
+
+[33mcommit 5eb771b9e3816c6b38b4620a1e5f352784a57c84[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Jan 31 13:23:00 2021 -0500
+
+    Fixed errors from making previous conversion regarding attributes, in the context of transforms
+
+[33mcommit 3e263f98b08376469fa41e41044c3bdadb826ede[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Jan 31 11:36:38 2021 -0500
+
+    Now all attributes in vars(instance) are passed (and then possibly overwritten with a new result) for all operations; allows unique attributes that aren't 'state', 'parameters' and 'basis' to propagate throughout calculations
+
+[33mcommit 1fa99177f41f4d113bde9b184deadd33e4ae7917[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Jan 30 21:28:56 2021 -0500
+
+    Proud of new io functions; much cleaner, much more flexible/generalizable. Likewise, generalization to passing attributes to binary operations and other methods.
+
+[33mcommit 78b1ff066001e17b5b09c0a77f24715333f37a22[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Jan 28 15:33:45 2021 -0500
+
+    Naming changes, io changes, redo of h5 format; found a better way using metadata. Bug fixes in continuation due to other changes
+
+[33mcommit dfd41ece4eab48c056f7a0698f63ff6dc0f714d8[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Jan 25 18:26:37 2021 -0500
+
+    Docs updates
+
+[33mcommit 14e8c4ff01f96b9304dc0407d09fd75175ea919d[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Jan 22 23:28:40 2021 -0500
+
+    Speed up didn't pan out as expected; adding more tests related to matrices
+
+[33mcommit 0b52c8ddacf814f260a81a4e4e66e099740b5d18[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Jan 22 15:14:49 2021 -0500
+
+    merged orbithunter.ks.arrayops into orbithunter.ks.orbits.py, redundant after all of the work that has gone into core. Trying to optimize differentiation for speed.
+
+[33mcommit ad1fd4fc7d47d84dd3206b443b9ca95b763a2dfc[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Jan 22 11:28:59 2021 -0500
+
+    doing some speed testing; much better lru_caching in arrayops coming in next commit
+
+[33mcommit e1cb2775520654af712057168d091e67b81d45a9[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Jan 22 08:47:28 2021 -0500
+
+    fixed up tests after changes and introducing ndim staticmethod which will allow derived classes (whose equations have different number of dimensions) to inherit default labels without cluttering the name space
+
+[33mcommit 3dcd538b034134f804d2957b5d996f4a55453bcd[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Jan 21 21:15:28 2021 -0500
+
+    renaming, documentation, working through how parameters are handled for symmetry invariant derived classes.
+
+[33mcommit 1f963e77c4ad724e1940dde982a0e60b70274b1f[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Jan 15 10:27:31 2021 -0500
+
+    stashing
+
+[33mcommit 32c1a4ba6ffbf63cb1b54628ad3541ac1b553403[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Jan 14 23:33:50 2021 -0500
+
+    Flushing out/cleaning up the main tests
+
+[33mcommit b1c1f79cac177a782306ca40d68fbf9d7d42fcf8[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Jan 13 22:08:04 2021 -0500
+
+    Refactored aspect ratio correction, namespace, defaults for parameters
+
+[33mcommit 4e4030118ea3b7837ac9fecefee5f0d46ebc6601[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Jan 10 14:14:14 2021 -0500
+
+    Major changes in last push to generalize
+
+[33mcommit 9f156b9a46c6a05edaf3cdea63488cf521a711fa[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Jan 9 20:59:22 2021 -0500
+
+    Very major changes.
+
+[33mcommit e87e1600345a4c702caa0c3bb8772d03711550c5[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Jan 4 19:06:28 2021 -0500
+
+    Major changes for generalizability
+
+[33mcommit 6721003675c4c78e24e41bb1fd21f1875df11b94[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Jan 3 13:35:19 2021 -0500
+
+    fixing correct_aspect_ratio, gluing, generalizing core methods
+
+[33mcommit 34e6d83643f64575a63603c009833a19d80a865b[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Jan 2 11:35:19 2021 -0500
+
+    more docs changes and reordering, some minor io changes for read_h5
+
+[33mcommit 06568234d415637a92948be4fc0eb5aa7c2b7ea7[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Dec 29 21:43:02 2020 -0500
+
+    renaming, reordering, docs, bug fix
+
+[33mcommit 08101c8764f030f50be6b3064bfd635a9d3cc16f[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Dec 28 23:32:12 2020 -0500
+
+    working on Orbit().to_h5()
+
+[33mcommit 0f1b0482b2c5819aa6c2b676d7da9904dc584925[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Dec 28 21:37:34 2020 -0500
+
+    gluing additions, renamings
+
+[33mcommit 4e39d260b975ca9f6c55a146ddcf2725a27812bd[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Dec 25 22:28:02 2020 -0500
+
+    from_numpy_array generalization, more conversion into self.shapes
+
+[33mcommit 2842763ed582543285d0d063a42b226d2b02c55d[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Dec 25 18:07:19 2020 -0500
+
+    conversion of field_shape, mode_shape, s_mode_shape -> shapes property
+
+[33mcommit 6971fa52e2b6473e79db6043024d0dbd3dabfadf[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Dec 25 16:39:34 2020 -0500
+
+    changing instance properties to methods for speed; was a bad design choice originally I think
+
+[33mcommit 21e172dba5013a4be4e3e0315be4c2a7c535920c[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Dec 25 16:03:34 2020 -0500
+
+    fixed discrete dx() and refactoring io still
+
+[33mcommit 4a81a9221e1e6eb2343d8116101bd1da080ccf5c[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Dec 24 20:59:39 2020 -0500
+
+    adding expensive glue, group orbit generators
+
+[33mcommit b5eb08aaffeb2ac3be28a8c274deda710fc425c4[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Dec 24 00:55:21 2020 -0500
+
+    major refactoring of io and hdf5 usage
+
+[33mcommit 1ebcddf93a1ecd39a6579a9876b03c80a81ee547[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Dec 23 17:09:03 2020 -0500
+
+    Migration of frequency tensors to arrayops
+
+[33mcommit 9bee5ea7116e58cf6073f221f9b91f043395f161[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Dec 22 16:02:22 2020 -0500
+
+    Major changes resulting from refactoring differentiation methods
+
+[33mcommit 3f60da738650b93feedc6ea2be26dd5a4fa7138d[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Dec 21 18:38:22 2020 -0500
+
+    Generalization of glue_parameters and more doc updates
+
+[33mcommit 548f18513dc05f9f1ac9b0a1737c08c7b30ee5de[m
+Merge: 93201f6 0f6877a
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Dec 8 17:51:16 2020 -0500
+
+    Merge branch 'experimental' of https://www.github.com/mgudorf/orbithunter
+
+[33mcommit 93201f66918340757f5b5165aa5f167950d77109[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Dec 8 17:51:06 2020 -0500
+
+    Small docs changes
+
+[33mcommit e7cba707cce9b5ac42e050717d46b6391e0c48f0[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Dec 8 15:36:31 2020 -0500
+
+    Thought I could finish henon quickly without needing branch, relegating to branch b.c. I'm wrong
+
+[33mcommit 0f6877ab849091cbe1de9397ddae49d99d3e0de9[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Dec 7 15:29:13 2020 -0500
+
+    Greatly simplified transform matrices for discrete symmeetries, trying to simplify odd-order derivatives next
+
+[33mcommit a5423af994681afa67be5d3a0ebe3f308b44ca87[m
+Merge: 4a8de14 15c40d2
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Dec 4 18:36:02 2020 -0500
+
+    Merge remote-tracking branch 'origin' into henon
+
+[33mcommit 15c40d25045c291b4cd10e37258bf54ec458fd15[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Dec 4 18:32:37 2020 -0500
+
+    pdf of thesis
+
+[33mcommit 4a8de14c4cf7d6e6202ad8e584f6c7788e8048ce[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Dec 4 18:30:10 2020 -0500
+
+    compressed pdf of thesis
+
+[33mcommit c78e4d27c63ffbdfc8ce5421f51917e1d9f5d237[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Dec 4 16:19:55 2020 -0500
+
+    Working through spatiotemporal henon, going to likely need Fourier
+
+[33mcommit ca2db4c45b513d45c32073a2fb96c5e7dae2de59[m
+Merge: 1865d83 a12e638
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Dec 4 14:04:53 2020 -0500
+
+    Merge branch 'henon' of https://www.github.com/mgudorf/orbithunter
+
+[33mcommit 1865d8378786944db5c3654c39284fe72dd98181[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Dec 4 13:53:48 2020 -0500
+
+    small changes from past week, beginning on Henon branch
+
+[33mcommit a12e638758f79258bad6f39610386c5bded5b438[m
+Author: mgudorf <mgudorf@users.noreply.github.com>
+Date:   Fri Dec 4 13:43:12 2020 -0500
+
+    notebook for spatiotemporal henon implementation
+
+[33mcommit 36a141da114d1668d3f7a2d75ab7f0b7d911e1a7[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Dec 1 17:40:42 2020 -0500
+
+    hasty commit b.c. henon
+
+[33mcommit fa727a1ab77ea598db6345d6ec665630a0f19739[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Nov 21 21:13:55 2020 -0500
+
+    Getting ready for final release, changes that would affect compatibility of future releases
+
+[33mcommit 7d44f3f29d8fc8587698222daf56cbf910a0ddb4[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Nov 18 14:48:09 2020 -0500
+
+    Can now pass parameters to clipping, and keyword argument for calculate_spatial_shift, clipping data and examples
+
+[33mcommit 42857f6dd39df2aa57005668d1dc3ab505f52024[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Nov 18 10:12:39 2020 -0500
+
+    removal of redundant figs directory; now stored with data
+
+[33mcommit fe9c2e9a88ae6871d4bd381854bd8fa88a295cb0[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Nov 18 10:10:08 2020 -0500
+
+    Redo of tile sets, trying to make shadowing calculation more efficient, changing playing with default figure plotting naming
+
+[33mcommit 77dd8faa25de12834c4fdcd8880b995155b06f10[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Nov 12 16:54:00 2020 -0500
+
+    pre-release removal of custom scripts
+
+[33mcommit f563241b3f75cdd9c021a1004f2c89888c5fddab[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Nov 12 16:49:31 2020 -0500
+
+    v0.9.0
+
+[33mcommit 69fa02aae694dfeb993ae53782bfdbfd0d9c9a48[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Nov 10 19:27:07 2020 -0500
+
+    accidentally added old-format data, removing'
+
+[33mcommit 3c2dfc625ac3916403673c499f93841cf4281e68[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Nov 10 19:25:47 2020 -0500
+
+    Working on notebooks, scripts, examples, etc., refactoring and repackaging of KSE into a module
+
+[33mcommit 9fd60caa81b26df2b3d685be2af7f0429244441f[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Nov 2 12:36:37 2020 -0500
+
+    re-adding scipy.optimize.root methods
+
+[33mcommit 9760ae4cccc07c678ba471220ebb48128f7a5fc8[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Nov 1 17:25:18 2020 -0500
+
+    Major refactoring of optimize.py, bug fixes in gluing (glue_parameters and _correct_aspect_ratios) and continuation functions
+
+[33mcommit 65120e3d5f444d51ccdc1fedaa68660602decf22[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Oct 29 15:24:10 2020 -0400
+
+    added newton descent, restored OrbitResult with more functionality, changed some variable names to better match SciPy
+
+[33mcommit 28bc614b50d347ce5365c6251a3d38d6baab8537[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Oct 29 01:32:54 2020 -0400
+
+    version 0.8
+
+[33mcommit 334268ea7f44c48aeafdb8890ce5206b02207098[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Oct 25 02:53:30 2020 -0400
+
+    re-do of numerical methods
+
+[33mcommit 85dbd45ac0a8ac45a607f73dfc66389c8ccc856c[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Oct 22 13:53:27 2020 -0400
+
+    discretization.py removed, replaced with instance and class methods, reshape made general (I think)
+
+[33mcommit 0c36d77dd614893d843dc2b0c8f65ada2ee71d46[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Oct 22 06:27:27 2020 -0400
+
+    last minute changes
+
+[33mcommit f1d34f231905ddfaf986a1963f34f7a395ef7e61[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Oct 22 06:19:54 2020 -0400
+
+    presentation changes to notebooks
+
+[33mcommit 4d37a4ced92b036120acb9ce46331a6f85a652b6[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Oct 22 02:06:41 2020 -0400
+
+    new version changes
+
+[33mcommit 1f5fd5b7b029e8a92cf7e7188afc41cd24b87e67[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Oct 22 02:05:59 2020 -0400
+
+    v0.7.0
+
+[33mcommit c4c44dff9d52ffe29027c66d5f931ec0e3a27b57[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Oct 15 15:44:14 2020 -0400
+
+    change of attribute name 'state_type'-->'basis'
+
+[33mcommit c1f5d92363f367c28a6ce1cd7a43f306b316c0d2[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Oct 4 01:17:52 2020 -0400
+
+    minor changes, small correct in shift reflection
+
+[33mcommit 776ac264a3b80968cbc38a5b35ef8eac514e158c[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Sep 28 14:40:02 2020 -0400
+
+    More clean-up and renaming, migration from orbit_ks.py to core.py, fixes to continuation, adding logging features to io.py
+
+[33mcommit a324c28dd8f5e5ee81e41338910eb52124b2ca84[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Sep 25 21:12:09 2020 -0400
+
+    notebook work, clean up, adding logging utilities to io.py
+
+[33mcommit df03d26a94061c4183fcd9031772fd27040cea87[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Sep 24 22:39:46 2020 -0400
+
+    v0.6.0
+
+[33mcommit bbdbc720b11b7ffe0147af83c20de641475a5237[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Sep 22 23:30:52 2020 -0400
+
+    reorganization
+
+[33mcommit 83fb654785852ce2dcb0c3c7848255dad28a937b[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Sep 22 23:25:38 2020 -0400
+
+    Refactoring, renaming, example notebooks, file io changes.
+
+[33mcommit 88bbac700aa475b23e401fbc90b8b57ff207972a[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Sep 22 14:06:53 2020 -0400
+
+    version 0.4.0
+
+[33mcommit 0acad9de9ab14f27a99d852f9c4716ba0d9ab86e[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Sep 21 15:50:33 2020 -0400
+
+    Forgot to make random seeding change to subclasses
+
+[33mcommit 61a35651c7b089900576b1e51cd6310585c3b23e[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Sep 21 15:47:19 2020 -0400
+
+    version 0.3.0,clipping and gluing nearly completed
+
+[33mcommit 999461bc22dcf66c536518eeb47e6822bf00af29[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Sep 21 15:09:38 2020 -0400
+
+    notebook changes
+
+[33mcommit 5cc19df1bcfcd04f4d29c327ed2796eb4e37d276[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Sep 21 02:41:42 2020 -0400
+
+    homology, continuation, clean-up
+
+[33mcommit ff27115f5eb97a4e0eb83b0d78944eefc18167b7[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Sep 20 21:13:15 2020 -0400
+
+    Major patch for version 0.2.0. clipping and CNN module testing is all that should be left, other than writing scripts
+
+[33mcommit 3ecfcf2ce963e0b785227b19bdd4dcb8726fdc59[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Sep 20 03:01:08 2020 -0400
+
+    Working through pairwise, optimized gluing, renaming some things to be more general, starting new branch for more optimization methods soon
+
+[33mcommit 2167b24fab7dab1f687e1ace5fe3442081f27be9[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Sep 19 16:22:15 2020 -0400
+
+    ignore
+
+[33mcommit c511fce97196bc7061b0fcc9340d8a273c2efaca[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Sep 19 16:21:18 2020 -0400
+
+    fixed bug where a single orbit state was distorted dramatically in aspect ratio correction
+
+[33mcommit 7d71e5ec7c80b2133644e20ca6598c7e9df51939[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Sep 19 16:00:09 2020 -0400
+
+    Replaced parameters dict method with class properties. Clipping, gluing, aspect ratio, bug fixes and clean up.
+
+[33mcommit ab35d228d46299d9ddb6f25557fe709c223ab98a[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Sep 17 01:46:17 2020 -0400
+
+    More clipping, gluing changes, working on demos, looking to change how parameters are handled.
+
+[33mcommit c6ba98dfc32337e204797fc003b45be018302e46[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Sep 16 00:27:32 2020 -0400
+
+    Discretization continuation, gluing, clipping, clean-up
+
+[33mcommit 9644dd8bf33d13e6cb4d9fac5e92d78dfccb79a3[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Sep 15 19:16:28 2020 -0400
+
+    Gluing, gluing scripts, gluing testing
+
+[33mcommit 2b319acd5cbc16ea528b87f934435205c0200ca0[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Sep 15 02:46:14 2020 -0400
+
+    Gluing is up and running; testing for best versions of tiles for KSE
+
+[33mcommit 5cfbbd6420628ca83f1e342cd1a92ea85c7924a2[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Sep 14 22:34:42 2020 -0400
+
+    Major changes supporting generalization to new equations
+
+[33mcommit df3bb199056d0a567891a814307d50330182f499[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Sep 14 22:21:18 2020 -0400
+
+    deletion of renamed files from previous commit
+
+[33mcommit 494f3f5342639a0e0629e284cd38e5e383e40070[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Sep 14 22:20:01 2020 -0400
+
+    Orbit super class for generalization to other equations, discretization, gluing changes.
+
+[33mcommit f595f538de7345bfe476317b829f63ce4937a254[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Sep 14 11:27:38 2020 -0400
+
+    Beginning of user guide, description of changes in patch note docs
+
+[33mcommit 704d3adbd5b7f253265a445235702bedd289c8fb[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Sep 14 11:10:17 2020 -0400
+
+    Fixed runtime warnings for small discretization orbits in optimize.
+
+[33mcommit ad783a0ee9cf2d9e7267df59bcd577c8ce2e9887[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Sep 14 10:49:52 2020 -0400
+
+    Error fixes pertaining to reference frames of RelativeOrbitKS
+
+[33mcommit 649099ebcff4a2092d83c989cb59df373f7c0c12[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Sep 14 10:39:51 2020 -0400
+
+    Bug fixes for reference frame conversions.
+
+[33mcommit 277a52c88860c90214e376bb78dbac193b4f1c3b[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Sep 14 10:19:05 2020 -0400
+
+    testing passing parameters as dict everywhere
+
+[33mcommit 27aa63427b66f2794596e62521893ab9f284838e[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Sep 14 07:52:36 2020 -0400
+
+    removal of redundant method
+
+[33mcommit c4bd2c65e36940d4a0cd7544b8140153e485808b[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Sep 14 00:52:27 2020 -0400
+
+    Added new classmethod to handle parameters during gluing, changes to tiling functions in glue module
+
+[33mcommit 741fa26a1ac7b0fc230a8a4affda2bf96bf11244[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Sep 12 22:40:53 2020 -0400
+
+    Readme changes
+
+[33mcommit 49b09bffe15c093d88f13fc944bc90a6b1868c40[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sat Sep 12 20:47:24 2020 -0400
+
+    See orbithunter_v0.0.md in orbithunter/docs/ for details and changes
+
+[33mcommit 8059aaffd2fe24ef116d07256e29b74d32d711ab[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Tue Sep 8 03:32:46 2020 -0400
+
+    clean-up, refactoring of __init__, initial condition generation next
+
+[33mcommit dc365674c73c8974d52e295c6ff3531ec75dc697[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Sep 7 22:19:00 2020 -0400
+
+    Many more scipy optimization methods incorporated. The default behavior is tailored to my testing with the different methods, but results may differ for other equations.
+
+[33mcommit 7c3df388d706c93b4f4e1a3d82cbd5cfc3299f9a[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Sep 4 14:51:06 2020 -0400
+
+    overhaul of optimization
+
+[33mcommit 67cf8b1435bbb5a5b7e2ea5a37a8a74de2ce2a90[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Sep 3 01:05:46 2020 -0400
+
+    persistent homology via Gudhi wrapper, scipy optimizers undergoing testing, clean up
+
+[33mcommit 5aaaa36f9d72d4a472aed6a84e94b6305de10bcc[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Sep 2 15:42:59 2020 -0400
+
+    still working through script conversion and setting up future utilities. Still debating package structure.
+
+[33mcommit f1dc8d7ace13220ab4596a394f8099ce0d7542b3[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Aug 31 13:26:25 2020 -0400
+
+    Fixing personal scripts and creating the corresponding utilities along the way, __init__ and initial condition generation next
+
+[33mcommit b5248eb468cbc076e68e0614f5d1229499279844[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Aug 31 08:28:30 2020 -0400
+
+    Replacing all mentions of torus -> orbit, clean-up, beginning to rewrite all scripts
+
+[33mcommit cad182d7343924627d85e8ced2c6f10420579154[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Thu Aug 27 22:17:34 2020 -0400
+
+    Full implementation of subclasses, bug testing next
+
+[33mcommit 5d0c02915ef76defe02482dde85b1bce6eae6ae4[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Wed Aug 26 12:00:24 2020 -0400
+
+    Almost done with equilibria subclasses, need to check gauss-newton next
+
+[33mcommit 0907ec13b24a04869cd6132656351937fab0a1cd[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Aug 24 21:09:42 2020 -0400
+
+    Refactoring and work towards equilibria subclasses
+
+[33mcommit a1c614451e58e82521bfdafe4ae864498239eb18[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Mon Aug 24 16:07:08 2020 -0400
+
+    Caching-refactoring progress and moving data to local
+
+[33mcommit b6d3c6b53d9e2d7c5d41c5bef8b96cd0a717f63f[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Sun Aug 23 16:47:05 2020 -0400
+
+    More spatial derivatives refactoring
+
+[33mcommit e4bc0546f5f6b40f8a129e1dc619eb31c48257e2[m
+Merge: 8a0ac01 202b134
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Aug 21 20:13:09 2020 -0400
+
+    Merge branch 'orbithunter-caching-classmethods'
+
+[33mcommit 202b134894b779ba9ecf0ed70145bc43d81b2c9a[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Aug 21 20:09:23 2020 -0400
+
+    Changes to IO that make it better but more user dependent. small script to time descent method runs for each symmetry type, added __repr__
+
+[33mcommit 8a0ac017ed57d75c675221e340d1d69e0fbd3357[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Aug 21 14:35:18 2020 -0400
+
+    Merging RelativeOrbitKS caching branch
+
+[33mcommit be3b6b4c94d88c36bb3aed8aba280af88420c3a4[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Aug 21 14:28:14 2020 -0400
+
+    RelativeOrbitKS method conversion to accomodate caching, crude benchmarks in README.md
+
+[33mcommit 16c8c27547b2edccf1c61d49942ee44c77838ee2[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Aug 21 12:10:41 2020 -0400
+
+    Conflict resolution for orbithunter-caching-classmethods merge
+
+[33mcommit f052240f745f9d364e59ec078b23ff5bf55f3710[m
+Author: Matthew Gudorf <matthew.gudorf@gmail.com>
+Date:   Fri Aug 21 11:44:14 2020 -0400
+
+    Converting subclass methods to lru_cache formats
+
+[33mcommit 4cc33c21b38add3cfb6741190988dbc7fa0a6c33[m
+Author: mgudorf <41150404+mgudorf@users.noreply.github.com>
+Date:   Fri Aug 21 02:40:51 2020 -0400
+
+    refactoring reduced test run computation time by approx. 37 percent compared to research code, approx 42 percent with respect to previous commits
+
+[33mcommit 57ab69b9de56bdf569378d034a760b4a71176d72[m
+Author: mgudorf <41150404+mgudorf@users.noreply.github.com>
+Date:   Thu Aug 20 20:40:01 2020 -0400
+
+    small fixes and refactorings
+
+[33mcommit 479c4dba8b4694d2d38ccb699ba6f83187ca5671[m
+Author: mgudorf <41150404+mgudorf@users.noreply.github.com>
+Date:   Thu Aug 20 19:11:29 2020 -0400
+
+    caching helps when compared to master branch, still slower than pure numpy code though.
+
+[33mcommit 9824b800e8bb06b9bee7077fd7958dc22dbade52[m
+Author: mgudorf <41150404+mgudorf@users.noreply.github.com>
+Date:   Wed Aug 19 16:51:42 2020 -0400
+
+    Still working on the two equilibria subclasses; going to open new branch for classmethod+caching efficiency testing
+
+[33mcommit d6df865127d9e6a24acfa84433888153a73b9255[m
+Author: mgudorf <41150404+mgudorf@users.noreply.github.com>
+Date:   Tue Aug 18 17:00:25 2020 -0400
+
+    Modifications so RelativeEquilibirumOrbitKS and EquilibriumOrbitKS can inherit more from OrbitKS
+
+[33mcommit 92413a7e373a05e87aa0239103f9a49f22e2cceb[m
+Author: mgudorf <41150404+mgudorf@users.noreply.github.com>
+Date:   Tue Aug 18 15:33:06 2020 -0400
+
+    RelativeEquilibriumKS, EquilibriumKS and some renaming
+
+[33mcommit 7493fe4c60dab8ebb2d8d01ae67f78607622a302[m
+Author: mgudorf <41150404+mgudorf@users.noreply.github.com>
+Date:   Sun Jul 19 21:20:21 2020 -0400
+
+    small clean-up changes
+
+[33mcommit 36c40876d807fd005482f7256f062f4fce8239dc[m
+Author: mgudorf <41150404+mgudorf@users.noreply.github.com>
+Date:   Tue May 26 21:30:25 2020 -0400
+
+    changing notation from fft -> transform to accomodate non-Fourier bases, appended KS to classes and subclasses to open Orbit class for (hopefully future) users.
+
+[33mcommit 861e706ece9dfac1e0549ad041d4aa836281c869[m
+Author: mgudorf <41150404+mgudorf@users.noreply.github.com>
+Date:   Tue May 26 20:30:43 2020 -0400
+
+    changes to README
+
+[33mcommit ca2c68123d452e562b8077efc6213f3d7f46226c[m
+Author: mgudorf <41150404+mgudorf@users.noreply.github.com>
+Date:   Tue May 26 20:29:32 2020 -0400
+
+    Initial commit, orbithunter v0.0
+
+[33mcommit 6013d3d75586cb96845aa9eee5c9a9465e6cf88b[m
+Author: mgudorf <41150404+mgudorf@users.noreply.github.com>
+Date:   Tue May 26 20:14:45 2020 -0400
+
+    Initial commit
