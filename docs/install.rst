@@ -40,7 +40,7 @@ Running the Docker image
 The easiest way to instantiate the container is to run the following in command line, replacing `<container name>`
 with whatever is the desired name.::
 
-    docker run -n <container name> -p 8887:8887 orbithunter/orbithunter:latest
+    docker run --name <container name> -p 8887:8887 orbithunter/orbithunter:latest
 
 The `-p` switch opens the local port 8887 allowing for the jupyter notebook GUI to be opened in a browser. This prints
 output, the last bit of which will look like the following.
