@@ -146,6 +146,10 @@ def test_populate_seeding():
     assert x.parameters == y.parameters
 
 
+def test_repr_serialization():
+    x = orb.Orbit(parameters=(np.int32(5), np.int32(5)))
+    y = repr(x)
+
 def test_parameter_population():
     """ Test the parsing and population of parameters with or without user specified parameter ranges."""
     choice_list_possible_confused_with_interval = ["am I an", "interval?"]

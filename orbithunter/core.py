@@ -471,7 +471,7 @@ class Orbit:
             # parameters should be an iterable
             try:
                 pretty_params = tuple(
-                    round(x, 3) if isinstance(x, float) else x for x in self.parameters
+                    round(float(x), 3) if not isinstance(x, str) else x for x in self.parameters
                 )
             except TypeError:
                 pretty_params = self.parameters
