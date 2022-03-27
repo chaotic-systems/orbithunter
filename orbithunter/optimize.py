@@ -79,7 +79,7 @@ class OrbitResult(dict):
         return list(self.keys())
 
 
-def hunt(orbit_instance, *methods, **kwargs):
+def hunt(orbit_instance, methods, **kwargs):
     """
     Main optimization function for orbithunter; wraps many different SciPy and custom routines
 
@@ -213,14 +213,12 @@ def hunt(orbit_instance, *methods, **kwargs):
 
     """
     hunt_kwargs = {k: v.copy() if hasattr(v, "copy") else v for k, v in kwargs.items()}
-    # so that list.pop() method can be used, cast tuple as lists
-    methods = tuple(*methods) or hunt_kwargs.pop("methods", "adj")
-    scipy_kwargs = hunt_kwargs.pop("scipy_kwargs", {})
-
-    if len(methods) == 1 and isinstance(*methods, tuple):
-        methods = tuple(*methods)
-    elif isinstance(methods, str):
+    if isinstance(methods, str):
         methods = (methods,)
+
+    # so that list.pop() method can be used, cast tuple as lists
+    hunt_kwargs.pop("methods", "adj")
+    scipy_kwargs = hunt_kwargs.pop("scipy_kwargs", {})
 
     runtime_statistics = {}
     for method in methods:
