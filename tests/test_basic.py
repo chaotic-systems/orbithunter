@@ -240,7 +240,7 @@ def test_from_numpy(fixed_orbit_data):
         state=fixed_orbit_data, basis="physical", parameters=(10, 10, 10, 10)
     )
     v = orbit_.orbit_vector()
-    assert pytest.approx(v.sum(), (orbit_.state.sum() + sum(orbit_.parameters)))
+    assert v.sum() == pytest.approx(orbit_.state.sum() + sum(orbit_.parameters))
 
     orbit_from_numpy = orbit_.from_numpy_array(v)
     assert (orbit_from_numpy.state == orbit_.state).all()
@@ -630,14 +630,14 @@ def test_rmatvec(fixed_OrbitKS_data, fixed_ks_parameters):
             }
         ).transform(to="modes")
 
-    assert pytest.approx(relorbit_.rmatvec(relorbit_).norm(), 60.18805016)
-    assert pytest.approx(relorbit_.costgrad(relorbit_).norm(), 0.0)
+    assert pytest.approx(relorbit_.rmatvec(relorbit_).norm()) == 60.18805016
+    assert pytest.approx(relorbit_.costgrad(relorbit_).norm()) == 60.18805016
 
     orbit_ = orb.OrbitKS(
         state=fixed_OrbitKS_data, parameters=fixed_ks_parameters[0], basis="field"
     ).transform(to="modes")
-    assert pytest.approx(orbit_.rmatvec(orbit_).norm(), 1.295386)
-    assert pytest.approx(orbit_.costgrad(orbit_.eqn()).norm(), 1.0501956)
+    assert pytest.approx(orbit_.rmatvec(orbit_).norm()) == 1.295386
+    assert pytest.approx(orbit_.costgrad(orbit_.eqn()).norm()) == 0.468832
 
 
 def test_matvec(fixed_OrbitKS_data, fixed_ks_parameters):
@@ -646,8 +646,8 @@ def test_matvec(fixed_OrbitKS_data, fixed_ks_parameters):
         state=fixed_OrbitKS_data, parameters=fixed_ks_parameters[0], basis="field"
     ).transform(to="modes")
 
-    assert pytest.approx(relorbit_.matvec(relorbit_).norm(), 0.3641827310989932)
-    assert pytest.approx(orbit_.matvec(orbit_).norm(), 155.86156902189782)
+    assert pytest.approx(relorbit_.matvec(relorbit_).norm()) == 155.86156902189782
+    assert pytest.approx(orbit_.matvec(orbit_).norm()) == 0.3641827310989932
 
 
 def test_transforms(
