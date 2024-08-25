@@ -5200,7 +5200,14 @@ def so2_coefficients(order):
         (2,) ndarray of correct powers of -1 for differentiation
 
     """
-    return np.sign(1j ** order).real, np.sign((-1j) ** order).real
+    if (order % 4) == 0:
+        return 1, 1
+    elif (order % 4) == 1:
+        return 1, -1
+    elif (order % 4) == 2:
+        return -1, -1
+    elif (order % 4) == 3:
+        return -1, 1
 
 
 @lru_cache()
@@ -5233,7 +5240,7 @@ def temporal_frequencies(t, n, order):
     # Extra factor of -1 because of time ordering in array.
     w = (-1 * (2 * pi * n / t) * rfftfreq(n)[1:-1]) ** order
     # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
-    c1, c2 = np.sign(1j ** order).real, np.sign((-1j) ** order).real
+    c1, c2 = so2_coefficients(order)
     # The Nyquist frequency is never included, this is how time frequency modes are ordered.
     # Elementwise product of modes with time frequencies is the spectral derivative.
     return np.concatenate(([0], c1 * w, c2 * w))[:, np.newaxis]
@@ -5269,7 +5276,7 @@ def spatial_frequencies(x, m, order):
     # Elementwise multiplication of modes with frequencies, this is the derivative.
     q = ((2 * pi * m / x) * rfftfreq(m)[1:-1]) ** order
     # Coefficients which depend on the order of the derivative, see SO(2) generator of rotations for reference.
-    c1, c2 = np.sign(1j ** order).real, np.sign((-1j) ** order).real
+    c1, c2 = so2_coefficients(order)
     # spatial frequency array, reshaped for broadcasting.
     return np.concatenate((c1 * q, c2 * q))[None, :]
 
