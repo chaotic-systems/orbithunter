@@ -2454,7 +2454,7 @@ class Orbit:
                         )
                         raise ValueError(vestr) from typ
                 # If given a scalar,
-                elif type(val_generator) in [str, int, bool, float, np.int32, np.float]:
+                elif type(val_generator) in [str, int, bool, float, np.int32, np.float64]:
                     val = val_generator
                 else:
                     # Everything else treated as distribution to sample from; integer input selects from range(int)
