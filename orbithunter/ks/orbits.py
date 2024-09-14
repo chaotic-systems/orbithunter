@@ -96,6 +96,20 @@ class OrbitKS(Orbit):
     :class:`orbithunter.core.Orbit`
 
     """
+    def __init__(self, state=None, basis=None, parameters=None, discretization=None, constraints=None, **kwargs):
+        super().__init__(
+            state=state,
+            basis=basis,
+            parameters=parameters,
+            discretization=discretization,
+            constraints=constraints,
+            **kwargs,
+        )
+        # Explicit casting during construction; too hard to generalize to base class
+        # because technically complex types allows (e.g. parameter arrays)
+        if self.parameters:
+            self.parameters = tuple(float(p) for p in self.parameters)
+
 
     def periodic_dimensions(self):
         """
@@ -872,6 +886,7 @@ class OrbitKS(Orbit):
         cbarticks = [-maxval, maxval]
         cbarticklabels = [str(i) for i in np.round(cbarticks, 1)]
 
+        cmap = kwargs.get("cmap", "RdBu")
         figsize = kwargs.get("figsize", default_figsize)
         extentL, extentT = np.min([15, figsize[0]]), np.min([15, figsize[1]])
         scaled_font = np.max([int(np.min([20, np.mean(figsize)])), 10])
@@ -881,7 +896,7 @@ class OrbitKS(Orbit):
         image = ax.imshow(
             plot_orbit.state,
             extent=[0, extentL, 0, extentT],
-            cmap="jet",
+            cmap=cmap,
             interpolation="none",
             aspect="auto",
             vmin=-maxval,

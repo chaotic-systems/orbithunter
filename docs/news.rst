@@ -6,6 +6,10 @@ Orbithunter version releases
 .. toctree::
    :maxdepth: 2
 
+   changelog/changelog-1.2.1
+   changelog/changelog-1.2.0
+   changelog/changelog-1.1.2
+   changelog/changelog-1.0.6
    changelog/changelog-1.0.5
    changelog/changelog-1.0.1
    changelog/changelog-1.0
