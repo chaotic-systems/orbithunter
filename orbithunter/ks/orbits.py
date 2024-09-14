@@ -872,6 +872,7 @@ class OrbitKS(Orbit):
         cbarticks = [-maxval, maxval]
         cbarticklabels = [str(i) for i in np.round(cbarticks, 1)]
 
+        cmap = kwargs.get("cmap", "RdBu")
         figsize = kwargs.get("figsize", default_figsize)
         extentL, extentT = np.min([15, figsize[0]]), np.min([15, figsize[1]])
         scaled_font = np.max([int(np.min([20, np.mean(figsize)])), 10])
@@ -881,7 +882,7 @@ class OrbitKS(Orbit):
         image = ax.imshow(
             plot_orbit.state,
             extent=[0, extentL, 0, extentT],
-            cmap="jet",
+            cmap=cmap,
             interpolation="none",
             aspect="auto",
             vmin=-maxval,

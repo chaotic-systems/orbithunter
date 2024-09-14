@@ -58,13 +58,15 @@ def orbit_persistence(orbit_instance, **kwargs):
     Returns
     -------
     ndarray or list :
-        NumPy or Gudhi format. Numpy format returns an array of shape (N, 3). Gudhi format is a list whose elements
-        are of the form (int, (float, float)).
+        Needs to be consistent with persistence_format kwarg.
     kwargs :
         `min_persistence : float`
         Minimum persistence interval size for returned values.
         `periodic_dimensions : tuple of bool`
         Flags the dimensions of Orbit.state which are periodic.
+        `persistence_format`: str
+         Numpy format returns an array of shape (N, 3). Gudhi format is a list whose elements
+         are of the form (int, (float, float)).
 
     Notes
     -----
