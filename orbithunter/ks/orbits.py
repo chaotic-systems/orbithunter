@@ -96,6 +96,20 @@ class OrbitKS(Orbit):
     :class:`orbithunter.core.Orbit`
 
     """
+    def __init__(self, state=None, basis=None, parameters=None, discretization=None, constraints=None, **kwargs):
+        super().__init__(
+            state=state,
+            basis=basis,
+            parameters=parameters,
+            discretization=discretization,
+            constraints=constraints,
+            **kwargs,
+        )
+        # Explicit casting during construction; too hard to generalize to base class
+        # because technically complex types allows (e.g. parameter arrays)
+        if self.parameters:
+            self.parameters = tuple(float(p) for p in self.parameters)
+
 
     def periodic_dimensions(self):
         """
