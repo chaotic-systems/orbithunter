@@ -96,7 +96,16 @@ class OrbitKS(Orbit):
     :class:`orbithunter.core.Orbit`
 
     """
-    def __init__(self, state=None, basis=None, parameters=None, discretization=None, constraints=None, **kwargs):
+
+    def __init__(
+        self,
+        state=None,
+        basis=None,
+        parameters=None,
+        discretization=None,
+        constraints=None,
+        **kwargs,
+    ):
         super().__init__(
             state=state,
             basis=basis,
@@ -109,7 +118,6 @@ class OrbitKS(Orbit):
         # because technically complex types allows (e.g. parameter arrays)
         if self.parameters:
             self.parameters = tuple(float(p) for p in self.parameters)
-
 
     def periodic_dimensions(self):
         """
@@ -343,14 +351,18 @@ class OrbitKS(Orbit):
         # Not having enough parameters to pop means something is going wrong in your matvec/rmatvec functions typically.
         if self.parameters is not None:
             parameters = tuple(
-                parameters_list.pop(0)
-                if (
-                    not self.constraints.get(each_label, True)
-                    and len(parameters_list) > 0
+                (
+                    parameters_list.pop(0)
+                    if (
+                        not self.constraints.get(each_label, True)
+                        and len(parameters_list) > 0
+                    )
+                    else (
+                        float(constants_list.pop(0))
+                        if len(constants_list) > 0.0
+                        else 0.0
+                    )
                 )
-                else float(constants_list.pop(0))
-                if len(constants_list) > 0.0
-                else 0.0
                 for each_label in self.parameter_labels()
             )
         else:
@@ -870,8 +882,8 @@ class OrbitKS(Orbit):
             xlabels = np.array(["0", str(scaled_L)])
 
         default_figsize = (
-            min([max([0.25, 0.15 * plot_orbit.x ** 0.7]), 16]),
-            min([max([0.25, 0.15 * plot_orbit.t ** 0.7]), 16]),
+            min([max([0.25, 0.15 * plot_orbit.x**0.7]), 16]),
+            min([max([0.25, 0.15 * plot_orbit.t**0.7]), 16]),
         )
 
         # # this allows for local non-zero galilean velocity to be more easily displayed
@@ -886,7 +898,7 @@ class OrbitKS(Orbit):
         cbarticks = [-maxval, maxval]
         cbarticklabels = [str(i) for i in np.round(cbarticks, 1)]
 
-        cmap = kwargs.get("cmap", "RdBu")
+        cmap = kwargs.get("cmap", "twilight_shifted")
         figsize = kwargs.get("figsize", default_figsize)
         extentL, extentT = np.min([15, figsize[0]]), np.min([15, figsize[1]])
         scaled_font = np.max([int(np.min([20, np.mean(figsize)])), 10])
@@ -1271,7 +1283,8 @@ class OrbitKS(Orbit):
             rotated_imag = -sinej * modes_time_real + cosinej * modes_time_imaginary
 
             time_rotated_modes = np.concatenate(
-                (orbit_to_rotate.state[None, 0, :], rotated_real, rotated_imag), axis=0,
+                (orbit_to_rotate.state[None, 0, :], rotated_real, rotated_imag),
+                axis=0,
             )
             return self.__class__(
                 **{**vars(self), "state": time_rotated_modes, "basis": "modes"}
@@ -1565,16 +1578,14 @@ class OrbitKS(Orbit):
                 state=field_orbit.state, basis="field", parameters=self.parameters
             ).transform(to=self.basis)
         # See if the L_2 norm is beneath a threshold value, if so, replace with zeros.
-        elif field_orbit.norm() < field_orbit.size * 10 ** -9:
+        elif field_orbit.norm() < field_orbit.size * 10**-9:
             return EquilibriumOrbitKS(
                 state=np.zeros(self.discretization),
                 basis="field",
                 parameters=self.parameters,
             ).transform(to=self.basis)
 
-        elif (
-            field_orbit.dt().transform(to="field").norm() < field_orbit.size * 10 ** -9
-        ):
+        elif field_orbit.dt().transform(to="field").norm() < field_orbit.size * 10**-9:
             # If there is sufficient evidence that solution is an equilibrium, change its class
             # code = 3
             # store T just in case we want to refer to what the period was before conversion to EquilibriumOrbitKS
@@ -2914,7 +2925,7 @@ class RelativeOrbitKS(OrbitKS):
         from scipy.optimize import fsolve
 
         # If they are close enough to the same point, then shift equals 0
-        if np.linalg.norm(modes_0 - modes_T) <= 10 ** -6:
+        if np.linalg.norm(modes_0 - modes_T) <= 10**-6:
             shift = self.x / spatial_modes.shape[1]
         else:
             # Get guess shift from the angle between the vectors
@@ -2973,7 +2984,7 @@ class RelativeOrbitKS(OrbitKS):
         field_orbit = orbit_.transform(to="field")
 
         # See if the L_2 norm is beneath a threshold value, if so, replace with zeros.
-        if field_orbit.norm() < 10 ** -5 or self.t == 0:
+        if field_orbit.norm() < 10**-5 or self.t == 0:
             return RelativeEquilibriumOrbitKS(
                 state=np.zeros(self.discretization),
                 basis="field",
@@ -2986,7 +2997,7 @@ class RelativeOrbitKS(OrbitKS):
             return EquilibriumOrbitKS(
                 state=field_orbit.state, basis="field", parameters=self.parameters
             ).transform(to=self.basis)
-        elif field_orbit.dt().transform(to="field").norm() < 10 ** -5:
+        elif field_orbit.dt().transform(to="field").norm() < 10**-5:
             # If there is sufficient evidence that solution is an equilibrium, change its class
             return RelativeEquilibriumOrbitKS(
                 state=self.transform(to="modes").state,
@@ -4246,7 +4257,7 @@ class EquilibriumOrbitKS(AntisymmetricOrbitKS):
         field_orbit = self.transform(to="field")
 
         # See if the L_2 norm is beneath a threshold value, if so, replace with zeros.
-        if field_orbit.norm() < 10 ** -5:
+        if field_orbit.norm() < 10**-5:
             return self.__class__(
                 **{
                     **vars(self),
@@ -4711,7 +4722,7 @@ class RelativeEquilibriumOrbitKS(RelativeOrbitKS):
         # Take the L_2 norm of the field, if uniformly close to zero, the magnitude will be very small.
         field_orbit = orbit_.transform(to="field")
         zero_check = field_orbit.norm()
-        if zero_check < 10 ** -5:
+        if zero_check < 10**-5:
             return RelativeEquilibriumOrbitKS(
                 **{
                     **vars(self),

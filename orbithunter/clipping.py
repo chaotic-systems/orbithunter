@@ -5,7 +5,7 @@ __all__ = ["clip", "clipping_mask"]
 
 
 def clip(orbit_instance, window_dimensions, **kwargs):
-    """ Create Orbit instance whose state array is a subdomain of the provided Orbit.
+    """Create Orbit instance whose state array is a subdomain of the provided Orbit.
 
     Parameters
     ----------

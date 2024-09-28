@@ -137,7 +137,11 @@ def test_optimize_sparse_linalg(fixed_test_orbit_data):
     ]
     for m in methods:
         result = orb.hunt(
-            fixed_test_orbit_data, methods=m, tol=1e-3, min_step=0, maxiter=10,
+            fixed_test_orbit_data,
+            methods=m,
+            tol=1e-3,
+            min_step=0,
+            maxiter=10,
         )
         assert result.orbit.cost() < 1e-3
     return None
@@ -220,7 +224,10 @@ class DummyOrbit(orb.Orbit):
     def eqn(self, **kwargs):
         # x^2 - n = 0 for n in [0, dim-1]
         return self.__class__(
-            **{**vars(self), "state": (self.state ** 2 - np.arange(self.state.size)),}
+            **{
+                **vars(self),
+                "state": (self.state**2 - np.arange(self.state.size)),
+            }
         )
 
     def matvec(self, other, **kwargs):

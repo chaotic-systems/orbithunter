@@ -13,7 +13,7 @@ data_path = here / "test_data.h5"
 
 @pytest.fixture()
 def fixed_orbit_data():
-    """ Fixed test data to be used to initialize orbits"""
+    """Fixed test data to be used to initialize orbits"""
     # Originally populated from
     # np.random.seed(1)
     # np.random.randn(2,2,2,2).round(7)
@@ -34,7 +34,7 @@ def fixed_orbit_data():
 
 @pytest.fixture()
 def fixed_kwarg_dict():
-    """ Passed to class methods to see if they breakdown upon unrecognized keyword arguments """
+    """Passed to class methods to see if they breakdown upon unrecognized keyword arguments"""
     return {
         "aint": "nothin",
         "gonna": "break",
@@ -49,7 +49,7 @@ def fixed_kwarg_dict():
 
 
 def test_create_orbit(fixed_orbit_data):
-    """ Test initialization of an Orbit instance """
+    """Test initialization of an Orbit instance"""
     return orb.Orbit(
         state=fixed_orbit_data, basis="physical", parameters=(10, 10, 10, 10)
     )
@@ -80,7 +80,7 @@ def test_binary_operations(fixed_orbit_data):
     )
     assert (orbit_ + orbit_).state.sum() == 2 * orbit_.state.sum()
     assert (orbit_ - orbit_).state.sum() == 0
-    assert np.array_equal((orbit_ * orbit_).state, (orbit_ ** 2).state)
+    assert np.array_equal((orbit_ * orbit_).state, (orbit_**2).state)
     assert (orbit_ / 2).state.sum() == (orbit_.state / 2).sum()
     assert (orbit_ // 5).state.sum() == -10.0
 
@@ -121,7 +121,7 @@ def test_getitem(fixed_orbit_data):
 
 
 def test_populate():
-    """ Initialization in cases where generated information is desired. Occurs in-place"""
+    """Initialization in cases where generated information is desired. Occurs in-place"""
     z = orb.Orbit()
     x = z.populate(attr="parameters")
     for p, op in zip(x.parameters, z.parameters):
@@ -150,8 +150,9 @@ def test_repr_serialization():
     x = orb.Orbit(parameters=(np.int32(5), np.int32(5)))
     y = repr(x)
 
+
 def test_parameter_population():
-    """ Test the parsing and population of parameters with or without user specified parameter ranges."""
+    """Test the parsing and population of parameters with or without user specified parameter ranges."""
     choice_list_possible_confused_with_interval = ["am I an", "interval?"]
     choice_list = ["this", "is", "the", "way", "to", "select"]
     parameter_ranges = {
@@ -215,7 +216,7 @@ def test_overwriting():
 
 
 def test_matrix_methods(fixed_orbit_data):
-    """ Numerical methods required for matrix-constructing optimization"""
+    """Numerical methods required for matrix-constructing optimization"""
     orbit_ = orb.Orbit(
         state=fixed_orbit_data, basis="physical", parameters=(10, 10, 10, 10)
     )
@@ -250,7 +251,7 @@ def test_from_numpy(fixed_orbit_data):
 
 
 def test_matrix_free_methods(fixed_orbit_data, fixed_kwarg_dict):
-    """ Numerical methods required for matrix-free optimization"""
+    """Numerical methods required for matrix-free optimization"""
     orbit_ = orb.Orbit(
         state=fixed_orbit_data, basis="physical", parameters=(10, 10, 10, 10)
     )
@@ -271,7 +272,7 @@ def test_matrix_free_methods(fixed_orbit_data, fixed_kwarg_dict):
 
 
 def test_properties(fixed_orbit_data):
-    """ Call all properties to check if they are defined. """
+    """Call all properties to check if they are defined."""
     orbit_ = orb.Orbit(state=fixed_orbit_data, basis="physical")
     _ = orbit_.shape
     _ = orbit_.size
@@ -285,7 +286,7 @@ def test_properties(fixed_orbit_data):
 
 
 def test_rediscretization(fixed_orbit_data):
-    """ Check the reversibility of padding and truncation"""
+    """Check the reversibility of padding and truncation"""
     orbit_ = orb.Orbit(state=fixed_orbit_data, basis="physical")
     enlarged = orbit_.resize(16, 16, 16, 16)
     shrank = enlarged.resize(orbit_.discretization)
@@ -293,7 +294,7 @@ def test_rediscretization(fixed_orbit_data):
 
 
 def test_glue_dimensions(fixed_orbit_data):
-    """ Test the manner by which new parameter values are generated for gluings"""
+    """Test the manner by which new parameter values are generated for gluings"""
     x = orb.Orbit(state=fixed_orbit_data, basis="physical", parameters=(2, 2, 3, 4))
     y = orb.Orbit(state=fixed_orbit_data, basis="physical", parameters=(10, 0, 0, -4))
     dimension_tuples = tuple(zip(x.parameters, y.parameters))
@@ -312,7 +313,7 @@ def test_glue_dimensions(fixed_orbit_data):
 
 
 def test_symmetry(fixed_orbit_data):
-    """ Test symmetry operations such as discrete rotations and reflections"""
+    """Test symmetry operations such as discrete rotations and reflections"""
     x = orb.Orbit(state=fixed_orbit_data, basis="physical", parameters=(2, 2, 3, 4))
     y = orb.Orbit(state=fixed_orbit_data, basis="physical", parameters=(10, 0, 0, -4))
     z = x.roll(1, axis=(0, 1, 2, 3))
@@ -451,7 +452,7 @@ def fixed_eqn_norm_dict():
 
 @pytest.fixture()
 def fixed_spt_projection_space_derivative_norms():
-    """ Norms for first four spatial derivatives and the first temporal derivative for each class
+    """Norms for first four spatial derivatives and the first temporal derivative for each class
 
     Returns
     -------
@@ -475,7 +476,7 @@ def fixed_spt_projection_space_derivative_norms():
 
 @pytest.fixture()
 def fixed_space_projection_space_derivative_norms():
-    """ Norms for first four spatial derivatives and the first temporal derivative for each class
+    """Norms for first four spatial derivatives and the first temporal derivative for each class
 
     Returns
     -------
@@ -499,7 +500,7 @@ def fixed_space_projection_space_derivative_norms():
 
 @pytest.fixture()
 def fixed_spt_projection_spt_derivative_norms():
-    """ Norms for first four spatial derivatives and the first temporal derivative for each class
+    """Norms for first four spatial derivatives and the first temporal derivative for each class
 
     Returns
     -------
@@ -557,7 +558,7 @@ def jacobian_abssums():
 
 
 def instance_generator(fixed_OrbitKS_data, kse_classes, fixed_ks_parameters):
-    for (name, cls) in kse_classes.items():
+    for name, cls in kse_classes.items():
         yield cls(
             state=fixed_OrbitKS_data, basis="field", parameters=fixed_ks_parameters
         )
@@ -656,7 +657,7 @@ def test_transforms(
     fixed_data_transform_norms_dict,
     fixed_ks_parameters,
 ):
-    """ Testing the transforms by comparing norms
+    """Testing the transforms by comparing norms
 
     Returns
     -------
@@ -669,7 +670,7 @@ def test_transforms(
     (can norm change?)       --> yes --> yes --> no --> no
 
     """
-    for (name, cls) in kse_classes.items():
+    for name, cls in kse_classes.items():
         orbit_in_field_basis = cls(state=fixed_OrbitKS_data, basis="field")
         orbit_in_spatial_mode_basis = orbit_in_field_basis.transform(to="spatial_modes")
         orbit_in_mode_basis = orbit_in_spatial_mode_basis.transform(to="modes")
@@ -708,7 +709,7 @@ def test_instantiation(kse_classes):
     -------
 
     """
-    for (name, cls) in kse_classes.items():
+    for name, cls in kse_classes.items():
         with pytest.raises(ValueError):
             _ = orb.Orbit(state=np.ones(cls.minimal_shape()))
         _ = cls(parameters=(100, 100, 0))
@@ -728,7 +729,9 @@ def test_jacobian(
     """
     for jacsum, (name, cls) in zip(jacobian_abssums, kse_classes.items()):
         orbit_ = cls(
-            state=fixed_OrbitKS_data, basis="field", parameters=fixed_ks_parameters[0],
+            state=fixed_OrbitKS_data,
+            basis="field",
+            parameters=fixed_ks_parameters[0],
         ).transform(to="modes")
         # The jacobians have all other matrices within them; just use this as a proxy to test.
         jac_ = orbit_.jacobian()
