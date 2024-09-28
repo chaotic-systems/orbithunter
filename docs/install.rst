@@ -61,7 +61,7 @@ after it has been turned off, run the command::
 Installation via pip
 --------------------
 
-orbithunter requires Python 3.7, 3.8, or 3.9.  If you do not already
+orbithunter requires Python >=3.11 If you do not already
 have a Python environment configured on your computer, please see the
 instructions for installing the full `scientific Python stack
 <https://scipy.org/install.html>`_.
