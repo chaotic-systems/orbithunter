@@ -315,9 +315,9 @@ class Orbit:
 
         """
         if issubclass(type(other), Orbit):
-            result = self.state ** other.state
+            result = self.state**other.state
         else:
-            result = self.state ** other
+            result = self.state**other
         return self.__class__(**{**vars(self), "state": result})
 
     def __mod__(self, other):
@@ -471,7 +471,8 @@ class Orbit:
             # parameters should be an iterable
             try:
                 pretty_params = tuple(
-                    round(float(x), 3) if not isinstance(x, str) else x for x in self.parameters
+                    round(float(x), 3) if not isinstance(x, str) else x
+                    for x in self.parameters
                 )
             except TypeError:
                 pretty_params = self.parameters
@@ -627,11 +628,11 @@ class Orbit:
                 # need to make sure the new dimensions are in the correct positions with respect to the parameter
                 # labels.
                 new_dimensions = [
-                    dim * (newsize / oldsize)
-                    if newsize > 1 and continuous
-                    else 0.0
-                    if continuous
-                    else newsize
+                    (
+                        dim * (newsize / oldsize)
+                        if newsize > 1 and continuous
+                        else 0.0 if continuous else newsize
+                    )
                     # If any axes are flattened by the slicing then
                     for dim, newsize, oldsize, continuous in zip(
                         self.dimensions(),
@@ -856,7 +857,7 @@ class Orbit:
 
     def abs(self):
         """
-    Orbit instance with absolute value of state.
+        Orbit instance with absolute value of state.
         """
         return self.__class__(**{**vars(self), "state": np.abs(self.state)})
 
@@ -1323,11 +1324,11 @@ class Orbit:
 
         elif self.parameters is not None:
             new_dimensions = [
-                dim * (newsize / oldsize)
-                if newsize > 1 and continuous
-                else 0.0
-                if continuous
-                else newsize
+                (
+                    dim * (newsize / oldsize)
+                    if newsize > 1 and continuous
+                    else 0.0 if continuous else newsize
+                )
                 # If any axes are flattened by the slicing then
                 for dim, newsize, oldsize, continuous in zip(
                     self.dimensions(),
@@ -1338,11 +1339,11 @@ class Orbit:
             ]
         elif other.parameters is not None:
             new_dimensions = [
-                dim * (newsize / oldsize)
-                if newsize > 1 and continuous
-                else 0.0
-                if continuous
-                else newsize
+                (
+                    dim * (newsize / oldsize)
+                    if newsize > 1 and continuous
+                    else 0.0 if continuous else newsize
+                )
                 # If any axes are flattened by the slicing then
                 for dim, newsize, oldsize, continuous in zip(
                     self.dimensions(),
@@ -1524,7 +1525,11 @@ class Orbit:
         """
         params = self._rmatvec_parameters(other)
         return self.__class__(
-            **{**vars(self), "state": np.zeros(self.shape), "parameters": params,}
+            **{
+                **vars(self),
+                "state": np.zeros(self.shape),
+                "parameters": params,
+            }
         )
 
     def _rmatvec_parameters(self, other):
@@ -1731,14 +1736,14 @@ class Orbit:
         # Not having enough parameters to pop means something is going wrong in your matvec/rmatvec functions typically.
         if self.parameters is not None:
             parameters = tuple(
-                parameters_list.pop(0)
-                if (
-                    not self.constraints.get(each_label, True)
-                    and len(parameters_list) > 0
+                (
+                    parameters_list.pop(0)
+                    if (
+                        not self.constraints.get(each_label, True)
+                        and len(parameters_list) > 0
+                    )
+                    else constants_list.pop(0) if len(constants_list) > 0.0 else 0.0
                 )
-                else constants_list.pop(0)
-                if len(constants_list) > 0.0
-                else 0.0
                 for each_label in self.parameter_labels()
             )
         else:
@@ -2056,7 +2061,7 @@ class Orbit:
         """
         Return an instance with copies of copy-able attributes.
 
-         """
+        """
         return self.__class__(
             **{k: v.copy() if hasattr(v, "copy") else v for k, v in vars(self).items()}
         )
@@ -2392,9 +2397,11 @@ class Orbit:
         """
         # Get the constraints, making sure to not mistakenly unconstrain constants.
         self.constraints = {
-            k: kwargs.get("constraints", self._default_constraints()).get(k, True)
-            if k in self._default_constraints().keys()
-            else True
+            k: (
+                kwargs.get("constraints", self._default_constraints()).get(k, True)
+                if k in self._default_constraints().keys()
+                else True
+            )
             for k in self.parameter_labels()
         }
         if parameters is None:
@@ -2435,6 +2442,7 @@ class Orbit:
                 keys are parameter_labels, values are uniform sampling intervals or iterables to sample from
 
         """
+
         # helper function so comprehension can be used later on; each orbit type typically has a default
         # range of good parameters; however, it is also often the case that using a user-defined range is desired
         # in order to target specific scales.
@@ -2454,7 +2462,14 @@ class Orbit:
                         )
                         raise ValueError(vestr) from typ
                 # If given a scalar,
-                elif type(val_generator) in [str, int, bool, float, np.int32, np.float64]:
+                elif type(val_generator) in [
+                    str,
+                    int,
+                    bool,
+                    float,
+                    np.int32,
+                    np.float64,
+                ]:
                     val = val_generator
                 else:
                     # Everything else treated as distribution to sample from; integer input selects from range(int)

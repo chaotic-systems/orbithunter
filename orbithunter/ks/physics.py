@@ -1,6 +1,7 @@
 from math import pi
 import numpy as np
 import warnings
+import tqdm
 
 __all__ = ["integrate", "dissipation", "energy", "energy_variation", "power"]
 
@@ -179,7 +180,7 @@ def integrate(orbit_, **kwargs):
     q = (2 * pi * m / x) * rfftfreq(m)[1:-1].reshape(1, -1)
     q = np.concatenate((q, q))
     # Because N = 1, this is just the spatial matrices, negative sign b.c. other side of equation.
-    lin_diag = (q ** 2 - q ** 4).reshape(-1, 1)
+    lin_diag = (q**2 - q**4).reshape(-1, 1)
 
     E = np.exp(step_size * lin_diag)
     E2 = np.exp(step_size * lin_diag / 2.0)
@@ -195,13 +196,13 @@ def integrate(orbit_, **kwargs):
     )
     Q = step_size * np.real(np.mean((np.exp(LR / 2.0) - 1.0) / LR, axis=1))
     f1 = step_size * np.real(
-        np.mean((-4.0 - LR + np.exp(LR) * (4.0 - 3.0 * LR + LR ** 2)) / LR ** 3, axis=1)
+        np.mean((-4.0 - LR + np.exp(LR) * (4.0 - 3.0 * LR + LR**2)) / LR**3, axis=1)
     )
     f2 = step_size * np.real(
-        np.mean((2.0 + LR + np.exp(LR) * (-2.0 + LR)) / LR ** 3, axis=1)
+        np.mean((2.0 + LR + np.exp(LR) * (-2.0 + LR)) / LR**3, axis=1)
     )
     f3 = step_size * np.real(
-        np.mean((-4.0 - 3.0 * LR - LR ** 2 + np.exp(LR) * (4.0 - LR)) / LR ** 3, axis=1)
+        np.mean((-4.0 - 3.0 * LR - LR**2 + np.exp(LR) * (4.0 - LR)) / LR**3, axis=1)
     )
 
     Q = Q.reshape(1, -1)
@@ -225,7 +226,7 @@ def integrate(orbit_, **kwargs):
         print("Integration progress [", end="")
     if kwargs.get("return_trajectory", True):
         u = np.zeros([nmax, orbit_t.shapes()[0][1]])
-    for step in range(1, nmax + 1):
+    for step in tqdm.tqdm(range(1, nmax + 1), ncols=100, position=0, leave=True):
         Nv = -0.5 * (v.transform(to="field") ** 2).dx(
             computation_basis="spatial_modes", return_basis="spatial_modes"
         )

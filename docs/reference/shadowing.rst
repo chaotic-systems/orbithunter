@@ -1,4 +1,4 @@
 Shadowing 
 ---------
 
-.. autofunction:: orbithunter.shadowing.cover
+.. autofunction:: orbithunter.shadowing.OrbitCovering

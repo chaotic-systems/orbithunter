@@ -365,7 +365,7 @@ def rediscretize_tileset(tiling_dictionary, new_shape=None, **kwargs):
         resized to this shape.
     kwargs : dict
         Keyword arguments for :meth:`Orbit.dimension_based_discretization` method
-        
+
     Returns
     -------
     dict :
@@ -407,8 +407,8 @@ def pairwise_group_orbit(orbit_pair, **kwargs):
     Yields
     ------
     tuple :
-        Pairs of Orbits 
-    
+        Pairs of Orbits
+
     Notes
     -----
     Group orbits are the sets of Orbits resulting from applying a group of equivariant symmetry operations to an Orbit.
@@ -424,7 +424,7 @@ def pairwise_group_orbit(orbit_pair, **kwargs):
 def expensive_pairwise_glue(orbit_pair, objective="cost", axis=0, **kwargs):
     """
     Gluing that searches pairs of group orbit members for the best combination.
-    
+
     Parameters
     ----------
     orbit_pair : np.ndarray
@@ -441,7 +441,7 @@ def expensive_pairwise_glue(orbit_pair, objective="cost", axis=0, **kwargs):
     -------
     best_glued_orbit_so_far : Orbit
         The orbit combination in the pairwise group orbit that had the smallest objective function value.
-    
+
     Notes
     -----
     Expensive gluing only supported for pairs of Orbits. For larger arrays of orbits, apply this function in
