@@ -10,7 +10,7 @@ __all__ = ["continuation", "discretization_continuation", "span_family"]
 def _equals_target(orbit_instance, target_extent, parameter_label):
     """
     Helper function that checks if the target has been reached, approximately.
-    
+
     """
     # For the sake of floating point error, round to 13 decimals.
     return np.round(getattr(orbit_instance, parameter_label), 13) == np.round(
@@ -21,7 +21,7 @@ def _equals_target(orbit_instance, target_extent, parameter_label):
 def _increment_parameter(orbit_instance, target_extent, increment, parameter_label):
     """
     Increment an Orbit's constrained parameter by a fixed amount, bounded by target value.
-    
+
     Parameters
     ----------
     orbit_instance : Orbit
@@ -135,7 +135,7 @@ def continuation(
 
 
 def _increment_discretization(orbit_instance, target_size, increment, axis=0):
-    """ Increment the discretization of an Orbit for discretization continuation.
+    """Increment the discretization of an Orbit for discretization continuation.
 
     Parameters
     ----------
@@ -301,8 +301,8 @@ def span_family(orbit_instance, **kwargs):
     is too much to allow in a single function call. To span the entire family, run this function on
     various members of the family, possibly those populated by a previous function call. In that instance, using
     same filename between runs is beneficial.
-    
-    How naming conventions work: family name is the filename. Each branch is a group or subgroup, depending on 
+
+    How naming conventions work: family name is the filename. Each branch is a group or subgroup, depending on
     root only. If root_only=False then this behaves recursively and can get incredibly large. Use at your own risk.
 
     """
