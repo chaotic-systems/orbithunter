@@ -222,8 +222,7 @@ def integrate(orbit_, **kwargs):
     u = orbit_t.transform(to="field").state
     v = orbit_t.transform(to="spatial_modes")
     nmax = int(integration_time / step_size)
-    if verbose:
-        print("Integration progress [", end="")
+
     if kwargs.get("return_trajectory", True):
         u = np.zeros([nmax, orbit_t.shapes()[0][1]])
     for step in tqdm.tqdm(range(1, nmax + 1), ncols=100, position=0, leave=True):
@@ -250,10 +249,7 @@ def integrate(orbit_, **kwargs):
             u[-step, :] = v.transform(to="field").state.ravel()
         else:
             u = v.transform(to="field").state
-        if not np.mod(step, nmax // 25) and verbose:
-            print("#", end="")
-    if verbose:
-        print("]", end="")
+
     # By default do not assign spatial shift S.
     if kwargs.get("return_trajectory", True):
         int_orbit = orbit_.__class__(
