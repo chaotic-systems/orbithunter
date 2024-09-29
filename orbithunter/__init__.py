@@ -30,4 +30,4 @@ __all__ += ["continuation", "discretization_continuation", "span_family"]
 __all__ += ["scoring_functions", "OrbitCovering"]
 __all__ += ["convert_class", "Orbit"]
 
-__version__ = "1.3.1"
+__version__ = "1.3.2"
