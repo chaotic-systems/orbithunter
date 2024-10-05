@@ -81,7 +81,9 @@ class OrbitCovering:
         return self.__class__.__name__
 
     def __repr__(self):
-        dict_ = {"base shape": self.reference_orbit.shape, "windows": len(self.windows)}
+        dict_ = {"base shape": self.reference_orbit.shape,
+                 "scores_shape": self.scores.shape,
+                 "windows": len(self.windows)}
         # convert the dictionary to a string via json.dumps
         dictstr = dumps(dict_)
         return self.__class__.__name__ + "(" + dictstr + ")"
@@ -213,13 +215,7 @@ class OrbitCovering:
             raise ValueError("Pivot mask must be same shape are padded orbit array.")
 
         # By selecting all windows
-        for index, window_shape in tqdm.tqdm(
-            enumerate(self.unique_window_shapes),
-            desc="Scoring windows, one iteration per unique discretization shape",
-            ncols=100,
-            position=0,
-            leave=True,
-        ):
+        for index, window_shape in enumerate(self.unique_window_shapes):
             where_this_shape = tuple(
                 i
                 for i, shape in enumerate(self.all_window_shapes)
@@ -252,7 +248,12 @@ class OrbitCovering:
             window_oob_pivots = []
             # break
 
-            for i, each_pivot in enumerate(ordered_pivots):
+            for i, each_pivot in tqdm.tqdm(enumerate(ordered_pivots),
+                                            desc=f"Scoring pivots for windows of size {window_shape}",
+                                            ncols=100,
+                                            position=0,
+                                            leave=True,
+                                        ):
                 each_pivot = tuple(each_pivot)
                 score_mask_slicer = (np.array(where_this_shape), *each_pivot)
 
@@ -290,7 +291,7 @@ class OrbitCovering:
         self.oob_pivots = oob_pivots
         return self
 
-    def trim(self, remove_hull_only=True, min_overlap=1):
+    def trim(self, remove_hull_only=False, min_overlap=1):
         """
         Remove all unscored pivots (i.e. padding) from the score arrays. This does NOT necessarily
         have the same shape as the reference orbit as it depends on min_overlap and periodicity
@@ -299,7 +300,7 @@ class OrbitCovering:
 
         assert self.scores is not None, "Cannot trim an empty set of scores."
 
-        if not remove_hull_only:
+        if remove_hull_only:
             trimmed_scores = self.scores[
                 (
                     slice(None),
@@ -336,7 +337,7 @@ class OrbitCovering:
         )
 
     def map(
-        self, filtered=True, min_overlap=1, coordinate_map=None, trim=False, n_cores=1
+        self, min_overlap=1, coordinate_map=None, n_cores=1
     ):
         """
         Return the cumulative minimum at each space-time lattice site when mapping
@@ -363,9 +364,6 @@ class OrbitCovering:
         via joblib instead.
 
         """
-        # Only have to iterate once per unique discretization shape, take advantage of this.
-        all_window_shapes = self.all_window_shapes
-        unique_window_shapes = self.unique_window_shapes
 
         if (
             int(
@@ -461,11 +459,7 @@ class OrbitCovering:
                 "periodicity": self.periodicity,
             }
         )
-        if trim:
-            trimmed_scores = mapped_orbit_covering.trim()
-            return trimmed_scores
-        else:
-            return mapped_orbit_covering
+        return mapped_orbit_covering
 
     def minimal_covering_set(self, cover_threshold=0.99):
         """

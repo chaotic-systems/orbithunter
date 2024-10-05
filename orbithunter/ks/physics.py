@@ -25,24 +25,24 @@ def _averaging_wrapper(instance_with_state_to_average, average="spacetime"):
     if average == "space":
         return (
             1.0 / instance_with_state_to_average.x
-        ) * instance_with_state_to_average.state.mean(axis=1)
+        ) * instance_with_state_to_average.state.sum(axis=1)
     elif average == "time":
         return (
             1.0 / instance_with_state_to_average.t
-        ) * instance_with_state_to_average.state.mean(axis=0)
+        ) * instance_with_state_to_average.state.sum(axis=0)
     elif average == "spacetime":
         # numpy average is over flattened array by default
         return (
             (1.0 / instance_with_state_to_average.t)
             * (1.0 / instance_with_state_to_average.x)
-            * instance_with_state_to_average.state.mean()
+            * instance_with_state_to_average.state.sum()
         )
     elif average == "discrete_spacetime":
         # numpy average is over flattened array by default
         return (
             (1.0 / instance_with_state_to_average.n)
             * (1.0 / instance_with_state_to_average.m)
-            * instance_with_state_to_average.state.mean()
+            * instance_with_state_to_average.state.sum()
         )
     else:
         return instance_with_state_to_average.state
@@ -164,7 +164,6 @@ def integrate(orbit_, **kwargs):
     warnings.simplefilter(action="ignore", category=RuntimeWarning)
     from scipy.fft import rfftfreq
 
-    verbose = kwargs.get("verbose", False)
     orbit_ = orbit_.transform(to="spatial_modes")
     integration_time = kwargs.get("integration_time", orbit_.t)
     start_point = kwargs.get("starting_point", -1)
