@@ -1,6 +1,6 @@
 # [orbithunter](https://github.com/mgudorf/orbithunter/)  : Framework for Nonlinear Dynamics and Chaos
 
-orbithunter 1.3.2
+orbithunter 1.3.3
 =================
 
 Orbithunter serves as a framework for solving chaotic nonlinear partial differential equations.

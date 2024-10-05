@@ -300,7 +300,7 @@ class OrbitCovering:
 
         assert self.scores is not None, "Cannot trim an empty set of scores."
 
-        if not remove_hull_only:
+        if remove_hull_only:
             trimmed_scores = self.scores[
                 (
                     slice(None),
