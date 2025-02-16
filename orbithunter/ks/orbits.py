@@ -875,7 +875,7 @@ class OrbitKS(Orbit):
             xmult = (plot_orbit.x // 64) + 1
             xscale = xmult * 2 * pi * np.sqrt(2)
             xticks = np.arange(0, plot_orbit.x, xscale)
-            xlabels = [str(int((xmult * x) // xscale)) for x in xticks]
+            xlabels = [str(round((xmult * x) / xscale)) for x in xticks]
         else:
             scaled_L = np.round(plot_orbit.x / (2 * pi * np.sqrt(2)), 1)
             xticks = np.array([0, plot_orbit.x])

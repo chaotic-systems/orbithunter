@@ -291,7 +291,7 @@ class OrbitCovering:
         self.oob_pivots = oob_pivots
         return self
 
-    def trim(self, remove_hull_only=False, min_overlap=1):
+    def trim(self, remove_hull_only=True, min_overlap=1):
         """
         Remove all unscored pivots (i.e. padding) from the score arrays. This does NOT necessarily
         have the same shape as the reference orbit as it depends on min_overlap and periodicity
@@ -378,14 +378,13 @@ class OrbitCovering:
                             Mapping scores which have not had thresholds applied can take a long time due to having to map
                             every single pivot back into spacetime. If you are going to threshold the scores afterwards
                             anyway, it is highly recommended to apply thresholding BEFORE mapping. If scores have had
-                            thresholds applied then pass keyword argument filtered=True to ignore this message."""
+                            thresholds applied then ignore this message."""
             )
 
         # The bases orbit periodicity has to do with scoring and whether or not to wrap windows around.
         def _joblib_wrapper(
             single_window,
             single_window_scores,
-            padded_orbit_shape,
             reference_orbit_shape,
             hull,
             core,
@@ -398,7 +397,7 @@ class OrbitCovering:
             window_grid = np.indices(window_shape)
 
             ordered_pivots = pivot_iterator(
-                padded_orbit_shape,
+                single_window_scores.shape,
                 reference_orbit_shape,
                 hull,
                 core,
@@ -431,7 +430,6 @@ class OrbitCovering:
                 delayed(_joblib_wrapper)(
                     window,
                     self.scores[index],
-                    self.padded_orbit.shape,
                     self.reference_orbit.shape,
                     self.hull,
                     self.core,
