@@ -2,7 +2,6 @@
 *.pdf
 *.eps
 *.png
-*.h5
 *.sql
 *.zip
 *.gz
